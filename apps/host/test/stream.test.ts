@@ -311,12 +311,44 @@ describe("the stream's tab cap and the snapshot's own failures (round 26)", () =
     }
   });
 
-  it("a snapshot that fails for a reason of the host's own (a remembered slug no allow-list takes) says snapshot_failed, never loops_down (review F8)", async () => {
-    const stub = await createLoopsStub({ ...installation() });
+  it("a project.archived event whose slug is no path segment is not remembered as archived, and the next snapshot still assembles (round 34)", async () => {
+    const stub = await createLoopsStub({ ...installation(), events: [envelope(1, "ticket.created")] });
     const lines: string[] = [];
-    // A store that hands back a slug the file's own filter would have dropped: what an older file, or a bug, could do.
-    const archiveStore = { file: "(memory)", read: () => ({ slugs: ["a/b"], at: "2026-10-22T00:00:00Z" }), save: () => undefined };
+    // The memory road too: a store handing back a slug the file's own filter would have dropped (an older file, a bug).
+    const archiveStore = { file: "(memory)", read: () => ({ slugs: ["c/d"], at: "2026-10-22T00:00:00Z" }), save: () => undefined };
     const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, archiveStore, log: (line) => lines.push(line) });
+    try {
+      const a = await openSse(`${host.url}/world-api/stream?cursor=1`);
+      try {
+        await a.next(isStatus("ok"));
+        // Slugs that are no segment (a slash, a space, empty, too long) and one that is: only the last may reach a read.
+        for (const slug of ["a/b", "x y", "", "s".repeat(129)]) stub.emit({ ...anEvent("project.archived"), project: { slug, key: "ZZ" } });
+        stub.emit({ ...anEvent("project.archived"), project: { slug: "old", key: "OLD" } });
+        await a.next(isEvent(6));
+        const r = await fetch(`${host.url}/world-api/snapshot`);
+        const text = await r.text();
+        assert.equal(r.status, 200, text);
+        const body = JSON.parse(text) as { archivedProjects: { slug: string }[] };
+        assert.deepEqual(body.archivedProjects.map((p) => p.slug), ["old"], "the one real slug was read and confirmed archived");
+        assert.ok(!stub.requests.some((r) => /\/api\/projects\/(a%2Fb|c%2Fd|x%20y|s{129})/.test(r.path)), "no read of a slug that is no segment, remembered or streamed");
+        assert.equal(lines.filter((l) => /snapshot failed/.test(l)).length, 0, lines.filter((l) => /snapshot/.test(l)).join(" | "));
+      } finally {
+        a.close();
+      }
+    } finally {
+      await host.close();
+      await stub.close();
+    }
+  });
+
+  it("a snapshot that fails for a reason of the host's own (a project loops lists under a slug no allow-list takes) says snapshot_failed, never loops_down (review F8)", async () => {
+    // Round 34: a remembered or streamed slug that is no segment is skipped before any read (the test above), so the
+    // host's own failure is provoked here by loops' list itself naming a project the allow-list cannot read.
+    const routes = installation().routes;
+    const listed = routes["/api/projects"] as (url: URL) => { status: number; body: { projects: { slug: string }[] } };
+    const stub = await createLoopsStub({ ...installation(), routes: { ...routes, "/api/projects": (url: URL) => { const answer = listed(url); return answer.status === 200 ? { status: 200, body: { projects: [...answer.body.projects, { ...answer.body.projects[0], id: "pr_odd", slug: "a/b", key: "AB", name: "odd" }] } } : answer; } } });
+    const lines: string[] = [];
+    const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, log: (line) => lines.push(line) });
     try {
       await waitFor("the stream", async () => ((await (await fetch(`${host.url}/world-api/health`)).json()) as { loops: string }).loops === "ok");
       const r = await fetch(`${host.url}/world-api/snapshot`);

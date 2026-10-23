@@ -144,16 +144,19 @@ export function matchWorldRoute(pathname: string, search: URLSearchParams): Worl
 
 /**
  * Builds a loops URL the host may call, or throws: the one gate every upstream read goes through.
- * `query` entries not on the route's list are dropped.
+ * `query` entries not on the route's list are dropped. The path sent is the normalised one the list matched
+ * (its segments, re-joined and encoded): a doubled or trailing slash is not passed on as it came (round 34).
  */
 export function allowedLoopsPath(path: string, query: Record<string, string> = {}): string {
-  const read = LOOPS_READS.find((r) => matchPattern(r.pattern, path) !== null);
-  if (read === undefined) throw new Error(`loops path not on the allow-list: ${path}`);
+  const parts = segments(path);
+  const read = parts === null ? undefined : LOOPS_READS.find((r) => matchPattern(r.pattern, path) !== null);
+  if (read === undefined || parts === null) throw new Error(`loops path not on the allow-list: ${path}`);
   const search = new URLSearchParams();
   for (const name of read.query) {
     const value = query[name];
     if (value !== undefined) search.set(name, value);
   }
   const qs = search.toString();
-  return qs === "" ? path : `${path}?${qs}`;
+  const canonical = `/${parts.map(encodeURIComponent).join("/")}`;
+  return qs === "" ? canonical : `${canonical}?${qs}`;
 }
