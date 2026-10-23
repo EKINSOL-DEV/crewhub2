@@ -135,7 +135,7 @@ smooth connection" below):
 | `CREWHUB_WORLD_LOOPS_SOCKET` | none | Read loops over its Unix socket instead of TCP (the same allow-list, headers, stream and timeouts; `Host: 127.0.0.1`). The path must exist and be a socket when the host starts, else a clear error; `~/` is the home folder. **Explicit only: the host never guesses a socket outside the app's data folder.** `--loops-socket <path>` on the command line is the same and wins. Setting both the URL and the socket is a configuration error. See "The socket" below. |
 | `CREWHUB_WORLD_LOOPS_WEB_URL` | the URL's origin, or the port found | Where the chat chip and the card's ticket links go (`health.loopsWebUrl`), as an origin. With a socket from the env the default is the app's `http://127.0.0.1:8091`; set it when the web app is elsewhere, e.g. `http://127.0.0.1:8291` for the development instance. |
 | `CREWHUB_WORLD_KEY_FILE` | none | The agent key file, first in line. Unset: the stored key `<CREWHUB_WORLD_CONFIG_DIR>/loops-key` (what `POST /world-api/connect` saved), then the old default `~/.config/crewhub-loops/secrets/agent-crewhub-world.key`; none: the host starts without a key (`connection.key.state: "none"`) and waits for a paste. A configured file that cannot be read is an error. The builder-key fallback is gone. A viewer key (crewhub-loops main since #959) is the same file or paste; the host sees `viewer: true` on its own entry at the key check and says `session: key`. |
-| `CREWHUB_WORLD_CONFIG_DIR` | `~/.config/crewhub-world` | The host's own folder for the stored key, the archive memory `archived.json` and the world database `world.db` with its `world.db.bak-v<n>` copies (0700; the files 0600). Tests and developers' runs point it elsewhere. |
+| `CREWHUB_WORLD_CONFIG_DIR` | `~/.config/crewhub-world` | The host's own folder for the stored key, the archive memory `archived.json` and the world database `world.db` with its `world.db.bak-v<n>` copies (0700; the files 0600). The start log and `doctor` say which folder is in use ("config folder <path> (the default …)" or "(from CREWHUB_WORLD_CONFIG_DIR)"). Tests, developers' runs and a trial run beside a real host point it elsewhere. |
 | `CREWHUB_WORLD_PORT` | `5180` | The port on `127.0.0.1`. |
 | `CREWHUB_WORLD_ALLOWED_ORIGINS` | none | Comma list of extra origins. Not needed for `npm run dev` of this checkout (it tells the host its origin itself); for an older dev server or another tool's page, e.g. `http://localhost:5173`. |
 | `CREWHUB_WORLD_PAIRING` | `on` | `off` removes the cookie gate: development only (the Vite proxy), logged loudly at start, refused with `NODE_ENV=production`. |
@@ -187,9 +187,13 @@ The host starts with neither loops nor a key and reports the honest states; the 
 - **The closed buildings are remembered** (`src/archiveStore.ts`): the slugs the event log or the stream taught go
   to `<configDir>/archived.json` (0600, written whole, only when the set changed), so a loops that will not read its
   log from the start (the fake after a restart answers 410) still shows them on the next start; every remembered
-  slug is confirmed with `GET /api/projects/{slug}` before it counts, and a restored project leaves the file. Health
-  says where the list came from: `connection.archived: { source: "list" | "log" | "remembered" | "none", count, at? }`
-  (`slugs` for a paired browser).
+  slug is confirmed with `GET /api/projects/{slug}` before it counts, and a restored project leaves the file. The
+  memory belongs to one loops: the file names the target it was learnt from, the host uses it only for that target (a
+  file without a target, the old format, is taken as is), another loops' memory is said in the log and ignored and
+  stays on disk until this loops' own set is learnt (a snapshot that read the list or the whole log, or an archive
+  event on the stream); a run that found nothing never writes an empty list over it. Health says where the list came
+  from: `connection.archived: { source: "list" | "log" | "remembered" | "none", count, at? }` (`slugs` for a paired
+  browser).
 - **`POST /world-api/connect`** `{"key": "chl_…"}` from a paired browser on an allowed origin, `application/json`, at
   most 4 KB: the key is checked against the loops found (403 `key_rejected` with `reason`; 503 `no_loops` or
   `loops_down`), stored by `src/keyStore.ts` (`<configDir>/loops-key`, 0700/0600, written whole) and the host switches

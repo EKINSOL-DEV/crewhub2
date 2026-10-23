@@ -9,7 +9,7 @@ import { createConnection } from "node:net";
 import { homedir } from "node:os";
 import path from "node:path";
 import { ARCHIVE_MEMORY_NAME, parseArchiveMemory, plainTime } from "./archiveStore.ts";
-import { ConfigError, type KeyFiles, type LoadedKey, type PathKind, type ServerConfig, keyFilesOf, loadKey, loadServerConfig, statPath } from "./config.ts";
+import { ConfigError, type KeyFiles, type LoadedKey, type PathKind, type ServerConfig, keyFilesOf, loadKey, loadServerConfig, statPath, configFolderLine } from "./config.ts";
 import { type DiscoveryInput, type Found, candidates, discoverOnce, loopsHealth, targetText } from "./discovery.ts";
 import { checkKey } from "./keyCheck.ts";
 import { type LoopsClient, type LoopsTarget, createLoopsClient } from "./loops.ts";
@@ -131,9 +131,10 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
     config = loadServerConfig(io.env, io.statPath ?? statPath);
   } catch (error) {
     fix("loops", error instanceof ConfigError ? error.message : "the configuration failed");
-    for (const id of ["health", "key", "auth", "projects", "agents", "team", "events", "archive", "port", "pairing"]) skip(id, "the configuration failed");
+    for (const id of ["folder", "health", "key", "auth", "projects", "agents", "team", "events", "archive", "port", "pairing"]) skip(id, "the configuration failed");
     return { lines, ok: false };
   }
+  ok("folder", configFolderLine(io.env, home));
   const input: DiscoveryInput = {
     loopsUrl: config.loopsUrl,
     loopsSocket: config.loopsSocket,
@@ -248,7 +249,12 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
     if (memory === null) fix("archive", `${tilde(archiveFile, home)} is not an archive memory: delete it, the host writes it again`);
     else {
       const n = memory.slugs.length;
-      ok("archive", `remembers ${n} archived project${n === 1 ? "" : "s"}${n === 0 ? "" : ` (${memory.slugs.join(", ")})`} from ${memory.target === undefined ? "an unnamed loops" : tilde(memory.target, home)}${memory.at === "" ? "" : `, learnt ${plainTime(memory.at)}`}; loops is asked about each at every snapshot`);
+      const what = `${n} archived project${n === 1 ? "" : "s"}${n === 0 ? "" : ` (${memory.slugs.join(", ")})`}`;
+      const when = memory.at === "" ? "" : `, learnt ${plainTime(memory.at)}`;
+      // The memory belongs to one loops: another loops' is said and ignored until this one's own set is learnt.
+      if (memory.target !== undefined && found !== null && memory.target !== targetText(found.target))
+        warn("archive", `${tilde(archiveFile, home)} remembers ${what} from ${tilde(memory.target, home)}${when}, not from ${tilde(targetText(found.target), home)}: the host ignores it and keeps it until it learns this crewhub-loops' own archived projects (give a run against another loops its own CREWHUB_WORLD_CONFIG_DIR)`);
+      else ok("archive", `remembers ${what} from ${memory.target === undefined ? "an unnamed loops" : tilde(memory.target, home)}${when}; loops is asked about each at every snapshot`);
     }
   }
 
