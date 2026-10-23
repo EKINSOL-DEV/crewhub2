@@ -450,10 +450,12 @@ export async function createHost(options: HostOptions): Promise<Host> {
     }, THREADS_REFRESH_MS);
   }
   /** An agent's `dm.created` on the key's stream: the message read by id with the key, as one chat line; null when not readable. */
-  async function chatLineFromKey(client: LoopsClient, payload: Record<string, unknown>): Promise<ChatLine | null> {
-    const messageId = payload["messageId"];
-    const threadId = payload["threadId"];
-    const agentId = payload["agentId"];
+  async function chatLineFromKey(client: LoopsClient, payload: unknown): Promise<ChatLine | null> {
+    // Round 34 (found by the fuzz): a `dm.created` whose payload is null or no object threw out of the stream's loop.
+    if (typeof payload !== "object" || payload === null) return null;
+    const messageId = (payload as Record<string, unknown>)["messageId"];
+    const threadId = (payload as Record<string, unknown>)["threadId"];
+    const agentId = (payload as Record<string, unknown>)["agentId"];
     if (typeof messageId !== "string" || typeof threadId !== "string" || typeof agentId !== "string") return null;
     try {
       const { status, body } = await client.getJson<{ message?: { bodyText?: unknown; createdAt?: unknown; author?: { displayName?: unknown } } }>(`/api/dm/messages/${encodeURIComponent(messageId)}`);
