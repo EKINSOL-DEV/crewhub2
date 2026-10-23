@@ -247,7 +247,7 @@ live there too (section 2 of LOOPS_SETUP.md). `npm run world` opens your browser
 fresh one for a host that already runs). With a key file the
 town stands at once (the stranger's clock: the world up 731 ms after the host started); without one the page shows
 Connect: make the viewer key in that loops (Settings > Agents > Connect CrewHub World) and paste it once. `npm run
-host -- doctor`, with the same environment in front of it, says which step failed, one line each (12 checks). Road 2,
+host -- doctor`, with the same environment in front of it, says which step failed, one line each (13 checks, the config folder among them). Road 2,
 the page reading your own chat where that loops has `CHL_WORLD_ORIGIN` set: start the host on the port that origin
 names (`CREWHUB_WORLD_PORT=<that port>`) and sign in to loops in the same browser; signed out, the Connection panel's
 Chat section says so and names both ways. With no loops at hand, section 0 of the same document runs the fake in
