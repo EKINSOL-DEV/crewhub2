@@ -200,7 +200,7 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
     const verdict = await checkKey(loops);
     if (verdict.state === "unreachable") fix("auth", `nothing is known about the key yet: ${verdict.reason}. Run this again once crewhub-loops answers.`);
     else if (verdict.state === "rejected") fix("auth", verdict.reason);
-    else ok("auth", `${verdict.name} (${verdict.displayName}), role lead: an external bot's key. It could write; the host forwards an allow-list of GETs only.`);
+    else ok("auth", `${verdict.name} (${verdict.displayName}), role lead: an external bot's key; the host forwards an allow-list of GETs only (the agents line says whether loops made it a viewer, which reads only).`);
     const authOk = verdict.state === "ok";
     const read = async <T>(id: string, loopsPath: string, describe: (body: T) => string, query: Record<string, string> = {}): Promise<T | null> => {
       if (!authOk) {
@@ -221,9 +221,19 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
     };
     await read<{ projects: { slug: string }[] }>("projects", "/api/projects", (b) => `${b.projects.length} project${b.projects.length === 1 ? "" : "s"}${b.projects.length === 0 ? " (no buildings yet: make one in crewhub-loops)" : `: ${b.projects.map((p) => p.slug).join(", ")}`}`);
     const me = verdict.state === "ok" ? verdict.name : null;
-    await read<{ agents: { id: string; external?: boolean; reader?: boolean; disabled?: boolean; role?: string }[] }>("agents", "/api/agents", (b) => {
+    await read<{ agents: { id: string; external?: boolean; reader?: boolean; viewer?: boolean; disabled?: boolean; role?: string }[] }>("agents", "/api/agents", (b) => {
       const self = b.agents.find((a) => a.id === me);
-      const about = self === undefined ? "" : self.reader === true ? "; this key's bot is read-only: the board will answer 403" : self.external === true ? `; ${self.id} is an external bot, not read-only` : `; ${self.id} is a ${self.role ?? "lead"} agent with a lane, not an external bot (it works, but an external bot is the intended key)`;
+      // A viewer (the "Connect CrewHub World" card, loops main) reads only: loops refuses the rest before the route runs.
+      const about =
+        self === undefined
+          ? ""
+          : self.reader === true
+            ? "; this key's bot is read-only: the board will answer 403"
+            : self.viewer === true
+              ? `; ${self.id} is a viewer: it reads what the world needs and writes nothing`
+              : self.external === true
+                ? `; ${self.id} is an external bot, not read-only: it could write, the host sends GETs only`
+                : `; ${self.id} is a ${self.role ?? "lead"} agent with a lane, not an external bot (it works, but an external bot is the intended key)`;
       return `${b.agents.length} agent${b.agents.length === 1 ? "" : "s"}${about}`;
     });
     await read<{ sessions: unknown[] }>("team", "/api/team", (b) => `${b.sessions.length} session${b.sessions.length === 1 ? "" : "s"} in the team snapshot`);

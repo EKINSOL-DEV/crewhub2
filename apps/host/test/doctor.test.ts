@@ -38,6 +38,22 @@ describe("the doctor", () => {
   }
   const free: DoctorIo["probePort"] = () => Promise.resolve({ kind: "free" });
 
+  it("says the key is a viewer, reading only, when loops lists it so; else that the external bot could write", async () => {
+    for (const viewer of [true, false]) {
+      const stub = await createLoopsStub({ ...installation(), keyReadsChat: viewer });
+      cleanup.push(() => stub.close());
+      const dir = folder();
+      const keyFile = path.join(dir, "agent-crewhub-world.key");
+      writeFileSync(keyFile, `${stub.key}\n`, { mode: 0o600 });
+      const report = await runDoctor({ env: { CREWHUB_WORLD_LOOPS_URL: stub.url, CREWHUB_WORLD_KEY_FILE: keyFile, CREWHUB_WORLD_PORT: "5187", CREWHUB_WORLD_CONFIG_DIR: dir }, probePort: free });
+      const lines = byId(report);
+      assert.equal(report.ok, true, formatDoctor(report).join("\n"));
+      assert.doesNotMatch(lines.auth!.text, /could write/, "the auth line judges nothing it cannot know yet");
+      if (viewer) assert.match(lines.agents!.text, /crewhub-world is a viewer: it reads what the world needs and writes nothing/);
+      else assert.doesNotMatch(lines.agents!.text, /viewer/);
+    }
+  });
+
   it("passes with a good key file, a reachable loops and a free port, and names what it read", async () => {
     const stub = await createLoopsStub({ ...installation() });
     cleanup.push(() => stub.close());
