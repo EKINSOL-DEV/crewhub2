@@ -321,3 +321,41 @@ test("the CLI exits 0 for valid files, 1 with precise messages for invalid ones,
   assert.equal(run("--strict", "good.json").status, 2);
   assert.equal(run("--help").status, 0);
 });
+
+test("exactly the limits are allowed; one past each is refused on the field it bounds", () => {
+  // The ring around a 1x1 footprint is exactly the eight approaches allowed; a 24-character tag is the longest.
+  const ring = [-1, 0, 1].flatMap((x) => [-1, 0, 1].map((z) => ({ x, z }))).filter((c) => c.x !== 0 || c.z !== 0);
+  const tiny = { shape: "box", size: [0.1, 0.1, 0.1], position: [0, 0.05, 0], material: "clay" };
+  const atLimits = prop({
+    id: `user:${"a".repeat(40)}`,
+    name: "n".repeat(40),
+    description: "d".repeat(200),
+    tags: Array.from({ length: 8 }, (_, i) => `t${i}-${"x".repeat(21)}`),
+    approaches: ring,
+    parts: Array.from({ length: 64 }, () => tiny),
+  });
+  assert.deepEqual(errors(atLimits), []);
+  assert.deepEqual(errors(prop({ footprint: { width: 6, depth: 6 }, approaches: [] })), []);
+  assertError(prop({ footprint: { width: 7, depth: 1 }, approaches: [] }), "footprint.width", "between 1 and 6");
+  assertError(prop({ footprint: { width: 1, depth: 7 }, approaches: [] }), "footprint.depth", "between 1 and 6");
+  assertError(prop({ tags: ["x".repeat(25)] }), "tags[0]", "at most 24");
+  assertError(prop({ approaches: [...ring, { x: 2, z: 2 }] }), "approaches", "at most 8");
+  assertError(prop({ parts: Array.from({ length: 65 }, () => tiny) }), "parts", "1 to 64");
+});
+
+test("every key but provenance is required and named when it is missing", () => {
+  const full = prop();
+  for (const key of Object.keys(full)) {
+    const { [key]: _, ...without } = full;
+    assertError(without, key, "is required");
+  }
+  assert.deepEqual(errors(prop({ provenance: { kind: "local" } })), []);
+});
+
+test("an approach two cells from the footprint is refused on every side; one cell out is fine all around", () => {
+  // A 2x1 footprint: x may run -1..2 and z -1..1.
+  const wide = (approaches: { x: number; z: number }[]) => prop({ footprint: { width: 2, depth: 1 }, approaches });
+  for (const cell of [{ x: -2, z: 0 }, { x: 3, z: 0 }, { x: 0, z: -2 }, { x: 0, z: 2 }])
+    assertError(wide([cell]), "approaches[0]", "one cell around it");
+  assert.deepEqual(errors(wide([{ x: -1, z: -1 }, { x: 2, z: -1 }, { x: -1, z: 1 }, { x: 2, z: 1 }, { x: 0, z: 1 }, { x: 1, z: -1 }])), []);
+});
