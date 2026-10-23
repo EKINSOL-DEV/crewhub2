@@ -28,6 +28,7 @@ tests taken out, nothing else); both figures are from the same diff.
 
 The times assume a careful read at about 300 lines an hour for source and a skim of the tests at three times that
 pace; "the risky parts alone" is the files named under each area at the careful pace. Nobody needs the first column.
+Which one-line bugs in the risky parts the tests are known to catch is measured in §5.
 
 | Area | Source files / lines | Test files / lines | A careful read | The risky parts alone |
 | --- | --- | --- | --- | --- |
@@ -160,7 +161,7 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
 - **Pinned by.** The parity tests (`mergeStaticParity`, `staticPartsParity`, `roomDressingParity`,
   `validateLayoutParity`), the seam tests (`castContract`, `castBoundary`, `styleBoundary`), `navigation`, `walks`,
   `wayfinding`; the engine's `nav`, `pathfinding`, `props`, `propFormat`; the style's `civicBake`, `figurePieces`; the
-  regress groups `walk` (38), `rooms` (17), `demo` (38); the measurements `tools/perf.mjs`, `memory.mjs`.
+  regress groups `walk` (38), `rooms` (20, three of them the scene's teardown, §5), `demo` (38); the measurements `tools/perf.mjs`, `memory.mjs`.
 - **The short road, 2 h:** `WorldCanvas.tsx`, the header and `dispose` of `TownScene.ts`, `propImport.ts` with the
   engine's `props.ts`; trust the parity tests and the pictures for the rest.
 
@@ -253,3 +254,98 @@ the host with its two env lines, `npm run dev`, then `?source=live`). A regress 
   that steered the work, and the PR body itself.
 - **One line changes at merge time:** the tour's "Read the introduction" link names `feat/world-demo`
   (`apps/world/src/state/tour.ts`); the PR body asks for `main` once the document lives there.
+
+## 5. What the tests are known to catch
+
+Measured in round 33 (2026-10-23) on `9a765f0`. Three developers who had not written the code made one-line
+mutations of the risky parts named in §2, each the shape a real bug would take: 64 distinct mutations, two of
+them picked by two developers on their own. Each mutation was applied alone and never committed. The covering unit
+tests ran first, then the one regress group of that road if the units let it live. **40 were caught by the tests
+that already stood. 23 got past every test** and now each has a test that fails with the mutation and passes
+without it. **One is equivalent**: no behaviour differs, so no test can see it. Writing the teardown checks found
+one real bug, a leak in the scene's teardown, fixed in `7e5e7db`.
+
+The pattern behind the misses was the same nearly everywhere. The code was right, but no test fed it the input
+that would show the mutation: a redirect, a resent seq, a tab at the buffer's edge, keys in another order, a value
+at exactly a limit. The scene's teardown had no observer at all before this round; three `rooms` checks now read
+the browser's own listener table, its timers and the geometries.
+
+Line numbers are at `9a765f0`. "Killed by" names the test file (under the package's `test/`) or the regress group.
+**New** marks a test written for a mutation that got past the tests.
+
+| Area | Mutation (before → after) | file:line | Killed by |
+| --- | --- | --- | --- |
+| 1 pairing | the cookie loses `HttpOnly` | `apps/host/src/pairing.ts:118` | `pairing.test.ts` |
+| 1 pairing | the HMAC compares the given MAC with itself | `pairing.ts:87` | `pairing.test.ts` |
+| 1 pairing | the link's single use dropped (`tokens.delete`) | `pairing.ts:71` | `pairing.test.ts` |
+| 1 pairing | the link's expiry `<=` → `<` | `pairing.ts:72` | `pairing.test.ts` |
+| 1 pairing | the gate skips `/town/…` (export, backups) | `apps/host/src/host.ts:1184` | **New:** `pairing.test.ts`, the town sub-routes in every route walk |
+| 1 pairing | the mint route takes a request with an Origin | `host.ts:740` | `pairing.test.ts` |
+| 1 Origin guard | the opaque `null` origin passes | `host.ts:756` | `guard.test.ts` |
+| 1 Host guard | a request without Host passes | `host.ts:751` | **New:** `guard.test.ts`, an HTTP/1.0 request on a raw socket is 421 |
+| 1 dev origin | the cap `>=` → `>` | `apps/host/src/devOrigin.ts:68` | `devOrigin.test.ts` |
+| 1 dev origin | `LocalHost` not lower-cased | `devOrigin.ts:35` | `devOrigin.test.ts` |
+| 1 key state | a 401 from a loops that does not answer read as a verdict | `apps/host/src/keyCheck.ts:47` | `keyStates.test.ts` and 5 more |
+| 1 health | unpaired health gets the details | `host.ts:702` | `connect.test.ts` and 10 more |
+| 2 the key | the key scrub off | `apps/host/src/loops.ts:54` | `key.test.ts`, `unixsock.test.ts` |
+| 2 transport | `redirect: "error"` → `"follow"` | `apps/host/src/transport.ts:75` | **New:** `transport.test.ts`, a 302 off the list is not followed over TCP or the socket |
+| 2 allow-list | a query parameter `q` passed through | `apps/host/src/allowList.ts:14` | `allowList.test.ts` |
+| 2 allow-list | a path segment may hold `/` | `allowList.ts:9` | `allowList.test.ts`, `archiveMemory.test.ts`, `stream.test.ts` |
+| 2 allow-list | GET accepted on `/connect` | `allowList.ts:64` | `connect.test.ts` |
+| 2 allow-list | the upstream gate passes any path | `allowList.ts:151` | `allowList.test.ts`, `unixsock.test.ts`, `stream.test.ts` |
+| 2 stream | the stream's 401 rule inverted | `apps/host/src/stream.ts:142` | `keyStates.test.ts` |
+| 2 stream | an event no longer clears the sealed cursor | `stream.ts:190` | equivalent: line 309's `sealedAt === cursor` already refuses an old token |
+| 2 stream | a resent seq `<=` → `<` | `stream.ts:187` | **New:** `stream.test.ts`, a resent seq reaches no tab twice |
+| 2 stream | the ring buffer one short | `stream.ts:192` | **New:** `stream.test.ts`, a tab at the oldest kept seq is caught up |
+| 2 stream | the cursor resets whenever the tail moved | `stream.ts:304` | `stream.test.ts` |
+| 2 stream | a tab ahead of the host gets no reset | `stream.ts:400` | `stream.test.ts` |
+| 3 road 1 | a plain key listed in the agents asks for the threads (`viewer` not checked); found by two developers independently | `host.ts:396` | regress `chat` and `live`; **new:** `chatKey.test.ts`, two tests with the key's own agent listed |
+| 3 road 1 | a 403 or 409 on the threads counts as reading | `host.ts:398` | `chatKey.test.ts` |
+| 3 road 1 | a person's own message becomes a bubble; found by two developers independently | `host.ts:644` | `chatKey.test.ts` |
+| 3 road 2 | `credentials: "include"` → `"same-origin"` | `packages/loops-client/src/pageChat.ts:36` | `pageChat.test.ts` |
+| 3 road 2 | a header of ours at the fetch | `pageChat.ts:97` | `pageChat.test.ts` |
+| 3 road 2 | the probe's second ask becomes a POST | `pageChat.ts:131` | `pageChat.test.ts` |
+| 3 road 2 | the poll sends `after=` instead of the cursor | `pageChat.ts:64` | `pageChat.test.ts` (both packages) |
+| 3 road 2 | a 409 not read as `chat-off` | `pageChat.ts:115` | `pageChat.test.ts` |
+| 3 road 2 | `origin-not-set` and `unreachable` swapped | `pageChat.ts:118` | `pageChat.test.ts` (both packages) |
+| 3 road 2 | the page probes before the host has said | `apps/world/src/state/pageChat.ts:221` | `pageChat.test.ts` |
+| 3 road 2 | a loops elsewhere is asked (`remote` never) | `state/pageChat.ts:227` | `pageChat.test.ts` |
+| 3 contract | the host's no read as not said | `apps/world/src/state/chatRoad.ts:37` | `chatRoad.test.ts`, `pageChat.test.ts` |
+| 4 town store | a write on a stale revision accepted | `apps/host/src/worldDb.ts:288` | `worldDb.test.ts`, `town.test.ts` |
+| 4 town store | an undo step that cannot be taken writes a revision | `worldDb.ts:311` | `worldDb.test.ts`, `town.test.ts` |
+| 4 town store | a town PUT without Origin accepted | `host.ts:1048` | `town.test.ts` |
+| 4 town store | the canonical sameness counts key order | `apps/world/src/state/hostTown.ts:109` | **New:** `hostTown.test.ts`, the same town with keys in another order is nothing new |
+| 4 town store | an edit on a replaced picture kept | `hostTown.ts:350` | `hostTown.test.ts` |
+| 4 town store | the echo of our own write starts a read | `hostTown.ts:419` | **New:** `hostTown.test.ts`, the host's word on our revision starts no read |
+| 4 town store | every read amends the store | `hostTown.ts:128` | **New:** `hostTown.test.ts`, a read of the town already shown changes nothing |
+| 4 history | redo one step past the newest | `packages/world-model/src/history.ts:27` | `history.test.ts`, `townStore.test.ts`, `worldDb.test.ts` |
+| 4 projection | an envelope at the cursor applied again | `packages/world-model/src/projection.ts:200` | `projection.test.ts` |
+| 4 projection | a refetch from before a snapshot lands | `projection.ts:592` | **New:** `projection.test.ts`, it never lands on the new facts |
+| 4 reducer | stale at exactly 300 s | `packages/world-model/src/reducer.ts:77` | **New:** `reducer.test.ts`, fresh at 300 s, stale at 301 |
+| 5 prop document | 65 parts pass | `packages/world-engine/src/props.ts:393` | `props.test.ts` |
+| 5 prop document | 8 tags refused (`>=`) | `props.ts:338` | **New:** `props.test.ts`, exactly the limits pass, one past each is refused |
+| 5 prop document | a 25-character tag passes | `props.ts:342` | **New:** the same test |
+| 5 prop document | `approaches` not required | `props.ts:321` | **New:** `props.test.ts`, every key but provenance is required |
+| 5 prop document | an approach two cells out passes | `props.ts:381` | **New:** `props.test.ts`, two cells out is refused on every side |
+| 5 prop document | the ceiling checked on the floor edge | `props.ts:460` | `props.test.ts` |
+| 5 prop document | a blank name passes (no trim) | `props.ts:296` | `props.test.ts` |
+| 5 prop import | the placement order changed | `apps/world/src/world/propImport.ts:75` | `propFlow.test.ts` |
+| 5 prop import | a second ticket's prop with the same id overwrites | `propImport.ts:52` | **New:** `propFlow.test.ts`, both props kept |
+| 5 teardown | `visibilitychange` listener left | `apps/world/src/world/TownScene.ts:2684` | **New:** regress `rooms`, (a) no scene listener twice |
+| 5 teardown | the orbit controls not disposed | `TownScene.ts:2688` | **New:** `rooms` (a) and (b) |
+| 5 teardown | the renderer not disposed | `TownScene.ts:2708` | **New:** `rooms` (b), the canvas keeps no listener |
+| 5 teardown | the drift interval not cleared | `TownScene.ts:2703` | **New:** `rooms` (b), the interval it made is cleared |
+| 5 teardown | the buildings not disposed | `TownScene.ts:2697` | **New:** `rooms` (b), every geometry it alone held is disposed |
+| 5 teardown | the resize observer not disconnected | `TownScene.ts:2683` | **New:** `rooms` (b), the host no longer sizes it |
+| 5 teardown | the unmount keeps the scene | `apps/world/src/components/WorldCanvas.tsx:265` | **New:** `rooms` (a), one canvas |
+| 5 teardown | the walk's keydown left on window | `WorldCanvas.tsx:155` | **New:** `rooms` (c), none left after Escape |
+
+The scene's leak: `dispose()` never released the town's last set of merged landmark pieces, so every torn-down
+scene left seven merged geometries on its graphics context. That happens on each page load of the development build
+(StrictMode's rehearsal mount) and after a graphics error in production. The `rooms` check (b) found it, and three
+lines in `TownScene.dispose()` fix it.
+
+Not mutated, and why: the history's 8 MB cap (seeing it needs an 8 MB history); the host's `baseRev < 0` and
+format checks (the validator and the revision check refuse the same writes); `cancelAnimationFrame` in the scene's
+dispose (`animate` already returns once disposed). Each developer's full table, with the one-line diffs and the
+proof runs, is in the round-33 reports, outside the repository.
