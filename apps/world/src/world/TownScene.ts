@@ -2700,6 +2700,9 @@ export class TownScene {
     this.#dressingBuild?.steps.return();
     this.#dressingBuild = null;
     this.#disposeDressing();
+    // The town's merged landmark pieces are the scene's own (#pieces); a rebuild disposes the old ones, the end the last.
+    for (const geometry of this.#piecesMerged) geometry.dispose();
+    this.#piecesMerged = [];
     clearInterval(this.#driftTimer);
     clearTimeout(this.#shadowTimer);
     this.#life.dispose();
