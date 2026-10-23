@@ -231,6 +231,36 @@ describe("the shared stream", () => {
     assert.equal(((await (await fetch(`${host.url}/world-api/health`)).json()) as { cursor: number }).cursor, 1, "the cursor is the new tail");
   });
 
+  it("an envelope loops sends again with a seq the host already applied reaches no tab a second time", async () => {
+    const { stub, host } = await start({ events: [envelope(1, "ticket.created")] });
+    const a = await openSse(`${host.url}/world-api/stream?cursor=1`);
+    cleanup.push(async () => a.close());
+    await a.next(isStatus("ok"));
+    // loops re-sends seq 1 (at-least-once on a reconnect, a replay from a cursor at the boundary), then a new event.
+    stub.emit({ ...anEvent("ticket.updated"), seq: 1 });
+    stub.emit(anEvent());
+    await a.next(isEvent(2));
+    assert.deepEqual(a.messages.filter((m) => m.type === "event").map((m) => (m.envelope as { seq: number }).seq), [2], "seq 1 was the tab's cursor: not sent again");
+  });
+
+  it("the buffer holds exactly bufferSize envelopes: a tab at the oldest kept seq is caught up from it, one seq older is reset", async () => {
+    const { stub, host } = await start({ events: [envelope(1, "ticket.created")] }, { bufferSize: 3 });
+    const warm = await openSse(`${host.url}/world-api/stream`);
+    cleanup.push(async () => warm.close());
+    await warm.next(isStatus("ok"));
+    for (let i = 0; i < 5; i += 1) stub.emit(anEvent());
+    await warm.next(isEvent(6));
+    // Seqs 2 to 6 arrived; a buffer of 3 keeps 4, 5 and 6: a tab that last saw 3 gets those three, nothing else.
+    const edge = await openSse(`${host.url}/world-api/stream?cursor=3`);
+    cleanup.push(async () => edge.close());
+    await edge.next(isEvent(6));
+    assert.deepEqual(edge.messages.filter((m) => m.type === "event").map((m) => (m.envelope as { seq: number }).seq), [4, 5, 6]);
+    assert.equal(edge.messages.filter((m) => m.type === "reset").length, 0, "caught up from the buffer, no reset");
+    const beyond = await openSse(`${host.url}/world-api/stream?cursor=2`);
+    cleanup.push(async () => beyond.close());
+    await beyond.next(isReset("cursor"));
+  });
+
   it("passes an event type it does not know to the browser unchanged", async () => {
     const { stub, host } = await start({ events: [envelope(1, "ticket.created")] });
     const a = await openSse(`${host.url}/world-api/stream?cursor=1`);

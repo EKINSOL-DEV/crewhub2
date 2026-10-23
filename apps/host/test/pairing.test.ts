@@ -16,7 +16,9 @@ import { PAIR_COOKIE, PAIR_TTL_MS, createPairing, loadPairingSecret, readCookie,
 import { type LoopsStub, createLoopsStub, installation } from "./loopsStub.ts";
 import { waitFor } from "./wait.ts";
 
-const ROUTES = ["/world-api/snapshot", "/world-api/stream?cursor=0", "/world-api/project-groups", "/world-api/board/crewhub", "/world-api/tickets/CL-85", "/world-api/team"];
+// Every route class under /world-api but health: the data reads, a passthrough, the stream, and the town with its sub-routes
+// (round 33: a gate that forgot `/town/export` or the backups would hand the town to an unpaired page).
+const ROUTES = ["/world-api/snapshot", "/world-api/stream?cursor=0", "/world-api/project-groups", "/world-api/board/crewhub", "/world-api/tickets/CL-85", "/world-api/team", "/world-api/town", "/world-api/town/export", "/world-api/town/backups", "/world-api/town/backups/world.db.bak-v1"];
 
 /** One GET; a stream (an open SSE response) is cut after its first bytes so the test never waits on it. */
 async function status(url: string, headers: Record<string, string> = {}): Promise<{ status: number; body: string; setCookie: string }> {
