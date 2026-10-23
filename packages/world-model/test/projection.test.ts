@@ -194,3 +194,24 @@ test("project archive, restore and reorder follow the payloads", async () => {
   assert.equal(projection.facts.projects["crewhub-loops"]?.archivedAt, null);
   assert.equal(projection.facts.cards.tk_85?.card.status, "review");
 });
+
+test("round 33: a ticket refetch answered after a snapshot replaced the facts never lands on them", async () => {
+  const { projection, scheduler, source } = setup();
+  const refreshed = ticketFrom(card("tk_85", "CL-85", "planned", { title: "Docs v2" }), "crewhub-loops", "CL");
+  let release: (ticket: typeof refreshed) => void = () => {};
+  source.getTicket = (ref: string) => {
+    source.calls.push(`ticket:${ref}`);
+    return new Promise((resolve) => (release = resolve));
+  };
+  projection.apply({ type: "event", envelope: envelope("ticket.updated", { changed: ["title"] }, { seq: 101, ticket: ticketRef }) });
+  await scheduler.advance(250);
+  assert.deepEqual(source.calls, ["ticket:tk_85"], "the refetch is on its way");
+  // A reset: the snapshot that follows holds no card at all.
+  projection.apply({ type: "snapshot", snapshot: snapshot({ cursor: 40, projects: [project("crewhub-loops", "CL", "cl-lead")], boards: {} }) });
+  const version = projection.facts.version;
+  release(refreshed);
+  for (let i = 0; i < 5; i += 1) await Promise.resolve();
+  assert.deepEqual(projection.facts.cards, {}, "the stale answer is dropped: the snapshot's facts stand");
+  assert.equal(projection.facts.version, version, "nothing changed, nobody was told");
+  assert.equal(projection.facts.projects["crewhub-loops"]?.counts.planned, 0);
+});

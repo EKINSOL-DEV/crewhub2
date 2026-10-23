@@ -446,3 +446,13 @@ test("a closed building says since when and by whom, and plays a closing or an o
   assert.deepEqual(opening.closing, { kind: "opening", at: back, until: back + CLOSING_MS });
   assert.match(describeWorld(reduce(back + 10)).map((l) => l.text).join("\n"), /CL\) opens again: the boards come off/);
 });
+
+test("round 33: the freshness cutoff is a team snapshot older than 300 s: at exactly 300 s it is fresh, at 301 s stale", () => {
+  const fresh = world({ projects: [CL], team: team(T0 - 300_000, [lane("cl-lead", "working")]) }).reduce();
+  assert.equal(fresh.freshness.stale, false);
+  assert.equal(fresh.freshness.ageSeconds, 300);
+  assert.equal(building(fresh).agents[0]?.laneStatus, "working", "a snapshot 300 s old still tells the lanes");
+  const stale = world({ projects: [CL], team: team(T0 - 301_000, [lane("cl-lead", "working")]) }).reduce();
+  assert.equal(stale.freshness.stale, true);
+  assert.equal(building(stale).agents[0]?.laneStatus, "unknown");
+});
