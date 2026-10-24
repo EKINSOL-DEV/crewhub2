@@ -2,7 +2,7 @@
 
 **How to answer:** one line per number, in the form shown after each question (for example `3: less`), to crewy or in
 a note; a number you skip keeps its default. **Nothing changes until you answer:** every question below names what the
-world keeps if you say nothing. Where an answer is already built, the question names its branch: that answer is one merge away, and [merge-plan.md](merge-plan.md) says in which order the answers merge and what, for each set of answers, is done by hand (rehearsed). Fifteen questions (14 and 15 came from the round-34 fuzz, added in round 35); the ones a later round answered are listed at the end with why, after a short list of what is known and accepted.
+world keeps if you say nothing. Where an answer is already built, the question names its branch: that answer is one merge away, and [merge-plan.md](merge-plan.md) says in which order the answers merge and what, for each set of answers, is done by hand (rehearsed); your row there is decided by your answers to questions 1, 3 and 8 alone. Fifteen questions (14 and 15 came from the round-34 fuzz, added in round 35); the ones a later round answered are listed at the end with why, after a short list of what is known and accepted.
 
 ## 1. Pairing: the cookie, or a bearer per tab (rounds 26 and 27)
 
