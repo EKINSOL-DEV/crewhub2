@@ -112,7 +112,6 @@ export const HTML_HEADERS: Readonly<Record<string, string>> = { "content-securit
 
 /** How many tabs may hold the stream at once (review N3); the next one is answered 503 with a reason. */
 export const MAX_TABS = 64;
-export const CONNECT_PATH = `${WORLD_API_PREFIX}/connect`;
 /** The reason on a key the stream refused after it was accepted (revoked meanwhile, or disabled). */
 export const STREAM_REFUSED_REASON = "crewhub-loops refused the key on the event stream (401 or 403): it was revoked or its bot disabled meanwhile. Paste a new access key, or forget this one.";
 /** A rejected key is re-checked this often (one health probe, then the key check: well within one probe a minute). */

@@ -16,8 +16,6 @@ export function rememberPageProbe(next: PageProbe): void {
   for (const listener of listeners) listener();
 }
 
-export const getPageProbe = (): PageProbe => probe;
-
 export const subscribePageProbe = (listener: () => void) => {
   listeners.add(listener);
   return () => {

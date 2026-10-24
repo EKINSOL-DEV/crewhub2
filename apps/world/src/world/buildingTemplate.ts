@@ -287,19 +287,11 @@ const ROLE_DOORS: Record<RoleRoom, { own: Cell; room: RoomKind; other: Cell }> =
   design: { own: { x: 0, z: 3 }, room: "lobby", other: { x: CENTRE - 1, z: 4 } },
 };
 
-/** Role-room capacity in desks for a number of module columns. */
-export function roleCapacity(room: RoleRoom, columns: number): number {
-  return columns * ROLE_ROWS[room] * DESKS_PER_MODULE;
-}
-
 /** Module columns a role room needs for `agents` desks: at least one, at most two. */
 export function roleColumns(room: RoleRoom, agents: number): number {
   const perColumn = ROLE_ROWS[room] * DESKS_PER_MODULE;
   return Math.min(MAX_MODULE_COLUMNS, Math.max(1, Math.ceil(agents / perColumn)));
 }
-
-/** The side desks in the lead's office, for agents a person set to `lead` (and a second lead lane). */
-const OFFICE_SIDE_DESKS = 2;
 
 /**
  * The template for a building. Deterministic: the same building gives the same template. The lobby, the lead's
@@ -459,10 +451,6 @@ export function dressingZones(template: BuildingTemplate): DressingZone[] {
 /** How many desks a room needs: every agent (real or proxy) whose home place is that room. */
 export function deskCount(building: Building, room: RoomKind): number {
   return building.agents.filter((a) => a.room === room && a.key !== building.lead.id).length;
-}
-
-export function officeSideDesks(): number {
-  return OFFICE_SIDE_DESKS;
 }
 
 /** The template room whose own kind is `kind`, else the hall that hosts it (the analyst room is the floor). */

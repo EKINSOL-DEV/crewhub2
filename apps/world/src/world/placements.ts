@@ -12,7 +12,7 @@
 import { cellKey, propCells, WorldSimulation } from "@crewhub/world-engine";
 import type { Cell, Definitions, PropDefinition, Rotation, WorldLayout, WorldProp } from "@crewhub/world-engine";
 import type { PlacedProp, RoomKind, TownDocument } from "@crewhub/world-model";
-import { BUILDING_CELL, hallOf, interiorDefinitions, roomOf, type BuildingTemplate } from "./buildingTemplate.ts";
+import { hallOf, interiorDefinitions, roomOf, type BuildingTemplate } from "./buildingTemplate.ts";
 import { DRESS_PREFIX } from "./roomDressing.ts";
 
 /** The template's own furniture, namespaced so it never meets a catalogue id. */
@@ -223,11 +223,6 @@ export function turnedSize(def: Pick<PropDefinition, "footprint">, rotation: Rot
 export function footprintPose(def: PropDefinition, cell: Cell, rotation: Rotation): { x: number; z: number; rotationY: number } {
   const size = turnedSize(def, rotation);
   return { x: cell.x + size.width / 2, z: cell.z + size.depth / 2, rotationY: -rotation * (Math.PI / 2) };
-}
-
-/** Room cells to building-local metres (the building group's frame). */
-export function roomToLocal(site: Pick<RoomSite, "origin">, x: number, z: number): { x: number; z: number } {
-  return { x: (site.origin.x + x) * BUILDING_CELL, z: (site.origin.z + z) * BUILDING_CELL };
 }
 
 /**
