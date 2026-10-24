@@ -84,6 +84,12 @@ order, then question 1's branch last; every hand merge then happens in that last
 | `tab`, q8, q11, q14, q15 | `a8aac39` | none (q8 merges clean with r27 now); C | |
 | `tab`, q3, q8, q11, q14, q15 | `0267f16` | D, E, F in one hand merge; C | **1084 / 1084**, green |
 
+- **The full browser regress, round 38's night** (`tools/regress.mjs`, every group, against the dev loops; each run
+  behind its own Vite and host port and with its own `CREWHUB_WORLD_CONFIG_DIR`): on the base `d5a5bf9`, **197 / 197**;
+  on the replay of the heaviest set (`tab`, q3, q8, q11, q14, q15), in a detached worktree of its own, result `d7cae91`
+  (the same tree as the daytime replay `1721cc4`), `npm run check` 1083 / 1083 and the regress **198 / 198**. The one
+  check more is `r27-tab-pairing`'s own, in the `chat` group: none of the page's asks on road 2 carries the tab's
+  pairing header. Nothing of the replay was pushed; its result is a commit on no branch.
 - **The `cookie+expiry` and `cookie` rows, rehearsed in round 37** (detached checkouts; the five independent branches
   then the question-1 branch): the five alone on `e55ef42`, check 1070 of 1070; the five then `q1-cookie-expiry` (A,
   then B), check 1075 of 1075 on `e55ef42` and again on `761db9f` (`769434a`); the five then `r27-tab-pairing`, check
