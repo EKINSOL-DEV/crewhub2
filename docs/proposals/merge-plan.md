@@ -128,11 +128,13 @@ all ten groups; the `connect` group walks every pairing screen, the `live` group
 check after a clean textual merge is the plan's own warning: look for a test that pins what another branch changed, as
 B did.
 
-The replay: `replay.sh <base> <tab|cookie+expiry|cookie> [q3] [q8] [q11] [q14] [q15] [--check]` in the Lead's
-scratchpad (`r37/replay/`, with `resolve.py` beside it, which holds A to G as rules on the two sides' content and
-refuses anything it does not recognise). It runs in the current worktree on a detached checkout of the base, merges in
-the order above, replays the hand merges, puts the paragraphs of C back when `tab` is chosen, prints the result's sha
-and, with `--check`, runs `npm run check` on it. It touches no branch and never pushes; the result is a detached commit
-to look at, or to fast-forward `feat/world-demo` to by hand once Nicky has answered and the night's regress is green.
-Re-run it on every new head of `feat/world-demo`: a rule that no longer matches stops with the file named, which is the
-sign that a resolution needs a fresh look.
+The replay is in the repository: `node tools/answers-replay.mjs <base> <tab|cookie+expiry|cookie> [q3] [q8] [q11] [q14]
+[q15] [--check]`. Start it from a checkout that has the file (it reads itself once, at start; the base can be any
+commit, with or without it). It runs in the current worktree on a detached checkout of the base, merges in the order above, replays
+the hand merges A, D, E, F and G from rules kept as data in the script (each a rule on the two sides' content), does B
+and C as follow-ups, prints the result's sha and, with `--check`, runs `npm run check` on it (the log lands under
+`tools/out/`). It touches no branch and never pushes; the result is a detached commit to look at, or to fast-forward
+`feat/world-demo` to by hand once Nicky has answered and the night's regress is green. Re-run it on every new head of
+`feat/world-demo`: a conflict it does not know, or a side whose content is not what a rule expects, stops it with the
+file named and the merge left open, which is the sign that a resolution needs a fresh look. The rules' pure parts are
+unit-tested in `scripts/test/answersReplay.test.ts`.
