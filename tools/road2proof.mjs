@@ -29,14 +29,17 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { cli, launch } from "./lib/world.mjs";
+import { ownPort } from "./lib/toolGuard.ts";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const opts = cli("node tools/road2proof.mjs --port <CHL_WORLD_ORIGIN port> --other-port <port> --loops-url <url> --key-file <file> --loops-env <file> [--agent crewhub-lead] [--bubble-timeout-s 900] [--seed] [--words-only] [--tag road2] [--out <dir>] [--swiftshader]", {
   options: { "other-port": null, "loops-url": "", "key-file": "", "loops-env": "", agent: "crewhub-lead", "bubble-timeout-s": "900", tag: "road2" },
   flags: ["seed", "words-only"],
 });
-const otherPort = Number(opts["other-port"]);
-if (!Number.isInteger(otherPort) || otherPort <= 0 || otherPort === opts.port) opts.fail("--other-port <port> must be another port than --port");
+const otherVerdict = ownPort(opts["other-port"], "--other-port");
+if (!otherVerdict.ok) opts.fail(otherVerdict.reason);
+const otherPort = otherVerdict.value;
+if (otherPort === opts.port) opts.fail("--other-port <port> must be another port than --port");
 let loopsUrl;
 try {
   const parsed = new URL(opts["loops-url"]);

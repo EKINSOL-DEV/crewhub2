@@ -59,8 +59,8 @@ unless a script says otherwise; a phone is 375 x 812 with touch.
 starts itself (`lib/live.mjs`): an in-process fake (`packages/loops-fake`, a free port; `--fake-scenario <id>`, default
 `small-team`; `--fake-speed 0|1|4|16`, default 16: the fake's clock is the only playback) or the loops `--loops-url`
 names with `--key-file <file>` (the fake started with `npm run loops:fake -- --port <port>`, or the development loops
-on 8291 with your own key; loopback only, never 8091). In a dev run the host listens on `--host-port` (default 5180)
-behind your Vite, so start Vite with `CREWHUB_WORLD_PORT=<host-port>`; with `--preview` the host serves
+on 8291 with your own key; loopback only, never 8091). In a dev run the host listens on `--host-port` (required: a port
+of your own, never 5180) behind your Vite, so start Vite with `CREWHUB_WORLD_PORT=<host-port>`; with `--preview` the host serves
 `apps/world/dist` (run `npm run build` first) on `--host-port` (`0`: a free port) and the browser opens the host
 directly, so several production runs can go at once. Pairing stays on, as in production: every context opens a
 one-time link first. The page gets `?source=live`; the demo's `--scenario`, `--stress` and the playback buttons do not
@@ -91,7 +91,7 @@ one-cell corridor to the floor's door and the visitor walked north in the column
 **The live group of `regress.mjs`.** It starts its own fake (`packages/loops-fake`, a free port) and its own host
 (`apps/host`), both on `127.0.0.1`, and closes them at the end. When `apps/world/dist` exists (after `npm run build`)
 the host serves it on a free port and the browser opens the host directly. Otherwise the host listens on `--host-port`
-(default 5180, the Vite proxy's default target) and the browser opens your Vite, so start that Vite with
+(required: a port of your own, never 5180, the host's default) and the browser opens your Vite, so start that Vite with
 `CREWHUB_WORLD_PORT=<host-port>`; the port must be free. The page is opened without `?source=live`: the source is
 `auto`, the probe finds the host, and the health it answers is what the chat chip's link into the loops web follows.
 **A stale dist is refused**: before any group runs, when `live`, `chat` or `ops` is asked for and a dist exists, the
@@ -145,28 +145,28 @@ path it prints `INFO real: socket check skipped` and counts nothing for that par
 Examples:
 
 ```sh
-node tools/regress.mjs --port 5180
-node tools/regress.mjs --port 5180 --groups demo,live --host-port 5181   # Vite started with CREWHUB_WORLD_PORT=5181
+node tools/regress.mjs --port 5173 --host-port 5181   # Vite started with CREWHUB_WORLD_PORT=5181
+node tools/regress.mjs --port 5173 --groups demo,live --host-port 5181   # Vite started with CREWHUB_WORLD_PORT=5181
 node tools/regress.mjs --port 5300 --groups connect,live,real --host-port 5200 --loops-env ~/my-loops.env   # the connect flow, then the fake, then the real dev loops; Vite started with CREWHUB_WORLD_PORT=5200
 node tools/regress.mjs --port 5281 --groups real --host-port 5181        # the real dev loops; Vite started with CREWHUB_WORLD_PORT=5181
 node tools/regress.mjs --port 5281 --groups real --host-port 5181 --loops-env ~/my-loops.env
 node tools/regress.mjs --port 5281 --groups real --host-port 5181 --loops-socket ~/crewhub-loops-dev/run/api.sock
 node tools/regress.mjs --port 5281 --groups connect,real --host-port 5181 --loops main   # the instance from crewhub-loops main (8293): tools/out/loops-dev-main.env, ~/crewhub-loops-dev-main
-node tools/regress.mjs --port 5180 --groups rooms                        # the three-room building, ?rooms=three
-node tools/regress.mjs --port 5180 --groups ops --host-port 5181         # the operations road over the fake; Vite started with CREWHUB_WORLD_PORT=5181
-node tools/a11y.mjs --port 5180 --stub-port 5181 --demo                  # what a screen reader is given; Vite started with CREWHUB_WORLD_PORT=5181
-node tools/profile.mjs --port 5180 --runs 2 --stacks 120                 # after (cd apps/world && npx vite build --sourcemap)
-node tools/profile.mjs --port 5180 --enter --throttle 4 --viewport 375x812 --stacks 1 --runs 2   # the enter at 4x on the phone, its tasks' stacks
+node tools/regress.mjs --port 5173 --host-port 5181 --groups rooms                        # the three-room building, ?rooms=three
+node tools/regress.mjs --port 5173 --groups ops --host-port 5181         # the operations road over the fake; Vite started with CREWHUB_WORLD_PORT=5181
+node tools/a11y.mjs --port 5173 --stub-port 5181 --demo                  # what a screen reader is given; Vite started with CREWHUB_WORLD_PORT=5181
+node tools/profile.mjs --port 5173 --runs 2 --stacks 120                 # after (cd apps/world && npx vite build --sourcemap)
+node tools/profile.mjs --port 5173 --enter --throttle 4 --viewport 375x812 --stacks 1 --runs 2   # the enter at 4x on the phone, its tasks' stacks
 node tools/timeworld.mjs --port 5185 --cold --runs 2 --json timeworld.json   # the host on 5185 against the development loops
-node tools/perf.mjs --port 5180 stress-town stress-inside --cast potlings --json perf-potlings.json
-node tools/memory.mjs --port 5180 stress --minutes 5
-node tools/perf.mjs --port 5180 --source live --preview --fake-scenario studio --host-port 0   # production, the fake's studio at 16x
-node tools/memory.mjs --port 5180 live --preview --minutes 30 --every 60 --snapshots 0,10,30 --host-port 0 --fake-scenario studio
-node tools/memory.mjs --port 5180 live --preview --minutes 10 --host-port 0 --loops-url http://127.0.0.1:8291 --key-file ~/crewhub-loops-dev/agent-crewhub-world-<name>.key
-node tools/memory.mjs --port 5180 live --preview --minutes 120 --every 60 --snapshots 10,120 --host-port 0 --loops-url http://127.0.0.1:8291 --key-file ~/crewhub-loops-dev/agent-crewhub-world-<name>.key --json soak.json   # the soak (round 27): the stores, the upstream stream, the frame time, the growth an hour
-node tools/shots.mjs --port 5180 --tag before --views town,building,room --width 1440,375
-node tools/castshots.mjs --port 5180 --cast sprouts --only states --theme light
-node tools/castworld.mjs --port 5180 --cast potlings,sprouts --views town,building,room
+node tools/perf.mjs --port 5173 stress-town stress-inside --cast potlings --json perf-potlings.json
+node tools/memory.mjs --port 5173 stress --minutes 5
+node tools/perf.mjs --port 5173 --source live --preview --fake-scenario studio --host-port 0   # production, the fake's studio at 16x
+node tools/memory.mjs --port 5173 live --preview --minutes 30 --every 60 --snapshots 0,10,30 --host-port 0 --fake-scenario studio
+node tools/memory.mjs --port 5173 live --preview --minutes 10 --host-port 0 --loops-url http://127.0.0.1:8291 --key-file ~/crewhub-loops-dev/agent-crewhub-world-<name>.key
+node tools/memory.mjs --port 5173 live --preview --minutes 120 --every 60 --snapshots 10,120 --host-port 0 --loops-url http://127.0.0.1:8291 --key-file ~/crewhub-loops-dev/agent-crewhub-world-<name>.key --json soak.json   # the soak (round 27): the stores, the upstream stream, the frame time, the growth an hour
+node tools/shots.mjs --port 5173 --tag before --views town,building,room --width 1440,375
+node tools/castshots.mjs --port 5173 --cast sprouts --only states --theme light
+node tools/castworld.mjs --port 5173 --cast potlings,sprouts --views town,building,room
 ```
 
 ## The development crewhub-loops
@@ -188,6 +188,16 @@ variables above. It never touches `~/Library/Application Support/be.ekinsol.crew
 - **This machine only.** A tool addresses `127.0.0.1` or `localhost`, spelled out, and uses no network call of its
   own. The same scanner checks every address under `tools/`. No model call, as everywhere. The one exception is
   `loops-seed.mjs`, which talks to the development crewhub-loops on loopback and is on the scanner's allowlist for it.
+- **Your own ports and folders** (round 36). A tool binds and opens only ports it was given: `--port`, `--host-port`,
+  `--stub-port`, `--other-port` and `--fake` are required where a tool needs them and are never 5180 (the host's default,
+  where Nicky's real `npm run world` listens and Nicky's Vite proxies) nor 8091, 8000 or 9443 (the Mac app's); 0, a free
+  port, only where the tool's own browser opens whatever came out (`--preview`, `connectstub.mjs`). A host a tool starts
+  in-process keeps its key, pairing secret and archive memory in memory or in a folder under `--out`; a real host a tool
+  runs (`timeworld.mjs`) gets `CREWHUB_WORLD_CONFIG_DIR` under `--out` and `CREWHUB_WORLD_PORT` of its own; a folder a
+  tool's host looks in for crewhub-loops (`--loops-app-data`, `--app-data`) is a development loops' own, never the Mac
+  app's, and must hold a `settings.json` naming a port that is neither the app's nor 5180. The rules are
+  `tools/lib/toolGuard.ts` (`scripts/test/toolGuard.test.ts`); `npm run loops:fake` has the same port rule. The one
+  road that may reach the Mac app is `npm run world` / `npm run host` without any of this: Nicky's own, by design.
 - **No absolute paths.** Output goes to `--out`; nothing is read from or written to a path outside the repository
   unless the caller names it.
 - **Parameters, not copies.** A new need is an option on a script here, not a copy of it somewhere else. If you

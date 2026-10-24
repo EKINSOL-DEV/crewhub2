@@ -23,11 +23,13 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { cli, launch, problemLines, seek, speed, watch } from "./lib/world.mjs";
 import { createConnectStub } from "./lib/connectStub.mjs";
+import { ownPort } from "./lib/toolGuard.ts";
 import { isProbeRefusal } from "./lib/probeRefusal.ts";
 
 const opts = cli("node tools/a11y.mjs --port <vite port> --stub-port <port> [--demo] [--out <dir>] [--swiftshader]", { options: { "stub-port": null }, flags: ["demo"] });
-const stubPort = Number(opts["stub-port"]);
-if (!Number.isInteger(stubPort) || stubPort <= 0) opts.fail("--stub-port <port> is required: the port the Vite proxy forwards /world-api to (CREWHUB_WORLD_PORT)");
+const stubVerdict = ownPort(opts["stub-port"], "--stub-port");
+if (!stubVerdict.ok) opts.fail(`${stubVerdict.reason} (the port the Vite proxy forwards /world-api to, CREWHUB_WORLD_PORT)`);
+const stubPort = stubVerdict.value;
 const outDir = `${opts.out}a11y/`;
 mkdirSync(outDir, { recursive: true });
 
