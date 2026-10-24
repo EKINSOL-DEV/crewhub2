@@ -246,6 +246,31 @@ In development the world runs on the Vite origin, which proxies `/world-api` to 
 through the proxy like any header: ask for the link on the Vite origin, `npm run host -- open --origin
 http://127.0.0.1:5173`, or open the printed one on the host's origin (a tab is paired per origin).
 
+The source setting is `auto` by default: Live when a host answers `/world-api/health` within 1.5 s, else Demo.
+`?source=live` or `?source=demo` overrides it; Settings > Source shows the choice, the host URL and why the source was
+chosen, and changing it reloads the page (the source is decided once, before the world starts). In live mode the
+Demo chip, the scenario picker and the playback bar are hidden, the chat corner is one chip, "Chat", which opens the
+Chat panel: crewhub-loops' own chat, framed in the world (round 12; also "Chat with <name>" on a lead's card: loops
+chats with leads only, so a worker's card says so and offers its lead's chat instead). The
+frame carries your own loops session (sign in to loops in this browser as a person, with chat bubbles switched on in
+loops); signed out, loops' own sign-in shows in the frame, and the world never sees a password or a session. The
+panel opened from a card asks loops for that agent's chat (`?chat=<agent id>`, a loops of world/viewer-key cb163004
+or later; an older loops ignores it, so the panel also says which chat head to open) and always links to the app, the
+fallback for a frame that never loads. The connection chip sits where the Demo chip was. The text view says where chat lives.
+
+Zones: every live project sits in the default zone until crewhub-loops has project groups (L22); zones drawn by
+hand in build mode are part of the live town document of this installation, which the world's host keeps since round
+20 in `~/.config/crewhub-world/world.db` (one row per crewhub-loops web app the host names) and every paired browser
+shares; the browser keeps a copy under its own key (IndexedDB) and edits on it while the host is away, then offers it
+again. The Connection panel's "Town" and "Zones" lines and the text view say where the town is kept. Since round 21 the
+undo history is the host's too (an undo in one browser shows in every other and survives a restart), and Settings > Town
+restores a town from a file or from a `world.db.bak-v<n>` copy only after a preview of what changes and a confirm; the
+restore is a new revision, so Undo goes back. A live town made before the key carried the
+installation (under the plain `crewhub-world.live`) is copied once into the installation's key the first time that
+key holds nothing; the earlier copy is kept as it was, a town already under the new key is never overwritten, a demo
+page never copies, and Settings > Town and the text view say "Copied once from the town kept under the earlier key" that
+once.
+
 ## 4. The health read
 
 ```sh
