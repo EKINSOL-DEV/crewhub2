@@ -6,10 +6,10 @@ world keeps if you say nothing. Where an answer is already built, the question n
 
 ## 1. Pairing: the cookie, or a bearer per tab (rounds 26 and 27)
 
-**What.** The browser's pairing is a cookie today, and cookies ignore ports: any other local program your browser
-visits on `127.0.0.1` receives it, and the cookie never expires. The question behind it is whether "another local
-program on this Mac that your browser visits" is inside the threat model. On a single-user Mac a same-user program can
-read the key file anyway, so this is about other users' processes and local tools that log request headers.
+**What.** Today your browser stays paired by a cookie. Your browser sends that cookie to any other local program it
+visits on this Mac (cookies ignore ports), and it never expires. On a Mac that is yours alone, a program running as you
+can read the key file anyway; the risk is other users' processes and local tools that log request headers. Is that a
+risk to close?
 
 **The prepared answer** is `task/r27-tab-pairing` (never merged; its note is `docs/proposals/pairing-per-tab.md` on that
 branch): the link's token in the URL fragment, a bearer per tab in `sessionStorage`, no cookie at all, a new tab paired
@@ -29,17 +29,16 @@ Mac's own boundary.
 
 **What.** With either road of question 1 that has an expiry, a pairing unused for N days is refused and asks for a new
 link; the window slides with every use. The branch's default is 30 days (`CREWHUB_WORLD_PAIRING_IDLE_DAYS`; 0 is never).
-**Recommendation:** 30. **Default:** 30 if question 1 brings an expiry; none if it does not.
+**Recommendation:** 30. **Default:** 30 days when question 1 brings an expiry (`tab` or `cookie+expiry`); with `cookie` there is none.
 **Answer:** `2: 30 / <days> / never`
 **One merge away:** the expiry rides on question 1's branch; another number is one setting (`CREWHUB_WORLD_PAIRING_IDLE_DAYS`).
 
 ## 3. What health says before pairing (round 26)
 
-**What.** Before a browser is paired, `GET /world-api/health` says the states, as designed, and also the bot's name,
-the stream's cursor, loops' version, the checkout id and the trusted dev origins. Any local process of any user can
-read it (a web page cannot). It is reconnaissance only. The reviewer's shape: keep the fields the dev server's probe
-needs (`loops`, `checkout`, an empty `keyName`) and blank the rest until paired.
-**Options.** `less`: that shape. `as-is`.
+**What.** Before a browser is paired, the host's health answer already names the bot, the stream's position, loops'
+version, the checkout and the trusted dev origins. Any local program of any user can read it (a web page cannot); it
+reveals, it changes nothing. `less` keeps only the states and the two fields the dev server's probe needs.
+**Options.** `less`: as above. `as-is`: everything, as today.
 **Recommendation (the Lead, round 30):** `less`: the spec of the smooth connection already says that before pairing
 health shows the states and nothing else, and the dev probe keeps what it needs. **Default:** `as-is`.
 **Answer:** `3: less / as-is`
@@ -47,12 +46,12 @@ health shows the states and nothing else, and the dev probe keeps what it needs.
 
 ## 4. The dev-origin route, now that the switch has landed (round 26)
 
-**What.** `npm run dev` beside `npm run host` works with no setup because Vite tells the host its origin
-(`POST /world-api/dev-origin`, round 23; since round 26 it proves the same user with the host's 0600 run-file secret).
-The older way, `npm run host -- open --origin http://127.0.0.1:5173`, proves the same user too and needs no route. The
-question was asked for after the viewer-key switch; the switch is on `feat/world-demo` since round 28, so it is live.
-**Options.** `keep`: the route stays. `remove`: the route goes and `npm run dev` beside a host needs the `open --origin`
-command or `CREWHUB_WORLD_ALLOWED_ORIGINS` once.
+**What.** The dev server beside a host works with no setup: the dev server tells the host its own address through a
+small route, proving it is the same user (since round 26). The older way is one command each time
+(`npm run host -- open --origin …`), and needs no route. The question was parked until the viewer-key switch landed; it
+has (round 28).
+**Options.** `keep`: the route stays. `remove`: the route goes; the dev server beside a host then needs that command, or
+one env setting, each time.
 **Recommendation (the Lead, round 30):** `keep`: it works with no setup and proves the same user since round 26;
 removing it brings back a command or an env for every `npm run dev`. **Default:** `keep`.
 **Answer:** `4: keep / remove`
@@ -93,7 +92,7 @@ a screen costs on every screen. **Default:** `replace`.
 **What.** While the host is away, two tabs of the same browser both edit the town on one shared local history, and the
 records interleave; on reload the mixed chain is skipped with a note. With the host up this cannot happen: the host's
 history rules. Nothing says today that offline editing is per tab.
-**Options.** `support`: the tabs tell each other (a storage event or a BroadcastChannel) and reload the local history.
+**Options.** `support`: the tabs tell each other and reload the shared history.
 `say`: the rule "one tab edits while the host is away", written where the offline note shows. `as-is`.
 **Recommendation (the Lead, round 30):** `say`: one sentence where the offline note shows; the case is rare and
 support is real work for little. **Default:** `as-is`.
@@ -102,21 +101,21 @@ support is real work for little. **Default:** `as-is`.
 
 ## 9. The chat's road 2: one poller per tab (round 29)
 
-**What.** Where the page reads your own chat itself (road 2: crewhub-loops on this computer with `CHL_WORLD_ORIGIN` set
-to the page's origin), each open world tab polls loops every 5 s while shown and once a minute while hidden. Two or
-three tabs are two or three pollers of the same conversation. Road 1 (the host's viewer key) is one stream for every tab.
-**Options.** `accept`: as it is (the hidden-tab rule already does most of the saving). `one-tab`: only one tab polls, by
-a BroadcastChannel lock.
+**What.** Where the page reads your own chat itself (road 2: crewhub-loops on this Mac, pointed at the page), every
+open world tab asks loops every 5 s while shown and once a minute while hidden. Two or three tabs ask two or three times
+for the same conversation. Road 1 (the host's viewer key) is one stream for every tab.
+**Options.** `accept`: as it is (the hidden-tab rule already does most of the saving). `one-tab`: only one tab asks, for
+all of them.
 **Recommendation (the Lead, round 30):** `accept`: hidden tabs already poll once a minute, and a lock adds a moving
 part. **Default:** `accept`.
 **Answer:** `9: accept / one-tab`
 
 ## 10. Should the stream itself carry the host's chat word? (round 29, half answered)
 
-**What.** The page picks the chat's road from the host's health. Since round 29 the host says "unknown" until it knows,
-and the page re-reads health when the stream goes live or the key's word changes, so a stale read no longer sends the
-page down the wrong road. What remains: the stream's `status` message could carry the chat word itself, so the road
-follows the stream and never a read.
+**What.** The page learns which chat road to take from one read of the host's health. Since round 29 the host says
+"unknown" until it knows, and the page reads again when the stream comes alive or the key's word changes, so a stale read
+no longer sends it down the wrong road. What remains: the live stream could carry the word itself, so the road would
+follow the stream and never a read.
 **Options.** `stream`: the status carries it. `re-read`: as it is.
 **Recommendation (the Lead, round 30):** `re-read`: round 29 closed the real hole; a stream-carried word saves one
 GET at moments that are rare. **Default:** `re-read`.
@@ -154,20 +153,18 @@ and no content.
 
 ## 14. A cap on the host's parallel reads of agent messages (rounds 34 and 35)
 
-**What.** On the chat's road 1 every agent `dm.created` on the key's stream is one read of the message by id with the
-key, and the host made each read on its own connection the moment the event came. A burst of hundreds in one instant
-(the round-34 fuzz emitted 440) opened hundreds of connections to loops at once; past a listen backlog (128 on macOS)
-the surplus connects failed and those bubbles were lost, silently. A real loops does not answer a person with hundreds
-of agent messages in one instant, so nobody has seen it; the fuzz did.
+**What.** On the chat's road 1, every agent message on the key's stream is one read from loops, started the moment the
+event comes. A burst of hundreds in one instant opened hundreds of connections at once; past the Mac's listen limit (128)
+the rest failed and those bubbles were lost, silently. A real loops has never produced such a burst; the round-34 fuzz
+did (440 at once).
 
-**The prepared answer** is `task/q14-dm-read-cap`: a gate of eight reads in flight (`DM_READ_LIMIT` in
-`apps/host/src/dmReads.ts`), the rest of a burst waiting their turn in the stream's order, nothing dropped. Eight is
-well under the backlog even with the snapshot's six reads, the threads' refresh and a health probe beside it, and it is
-what a browser allows one origin. Its cost: the last bubble of a burst comes later, not never: 440 messages are 55
-round trips, 0.4 s against a loops that answers in 4 ms (measured in the test), a few seconds against one 50 ms away.
-A read loops did not refuse (a 5xx, a 429, no answer) is tried once more after 250 ms; a 4xx is loops' word and final,
-as before; what is lost after the retry is counted in one log line at most every 5 s, where before it was lost
-without a word. The round-34 test now emits its 440 in one instant and every one arrives.
+**The prepared answer** is `task/q14-dm-read-cap`: at most eight reads at a time, the rest of a burst waiting their turn
+in the stream's order, nothing dropped. Eight stays well under the limit beside the host's other reads, and is what a
+browser allows one origin. A read loops did not refuse (no answer, a 5xx, a 429) is tried once more after 250 ms; a 4xx
+is loops' word and final, as before. What is still lost is counted in one log line at most every 5 s, where before it
+was lost without a word. The cost: the last bubble of a burst comes later, not never (440 messages: 0.4 s against a
+loops on this Mac, a few seconds against one 50 ms away). The round-34 test now sends its 440 in one instant and every
+one arrives.
 
 **Options.** `cap`: merge the branch (eight, one retry). `<number>`: another cap, one constant. `as-is`: no cap; a
 burst of hundreds keeps losing bubbles.
@@ -177,12 +174,11 @@ burst of hundreds keeps losing bubbles.
 
 ## 15. A size cap on an upstream body (rounds 34 and 35)
 
-**What.** Everything the host reads from loops (a relayed ticket page, a project, the snapshot's lists, a chat message,
-the key check's answer) is read whole into memory with no limit on its size, then parsed or passed on to the browser;
-the host's own inbound limit is 4 MB on a town (`TOWN_BODY_LIMIT`), but nothing on what comes back from loops. Loops is
-a local process on this Mac, so a body of gigabytes would mean a loops that is broken, or something else answering at
-loops' URL (a proxy page, another local program on that port); the host would then hold it all in memory before it
-could say no. The round-34 fuzz noted it (a 1 MB body is read whole and passed on) and changed nothing.
+**What.** Everything the host reads from loops (ticket pages, projects, the snapshot's lists, chat messages, the key
+check's answer) is read whole into memory with no size limit, then parsed or passed on to the browser. The host caps what
+it accepts itself at 4 MB (a town document); nothing caps what comes back from loops. Loops is a local process on this
+Mac, so a body of gigabytes would mean a broken loops, or something else answering at loops' address; the host would
+hold it all in memory before it could say no. The round-34 fuzz noted it and changed nothing.
 
 **No branch yet.** One would read every upstream body through a counting reader in `apps/host/src/transport.ts` and
 stop at the cap: the relay answers the browser 502 `upstream_too_large` with the size and the cap, the host's own
