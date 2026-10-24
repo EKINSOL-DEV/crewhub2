@@ -11,7 +11,7 @@ The branches, at the heads this plan was made on (the branches are read only; th
 
 | Question | Answer | Branch | Head |
 | --- | --- | --- | --- |
-| 1 (and 2) | `tab` | `task/r27-tab-pairing` | `c497a5d` |
+| 1 (and 2) | `tab` | `task/r27-tab-pairing` | `4fed988` |
 | 1 (and 2) | `cookie+expiry` | `task/q1-cookie-expiry` | `67d6970` |
 | 1 | `cookie` | no branch | |
 | 3 | `less` | `task/q3-health-less` | `dbb5a41` |
@@ -65,22 +65,34 @@ order, then question 1's branch last; every hand merge then happens in that last
 
 ## 2. The evidence
 
-- **Pairwise.** `git merge-tree --write-tree` of each branch against `e55ef42` is clean for all seven. Of the 21 pairs
-  of branches, 17 are clean. The four that conflict: `r27-tab-pairing` × `q1-cookie-expiry` (11 files; the two answers
-  to one question, never merged together), `r27-tab-pairing` × `q3-health-less` (3 files), `r27-tab-pairing` ×
-  `q8-offline-say` (1 file), `q1-cookie-expiry` × `q3-health-less` (1 file). Every pair involving q11, q14 or q15 is
-  clean.
-- **The chains, rehearsed** (detached checkouts of `e55ef42`, nothing kept on a branch):
-  - q3, q8, q11, q14, q15 in that order: five clean merges; `npm run check` 1070 of 1070 tests, 61 documents.
-  - the five, then `r27-tab-pairing`: the four-file hand merge (D, E, F, G); check 1075 of 1075, 62 documents (the
-    branch brings `pairing-per-tab.md`).
-  - the five, then `q1-cookie-expiry`: the one-file hand merge (A) and the test fix (B); check 1075 of 1075.
-  - q11, q14, q15, then `r27-tab-pairing`: clean, then the restore (C); check 1070 of 1070.
+- **Pairwise** (`git merge-tree --write-tree`, the heads in the table above, on `a0750aa`): each branch merges clean
+  onto the base. Of the 21 pairs of branches, 18 are clean. The three that conflict: `r27-tab-pairing` ×
+  `q1-cookie-expiry` (11 files; the two answers to one question, never merged together), `r27-tab-pairing` ×
+  `q3-health-less` (3 files: `apps/host/README.md`, `apps/host/test/pairing.test.ts`, `apps/world/hostPort.ts`),
+  `q1-cookie-expiry` × `q3-health-less` (1 file: `apps/host/src/host.ts`). Every pair involving q8, q11, q14 or q15 is
+  clean: `r27-tab-pairing` × `q8-offline-say` conflicted until round 38, when the branch got back the two
+  `LOOPS_SETUP.md` paragraphs it had dropped (C, G below).
+- **The `tab` rows, replayed on `a0750aa`** with `tools/answers-replay.mjs` (round 38, each with q11, q14 and q15 too,
+  which change nothing by hand):
+
+| Set | Result | Rules that ran | `npm run check` |
+| --- | --- | --- | --- |
+| `tab`, q11, q14, q15 | `5de0cad` | none (every merge clean; C: the paragraphs are there) | |
+| `tab`, q3, q11, q14, q15 | `922f08c` | D, E, F in one hand merge; C | |
+| `tab`, q8, q11, q14, q15 | `a8aac39` | none (q8 merges clean with r27 now); C | |
+| `tab`, q3, q8, q11, q14, q15 | `0267f16` | D, E, F in one hand merge; C | **1084 / 1084**, green |
+
+- **The `cookie+expiry` and `cookie` rows, rehearsed in round 37** (detached checkouts; the five independent branches
+  then the question-1 branch): the five alone on `e55ef42`, check 1070 of 1070; the five then `q1-cookie-expiry` (A,
+  then B), check 1075 of 1075 on `e55ef42` and again on `761db9f` (`769434a`); the five then `r27-tab-pairing`, check
+  1075 of 1075 on `e55ef42` and on `761db9f` (`a24d4fd`), when G still ran. The replay in the repository reproduced both
+  `761db9f` results to the byte (`git diff --stat` empty).
 - **A semantic check, not only a textual one.** Two clean textual merges were red until a line was fixed: B (q1 adds a
-  health field that a q3 test pins), and the round-34 guard fuzz on `r27-tab-pairing` (already fixed on that branch in
-  round 36, `c497a5d`). The restore C exists because `r27-tab-pairing` drops two paragraphs of `LOOPS_SETUP.md` that have
-  nothing to do with pairing; `git merge-tree` calls that clean. Nothing else surfaced: the typecheck, every unit test,
-  the doc links, the design and copy guards and the build pass on each rehearsed chain.
+  health field that a q3 test pins), and the round-34 guard fuzz on `r27-tab-pairing` (fixed on that branch in round
+  36, `c497a5d`). C existed because `r27-tab-pairing` dropped two paragraphs of `LOOPS_SETUP.md` that have nothing to do
+  with pairing, which `git merge-tree` calls clean; since round 38 the branch carries them and C is a check. Nothing else
+  surfaced: the typecheck, every unit test, the doc links, the design and copy guards and the build pass on each
+  rehearsed chain.
 
 ## 3. The hand merges, exactly
 
@@ -103,15 +115,16 @@ adds `pairingIdleDays` to health (always present, question 2's number for the Pa
 and the test is red. **Add `"pairingIdleDays"` to that list**, between `"pairing"` and `"sharedKey"`. Why: it is a
 setting, not one of the facts question 3 hides (the bot's name, the cursor, loops' version, the chat word).
 
-### C. `docs/LOOPS_SETUP.md`: the two paragraphs r27-tab-pairing drops (always, with `tab`)
+### C. `docs/LOOPS_SETUP.md`: the two paragraphs r27-tab-pairing once dropped (with `tab`: a check, nothing to do)
 
 When round 27 rewrote "Pair this browser" into "Pair this tab", the branch removed, with the cookie paragraph, the two
 paragraphs that follow it and are not about pairing: "The source setting is `auto` by default…" and "Zones: every live
 project sits in the default zone…" (the town kept by the host, the undo history, the restore, the one-time copy).
-`git merge-tree` calls a deletion clean, so nothing warns. **After merging `r27-tab-pairing`, put both paragraphs back
-from the base, right after r27's bearer paragraph** ("In development the world runs on the Vite origin, which proxies
-`/world-api`…"), as a commit of their own. When q8 is in, G does this inside the merge, with q8's sentence. The branch
-itself should get this fix when it is next touched; this round it is read only.
+`git merge-tree` calls a deletion clean, so nothing warned; round 37's plan put them back after every `tab` merge.
+**Since round 38 the branch carries them itself** (`4fed988`, worded as on `a0750aa`, in the same place), so after
+merging `task/r27-tab-pairing` there is nothing to do: the replay only checks that both paragraphs are there and
+**stops, with the file named, when they are not** (that would mean the branch dropped them again, and a person looks;
+it does not put them back on its own any more).
 
 ### D. `apps/host/README.md` (r27-tab-pairing after q3-health-less)
 
@@ -138,12 +151,14 @@ send (`x-world-pair`). **Keep q3's two tests, ported:** `const { cookie } = awai
 becomes `read({ origin: host.url, ...paired })`; the keys list gains `"pairingIdleDays"` (r27 adds it to health as q1
 does). **Then r27's title line** ("a link carries the token in the fragment and pairs once…") closes the block.
 
-### G. `docs/LOOPS_SETUP.md` (r27-tab-pairing after q8-offline-say)
+### G. `docs/LOOPS_SETUP.md` (r27-tab-pairing after q8-offline-say): retired in round 38
 
-One block. q8's side holds the cookie paragraph, then the two paragraphs of C with q8's sentence in the second ("one tab
-at a time: two tabs of one browser would mix that one local history…"); r27's side is its three-line bearer paragraph
-alone. **Take r27's bearer paragraph, a blank line, then q8's side from "The source setting is `auto`" to the end of the
-block.** The cookie paragraph goes (r27 replaces it), q8's sentence stays, and C is done.
+Until round 38 this was one block: q8's side held the cookie paragraph and the two paragraphs of C with q8's sentence
+("one tab at a time…"), r27's side its bearer paragraph alone, and the resolution took r27's paragraph followed by q8's
+side from "The source setting is `auto`" on. With the paragraphs back on the branch (C) the two sides no longer overlap:
+q8's sentence lands in a paragraph both have, r27's bearer paragraph replaces a cookie paragraph q8 did not touch, and
+`git merge-tree` of `task/r27-tab-pairing` against `task/q8-offline-say` is **clean**. The replay has no rule for this
+file any more: a conflict in `docs/LOOPS_SETUP.md` is for a person.
 
 ## 4. Checking the result, and the replay
 
@@ -156,8 +171,8 @@ B did.
 The replay is in the repository: `node tools/answers-replay.mjs <base> <tab|cookie+expiry|cookie> [q3] [q8] [q11] [q14]
 [q15] [--check]`. Start it from a checkout that has the file (it reads itself once, at start; the base can be any
 commit, with or without it). It runs in the current worktree on a detached checkout of the base, merges in the order above, replays
-the hand merges A, D, E, F and G from rules kept as data in the script (each a rule on the two sides' content), does B
-and C as follow-ups, prints the result's sha and, with `--check`, runs `npm run check` on it (the log lands under
+the hand merges A, D, E and F from rules kept as data in the script (each a rule on the two sides' content; G is retired),
+does B as a follow-up and the check C, prints the result's sha and, with `--check`, runs `npm run check` on it (the log lands under
 `tools/out/`). It touches no branch and never pushes; the result is a detached commit to look at, or to fast-forward
 `feat/world-demo` to by hand once Nicky has answered and the night's regress is green. Re-run it on every new head of
 `feat/world-demo`: a conflict it does not know, or a side whose content is not what a rule expects, stops it with the

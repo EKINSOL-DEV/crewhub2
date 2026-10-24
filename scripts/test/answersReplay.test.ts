@@ -3,7 +3,7 @@
    the shapes of the real conflicts on the answer branches at the plan's heads, cut to the lines the rules read. No git. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { BRANCHES, ORDER, RULES, Refusal, conflictBlocks, healthKeys, resolveText, restoreSetup } from "../../tools/answers-replay.mjs";
+import { BRANCHES, ORDER, RULES, Refusal, conflictBlocks, healthKeys, resolveText, setupParagraphs } from "../../tools/answers-replay.mjs";
 
 const block = (a: string, b: string) => `<<<<<<< ours\n${a}\n=======\n${b}\n>>>>>>> theirs`;
 const swapped = (text: string) => {
@@ -17,7 +17,7 @@ test("the branches and the order are the plan's", () => {
   assert.deepEqual(ORDER, ["q3", "q8", "q11", "q14", "q15"]);
   assert.equal(BRANCHES.tab, "task/r27-tab-pairing");
   assert.equal(BRANCHES["cookie+expiry"], "task/q1-cookie-expiry");
-  assert.deepEqual(Object.values(RULES).map((r) => r.letter).sort(), ["A", "D", "E", "F", "G"]);
+  assert.deepEqual(Object.values(RULES).map((r) => r.letter).sort(), ["A", "D", "E", "F"], "G retired in round 38: r27 carries the LOOPS_SETUP.md paragraphs, q8 merges clean");
 });
 
 test("conflictBlocks: every block, the two sides as lines; a block without an end is refused", () => {
@@ -82,15 +82,6 @@ test("D. README.md: q3's paragraph with bearer for cookie", () => {
   refuses(() => resolveText("apps/host/README.md", block("  nothing about origins", "  nothing either")), /README\.md: not the r27 x q3 shape/);
 });
 
-test("G. LOOPS_SETUP.md: r27's bearer paragraph, then q8's side from the source setting on", () => {
-  const q8 = "In development the world runs on the Vite origin, and cookies ignore ports: a browser paired on\n`127.0.0.1:5173` too.\n\nThe source setting is `auto` by default: Live when a host answers.\n\nZones: every live project sits in the default zone (one tab at a time: two tabs would mix the history).\nonce.";
-  const r27 = "In development the world runs on the Vite origin, which proxies `/world-api` to the host, and the bearer rides\nthrough the proxy like any header: ask for the link on the Vite origin,\nor open the printed one on the host's origin (a tab is paired per origin).";
-  const out = resolveText("docs/LOOPS_SETUP.md", block(q8, r27));
-  assert.equal(out, `${r27}\n\nThe source setting is \`auto\` by default: Live when a host answers.\n\nZones: every live project sits in the default zone (one tab at a time: two tabs would mix the history).\nonce.`);
-  assert.equal(resolveText("docs/LOOPS_SETUP.md", swapped(block(q8, r27))), out);
-  refuses(() => resolveText("docs/LOOPS_SETUP.md", block("In development the world runs on the Vite origin, and cookies ignore ports.", r27)), /LOOPS_SETUP\.md: not the r27 x q8 shape/);
-});
-
 test("A. host.ts: q3's comment stays, its isPaired line goes (q1 declares it above); a non-empty other side is refused", () => {
   const q3 = "        // Before pairing: the states and nothing else (question 3, round 31). The bot's name, loops' version, the\n        // cursor and the chat word are a paired browser's.\n        const isPaired = paired(req);";
   const out = resolveText("apps/host/src/host.ts", `x\n${block(q3, "")}\ny`);
@@ -99,15 +90,13 @@ test("A. host.ts: q3's comment stays, its isPaired line goes (q1 declares it abo
   refuses(() => resolveText("apps/host/src/host.ts", block(q3, "        const other = 1;")), /host\.ts: the other side is not empty/);
 });
 
-test("C. restoreSetup: the two paragraphs come back from the base after the bearer paragraph, once; present means unchanged", () => {
-  const base = "# Setup\n\nIn development the world runs on the Vite origin, and cookies ignore ports.\n\nThe source setting is `auto` by default: Live.\nTwo lines.\n\nZones: every live project sits in the default zone.\nUntil\nonce.\n\n## Next\n";
-  const r27 = "# Setup\n\nIn development the world runs on the Vite origin, which proxies `/world-api` to the host,\nor open the printed one on the host's origin (a tab is paired per origin).\n\n## Next\n";
-  const restored = restoreSetup(r27, base);
-  assert.equal(restored.changed, true);
-  assert.equal(restored.text, "# Setup\n\nIn development the world runs on the Vite origin, which proxies `/world-api` to the host,\nor open the printed one on the host's origin (a tab is paired per origin).\n\nThe source setting is `auto` by default: Live.\nTwo lines.\n\nZones: every live project sits in the default zone.\nUntil\nonce.\n\n## Next\n");
-  assert.deepEqual(restoreSetup(restored.text, base), { text: restored.text, changed: false });
-  refuses(() => restoreSetup(r27, "# Setup\n\nnothing here\n"), /the base has no such paragraphs/);
-  refuses(() => restoreSetup("# Setup\n\nno bearer paragraph\n", base), /bearer paragraph not found once/);
+test("C. setupParagraphs: present is fine; a LOOPS_SETUP.md without the two paragraphs after r27 is refused (the branch dropped them again)", () => {
+  const good = "# Setup\n\nIn development the world runs on the Vite origin, which proxies `/world-api` to the host.\n\nThe source setting is `auto` by default: Live.\n\nZones: every live project sits in the default zone.\nonce.\n\n## Next\n";
+  assert.equal(setupParagraphs(good), true);
+  refuses(() => setupParagraphs(good.replace("The source setting is `auto` by default: Live.\n\n", "")), /source-setting and zones paragraphs are missing/);
+  refuses(() => setupParagraphs(good.replace("Zones: every live project sits in the default zone.\n", "")), /missing after task\/r27-tab-pairing/);
+  // G is retired: a conflict in that file is for a person.
+  refuses(() => resolveText("docs/LOOPS_SETUP.md", block("a", "b")), /no rule for this file/);
 });
 
 test("B. healthKeys: pairingIdleDays joins q3's list only when health has the field, once", () => {

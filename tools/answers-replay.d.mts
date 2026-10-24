@@ -5,5 +5,5 @@ export class Refusal extends Error {}
 export function conflictBlocks(text: string): { lines: string[]; blocks: { start: number; end: number; a: string[]; b: string[] }[] };
 export const RULES: Readonly<Record<string, { letter: string; resolve: (a: string[], b: string[]) => string[] }>>;
 export function resolveText(file: string, text: string): string;
-export function restoreSetup(text: string, baseText: string): { text: string; changed: boolean };
+export function setupParagraphs(text: string): true;
 export function healthKeys(testText: string, hostText: string): { text: string; changed: boolean };
