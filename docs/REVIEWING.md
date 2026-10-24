@@ -214,7 +214,10 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
   but the host": a new entry there is a review item of its own. `loops-dev.sh` refuses the Mac app's ports (8091,
   8000, 9443) and never touches the app's data folder; `loops-seed.mjs` writes to a development loops with a key,
   never to the app. Every tool opens only `http://127.0.0.1:<the port you name>/`.
-- **Pinned by.** CI; `scripts/test/` (the Node guard, the seed, the pixel and DOM diffs). The regress is not in the
+- **Pinned by.** CI; `scripts/test/` (the Node guard, the seed, the pixel and DOM diffs). No unit test can reach the
+  Mac app: `npm test` preloads `scripts/no-app-reach.mjs` into every test process and every Node a test spawns, which
+  refuses the app's ports and folders before a packet or an open and fails the file (round 35; its own test is
+  `scripts/test/no-app-reach.test.ts`). The regress is not in the
   check: it prints `regress: <passed>/<total>` last (the groups' checks and two closing ones; each group's count is
   its INFO line, and `tools/README.md` names them); its last full run in one go, 2026-10-23 on `430b276`, passed 197
   of 197.
