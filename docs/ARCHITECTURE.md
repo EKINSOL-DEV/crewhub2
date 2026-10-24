@@ -272,10 +272,11 @@ regression pass (`regress.mjs`, ten groups, against the development loops of `4c
 with `--loops main` (round 29): the connect flow against a stub host, the demo walk, the demo's
 wayfinding, picker and the new loops events, the first-run tour, live mode against the fake with pairing (with the Zones line, the scripted director in live mode, the Chat panel and the live card), the chat's roads, the town kept by the host
 (two browsers, one town; a restart), the operations road over the
-fake (loops stopped, the key revoked, loops upgraded under the host), the three-room building, about 180 checks
+fake (loops stopped, the key revoked, loops upgraded under the host), the three-room building, all of it
 offline, plus the ones against the real development crewhub-loops: the connect flow through a keyless host, and live
-mode over TCP and the socket with loops' version, the log's quiet facts in a fresh tab and the chat's road; 194 in
-all on 8291, 34 of them on loops main), road 2's proof against loops main (`road2proof.mjs`: the page's every
+mode over TCP and the socket with loops' version, the log's quiet facts in a fresh tab and the chat's road; the count
+is what the tool prints last, `regress: <passed>/<total>`, with each group's in `tools/README.md`),
+road 2's proof against loops main (`road2proof.mjs`: the page's every
 request, header names only), the pixel-identical
 proof of a change (`pixcheck.mjs`: two commits or dist folders built and served apart, 74 label-free demo pairs and
 324 cast pairs, a diff image per pair, exit 0 only at all zeros), the accessibility pass
