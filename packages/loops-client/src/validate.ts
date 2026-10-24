@@ -869,8 +869,6 @@ export const validateProgressResponse = run(
 export const validateDeliveryOut = run(deliveryOut);
 /** `GET /api/agents`: `{agents: [...], lanesAuthority, agentHome}` (`AgentsDetailResponse`); the two extras are optional here. */
 export const validateAgents = run(object<AgentsResponse>({ agents: arrayOf(agentOut), lanesAuthority: optional(str), agentHome: optional(nullable(str)) }));
-/** One `AgentLane`, for tests and for anything that reads a lane on its own. */
-export const validateAgentLane = run(agentLane);
 /** `GET /api/principals`: `{principals: [...]}`. */
 export const validatePrincipals = run(object<PrincipalsResponse>({ principals: arrayOf(principalOut) }));
 
