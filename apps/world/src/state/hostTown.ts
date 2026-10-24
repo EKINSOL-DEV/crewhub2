@@ -43,8 +43,7 @@ export interface HostTownOptions {
   log?: (line: string) => void;
 }
 
-/** The words the Settings card, the Connection panel, build mode and the text view use for where the town is kept. */
-export const KEPT_BY_HOST = "kept by the world's host for this crewhub-loops, shared by every paired browser";
+/** The log's words for a town kept in the browser while the host does not keep it. */
 export const KEPT_UNTIL_BACK = "kept in this browser until the host is back";
 export const CONFLICT_NOTE = "Another browser changed the town; your last change was not kept and the host's town was loaded.";
 export const IMPORTED_NOTE = "This browser's town was sent to the world's host once; from now on the host keeps it.";

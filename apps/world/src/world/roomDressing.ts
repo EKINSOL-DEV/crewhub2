@@ -88,7 +88,6 @@ export const RACKS = (["storage", "planning", "review", "dispatch"] as const).ma
   /** The sign's words (the world model's names, shared with the text view). */
   sign: RACK_NAMES[room],
 }));
-export const RACK_DEFINITIONS: readonly string[] = RACKS.map((r) => r.definitionId);
 
 /** True for the three-room plan: a template that says so, or (before the plan is on the template) one with the racks. */
 export function isThreeRoom(template: Pick<BuildingTemplate, "rooms"> & { plan?: string }): boolean {

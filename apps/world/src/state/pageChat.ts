@@ -11,9 +11,7 @@
    the tools read: the probe's verdict, the loops origin asked, whether the poll runs, how many polls, the last failure.
    The page's wiring is state/pageChatPage.ts (the browser's fetch, hidden and online, the stores, the chat road store),
    kept apart so this module and its test load under node without the world. */
-import { useSyncExternalStore } from "react";
 import {
-  POLL_MS,
   isLoopbackOrigin,
   pollDelay,
   pollPageChat,
@@ -63,14 +61,6 @@ export const subscribePageChat = (listener: () => void) => {
   };
 };
 export const getPageChat = () => current;
-export function usePageChat(): PageChatState {
-  return useSyncExternalStore(subscribePageChat, getPageChat, getPageChat);
-}
-/** Forgets everything (the tests, a new source). */
-export function resetPageChat(): void {
-  current = INITIAL;
-  for (const listener of listeners) listener();
-}
 
 /** The host's word on its key, as the contract reads it (chatRoad.ts `hostKeyReadsChatOf`): true, false, or null while the host has not said. */
 export function hostKeyReadsChat(health: Pick<HostHealth, "connection"> | null | undefined): boolean | null {
@@ -265,6 +255,3 @@ export function healthRereadKey(connection: string | null, streamKey: string | n
   if (connection !== "live" && streamKey === null) return null;
   return `${connection === "live" ? "live" : "off"}:${streamKey ?? "-"}`;
 }
-
-/** The pace the panel may say: the poll every POLL_MS while the page shows. */
-export const PAGE_CHAT_POLL_MS = POLL_MS;

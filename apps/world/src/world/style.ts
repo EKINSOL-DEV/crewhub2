@@ -8,7 +8,3 @@ export const DEFAULT_STYLE_ID = "greenhouse";
 
 export const styleRegistry = createStyleRegistry(DEFAULT_STYLE_ID);
 styleRegistry.registerStyle(greenhouseStyle);
-
-export function createStyle(id: string) {
-  return styleRegistry.getStyle(id);
-}

@@ -14,7 +14,6 @@ import {
   groundExtent,
   groundPieces,
   landmarksArrived,
-  lotBounds,
   lotCentre,
   lotKey,
   reservedSpot,
@@ -201,9 +200,6 @@ export function planLot(plan: TownPlan, slug: string): PlanLot | undefined {
 export function planKey(plan: TownPlan): string {
   return `${plan.tier}|${plan.oldQuarter ? 1 : 0}|${plan.landmarks.join()}|${plan.lots.map((l) => `${l.slug}@${lotKey(l.cell)}${l.archived ? "a" : ""}`).join(";")}`;
 }
-
-/** A plot's ground in world units, with `pad` around it. */
-export const planLotBounds = (lot: PlanLot, pad = 0): Bounds => lotBounds(lot.cell, pad);
 
 /**
  * What the home camera frames, each rectangle with `margin` around it; the camera fits their projected corners. The
