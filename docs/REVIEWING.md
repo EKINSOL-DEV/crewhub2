@@ -126,8 +126,9 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
 - **Fuzzed (round 34).** Road 2's readers, verdict, probe and poll over any answer (`pageChat.fuzz.test.ts`), the
   page's reading of health and the roads' words (`chatRoad.fuzz.test.ts`), road 1's dm payloads and the message and
   threads answers through the host (`chatFuzz.test.ts`). Fixed: two throws on odd health values, one on a null dm
-  payload. Not capped, a design choice: the host reads every agent message on its own connection, so a burst of
-  hundreds in one instant loses the surplus bubbles.
+  payload. The burst (the host read every agent message on its own connection, so hundreds in one instant lost the
+  surplus bubbles) is question 14; its answer branch `task/q14-dm-read-cap` gates the reads at eight in flight
+  (`dmReads.ts`, `dmReadCap.test.ts`: 440 at once all arrive, one retry for a read loops did not refuse).
 
 ### 2.4 The world state and the town store
 

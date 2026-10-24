@@ -36,12 +36,17 @@ export interface Envelope {
   payload: Record<string, unknown>;
 }
 
+export interface StubAnswer {
+  status: number;
+  body: unknown;
+}
+
 export interface StubOptions {
   key?: string;
   /** Pages for a paged list route, keyed by path: each entry is one page body in order. */
   pages?: Record<string, unknown[]>;
-  /** Plain bodies by path (`/api/team` …); a function answers per request. */
-  routes?: Record<string, unknown | ((url: URL) => { status: number; body: unknown })>;
+  /** Plain bodies by path (`/api/team` …); a function answers per request, at once or (a slow loops) after a promise. */
+  routes?: Record<string, unknown | ((url: URL) => StubAnswer | Promise<StubAnswer>)>;
   /** Events already in the log. */
   events?: Envelope[];
   /** `after` below this answers 410 cursor_expired. */
@@ -271,7 +276,11 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
     const route = options.routes?.[p];
     if (route === undefined) return send(res, 404, error("not_found", `Not found${detail}`));
     if (typeof route === "function") {
-      const answer = (route as (url: URL) => { status: number; body: unknown })(url);
+      const answer = (route as (url: URL) => StubAnswer | Promise<StubAnswer>)(url);
+      if (answer instanceof Promise) {
+        void answer.then((a) => send(res, a.status, a.body));
+        return;
+      }
       return send(res, answer.status, answer.body);
     }
     return send(res, 200, route);

@@ -57,11 +57,11 @@ describe("round 34 fuzz: road 1's answers through the host", () => {
     for (const id of ids) payloads.push({ threadId: "dmt_boing", messageId: id, agentId: "boing" });
     for (const s of ODD_STRINGS) payloads.push({ threadId: "dmt_boing", messageId: s, agentId: "boing" });
     for (let i = 0; i < 100; i += 1) payloads.push(f.bool(0.5) ? f.mutate({ threadId: "dmt_boing", messageId: `f${i}`, agentId: "boing" }, f.int(1, 2)) : f.value(2));
-    // In small batches: the host reads every agent message as it comes, one connection each, and a burst of hundreds
-    // at once overflows a listen backlog (macOS 128), which is loops' concern on the day, not this test's.
+    // All in one instant. Until question 14 the host read every agent message on its own connection as it came, and a
+    // burst like this overflowed a listen backlog (macOS 128: the stub saw 129 of 440), so the test emitted in batches
+    // of eight; now the reads pass a gate of DM_READ_LIMIT at once and every one is made.
     const expectRead = new Set<string>();
     for (const [i, payload] of payloads.entries()) {
-      if (i % 8 === 7) await new Promise((resolve) => setTimeout(resolve, 5));
       const actor = f.bool(0.9) ? { id: "boing", kind: "agent" } : f.pick([{ id: "nicky", kind: "user" }, { id: "x", kind: f.string(6) }, f.value(1)]);
       if (i < ids.length && typeof actor === "object" && actor !== null && (actor as { kind?: unknown }).kind === "agent") expectRead.add(ids[i]!);
       try {

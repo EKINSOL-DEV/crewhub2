@@ -43,7 +43,11 @@ smooth connection" below):
 - **The chat over the key** (round 12; road 1 of the two roads since round 28): on a crewhub-loops whose viewer key may read the chat (L1,
   crewhub-loops main since #959: the key's own entry in `GET /api/agents` says `viewer: true` and `GET /api/dm/threads` answers 200), the host
   reads an agent's `dm.created` on its own stream by id with the key (`src/chatLine.ts`: the first line, at most 140 characters) and hands the
-  tabs a `chat` stream message, the speech bubble; `connection.session` says `{ "state": "key" }`. A viewer key reads only the chat of the
+  tabs a `chat` stream message, the speech bubble; `connection.session` says `{ "state": "key" }`. Those reads pass a gate of at most eight
+  at once (`DM_READ_LIMIT` in `src/dmReads.ts`; question 14): the rest of a burst wait their turn in the stream's order and none is dropped
+  (440 messages in one instant cost 55 round trips, about 0.4 s against a loops that takes 4 ms a read; before the gate they opened 440
+  connections at once and a listen backlog of 128 lost the surplus). A read loops did not refuse (a 5xx, a 429, no answer) is tried once
+  more after 250 ms; a 4xx is loops' word and final; what is lost after the retry is counted in one log line at most every 5 s. A viewer key reads only the chat of the
   person who made it (`agent_keys.made_by`, #964): that person's messages and the agents' answers to them; a key with no maker reads no chat,
   and a thread list that answers 200 and empty is no error (the host's log says so). On a loops that does not let the key read the chat (an
   older loops, a plain external bot's key) `connection.session` is absent, the host logs once how to make a viewer key and that

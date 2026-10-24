@@ -33,6 +33,7 @@ import { type LoopsClient, createLoopsClient, isUnauthorized } from "./loops.ts"
 import { PAIR_PATH_PREFIX, PAIR_REFUSED_HTML, type Pairing, createPairing, pairCookieHeader } from "./pairing.ts";
 import { type ArchiveReport, type AssembledSnapshot, SnapshotError, type SnapshotStats, assembleSnapshot } from "./snapshot.ts";
 import { type ChatLine, firstLine } from "./chatLine.ts";
+import { DM_LOST_LOG_MS, DM_READ_LIMIT, DM_READ_RETRY_MS, createGate, retryableRead } from "./dmReads.ts";
 import { type HostMessage, type LoopsState, type Upstream, createUpstream } from "./stream.ts";
 
 export interface HostOptions {
@@ -69,6 +70,12 @@ export interface HostOptions {
   onStep?: (step: HostStep) => void;
   /** Reads in flight at most while a snapshot is assembled (default 6). */
   snapshotConcurrency?: number;
+  /**
+   * The chat's road 1 (question 14): agent messages read at most `limit` at once, the rest wait their turn (default
+   * `DM_READ_LIMIT`, 8); `retryMs` before the one retry of a read loops did not refuse (default `DM_READ_RETRY_MS`);
+   * `lostLogMs` between the log lines that count the reads lost after it (default `DM_LOST_LOG_MS`). Tests shorten them.
+   */
+  dmReads?: { limit?: number; retryMs?: number; lostLogMs?: number };
   /** Extra origins allowed besides the host's own (the Vite dev server). */
   allowedOrigins?: string[];
   bufferSize?: number;
@@ -449,24 +456,58 @@ export async function createHost(options: HostOptions): Promise<Host> {
         .catch(() => undefined);
     }, THREADS_REFRESH_MS);
   }
-  /** An agent's `dm.created` on the key's stream: the message read by id with the key, as one chat line; null when not readable. */
-  async function chatLineFromKey(client: LoopsClient, payload: unknown): Promise<ChatLine | null> {
+  // --- The chat's road 1 (question 14): at most `dmReads.limit` message reads in flight toward loops, the rest of a
+  // burst wait their turn in the stream's order (nothing dropped); one retry after `dmReads.retryMs` for a read loops
+  // did not refuse; what is lost after that is counted and said in one line at most every `dmReads.lostLogMs`.
+  const dmGate = createGate(options.dmReads?.limit ?? DM_READ_LIMIT);
+  const dmReadRetryMs = options.dmReads?.retryMs ?? DM_READ_RETRY_MS;
+  const dmLostLogMs = options.dmReads?.lostLogMs ?? DM_LOST_LOG_MS;
+  const dmLost = { count: 0, last: "", timer: null as ReturnType<typeof setTimeout> | null };
+  function noteLostLine(messageId: string, status: number | null): void {
+    dmLost.count += 1;
+    dmLost.last = `${messageId}, ${status === null ? "no answer" : status}`;
+    if (dmLost.timer !== null) return;
+    dmLost.timer = setTimeout(() => {
+      dmLost.timer = null;
+      log(`chat: ${dmLost.count} agent message(s) not read after one retry, those bubbles are lost (last: ${dmLost.last})`);
+      dmLost.count = 0;
+    }, dmLostLogMs);
+    dmLost.timer.unref?.();
+  }
+  /** One read of a message by id with the key: its status (null when loops did not answer) and the line it makes, if any. */
+  async function readChatLine(client: LoopsClient, ids: { messageId: string; threadId: string; agentId: string }): Promise<{ status: number | null; line: ChatLine | null }> {
+    try {
+      const { status, body } = await client.getJson<{ message?: { bodyText?: unknown; createdAt?: unknown; author?: { displayName?: unknown } } }>(`/api/dm/messages/${encodeURIComponent(ids.messageId)}`);
+      if (status !== 200 || typeof body?.message?.bodyText !== "string") return { status, line: null };
+      const text = firstLine(body.message.bodyText);
+      if (text === "") return { status, line: null };
+      const name = body.message.author?.displayName;
+      return { status, line: { agentId: ids.agentId, ...(typeof name === "string" ? { agentName: name } : {}), text, at: typeof body.message.createdAt === "string" ? body.message.createdAt : new Date().toISOString(), messageId: ids.messageId, threadId: ids.threadId } };
+    } catch {
+      return { status: null, line: null };
+    }
+  }
+  /**
+   * An agent's `dm.created` on the key's stream: the message read by id with the key, through the gate, as one chat
+   * line; null when not readable. `live` says whether the link this event came on still stands: a read whose link is
+   * gone (Forget, a new key, the host closing) is not started.
+   */
+  async function chatLineFromKey(client: LoopsClient, payload: unknown, live: () => boolean = () => true): Promise<ChatLine | null> {
     // Round 34 (found by the fuzz): a `dm.created` whose payload is null or no object threw out of the stream's loop.
     if (typeof payload !== "object" || payload === null) return null;
     const messageId = (payload as Record<string, unknown>)["messageId"];
     const threadId = (payload as Record<string, unknown>)["threadId"];
     const agentId = (payload as Record<string, unknown>)["agentId"];
     if (typeof messageId !== "string" || typeof threadId !== "string" || typeof agentId !== "string") return null;
-    try {
-      const { status, body } = await client.getJson<{ message?: { bodyText?: unknown; createdAt?: unknown; author?: { displayName?: unknown } } }>(`/api/dm/messages/${encodeURIComponent(messageId)}`);
-      if (status !== 200 || typeof body?.message?.bodyText !== "string") return null;
-      const text = firstLine(body.message.bodyText);
-      if (text === "") return null;
-      const name = body.message.author?.displayName;
-      return { agentId, ...(typeof name === "string" ? { agentName: name } : {}), text, at: typeof body.message.createdAt === "string" ? body.message.createdAt : new Date().toISOString(), messageId, threadId };
-    } catch {
-      return null;
-    }
+    const ids = { messageId, threadId, agentId };
+    const skipped = { status: null, line: null, skipped: true } as const;
+    const attempt = () => dmGate.run(() => (live() ? readChatLine(client, ids) : Promise.resolve(skipped)));
+    const first = await attempt();
+    if (first.line !== null || "skipped" in first || !retryableRead(first.status)) return first.line;
+    await new Promise<void>((resolve) => setTimeout(resolve, dmReadRetryMs).unref?.());
+    const second = await attempt();
+    if (second.line === null && !("skipped" in second) && live()) noteLostLine(messageId, second.status);
+    return second.line;
   }
 
   // --- A rejected key waits (round 8). No stream retries: each was a 401 and a health probe every 30 s. The host waits
@@ -670,7 +711,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
         // A `dm.*` event the key's stream sees (round 24): the threads' facts are read again once and sent to the tabs.
         if (message.type === "event" && keyReadsChat && message.envelope.type.startsWith("dm.")) refreshThreads(client, upstream);
         if (message.type === "event" && keyReadsChat && message.envelope.type === "dm.created" && message.envelope.actor.kind === "agent") {
-          void chatLineFromKey(client, message.envelope.payload).then((line) => {
+          void chatLineFromKey(client, message.envelope.payload, () => !closed && link?.upstream === upstream).then((line) => {
             if (line !== null && link?.upstream === upstream) for (const tab of tabs.values()) tab.send({ type: "chat", chat: line });
           });
           return;
@@ -1307,6 +1348,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
       closed = true;
       clearInterval(idleBeat);
       clearRecheck();
+      if (dmLost.timer !== null) clearTimeout(dmLost.timer);
       discovery.stop();
       await relinking;
       if (link !== null) await link.upstream.stop();

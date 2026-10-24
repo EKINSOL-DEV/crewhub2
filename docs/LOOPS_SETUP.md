@@ -308,7 +308,8 @@ counts) or `none`. An unpaired browser gets the states only: no target, no name,
 `npm run host -- doctor` prints the same in the terminal. `connection.session` says the host's half of the chat's road:
 `{ "state": "key" }` when this crewhub-loops lets the world's key read the chat (a viewer key, which reads only the chat
 of the person who made it), so that person's agents' answers come as speech bubbles over the key's own stream with no
-session anywhere; absent when it does not (an older loops, a plain external bot's key): no bubbles over the key. The
+session anywhere (the host reads at most eight of those messages at once and the rest of a burst wait their turn, so
+none is lost; question 14); absent when it does not (an older loops, a plain external bot's key): no bubbles over the key. The
 page's own road (round 28, road 2) is not in health: the page probes it itself where that crewhub-loops has
 `CHL_WORLD_ORIGIN` set to the page's origin, and the Connection panel's Chat section says which road is on or, with
 neither, how to make a viewer key (Settings > Agents > Connect CrewHub World) and the exact origin setting. The sign-in
