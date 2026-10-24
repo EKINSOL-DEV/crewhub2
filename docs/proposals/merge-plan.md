@@ -3,7 +3,9 @@
 Seven answer branches wait on [the open questions](open-questions.md). This page says, for every set of answers Nicky
 can give, in which order the branches merge into `feat/world-demo` and what has to be done by hand. Every hand merge
 below was rehearsed once on a throwaway checkout of the base `e55ef42` with `npm run check` green on the result, and
-is written so it can be redone without thinking. Nicky reads the first table; crewy and the Lead use the rest.
+is written so it can be redone without thinking. **Nicky needs §1 only**, and only the first two columns of its table
+to find the row; crewy and the Lead use the rest (§2 the evidence, §3 each hand merge exactly, §4 the check and the
+replay).
 
 The branches, at the heads this plan was made on (the branches are read only; the plan is redone when one moves):
 
@@ -18,25 +20,48 @@ The branches, at the heads this plan was made on (the branches are read only; th
 | 14 | `cap` | `task/q14-dm-read-cap` | `f8fa725` |
 | 15 | `cap` | `task/q15-body-cap` | `c83b27c` |
 
-## 1. The table: answers, order, hand merges
+## 1. Your answers, your row, and what happens
 
-**The one rule:** merge the yes-branches among questions 3, 8, 11, 14 and 15 first, in that order, then question 1's
-branch last. Every hand merge then happens in that last step, once, in files this page names.
+**Your answers are all crewy needs.** Send the answer lines the questions page asks for (`1: tab`, `3: less`, `8: say`,
+…); crewy merges from them with this page, and nothing below is yours to do. The table is here so you can see, from
+your own words, what your answers cost: nothing by hand in most rows, one rehearsed merge in the others.
 
-Three branches never need a hand: **q11, q14 and q15 merge cleanly with everything, in any order**, so they have no
-row of their own: say yes or no to each and the table does not change. The evidence is in §2.
+**Find your row with three answers**: question 1, question 3 and question 8. The other three answers that bring a
+branch (`11: show`, `14: cap`, `15: cap`) never need a hand: each merges cleanly with everything in any order, so say
+yes or no to each and your row stays the same. Every other question (2, 4 to 7, 9, 10, 12, 13) changes a setting or a
+decision, never a merge. An answer that is not in the table (`8: support`, `14: <number>`, `15: <size>`, `2: <days>`)
+is explained under it.
 
-| Question 1 | Question 3 | Question 8 | Order | By hand |
+**If you want to see the result yourself:** the last column is one command, run in a clean checkout of this
+repository. It merges on a detached copy (no branch is touched, nothing is pushed), prints the sha of the result, and
+with `--check` runs the full unit check on it. Add `q11`, `q14` or `q15` where you said `11: show`, `14: cap` or
+`15: cap`; the words in brackets are those optional ones.
+
+| `1:` | `3:` | `8:` | By hand | The command (`node tools/answers-replay.mjs feat/world-demo …`) |
 | --- | --- | --- | --- | --- |
-| `cookie` | any | any | the yes-branches among q3, q8, q11, q14, q15 | nothing |
-| `cookie+expiry` | no | any | the yes-branches, then `task/q1-cookie-expiry` | nothing |
-| `cookie+expiry` | **yes** | any | the yes-branches, then `task/q1-cookie-expiry` | **one merge**: `apps/host/src/host.ts` (A), and the test fix B |
-| `tab` | no | no | the yes-branches, then `task/r27-tab-pairing` | nothing to merge; then the restore C |
-| `tab` | **yes** | no | the yes-branches, then `task/r27-tab-pairing` | **one merge**: `apps/host/README.md`, `apps/world/hostPort.ts`, `apps/host/test/pairing.test.ts` (D, E, F); then C |
-| `tab` | no | **yes** | the yes-branches, then `task/r27-tab-pairing` | **one merge**: `docs/LOOPS_SETUP.md` (G, which does C) |
-| `tab` | **yes** | **yes** | the yes-branches, then `task/r27-tab-pairing` | **one merge**: the four files (D, E, F, G) |
+| `cookie` | any | any | nothing | `… cookie [q3] [q8] [q11] [q14] [q15] --check` |
+| `cookie+expiry` | `as-is` | any | nothing | `… cookie+expiry [q8] [q11] [q14] [q15] --check` |
+| `cookie+expiry` | `less` | any | **one merge**, one file (`apps/host/src/host.ts`, A) and a one-line test fix (B); rehearsed, the command does it | `… cookie+expiry q3 [q8] [q11] [q14] [q15] --check` |
+| `tab` | `as-is` | `as-is` | nothing to merge; two paragraphs of `docs/LOOPS_SETUP.md` put back after (C); the command does it | `… tab [q11] [q14] [q15] --check` |
+| `tab` | `less` | `as-is` | **one merge**, three files (`apps/host/README.md`, `apps/world/hostPort.ts`, `apps/host/test/pairing.test.ts`: D, E, F), then C; rehearsed, the command does it | `… tab q3 [q11] [q14] [q15] --check` |
+| `tab` | `as-is` | `say` | **one merge**, one file (`docs/LOOPS_SETUP.md`, G, which does C); rehearsed, the command does it | `… tab q8 [q11] [q14] [q15] --check` |
+| `tab` | `less` | `say` | **one merge**, four files (D, E, F, G); rehearsed, the command does it | `… tab q3 q8 [q11] [q14] [q15] --check` |
 
-So the worst case is one hand merge of four files, all rehearsed; most answer sets need none.
+So the worst case is one hand merge of four files, all rehearsed and replayed by the command; most answer sets need
+none. The letters A to G point at §3, where each resolution is written out for crewy.
+
+**Answers the table does not spell out:**
+
+- `8: support` is not built: for the merge it counts as `8: as-is` (nothing merges), and crewy notes that a round has
+  to build it.
+- `14: <number>` and `15: <size>` are the `cap` branch with one constant changed afterwards: for the merge, read the
+  row as `14: cap` or `15: cap`, and tell crewy the number.
+- `2: <days>` or `2: never` is one setting on question 1's branch (`CREWHUB_WORLD_PAIRING_IDLE_DAYS`), no merge of its
+  own; `2:` matters only with `1: tab` or `1: cookie+expiry`.
+- `1: cookie` merges neither branch of question 1; the row's command still merges whatever else you said yes to.
+
+**For crewy, the one rule behind the table:** merge the yes-branches among questions 3, 8, 11, 14 and 15 first, in that
+order, then question 1's branch last; every hand merge then happens in that last step, once, in the files named above.
 
 ## 2. The evidence
 
