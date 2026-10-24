@@ -38,7 +38,8 @@ export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_M
   const { model } = useWorld();
   const town = useTown();
   const kept = townKeeping(town.storage, model.mode);
-  const zoneWords = zonesOriginWords({ zones: model.zones, assignments: town.doc.assignments, kept });
+  // The Town row above says the one-tab rule while the host is away; the Zones row does not repeat it (round 39).
+  const zoneWords = zonesOriginWords({ zones: model.zones, assignments: town.doc.assignments, kept, oneTabRule: false });
   const townWords = `${townKeepingWords(kept)}${town.hostRev !== null ? ` Revision ${town.hostRev}.` : ""}${town.storageNote ? ` ${town.storageNote}` : ""}`;
   const [health, setOwnHealth] = useState<HostHealth | null>(initial);
   // Every read the panel makes is kept for the Chat panel and the text view too (state/health.ts).

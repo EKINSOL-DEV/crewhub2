@@ -82,3 +82,29 @@ test("the one-tab rule while the host is away (round 31, question 8): one senten
   assert.ok(!zonesOriginWords({ zones: [zone("east", "town"), zone("default", "default")], assignments: { web: "east" }, kept: "host" }).includes("One tab"));
   assert.ok(!zonesOriginWords({ zones: [zone("default", "default")], assignments: undefined, kept: "browser" }).includes("One tab"));
 });
+
+test("the one-tab rule is said once per place (round 39): the Connection panel's Town row carries it, its Zones row does not; the text view's Town document line carries it, its zone lines do not", () => {
+  const count = (text: string) => text.split(OFFLINE_ONE_TAB).length - 1;
+  const zones = [zone("east", "town", { name: "East" }), zone("default", "default")];
+  // Settings > Town: the keeping words alone.
+  assert.equal(count(townKeepingWords("offline")), 1);
+  // The Connection panel: the Town row (keeping words) then the Zones row (origin words without the rule), none yet and some.
+  const panelNone = `${townKeepingWords("offline")} ${zonesOriginWords({ zones: [zone("default", "default")], assignments: undefined, kept: "offline", oneTabRule: false })}`;
+  assert.equal(count(panelNone), 1, panelNone);
+  const panelSome = `${townKeepingWords("offline")} ${zonesOriginWords({ zones, assignments: { web: "east" }, kept: "offline", oneTabRule: false })}`;
+  assert.equal(count(panelSome), 1, panelSome);
+  assert.equal(
+    zonesOriginWords({ zones, assignments: { web: "east" }, kept: "offline", oneTabRule: false }),
+    "1 zone made by hand, kept in this browser until the host is back; crewhub-loops has no project groups (1 building assigned).",
+  );
+  assert.ok(zonesOriginWords({ zones: [zone("default", "default")], assignments: undefined, kept: "offline", oneTabRule: false }).endsWith("in build mode and kept in this browser until the host is back."));
+  // The option changes nothing with the host up or in the demo: there was no rule to drop.
+  assert.equal(zonesOriginWords({ zones, assignments: { web: "east" }, kept: "host", oneTabRule: false }), zonesOriginWords({ zones, assignments: { web: "east" }, kept: "host" }));
+  assert.equal(zonesOriginWords({ zones, assignments: { web: "east" }, kept: "browser", oneTabRule: false }), zonesOriginWords({ zones, assignments: { web: "east" }, kept: "browser" }));
+  // The text view: the Town document line (keeping words) plus every zone line of a live town while the host is away.
+  const zoneLines = describeZones({ mode: "live", kept: "offline", zones, buildings: [{ slug: "web", name: "Web", zoneId: "east" }], plots: [{ slug: "web", zoneId: "east" }], assignments: { web: "east" }, lookOf: () => "" });
+  assert.equal(count(`${townKeepingWords("offline")} ${zoneLines.map((l) => l.text).join(" ")}`), 1);
+  // Build mode's zones line: the only line of its place, so it carries the rule (the default).
+  assert.equal(count(zonesOriginWords({ zones, assignments: { web: "east" }, kept: "offline" })), 1);
+  assert.equal(count(zonesOriginWords({ zones: [zone("default", "default")], assignments: undefined, kept: "offline" })), 1);
+});

@@ -24,14 +24,18 @@ export const ZONES_BY_HAND = "made by hand in this browser; crewhub-loops has no
  * The Connection panel's "Zones" line of a live town (and build mode's hint): how many zones a person made by hand
  * and how many buildings they put in one, and where that lives. With none, a plain "none yet" that still says what
  * is true: every building stands in the one district until someone makes a zone in build mode.
+ *
+ * While the host is away the line ends with the one-tab rule (`OFFLINE_ONE_TAB`) unless `oneTabRule` is false: build
+ * mode's zones line is the only place that says the rule, so it carries it; the Connection panel's Town row says it
+ * already, so the panel's Zones row goes without (round 39: a screen reader heard the sentence twice in a row).
  */
-export function zonesOriginWords(facts: { zones: readonly Pick<Zone, "source">[]; assignments: Readonly<Record<string, string>> | undefined; kept?: TownKeeping }): string {
+export function zonesOriginWords(facts: { zones: readonly Pick<Zone, "source">[]; assignments: Readonly<Record<string, string>> | undefined; kept?: TownKeeping; oneTabRule?: boolean }): string {
   const made = facts.zones.filter((z) => z.source === "town").length;
   const assigned = Object.keys(facts.assignments ?? {}).length;
   const kept = facts.kept ?? "browser";
   const where = kept === "host" ? "kept by the world's host for this crewhub-loops and shared by every paired browser" : kept === "offline" ? "kept in this browser until the host is back" : "kept in this browser, not shared with other browsers";
-  // Build mode's note while the host is away carries the one-tab rule too (round 31, question 8).
-  const rule = kept === "offline" ? ` ${OFFLINE_ONE_TAB}` : "";
+  // The one-tab rule while the host is away (round 31, question 8), once per place (round 39).
+  const rule = kept === "offline" && facts.oneTabRule !== false ? ` ${OFFLINE_ONE_TAB}` : "";
   if (made === 0 && assigned === 0) {
     return `none yet: every building stands in the one district. crewhub-loops has no project groups; districts are made by hand in build mode and ${where}.${rule}`;
   }
@@ -47,8 +51,9 @@ export type TownKeeping = "host" | "offline" | "browser";
 /**
  * The rule while the host is away (round 31, question 8): two tabs of one browser would edit on one shared local
  * history and their records interleave (the mixed chain is skipped with a note on reload); with the host up the host's
- * history rules and this cannot happen. Said wherever the offline keeping words show: Settings > Town, the Connection
- * panel's Town row, the text view and build mode's zones line.
+ * history rules and this cannot happen. Said once per place where the offline keeping words show: Settings > Town, the
+ * Connection panel (its Town row; the Zones row below it goes without), the text view (its Town document line; the zone
+ * lines go without) and build mode's zones line.
  */
 export const OFFLINE_ONE_TAB = "One tab edits while the host is away: two tabs of this browser would mix one local history.";
 
