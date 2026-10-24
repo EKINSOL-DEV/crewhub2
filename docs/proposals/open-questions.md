@@ -188,10 +188,10 @@ its last known facts; no screen changes). The host's own reads see no body, as t
 the key. A stream line past the cap is dropped and the stream goes on from the next line. Seven unit tests; it merges
 cleanly onto `feat/world-demo` and with every other answer branch.
 
-**Options.** `cap`: that branch, at 4 MB (the same number as the town's inbound limit; a loops page is 50 pages of 50
-tickets, far under it). `<size>`: another cap. `as-is`: loops is trusted as a local process; a reviewer reads this
+**Options.** `cap`: that branch, at 4 MB (the same number as the town's inbound limit; a page of 50 tickets from loops is
+far under it). `<size>`: another cap. `as-is`: loops is trusted as a local process; a reviewer reads this
 line.
-**Recommendation** (r3-polish, round 35): `cap` at 4 MB, when a round has room: it is a small change, and the host
+**Recommendation** (r3-polish, round 35): `cap` at 4 MB: it is a small change, and the host
 already refuses its own inbound bodies at that size. **Default:** `as-is`.
 **Answer:** `15: cap / <size> / as-is`
 **One merge away:** `cap` is the branch `task/q15-body-cap`; `<size>` is that branch with one constant changed (`UPSTREAM_BODY_LIMIT`); `as-is` needs no branch.
