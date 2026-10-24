@@ -5,7 +5,7 @@ These are the active documents for the browser-world rebuild. All are in English
 | Document | Purpose |
 | --- | --- |
 | [INTRODUCTION.md](INTRODUCTION.md) | Start here: an extensive introduction for a reader who knows crewhub-loops and has never seen the world; the town and its parts, one table of loops object or event to world thing, demo and live mode, how it connects, the chat as built, the loops-side proposals, where to read next (with pictures) |
-| [proposals/open-questions.md](proposals/open-questions.md) | The open questions for Nicky after rounds 26 to 29 (pairing, health before pairing, the dev-origin route, the tour's beat, build mode and the host's town, the screens over the scene, offline in two tabs, the chat's second road, the Connection panel's Chat section, the switch branch): each with its options, the team's recommendation, the default and a one-word answer form |
+| [proposals/open-questions.md](proposals/open-questions.md) | The open questions for Nicky after rounds 26 to 35 (pairing, health before pairing, the dev-origin route, the tour's beat, build mode and the host's town, the screens over the scene, offline in two tabs, the chat's second road, the Connection panel's Chat section, the switch branch, a cap on the host's reads of agent messages, a size cap on an upstream body): each with its options, the team's recommendation, the default and a one-word answer form |
 | [REVIEWING.md](REVIEWING.md) | A reader's guide to pull request #28 (`feat/world-demo` into `main`): what a reviewer can skip, with counts from git; a reading order by area (the host, the relay, the chat roads, the world state and the town store, the scene, the UI kit, tools, docs) with the entry files, the risky parts, the tests and regress groups that pin them and an honest time; how to run it in five minutes; what is deliberately not in the PR |
 | [VISION.md](VISION.md) | User goals, product principles, and success criteria |
 | [VISUAL_DIRECTION.md](VISUAL_DIRECTION.md) | Art direction, interactions, and visual quality bar |
@@ -35,11 +35,11 @@ These are the active documents for the browser-world rebuild. All are in English
 
 The night report is [reports/2026-10-01-world-demo-night.md](reports/2026-10-01-world-demo-night.md): what was
 built per phase and per round since (the demo build, the art and performance rounds, casts, scale, loops readiness,
-three rooms, live on the Mac crewhub-loops, a smooth connection, and rounds 3 to 24 of 2026-10-21 and 22: the morning
+three rooms, live on the Mac crewhub-loops, a smooth connection, and rounds 3 to 29 of 2026-10-21 to 23: the morning
 rehearsed, regressions, the first paint, the new loops events, the operations road, a rejected key that waits,
 accessibility, the log's quiet facts in the snapshot and dust you can see, the chat with the agents, Nicky's decisions,
 the viewer-key switch, the town kept by the host, the tour, the keyboard and phone passes, the live card, the figures
-as data and the pixel proof), its verification, and the challenges met in the
+as data and the pixel proof, the host's security review, per-tab pairing prepared, the chat's two narrow roads and loops main), its verification, and the challenges met in the
 crewhub-loops integrator docs.
 
 Outside this folder, each workspace has its own README: [apps/host](../apps/host/README.md) (the relay: routes,
