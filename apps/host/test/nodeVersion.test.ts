@@ -6,7 +6,7 @@
  */
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, it } from "node:test";
@@ -41,13 +41,15 @@ describe("the host's Node warning", () => {
     cleanup.push(() => rmSync(dir, { recursive: true, force: true }));
     const env = { CREWHUB_WORLD_LOOPS_URL: "http://127.0.0.1:1", CREWHUB_WORLD_CONFIG_DIR: dir, CREWHUB_WORLD_PORT: "0" };
     const free = async () => ({ kind: "free" }) as const;
-    const warned = await runDoctor({ env, probePort: free, nodeVersion: "22.22.0" });
+    // The key files are the test's own: the default key file is ~/.config/crewhub-loops/secrets/agent-crewhub-world.key (round 35).
+    const keyFiles = { storedKey: path.join(dir, "loops-key"), defaultKey: path.join(dir, "none.key") };
+    const warned = await runDoctor({ env, probePort: free, nodeVersion: "22.22.0", keyFiles });
     assert.equal(warned.lines[0]?.id, "node");
     assert.equal(warned.lines[0]?.status, "warn");
     assert.match(warned.lines[0]?.text ?? "", WORDS);
     assert.ok(formatDoctor(warned).some((l) => /^warn  node/.test(l) && WORDS.test(l)), formatDoctor(warned).join("\n"));
     assert.match(formatDoctor(warned).at(-1) ?? "", /\(1 warning\)/);
-    const fine = await runDoctor({ env, probePort: free, nodeVersion: "24.21.0" });
+    const fine = await runDoctor({ env, probePort: free, nodeVersion: "24.21.0", keyFiles });
     assert.deepEqual(fine.lines[0], { id: "node", status: "ok", text: "Node v24.21.0, the major CrewHub World is tested on (.nvmrc)" });
     assert.ok(!formatDoctor(fine).some((l) => /warning/.test(l)));
     // The node line never decides the verdict: only fixes do (loops is down here, so the report is not ok for that reason).
@@ -57,10 +59,12 @@ describe("the host's Node warning", () => {
   it("the host prints the line once at its start on another major, and nothing on .nvmrc's; it goes on either way", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "chw-nodewarn-host-"));
     cleanup.push(() => rmSync(dir, { recursive: true, force: true }));
+    // A key file of the test's own: without one the host reads the default, ~/.config/crewhub-loops/secrets (round 35).
+    const keyFile = path.join(dir, "agent-crewhub-world.key");
+    writeFileSync(keyFile, `chl_${"x".repeat(32)}\n`, { mode: 0o600 });
     const start = (fakedVersion: string | null) =>
       new Promise<{ lines: string[]; listening: boolean }>((resolve) => {
-        const env = { ...process.env, CREWHUB_WORLD_LOOPS_URL: "http://127.0.0.1:1", CREWHUB_WORLD_CONFIG_DIR: dir, CREWHUB_WORLD_PORT: "0", CREWHUB_WORLD_PAIRING: "off", ...(fakedVersion === null ? {} : { CREWHUB_WORLD_NODE_VERSION: fakedVersion }) };
-        delete (env as Record<string, string | undefined>)["CREWHUB_WORLD_KEY_FILE"];
+        const env = { ...process.env, CREWHUB_WORLD_LOOPS_URL: "http://127.0.0.1:1", CREWHUB_WORLD_CONFIG_DIR: dir, CREWHUB_WORLD_KEY_FILE: keyFile, CREWHUB_WORLD_PORT: "0", CREWHUB_WORLD_PAIRING: "off", ...(fakedVersion === null ? {} : { CREWHUB_WORLD_NODE_VERSION: fakedVersion }) };
         const child = spawn(process.execPath, [MAIN], { env, stdio: ["ignore", "pipe", "pipe"] });
         const lines: string[] = [];
         let text = "";
