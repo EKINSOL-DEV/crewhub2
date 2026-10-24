@@ -9,6 +9,7 @@
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { UPSTREAM_BODY_LIMIT, readCapped } from "./bodyCap.ts";
 import { DEFAULT_LOOPS_URL, type PathKind, statPath } from "./config.ts";
 import { type LoopsTarget, createTransport } from "./transport.ts";
 
@@ -95,7 +96,8 @@ export async function loopsHealth(target: LoopsTarget, timeoutMs = 1500): Promis
     type HealthBody = { ok?: unknown; version?: unknown } | null;
     let body: HealthBody = null;
     try {
-      body = (await response.json()) as HealthBody;
+      // Capped like every other body from loops' URL (question 15): a huge health page is no loops.
+      body = JSON.parse(await readCapped(response, UPSTREAM_BODY_LIMIT)) as HealthBody;
     } catch {
       body = null;
     }

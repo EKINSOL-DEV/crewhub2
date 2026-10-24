@@ -40,6 +40,16 @@ smooth connection" below):
   `/tickets/{ref}/comments|progress`, `/projects/{slug}`, `/projects/{slug}/milestones|releases`, `/board/{slug}`,
   `/watchdog`, `/team`. Only `limit` and `cursor` of a query string are passed. `/world-api/project-groups`
   answers `{ "groups": [] }` locally.
+- **A size cap on every body from loops** (question 15, `src/bodyCap.ts`): a body past `UPSTREAM_BODY_LIMIT` (4 MB,
+  the same number as the town's inbound limit) is cut off and the connection let go, never read whole; a
+  `Content-Length` past the cap is refused before a byte is read, a body without one is counted. The relay answers
+  the page **502 `{ "error": "upstream_too_large", "limit", "bytes" }`** (the page reads it as any failed relay read:
+  the ticket or project stays as it was). The host's own reads (the snapshot's lists, the key check, the threads, a
+  chat message, the tail) see a null body, as for a body that is not JSON, and the log says once per path, then at
+  most every 5 s with a count, `loops answered GET <path> <status> with a body past 4194304 bytes (read|declared
+  <n>): cut off, …`, never the body. A stream line past the same cap is dropped with a log line and the stream goes
+  on from the next line (a reconnect at the cursor would only fetch the same line again). Loops is a local process:
+  such a body means a broken loops or something else answering at its URL.
 - **The chat over the key** (round 12; road 1 of the two roads since round 28): on a crewhub-loops whose viewer key may read the chat (L1,
   crewhub-loops main since #959: the key's own entry in `GET /api/agents` says `viewer: true` and `GET /api/dm/threads` answers 200), the host
   reads an agent's `dm.created` on its own stream by id with the key (`src/chatLine.ts`: the first line, at most 140 characters) and hands the

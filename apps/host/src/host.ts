@@ -22,6 +22,7 @@ import type { AddressInfo } from "node:net";
 import path from "node:path";
 import type { HostArchiveState, HostConnection, HostKeyState, HostSnapshotState, ChatThreadFact } from "@crewhub/loops-client";
 import { WORLD_API_PREFIX, fillPattern, matchWorldRoute } from "./allowList.ts";
+import { UPSTREAM_BODY_LIMIT, UpstreamTooLarge, createRepeatLog } from "./bodyCap.ts";
 import { DEV_ORIGINS_HEADER, devOriginAcceptedLine, devOriginVerdict } from "./devOrigin.ts";
 import { type ArchiveStore, normaliseSlugs, plainTime } from "./archiveStore.ts";
 import { DEFAULT_LOOPS_URL, type KeySource } from "./config.ts";
@@ -58,6 +59,12 @@ export interface HostOptions {
   worldDb?: WorldDb;
   /** How long one read of loops may take before it counts as not answering. Default 10 s; tests shorten it. */
   readTimeoutMs?: number;
+  /**
+   * The most bytes one body from loops may carry, and one line of its stream (question 15, `bodyCap.ts`): past it the
+   * body is cut off, the relay answers 502 `upstream_too_large`, the host's own reads see null and say so once. Default
+   * `UPSTREAM_BODY_LIMIT`, 4 MB; tests shorten it.
+   */
+  upstreamBodyLimit?: number;
   /** 0 (the default) picks a free port. */
   port?: number;
   /** Serve this folder (the built world) for every path outside `/world-api`, with `index.html` as the fallback. */
@@ -110,6 +117,8 @@ export const MINT_HEADER = "x-crewhub-world-mint";
  */
 export const HTML_HEADERS: Readonly<Record<string, string>> = { "content-security-policy": "frame-ancestors 'self'", "x-frame-options": "SAMEORIGIN" };
 
+/** A body past the cap on the same path is said at most this often (question 15). */
+const TOO_LARGE_LOG_MS = 5_000;
 /** How many tabs may hold the stream at once (review N3); the next one is answered 503 with a reason. */
 export const MAX_TABS = 64;
 export const CONNECT_PATH = `${WORLD_API_PREFIX}/connect`;
@@ -317,7 +326,12 @@ export async function createHost(options: HostOptions): Promise<Host> {
   let holder: KeyHolder | null =
     options.key === undefined ? null : { key: options.key, name: options.keyName ?? "crewhub-world", source: options.keySource ?? "env", state: "unchecked" };
   const readTimeoutMs = options.readTimeoutMs;
-  const clientFor = (found: Found, key: string): LoopsClient => createLoopsClient(found.target, key, readTimeoutMs === undefined ? {} : { readTimeoutMs });
+  const bodyLimit = options.upstreamBodyLimit ?? UPSTREAM_BODY_LIMIT;
+  // A body past the cap on one of the host's own reads, said once per path and then at most every 5 s (the same read
+  // fails on every attempt until loops is right again); never the body, never the key.
+  const sayTooLarge = createRepeatLog(log, TOO_LARGE_LOG_MS);
+  const onTooLarge = (path: string, error: UpstreamTooLarge) => sayTooLarge(path, `loops answered GET ${path} ${error.status} with a body past ${bodyLimit} bytes (${error.declared ? "declared" : "read"} ${error.bytes}): cut off, read as no body`);
+  const clientFor = (found: Found, key: string): LoopsClient => createLoopsClient(found.target, key, { ...(readTimeoutMs === undefined ? {} : { readTimeoutMs }), bodyLimit, onTooLarge });
 
   // --- The closed buildings the host knows. ---
   // The memory on disk belongs to one loops (round 34): the file names the target it was learnt from, and the host
@@ -613,6 +627,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
       if (options.retryMs !== undefined) upstreamOptions.retryMs = options.retryMs;
       if (options.reconnectMs !== undefined) upstreamOptions.reconnectMs = options.reconnectMs;
       upstreamOptions.heartbeatMs = heartbeatMs;
+      upstreamOptions.lineLimit = bodyLimit;
       const upstream = createUpstream(client, upstreamOptions);
       link = { found, client, upstream };
       // The host's own ear on its stream, for as long as this link lives: the stream is the second opinion on the key
@@ -901,7 +916,13 @@ export async function createHost(options: HostOptions): Promise<Host> {
       }
       res.writeHead(upstreamResponse.status, { "content-type": upstreamResponse.contentType, "cache-control": "no-store" });
       res.end(upstreamResponse.text);
-    } catch {
+    } catch (error) {
+      // A body past the cap (question 15): the browser hears what and how big, never the body; said once per path.
+      if (error instanceof UpstreamTooLarge) {
+        sayTooLarge(loopsPath, `loops answered GET ${loopsPath} ${error.status} with a body past ${bodyLimit} bytes (${error.declared ? "declared" : "read"} ${error.bytes}): cut off, 502 to the page`);
+        sendJson(res, 502, { error: "upstream_too_large", limit: error.limit, bytes: error.bytes });
+        return;
+      }
       sendJson(res, 503, { error: "loops_down" });
     }
   }

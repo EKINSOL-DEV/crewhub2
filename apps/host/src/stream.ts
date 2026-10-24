@@ -6,6 +6,7 @@
  * short jittered pause, on errors a backoff, on 429 `Retry-After`, on 410 a reset. Exactly one stream is open at any
  * time. While loops is down the host beats itself every `heartbeatMs`.
  */
+import { UPSTREAM_BODY_LIMIT } from "./bodyCap.ts";
 import type { Envelope, HostKeyState, ChatThreadFact } from "@crewhub/loops-client";
 import { type LoopsClient, type StreamResume, isUnauthorized } from "./loops.ts";
 import type { ChatLine } from "./chatLine.ts";
@@ -57,6 +58,8 @@ export interface UpstreamOptions {
   healthy?: () => Promise<boolean>;
   /** Told loops' `version` each time the stream opens after being down and health answered it (information only). */
   onVersion?: (version: string) => void;
+  /** The most bytes one NDJSON line may carry (question 15); a longer one is dropped and said. Default `UPSTREAM_BODY_LIMIT`. */
+  lineLimit?: number;
 }
 
 export interface Upstream {
@@ -112,6 +115,7 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
   const log = options.log ?? (() => {});
   const random = options.random ?? Math.random;
   const healthy = options.healthy ?? (async () => true);
+  const lineLimit = options.lineLimit ?? UPSTREAM_BODY_LIMIT;
 
   let state: LoopsState = "down";
   let cursor = -1;
@@ -211,6 +215,11 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let pending = "";
+    /** The bytes of the line being gathered in `pending` (exact after every chunk with a newline, a sum between). */
+    let pendingBytes = 0;
+    /** A line past `lineLimit` is being thrown away up to its newline (question 15): the stream goes on from the next
+     *  line, the way an unreadable line is skipped; reconnecting at the cursor would only fetch the same line again. */
+    let skipping = false;
     let lines = 0;
     let idle: ReturnType<typeof setTimeout> | null = null;
     const armIdle = () => {
@@ -223,20 +232,41 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
         const { value, done } = await reader.read();
         if (done || signal.aborted) break;
         armIdle();
-        pending += decoder.decode(value, { stream: true });
+        const text = decoder.decode(value, { stream: true });
+        if (skipping) {
+          // Still inside the dropped line: throw the chunk away up to its newline, then go on with what follows.
+          const end = text.indexOf("\n");
+          if (end === -1) continue;
+          skipping = false;
+          pending = text.slice(end + 1);
+          pendingBytes = Buffer.byteLength(pending);
+        } else {
+          pending += text;
+          pendingBytes += value.byteLength;
+        }
         let at = pending.indexOf("\n");
+        const hadLine = at !== -1;
         while (at !== -1) {
-          const text = pending.slice(0, at).trim();
+          const raw = pending.slice(0, at);
           pending = pending.slice(at + 1);
-          if (text !== "") {
+          const line = raw.trim();
+          if (Buffer.byteLength(raw) > lineLimit) log(`loops stream: a line past ${lineLimit} bytes dropped (${Buffer.byteLength(raw)} bytes); the stream goes on from the next line`);
+          else if (line !== "") {
             lines += 1;
             try {
-              apply(JSON.parse(text) as Record<string, unknown>);
+              apply(JSON.parse(line) as Record<string, unknown>);
             } catch {
               log("loops stream: unreadable line skipped");
             }
           }
           at = pending.indexOf("\n");
+        }
+        if (hadLine) pendingBytes = Buffer.byteLength(pending);
+        if (pendingBytes > lineLimit) {
+          log(`loops stream: a line past ${lineLimit} bytes dropped (${pendingBytes} so far); the stream goes on from the next line`);
+          skipping = true;
+          pending = "";
+          pendingBytes = 0;
         }
       }
     } finally {
