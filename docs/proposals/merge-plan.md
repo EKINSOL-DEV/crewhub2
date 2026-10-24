@@ -1,9 +1,10 @@
-# Merging Nicky's answers: the rehearsed plan (round 37, 2026-10-24)
+# Merging Nicky's answers: the rehearsed plan (rounds 37 and 38, 2026-10-24)
 
 Seven answer branches wait on [the open questions](open-questions.md). This page says, for every set of answers Nicky
 can give, in which order the branches merge into `feat/world-demo` and what has to be done by hand. Every hand merge
-below was rehearsed once on a throwaway checkout of the base `e55ef42` with `npm run check` green on the result, and
-is written so it can be redone without thinking. **Nicky needs §1 only**, and only the first two columns of its table
+below was rehearsed on a throwaway checkout of the base (`e55ef42` in round 37, `a0750aa` in round 38) with `npm run check`
+green on the result, and
+is written so it can be redone without thinking. **Nicky needs §1 only**, and only the first three columns of its table
 to find the row; crewy and the Lead use the rest (§2 the evidence, §3 each hand merge exactly, §4 the check and the
 replay).
 
@@ -42,13 +43,14 @@ with `--check` runs the full unit check on it. Add `q11`, `q14` or `q15` where y
 | `cookie` | any | any | nothing | `… cookie [q3] [q8] [q11] [q14] [q15] --check` |
 | `cookie+expiry` | `as-is` | any | nothing | `… cookie+expiry [q8] [q11] [q14] [q15] --check` |
 | `cookie+expiry` | `less` | any | **one merge**, one file (`apps/host/src/host.ts`, A) and a one-line test fix (B); rehearsed, the command does it | `… cookie+expiry q3 [q8] [q11] [q14] [q15] --check` |
-| `tab` | `as-is` | `as-is` | nothing to merge; two paragraphs of `docs/LOOPS_SETUP.md` put back after (C); the command does it | `… tab [q11] [q14] [q15] --check` |
-| `tab` | `less` | `as-is` | **one merge**, three files (`apps/host/README.md`, `apps/world/hostPort.ts`, `apps/host/test/pairing.test.ts`: D, E, F), then C; rehearsed, the command does it | `… tab q3 [q11] [q14] [q15] --check` |
-| `tab` | `as-is` | `say` | **one merge**, one file (`docs/LOOPS_SETUP.md`, G, which does C); rehearsed, the command does it | `… tab q8 [q11] [q14] [q15] --check` |
-| `tab` | `less` | `say` | **one merge**, four files (D, E, F, G); rehearsed, the command does it | `… tab q3 q8 [q11] [q14] [q15] --check` |
+| `tab` | `as-is` | `as-is` | nothing | `… tab [q11] [q14] [q15] --check` |
+| `tab` | `less` | `as-is` | **one merge**, three files (`apps/host/README.md`, `apps/world/hostPort.ts`, `apps/host/test/pairing.test.ts`: D, E, F); rehearsed, the command does it | `… tab q3 [q11] [q14] [q15] --check` |
+| `tab` | `as-is` | `say` | nothing | `… tab q8 [q11] [q14] [q15] --check` |
+| `tab` | `less` | `say` | **one merge**, the same three files (D, E, F); rehearsed, the command does it | `… tab q3 q8 [q11] [q14] [q15] --check` |
 
-So the worst case is one hand merge of four files, all rehearsed and replayed by the command; most answer sets need
-none. The letters A to G point at §3, where each resolution is written out for crewy.
+So the worst case is one hand merge of three files, rehearsed and replayed by the command; most answer sets need
+none. After every `tab` merge the command also checks that two paragraphs of `docs/LOOPS_SETUP.md` are there (C)
+and stops if they are not. The letters point at §3, where each resolution is written out for crewy.
 
 **Answers the table does not spell out:**
 
