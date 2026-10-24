@@ -1,8 +1,8 @@
-# Open questions for Nicky (round 30, 2026-10-23)
+# Open questions for Nicky (rounds 30 to 35, 2026-10-24)
 
 **How to answer:** one line per number, in the form shown after each question (for example `3: less`), to crewy or in
 a note; a number you skip keeps its default. **Nothing changes until you answer:** every question below names what the
-world keeps if you say nothing. Where an answer is already built, the question names its branch: that answer is one merge away. Thirteen questions; the ones a later round answered are listed at the end with why.
+world keeps if you say nothing. Where an answer is already built, the question names its branch: that answer is one merge away. Fifteen questions (14 and 15 came from the round-34 fuzz, added in round 35); the ones a later round answered are listed at the end with why, after a short list of what is known and accepted.
 
 ## 1. Pairing: the cookie, or a bearer per tab (rounds 26 and 27)
 
@@ -151,6 +151,63 @@ and no content.
 (ready: check and regress green on it).
 **Recommendation** (round 28): `retire`. **Default:** the branch stays as it is, unmerged.
 **Answer:** `13: retire / merge`
+
+## 14. A cap on the host's parallel reads of agent messages (rounds 34 and 35)
+
+**What.** On the chat's road 1 every agent `dm.created` on the key's stream is one read of the message by id with the
+key, and the host made each read on its own connection the moment the event came. A burst of hundreds in one instant
+(the round-34 fuzz emitted 440) opened hundreds of connections to loops at once; past a listen backlog (128 on macOS)
+the surplus connects failed and those bubbles were lost, silently. A real loops does not answer a person with hundreds
+of agent messages in one instant, so nobody has seen it; the fuzz did.
+
+**The prepared answer** is `task/q14-dm-read-cap`: a gate of eight reads in flight (`DM_READ_LIMIT` in
+`apps/host/src/dmReads.ts`), the rest of a burst waiting their turn in the stream's order, nothing dropped. Eight is
+well under the backlog even with the snapshot's six reads, the threads' refresh and a health probe beside it, and it is
+what a browser allows one origin. Its cost: the last bubble of a burst comes later, not never: 440 messages are 55
+round trips, 0.4 s against a loops that answers in 4 ms (measured in the test), a few seconds against one 50 ms away.
+A read loops did not refuse (a 5xx, a 429, no answer) is tried once more after 250 ms; a 4xx is loops' word and final,
+as before; what is lost after the retry is counted in one log line at most every 5 s, where before it was lost
+without a word. The round-34 test now emits its 440 in one instant and every one arrives.
+
+**Options.** `cap`: merge the branch (eight, one retry). `<number>`: another cap, one constant. `as-is`: no cap; a
+burst of hundreds keeps losing bubbles.
+**Recommendation** (r3-polish, round 35): `cap`. **Default:** `as-is` (the branch stays unmerged).
+**Answer:** `14: cap / <number> / as-is`
+**One merge away:** `cap` is the branch `task/q14-dm-read-cap`.
+
+## 15. A size cap on an upstream body (rounds 34 and 35)
+
+**What.** Everything the host reads from loops (a relayed ticket page, a project, the snapshot's lists, a chat message,
+the key check's answer) is read whole into memory with no limit on its size, then parsed or passed on to the browser;
+the host's own inbound limit is 4 MB on a town (`TOWN_BODY_LIMIT`), but nothing on what comes back from loops. Loops is
+a local process on this Mac, so a body of gigabytes would mean a loops that is broken, or something else answering at
+loops' URL (a proxy page, another local program on that port); the host would then hold it all in memory before it
+could say no. The round-34 fuzz noted it (a 1 MB body is read whole and passed on) and changed nothing.
+
+**No branch yet.** One would read every upstream body through a counting reader in `apps/host/src/transport.ts` and
+stop at the cap: the relay answers the browser 502 `upstream_too_large` with the size and the cap, the host's own
+reads see a body of null and one log line (a snapshot skips that project as it skips one that answers 404), and the
+stream's line buffer gets the same cap for a line that never ends. Tests: the stub answering a body one byte past the
+cap on each road.
+
+**Options.** `cap`: that branch, at 4 MB (the same number as the town's inbound limit; a loops page is 50 pages of 50
+tickets, far under it). `<size>`: another cap. `as-is`: loops is trusted as a local process; a reviewer reads this
+line.
+**Recommendation** (r3-polish, round 35): `cap` at 4 MB, when a round has room: it is a small change, and the host
+already refuses its own inbound bodies at that size. **Default:** `as-is`.
+**Answer:** `15: cap / <size> / as-is`
+
+## Known and accepted
+
+Not questions: behaviours the round-34 fuzz looked at and left as they are, said here so a reviewer is not surprised.
+
+- A heartbeat's `seq` is loops' own word on its position and is trusted when it is a seq (a non-negative safe integer;
+  anything else is refused since round 34). A loops that claimed a position far ahead would drop the events up to it
+  until the next tail read, which recovers; a loops that lies about its own log is not in the threat model.
+- `constructor` and `prototype` are accepted as own keys in the town document's two maps whose names a person spells
+  (`styleOptions`, `assignments`), with a string under each: harmless, they are read with `Object.keys` and by key as
+  own values; `__proto__` and every other prototype name never pass the pattern. Neither deserves a question: the
+  first is a trust the stream rests on anyway, the second has no effect.
 
 ## Answered since, and dropped from this page
 
