@@ -184,11 +184,13 @@ a local process on this Mac, so a body of gigabytes would mean a loops that is b
 loops' URL (a proxy page, another local program on that port); the host would then hold it all in memory before it
 could say no. The round-34 fuzz noted it (a 1 MB body is read whole and passed on) and changed nothing.
 
-**No branch yet.** One would read every upstream body through a counting reader in `apps/host/src/transport.ts` and
-stop at the cap: the relay answers the browser 502 `upstream_too_large` with the size and the cap, the host's own
-reads see a body of null and one log line (a snapshot skips that project as it skips one that answers 404), and the
-stream's line buffer gets the same cap for a line that never ends. Tests: the stub answering a body one byte past the
-cap on each road.
+**The prepared answer** is `task/q15-body-cap` (round 36, never merged): every body from loops is read through a
+counting reader and stopped at 4 MB, never held whole; a `Content-Length` past it is refused before a byte is read.
+The relay then answers the browser 502 `upstream_too_large`, and the page treats it as any failed read (the ticket keeps
+its last known facts; no screen changes). The host's own reads see no body, as they do a body that is not JSON today
+(a snapshot read fails as `loops_down`, a chat message makes no bubble), with one log line that never holds the body or
+the key. A stream line past the cap is dropped and the stream goes on from the next line. Seven unit tests; it merges
+cleanly onto `feat/world-demo` and with every other answer branch.
 
 **Options.** `cap`: that branch, at 4 MB (the same number as the town's inbound limit; a loops page is 50 pages of 50
 tickets, far under it). `<size>`: another cap. `as-is`: loops is trusted as a local process; a reviewer reads this
@@ -196,6 +198,7 @@ line.
 **Recommendation** (r3-polish, round 35): `cap` at 4 MB, when a round has room: it is a small change, and the host
 already refuses its own inbound bodies at that size. **Default:** `as-is`.
 **Answer:** `15: cap / <size> / as-is`
+**One merge away:** `cap` is the branch `task/q15-body-cap`; `<size>` is that branch with one constant changed (`UPSTREAM_BODY_LIMIT`); `as-is` needs no branch.
 
 ## Known and accepted
 
