@@ -152,7 +152,7 @@ describe("the doctor", () => {
     cleanup.push(() => probe.close());
     const good = path.join(dir, "agent-crewhub-world.key");
     writeFileSync(good, probe.key, { mode: 0o600 });
-    const probed = byId(await runDoctor({ env: { CREWHUB_WORLD_LOOPS_URL: probe.url, CREWHUB_WORLD_KEY_FILE: good }, probePort: free }));
+    const probed = byId(await runDoctor({ env: { ...base, CREWHUB_WORLD_LOOPS_URL: probe.url, CREWHUB_WORLD_KEY_FILE: good }, probePort: free }));
     assert.equal(probed.auth!.text, PROBE_REASON);
     assert.equal(probed.projects!.status, "skip");
     const missing = byId(await runDoctor({ env: { ...base, CREWHUB_WORLD_KEY_FILE: path.join(dir, "gone.key") }, probePort: free }));
@@ -164,7 +164,8 @@ describe("the doctor", () => {
     mkdirSync(path.join(dir, "run"));
     const closed = await freePort();
     writeFileSync(path.join(dir, "settings.json"), `{"port": ${closed}}`);
-    const down = await runDoctor({ env: { CREWHUB_WORLD_LOOPS_APP_DATA: dir }, probePort: free });
+    // The config folder and the key files are the test's own: the defaults are ~/.config/crewhub-world and Nicky's key file (round 35).
+    const down = await runDoctor({ env: { CREWHUB_WORLD_LOOPS_APP_DATA: dir, CREWHUB_WORLD_CONFIG_DIR: path.join(dir, "cw") }, probePort: free, keyFiles: { storedKey: path.join(dir, "cw", "loops-key"), defaultKey: path.join(dir, "none.key") } });
     const lines = byId(down);
     assert.equal(down.ok, false);
     assert.ok(lines.loops!.text.startsWith(`nothing answers; looked for app-port http://127.0.0.1:${closed}. Open Crewhub.app`), lines.loops!.text);
@@ -174,7 +175,7 @@ describe("the doctor", () => {
 
     const stub = await createLoopsStub({ ...installation() });
     cleanup.push(() => stub.close());
-    const env = { CREWHUB_WORLD_LOOPS_URL: stub.url, CREWHUB_WORLD_KEY_FILE: path.join(dir, "k.key") };
+    const env = { CREWHUB_WORLD_LOOPS_URL: stub.url, CREWHUB_WORLD_KEY_FILE: path.join(dir, "k.key"), CREWHUB_WORLD_CONFIG_DIR: path.join(dir, "cw") };
     writeFileSync(env.CREWHUB_WORLD_KEY_FILE, stub.key, { mode: 0o600 });
     const running = byId(await runDoctor({ env, probePort: () => Promise.resolve({ kind: "host", health: { loops: "ok", keyName: "crewhub-world", connection: { stream: { state: "ok" }, key: { state: "ok" } } } }) }));
     assert.equal(running.port!.status, "ok");

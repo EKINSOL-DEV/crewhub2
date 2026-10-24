@@ -276,8 +276,12 @@ Against the Mac app (the runbook is [docs/LOOPS_SETUP.md](../../docs/LOOPS_SETUP
 `curl -s http://127.0.0.1:5180/world-api/health` to look at the states.
 
 Tests: `node --test apps/host/test/*.test.ts` (part of `npm test`). They start a tiny loops stub on `127.0.0.1`
-port 0 and talk to it over loopback only. The end-to-end test against `packages/loops-fake` is `test/e2e.test.ts`
-(owned by the fake).
+port 0 and talk to it over loopback only. **No test may reach the Mac app** (round 35): `npm test` preloads
+`scripts/no-app-reach.mjs` into every test process and every Node a test spawns; it refuses a connection to 8091 (or
+8000, 9443) and a read under the app's data folder, `~/.config/crewhub-world` or `~/.config/crewhub-loops` before it
+happens, and fails the test file. So a `createHost` in a test names its loops (`loopsUrl`, `loopsSocket`) or an app data
+folder of its own with a `settings.json`, and a doctor run names its config folder and key files. The end-to-end test
+against `packages/loops-fake` is `test/e2e.test.ts` (owned by the fake).
 
 ## Pairing
 

@@ -28,7 +28,9 @@ tests taken out, nothing else); both figures are from the same diff.
 
 The times assume a careful read at about 300 lines an hour for source and a skim of the tests at three times that
 pace; "the risky parts alone" is the files named under each area at the careful pace. Nobody needs the first column.
-Which one-line bugs in the risky parts the tests are known to catch is measured in §5.
+Which one-line bugs in the risky parts the tests are known to catch is measured in §5. The regress groups named
+under "Pinned by" are described check by check in `tools/README.md`; their counts are the tool's own INFO lines, not
+repeated here.
 
 | Area | Source files / lines | Test files / lines | A careful read | The risky parts alone |
 | --- | --- | --- | --- | --- |
@@ -66,8 +68,8 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
   *Unpaired health* says the states and, today, the bot's name, the cursor and loops' version (question 3).
 - **Pinned by.** `apps/host/test/pairing.test.ts` (309 lines), `guard.test.ts`, `devOrigin.test.ts`,
   `runFile.test.ts`, `static.test.ts`, `keyStates.test.ts`, `connect.test.ts`, `e2e.test.ts`, `key.test.ts` (every
-  response grepped for the key); the regress groups `connect` (25 checks, every Connect screen in order) and `ops`
-  (8, loops stopped, the key revoked, loops upgraded under the host).
+  response grepped for the key); the regress groups `connect` (every Connect screen in order) and `ops`
+  (loops stopped, the key revoked, loops upgraded under the host).
 - **Fuzzed (round 34).** The Host and Origin guards, the pairing cookie and link token, the dev-origin decision,
   raw request lines (`fuzzGuards.test.ts`), the key check's reading of `/api/auth/me` (`fuzzTransport.test.ts`); a
   null principal no longer throws out of the key check.
@@ -121,7 +123,7 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
 - **Pinned by.** `apps/world/test/pageChat.test.ts` (362 lines), `chatRoad.test.ts`, `said.test.ts`,
   `recentAnswers.test.ts`, `chatPanel.test.ts`; `packages/loops-client/test/pageChat.test.ts` (the header names,
   against a real loopback server); `apps/host/test/chatKey.test.ts`; `scripts/scan-model-calls.ts` (fetch is allowed
-  in two browser files and nowhere else); the regress groups `chat` (22, both roads over the fakes) and `live` (26);
+  in two browser files and nowhere else); the regress groups `chat` (both roads over the fakes) and `live`;
   `tools/road2proof.mjs` records a browser's requests on road 2.
 - **Fuzzed (round 34).** Road 2's readers, verdict, probe and poll over any answer (`pageChat.fuzz.test.ts`), the
   page's reading of health and the roads' words (`chatRoad.fuzz.test.ts`), road 1's dm payloads and the message and
@@ -177,7 +179,7 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
 - **Pinned by.** The parity tests (`mergeStaticParity`, `staticPartsParity`, `roomDressingParity`,
   `validateLayoutParity`), the seam tests (`castContract`, `castBoundary`, `styleBoundary`), `navigation`, `walks`,
   `wayfinding`; the engine's `nav`, `pathfinding`, `props`, `propFormat`; the style's `civicBake`, `figurePieces`; the
-  regress groups `walk` (38), `rooms` (20, three of them the scene's teardown, §5), `demo` (38); the measurements `tools/perf.mjs`, `memory.mjs`.
+  regress groups `walk`, `rooms` (three of its checks the scene's teardown, §5), `demo`; the measurements `tools/perf.mjs`, `memory.mjs`.
 - **Fuzzed (round 34).** The prop document and the ticket's json block to the town (`props.fuzz.test.ts`,
   `propImport.fuzz.test.ts`): nothing found.
 - **The short road, 2 h:** `WorldCanvas.tsx`, the header and `dispose` of `TownScene.ts`, `propImport.ts` with the
@@ -195,8 +197,9 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
   a document from a file or a backup: validated before it is adopted, and a restore is a new revision, undoable. The
   icon sprite is the one `dangerouslySetInnerHTML`, a constant. The design guard: no colour outside the tokens, dark
   parity of every token.
-- **Pinned by.** `npm run check:design` (193 files, 68 dark tokens) and `check:copy`; `tools/a11y.mjs` (188 checks); the regress
-  groups `walk` (38: keyboard, text view, phone width, themes, reduced motion), `connect` (25), `tour` (16); the unit
+- **Pinned by.** `npm run check:design` (the hex guard over every file, dark parity of every token; it prints both counts) and
+  `check:copy`; `tools/a11y.mjs` (it prints `a11y: <passed>/<total>` last); the regress groups `walk` (keyboard, text
+  view, phone width, themes, reduced motion), `connect`, `tour`; the unit
   tests `connect.test.ts`, `tour.test.ts`, `source.test.ts`.
 
 ### 2.7 Tools and regress
@@ -211,8 +214,13 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
   but the host": a new entry there is a review item of its own. `loops-dev.sh` refuses the Mac app's ports (8091,
   8000, 9443) and never touches the app's data folder; `loops-seed.mjs` writes to a development loops with a key,
   never to the app. Every tool opens only `http://127.0.0.1:<the port you name>/`.
-- **Pinned by.** CI; `scripts/test/` (the Node guard, the seed, the pixel and DOM diffs). The regress is not in the
-  check: its last full run before this page, 2026-10-23, passed 212 of 212 checks in the ten groups.
+- **Pinned by.** CI; `scripts/test/` (the Node guard, the seed, the pixel and DOM diffs). No unit test can reach the
+  Mac app: `npm test` preloads `scripts/no-app-reach.mjs` into every test process and every Node a test spawns, which
+  refuses the app's ports and folders before a packet or an open and fails the file (round 35; its own test is
+  `scripts/test/no-app-reach.test.ts`). The regress is not in the
+  check: it prints `regress: <passed>/<total>` last (the groups' checks and two closing ones; each group's count is
+  its INFO line, and `tools/README.md` names them); its last full run in one go, 2026-10-23 on `430b276`, passed 197
+  of 197.
 
 ### 2.8 The documents
 
@@ -237,7 +245,7 @@ The demo, two minutes, nothing but Node 24 and npm 11 (`.nvmrc`; an older Node s
 ```sh
 npm ci
 npm run dev                      # http://127.0.0.1:5173, the demo; or: npm run build && npm run preview (4173)
-npm run check                    # typecheck, 996 tests, doc links, the design and copy guards, the build: under a minute
+npm run check                    # typecheck, the unit tests (it prints their count), doc links, the design and copy guards, the build: under a minute
 ```
 
 On a shared machine, prefix `npm run dev` with `CREWHUB_WORLD_PORT=<a free port>`: the dev server proxies `/world-api`
@@ -265,7 +273,7 @@ live there too (section 2 of LOOPS_SETUP.md). `npm run world` opens your browser
 fresh one for a host that already runs). With a key file the
 town stands at once (the stranger's clock: the world up 731 ms after the host started); without one the page shows
 Connect: make the viewer key in that loops (Settings > Agents > Connect CrewHub World) and paste it once. `npm run
-host -- doctor`, with the same environment in front of it, says which step failed, one line each (13 checks, the config folder among them). Road 2,
+host -- doctor`, with the same environment in front of it, says which step failed, one line each (the doctor counts its checks in its last line; the config folder is one of them). Road 2,
 the page reading your own chat where that loops has `CHL_WORLD_ORIGIN` set: start the host on the port that origin
 names (`CREWHUB_WORLD_PORT=<that port>`) and sign in to loops in the same browser; signed out, the Connection panel's
 Chat section says so and names both ways. With no loops at hand, section 0 of the same document runs the fake in

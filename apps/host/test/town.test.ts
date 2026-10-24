@@ -2,7 +2,9 @@
    installation, no town is 404, a create, a conflict, the export, and the `town` message on every tab's stream. */
 import assert from "node:assert/strict";
 import { emptyTownDocument } from "@crewhub/world-model";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:net";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, it } from "node:test";
@@ -11,6 +13,15 @@ import { MIGRATIONS, openWorldDb, type Migration, type WorldDb } from "../src/wo
 import { createLoopsStub, installation, type LoopsStub } from "./loopsStub.ts";
 import { openSse } from "./sse.ts";
 import { waitFor } from "./wait.ts";
+
+/** A port nobody listens on right now (bound once on the loopback and closed again). */
+async function freePort(): Promise<number> {
+  const server = createServer();
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const port = (server.address() as AddressInfo).port;
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+  return port;
+}
 
 /** A whole, valid document at revision `n` (review F7: the host now validates what it keeps, as the browsers do). */
 const DOC = (n: number) => ({ ...emptyTownDocument("greenhouse"), revision: n });
@@ -135,7 +146,11 @@ describe("the town routes", () => {
     await host.close();
     dir = mkdtempSync(path.join(tmpdir(), "chw-town-"));
     db = openWorldDb(dir);
+    // The app data folder names a port nobody listens on: without a settings.json the discovery falls back to 8091, the
+    // Mac app's port, and on a Mac where the app runs the host finds it (an installation, revision 0) when its probe
+    // wins the race against the read below (round 35).
     const appData = mkdtempSync(path.join(tmpdir(), "chw-app-"));
+    writeFileSync(path.join(appData, "settings.json"), `{"port": ${await freePort()}}\n`);
     host = await createHost({ discovery: { appData, intervalMs: 40 }, pairing: "off", retryMs: { min: 20, max: 100 }, worldDb: db });
     const lost = await get("/town");
     assert.deepEqual([lost.status, ((await lost.json()) as { reason: string; rev: unknown }).reason, ((await (await get("/town")).json()) as { rev: unknown }).rev], [200, "no_loops", null]);

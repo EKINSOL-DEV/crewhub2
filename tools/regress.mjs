@@ -1,9 +1,9 @@
 /* regress.mjs: the browser regression pass of the integrated world, in ten groups.
 
    Usage:
-     node tools/regress.mjs --port <port> [--groups connect,walk,demo,live,ops,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]
+     node tools/regress.mjs --port <port> [--groups connect,walk,demo,tour,live,town,ops,chat,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]
 
-   Groups (--groups, default all eight, in this order; connect first, the connection being the first priority):
+   Groups (--groups, default all ten, in this order; connect first, the connection being the first priority):
      connect the connect flow (spec addendum "a smooth connection"), 23 checks in two halves, both behind your Vite
            (started with CREWHUB_WORLD_PORT=<host-port>; apps/world/dist is never looked at here, whatever the live
            group does with it). Against the stub host of lib/connectStub.mjs, on --host-port, always: one page meets
