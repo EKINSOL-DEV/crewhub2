@@ -1,0 +1,14 @@
+{
+  "name": "@crewhub/world-cast",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@crewhub/world-engine": "0.0.0",
+    "@crewhub/world-style": "0.0.0",
+    "three": "0.186.0"
+  }
+}

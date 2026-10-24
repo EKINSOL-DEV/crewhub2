@@ -1,0 +1,214 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-town-slide",
+  "name": "Slide",
+  "description": "A small tangerine slide with a timber ladder.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "town"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 3
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.5,
+        0.06,
+        0.5
+      ],
+      "position": [
+        0,
+        1.1,
+        -0.5
+      ],
+      "material": "timber-light",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        1.1,
+        0.06
+      ],
+      "position": [
+        -0.22,
+        0.55,
+        -0.72
+      ],
+      "material": "timber",
+      "radius": 0.015
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        1.1,
+        0.06
+      ],
+      "position": [
+        -0.22,
+        0.55,
+        -0.28
+      ],
+      "material": "timber",
+      "radius": 0.015
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        1.1,
+        0.06
+      ],
+      "position": [
+        0.22,
+        0.55,
+        -0.72
+      ],
+      "material": "timber",
+      "radius": 0.015
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        1.1,
+        0.06
+      ],
+      "position": [
+        0.22,
+        0.55,
+        -0.28
+      ],
+      "material": "timber",
+      "radius": 0.015
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.44,
+        0.04,
+        0.06
+      ],
+      "position": [
+        0,
+        0.25,
+        -0.76
+      ],
+      "material": "timber-light",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.44,
+        0.04,
+        0.06
+      ],
+      "position": [
+        0,
+        0.5,
+        -0.76
+      ],
+      "material": "timber-light",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.44,
+        0.04,
+        0.06
+      ],
+      "position": [
+        0,
+        0.75,
+        -0.76
+      ],
+      "material": "timber-light",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.44,
+        0.04,
+        0.06
+      ],
+      "position": [
+        0,
+        1.0,
+        -0.76
+      ],
+      "material": "timber-light",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.42,
+        0.05,
+        1.45
+      ],
+      "position": [
+        0,
+        0.6,
+        0.35
+      ],
+      "material": "tangerine",
+      "rotation": [
+        -40,
+        0,
+        0
+      ],
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.04,
+        0.12,
+        1.45
+      ],
+      "position": [
+        -0.23,
+        0.66,
+        0.35
+      ],
+      "material": "tangerine",
+      "rotation": [
+        -40,
+        0,
+        0
+      ],
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.04,
+        0.12,
+        1.45
+      ],
+      "position": [
+        0.23,
+        0.66,
+        0.35
+      ],
+      "material": "tangerine",
+      "rotation": [
+        -40,
+        0,
+        0
+      ],
+      "radius": 0.01
+    }
+  ]
+}

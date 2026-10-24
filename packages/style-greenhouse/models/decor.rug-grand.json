@@ -1,0 +1,190 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-rug-grand",
+  "name": "Grand rug",
+  "description": "A big round lobby rug in cream with a sage band, a terracotta ring and a scatter of leaf motifs.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "rug",
+    "lobby"
+  ],
+  "footprint": {
+    "width": 5,
+    "depth": 5
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        1.45,
+        0.012,
+        1.45
+      ],
+      "position": [
+        0,
+        0.006,
+        0
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        1.33,
+        0.014,
+        1.33
+      ],
+      "position": [
+        0,
+        0.007,
+        0
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        1.12,
+        0.016,
+        1.12
+      ],
+      "position": [
+        0,
+        0.008,
+        0
+      ],
+      "material": "terracotta"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        1.06,
+        0.018,
+        1.06
+      ],
+      "position": [
+        0,
+        0.009,
+        0
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.12,
+        0.012,
+        0.05
+      ],
+      "position": [
+        0,
+        0.016,
+        0.82
+      ],
+      "material": "leaf",
+      "rotation": [
+        0,
+        90,
+        0
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.12,
+        0.012,
+        0.05
+      ],
+      "position": [
+        0.71,
+        0.016,
+        0.41
+      ],
+      "material": "leaf",
+      "rotation": [
+        0,
+        150,
+        0
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.12,
+        0.012,
+        0.05
+      ],
+      "position": [
+        0.71,
+        0.016,
+        -0.41
+      ],
+      "material": "leaf",
+      "rotation": [
+        0,
+        210,
+        0
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.12,
+        0.012,
+        0.05
+      ],
+      "position": [
+        0,
+        0.016,
+        -0.82
+      ],
+      "material": "leaf",
+      "rotation": [
+        0,
+        270,
+        0
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.12,
+        0.012,
+        0.05
+      ],
+      "position": [
+        -0.71,
+        0.016,
+        -0.41
+      ],
+      "material": "leaf",
+      "rotation": [
+        0,
+        330,
+        0
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.12,
+        0.012,
+        0.05
+      ],
+      "position": [
+        -0.71,
+        0.016,
+        0.41
+      ],
+      "material": "leaf",
+      "rotation": [
+        0,
+        30,
+        0
+      ]
+    }
+  ]
+}

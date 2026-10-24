@@ -81,7 +81,7 @@ test("layout input rejects malformed, overlapping, off-grid, duplicate, and unkn
     null,
     {},
     { ...room(), version: 2 },
-    { ...room(), grid: { width: 129, depth: 8, cellSize: 1 } },
+    { ...room(), grid: { width: 257, depth: 8, cellSize: 1 } },
     { ...room(), grid: { width: 8, depth: 8, cellSize: NaN } },
     room([block("a", 2, 2), block("b", 2, 2)]),
     room([block("a", 2, 2), block("a", 3, 2)]),

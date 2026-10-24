@@ -1,0 +1,323 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "user:server-rack",
+  "name": "Server rack",
+  "description": "A tall graphite server rack with five slate units, vent strips and glowing status lights, one of them red.",
+  "category": "work",
+  "tags": [
+    "server",
+    "rack",
+    "workers"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [
+    {
+      "x": 0,
+      "z": 1
+    }
+  ],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.56,
+        0.06,
+        0.5
+      ],
+      "position": [
+        0,
+        0.03,
+        0
+      ],
+      "material": "slate",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.52,
+        1.74,
+        0.48
+      ],
+      "position": [
+        0,
+        0.93,
+        0
+      ],
+      "material": "graphite",
+      "radius": 0.03
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.56,
+        0.05,
+        0.52
+      ],
+      "position": [
+        0,
+        1.825,
+        0
+      ],
+      "material": "slate",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.46,
+        0.2,
+        0.03
+      ],
+      "position": [
+        0,
+        0.45,
+        0.255
+      ],
+      "material": "slate",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.24,
+        0.05,
+        0.01
+      ],
+      "position": [
+        -0.07,
+        0.45,
+        0.275
+      ],
+      "material": "mist",
+      "radius": 0.004
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.014,
+        0.014,
+        0.014
+      ],
+      "position": [
+        0.16,
+        0.48,
+        0.275
+      ],
+      "material": "lamp-glow",
+      "emissive": true
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.46,
+        0.2,
+        0.03
+      ],
+      "position": [
+        0,
+        0.72,
+        0.255
+      ],
+      "material": "slate",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.24,
+        0.05,
+        0.01
+      ],
+      "position": [
+        -0.07,
+        0.72,
+        0.275
+      ],
+      "material": "mist",
+      "radius": 0.004
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.014,
+        0.014,
+        0.014
+      ],
+      "position": [
+        0.16,
+        0.75,
+        0.275
+      ],
+      "material": "lamp-glow",
+      "emissive": true
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.46,
+        0.2,
+        0.03
+      ],
+      "position": [
+        0,
+        0.99,
+        0.255
+      ],
+      "material": "slate",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.24,
+        0.05,
+        0.01
+      ],
+      "position": [
+        -0.07,
+        0.99,
+        0.275
+      ],
+      "material": "mist",
+      "radius": 0.004
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.014,
+        0.014,
+        0.014
+      ],
+      "position": [
+        0.16,
+        1.02,
+        0.275
+      ],
+      "material": "lamp-glow",
+      "emissive": true
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.46,
+        0.2,
+        0.03
+      ],
+      "position": [
+        0,
+        1.26,
+        0.255
+      ],
+      "material": "slate",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.24,
+        0.05,
+        0.01
+      ],
+      "position": [
+        -0.07,
+        1.26,
+        0.275
+      ],
+      "material": "mist",
+      "radius": 0.004
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.014,
+        0.014,
+        0.014
+      ],
+      "position": [
+        0.16,
+        1.29,
+        0.275
+      ],
+      "material": "circle",
+      "emissive": true
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.46,
+        0.2,
+        0.03
+      ],
+      "position": [
+        0,
+        1.53,
+        0.255
+      ],
+      "material": "slate",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.24,
+        0.05,
+        0.01
+      ],
+      "position": [
+        -0.07,
+        1.53,
+        0.275
+      ],
+      "material": "mist",
+      "radius": 0.004
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.014,
+        0.014,
+        0.014
+      ],
+      "position": [
+        0.16,
+        1.56,
+        0.275
+      ],
+      "material": "lamp-glow",
+      "emissive": true
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.11,
+        0.02,
+        0.11
+      ],
+      "position": [
+        0,
+        1.86,
+        0
+      ],
+      "material": "graphite"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.1,
+        0.012,
+        0.012
+      ],
+      "position": [
+        0,
+        0.12,
+        0.27
+      ],
+      "material": "brass"
+    }
+  ]
+}

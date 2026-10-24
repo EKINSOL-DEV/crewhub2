@@ -1,0 +1,332 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-civic-notice-board",
+  "name": "Notice board",
+  "description": "A timber notice board under a little sage roof, pinned with notices.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "civic",
+    "notices"
+  ],
+  "footprint": {
+    "width": 3,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.1,
+        1.95,
+        0.1
+      ],
+      "position": [
+        -0.75,
+        0.975,
+        0.0
+      ],
+      "material": "timber",
+      "radius": 0.03
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.1,
+        1.95,
+        0.1
+      ],
+      "position": [
+        0.75,
+        0.975,
+        0.0
+      ],
+      "material": "timber",
+      "radius": 0.03
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.45,
+        0.92,
+        0.07
+      ],
+      "position": [
+        0.0,
+        1.36,
+        0.0
+      ],
+      "material": "timber-light",
+      "radius": 0.03
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.32,
+        0.8,
+        0.02
+      ],
+      "position": [
+        0.0,
+        1.36,
+        0.042
+      ],
+      "material": "clay",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.74,
+        0.06,
+        0.44
+      ],
+      "position": [
+        0.0,
+        1.97,
+        0.03
+      ],
+      "material": "sage",
+      "rotation": [
+        18.0,
+        0.0,
+        0.0
+      ],
+      "radius": 0.025
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.3,
+        0.38,
+        0.012
+      ],
+      "position": [
+        -0.42,
+        1.44,
+        0.058
+      ],
+      "material": "paper",
+      "rotation": [
+        0.0,
+        0.0,
+        -4.0
+      ],
+      "radius": 0.004
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.018,
+        0.018,
+        0.012
+      ],
+      "position": [
+        -0.42,
+        1.59,
+        0.07
+      ],
+      "material": "brass"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.26,
+        0.2,
+        0.012
+      ],
+      "position": [
+        -0.05,
+        1.56,
+        0.058
+      ],
+      "material": "cream",
+      "rotation": [
+        0.0,
+        0.0,
+        3.0
+      ],
+      "radius": 0.004
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.018,
+        0.018,
+        0.012
+      ],
+      "position": [
+        -0.05,
+        1.62,
+        0.07
+      ],
+      "material": "brass"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.22,
+        0.3,
+        0.012
+      ],
+      "position": [
+        0.3,
+        1.48,
+        0.058
+      ],
+      "material": "paper",
+      "rotation": [
+        0.0,
+        0.0,
+        -2.0
+      ],
+      "radius": 0.004
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.018,
+        0.018,
+        0.012
+      ],
+      "position": [
+        0.3,
+        1.59,
+        0.07
+      ],
+      "material": "brass"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.18,
+        0.18,
+        0.012
+      ],
+      "position": [
+        0.47,
+        1.22,
+        0.058
+      ],
+      "material": "tangerine",
+      "rotation": [
+        0.0,
+        0.0,
+        6.0
+      ],
+      "radius": 0.004
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.018,
+        0.018,
+        0.012
+      ],
+      "position": [
+        0.47,
+        1.27,
+        0.07
+      ],
+      "material": "brass"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.3,
+        0.2,
+        0.012
+      ],
+      "position": [
+        0.0,
+        1.18,
+        0.058
+      ],
+      "material": "mist",
+      "rotation": [
+        0.0,
+        0.0,
+        -3.0
+      ],
+      "radius": 0.004
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.018,
+        0.018,
+        0.012
+      ],
+      "position": [
+        0.0,
+        1.24,
+        0.07
+      ],
+      "material": "brass"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.16,
+        0.16,
+        0.012
+      ],
+      "position": [
+        -0.3,
+        1.11,
+        0.058
+      ],
+      "material": "coral",
+      "rotation": [
+        0.0,
+        0.0,
+        5.0
+      ],
+      "radius": 0.004
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.018,
+        0.018,
+        0.012
+      ],
+      "position": [
+        -0.3,
+        1.15,
+        0.07
+      ],
+      "material": "brass"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.14,
+        0.12,
+        0.14
+      ],
+      "position": [
+        -0.8,
+        0.12,
+        0.12
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.14,
+        0.12,
+        0.14
+      ],
+      "position": [
+        0.82,
+        0.12,
+        0.12
+      ],
+      "material": "leaf"
+    }
+  ]
+}

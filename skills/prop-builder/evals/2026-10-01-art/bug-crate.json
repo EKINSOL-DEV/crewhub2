@@ -1,0 +1,27 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "user:bug-crate",
+  "name": "Bug crate",
+  "description": "A low clay crate with timber corners, a paper label with a little green bug, and bug tickets standing in the top.",
+  "category": "storage",
+  "tags": ["crate", "bugs", "tickets", "review"],
+  "footprint": { "width": 1, "depth": 1 },
+  "blocksMovement": true,
+  "approaches": [{ "x": 0, "z": 1 }],
+  "parts": [
+    { "shape": "box", "size": [0.5, 0.04, 0.5], "position": [0, 0.02, 0], "material": "timber" },
+    { "shape": "box", "size": [0.5, 0.34, 0.03], "position": [0, 0.2, -0.235], "material": "clay", "radius": 0.02 },
+    { "shape": "box", "size": [0.5, 0.34, 0.03], "position": [0, 0.2, 0.235], "material": "clay", "radius": 0.02 },
+    { "shape": "box", "size": [0.03, 0.34, 0.44], "position": [-0.235, 0.2, 0], "material": "clay", "radius": 0.02 },
+    { "shape": "box", "size": [0.03, 0.34, 0.44], "position": [0.235, 0.2, 0], "material": "clay", "radius": 0.02 },
+    { "shape": "box", "size": [0.05, 0.4, 0.05], "position": [-0.235, 0.2, -0.235], "material": "timber" },
+    { "shape": "box", "size": [0.05, 0.4, 0.05], "position": [0.235, 0.2, -0.235], "material": "timber" },
+    { "shape": "box", "size": [0.05, 0.4, 0.05], "position": [-0.235, 0.2, 0.235], "material": "timber" },
+    { "shape": "box", "size": [0.05, 0.4, 0.05], "position": [0.235, 0.2, 0.235], "material": "timber" },
+    { "shape": "box", "size": [0.2, 0.26, 0.012], "position": [-0.08, 0.42, -0.05], "rotation": [0, 0, 6], "material": "paper", "radius": 0.01 },
+    { "shape": "box", "size": [0.2, 0.26, 0.012], "position": [0.08, 0.41, 0.02], "rotation": [0, 0, -8], "material": "paper", "radius": 0.01 },
+    { "shape": "box", "size": [0.08, 0.08, 0.012], "position": [0.1, 0.46, 0.03], "rotation": [0, 0, -8], "material": "tangerine", "radius": 0.01 },
+    { "shape": "box", "size": [0.2, 0.1, 0.012], "position": [0, 0.2, 0.256], "material": "paper", "radius": 0.01 },
+    { "shape": "sphere", "size": [0.04, 0.03, 0.02], "position": [0, 0.2, 0.264], "material": "leaf-dark" }
+  ]
+}

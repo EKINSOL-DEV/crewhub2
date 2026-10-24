@@ -13,7 +13,7 @@ interface FieldOwn {
   hint?: ReactNode;
   /** Replaces the hint, in `danger`, and marks the control aria-invalid. */
   error?: ReactNode;
-  inline?: boolean;
+  inline?: boolean | undefined;
   bare?: boolean;
   /** Textarea only: grow with the content up to the max height, then scroll. */
   autoGrow?: boolean;

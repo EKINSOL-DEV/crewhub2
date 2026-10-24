@@ -1,0 +1,202 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-furniture-hand-truck",
+  "name": "Hand truck",
+  "description": "A sage hand truck tipped against the wall, two rubber wheels and a parcel strapped on.",
+  "category": "work",
+  "tags": [
+    "greenhouse",
+    "dispatch",
+    "trolley"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.03,
+        0.7,
+        0.03
+      ],
+      "position": [
+        -0.12,
+        0.39,
+        -0.12
+      ],
+      "material": "sage",
+      "radius": 0.01,
+      "rotation": [
+        -12,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.03,
+        0.7,
+        0.03
+      ],
+      "position": [
+        0.12,
+        0.39,
+        -0.12
+      ],
+      "material": "sage",
+      "radius": 0.01,
+      "rotation": [
+        -12,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.27,
+        0.025,
+        0.025
+      ],
+      "position": [
+        0,
+        0.55,
+        -0.15
+      ],
+      "material": "sage",
+      "radius": 0.008,
+      "rotation": [
+        -12,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.27,
+        0.025,
+        0.025
+      ],
+      "position": [
+        0,
+        0.3,
+        -0.1
+      ],
+      "material": "sage",
+      "radius": 0.008,
+      "rotation": [
+        -12,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "torus",
+      "size": [
+        0.07,
+        0.03,
+        0
+      ],
+      "position": [
+        0,
+        0.74,
+        -0.19
+      ],
+      "material": "graphite",
+      "rotation": [
+        78,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.3,
+        0.02,
+        0.16
+      ],
+      "position": [
+        0,
+        0.03,
+        0.02
+      ],
+      "material": "slate",
+      "radius": 0.008
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.07,
+        0.04,
+        0.07
+      ],
+      "position": [
+        -0.17,
+        0.07,
+        -0.04
+      ],
+      "material": "graphite",
+      "rotation": [
+        0,
+        0,
+        90
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.07,
+        0.04,
+        0.07
+      ],
+      "position": [
+        0.17,
+        0.07,
+        -0.04
+      ],
+      "material": "graphite",
+      "rotation": [
+        0,
+        0,
+        90
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.24,
+        0.22,
+        0.18
+      ],
+      "position": [
+        0,
+        0.16,
+        0
+      ],
+      "material": "clay",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.245,
+        0.02,
+        0.185
+      ],
+      "position": [
+        0,
+        0.2,
+        0
+      ],
+      "material": "terracotta",
+      "radius": 0.006
+    }
+  ]
+}

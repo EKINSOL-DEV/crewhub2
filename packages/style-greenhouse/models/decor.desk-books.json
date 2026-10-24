@@ -1,0 +1,95 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-desk-books",
+  "name": "Desk books",
+  "description": "A small stack of books on a desk with a pencil on top.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "books",
+    "desk"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.14,
+        0.025,
+        0.1
+      ],
+      "position": [
+        0,
+        0.013,
+        0
+      ],
+      "material": "moss",
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.13,
+        0.022,
+        0.095
+      ],
+      "position": [
+        0.005,
+        0.036,
+        0
+      ],
+      "material": "cream",
+      "radius": 0.005,
+      "rotation": [
+        0,
+        10,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.12,
+        0.02,
+        0.09
+      ],
+      "position": [
+        0,
+        0.057,
+        0.003
+      ],
+      "material": "terracotta",
+      "radius": 0.005,
+      "rotation": [
+        0,
+        -8,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.1,
+        0.01,
+        0.01
+      ],
+      "position": [
+        0,
+        0.072,
+        0
+      ],
+      "material": "tangerine",
+      "radius": 0.003,
+      "rotation": [
+        0,
+        30,
+        0
+      ]
+    }
+  ]
+}

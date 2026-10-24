@@ -1,0 +1,63 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-ticket-nametag",
+  "name": "Name tag",
+  "description": "A luggage-style name tag for the person a ticket waits on.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.15,
+        0.1,
+        0.035
+      ],
+      "position": [
+        0,
+        0.07,
+        0
+      ],
+      "material": "cream",
+      "radius": 0.012
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.12,
+        0.018,
+        0.036
+      ],
+      "position": [
+        0,
+        0.1,
+        0
+      ],
+      "material": "coral",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.04,
+        0.03,
+        0.04
+      ],
+      "position": [
+        0,
+        0.135,
+        0
+      ],
+      "material": "brass",
+      "radius": 0.008
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "format": "crewhub-cast/1",
+  "id": "overgrown-bots",
+  "name": "Overgrown bots",
+  "version": "1.0.0",
+  "description": "The classic bots after years in the greenhouse: timber bodies, a glazed ceramic head, moss on head and shoulders, lantern eyes, and a shoot where the antenna was. Its bud opens when the work is done.",
+  "author": "CrewHub",
+  "extends": "classic-bots",
+  "colors": {
+    "oak": { "day": "#c99b6a", "lamplight": "#cc9862" },
+    "cherry": { "day": "#b9795a", "lamplight": "#bd7752" },
+    "birch": { "day": "#dcc49a", "lamplight": "#dfbf8e" },
+    "celadon": { "day": "#a9cfb9", "lamplight": "#aecbae" },
+    "oat": { "day": "#f1e8d0", "lamplight": "#f4e2c0" },
+    "rain": { "day": "#a8c3d8", "lamplight": "#adc0cb" },
+    "wisteria": { "day": "#c9bfe2", "lamplight": "#cdbbd6" },
+    "glaze-white": { "day": "#f6f1e1", "lamplight": "#f8ead0" },
+    "root": { "day": "#5d4735", "lamplight": "#5d4735" },
+    "pane": { "day": "#3a2c22", "lamplight": "#3a2a1c" },
+    "ember": { "day": "#8a4f1c", "lamplight": "#b8661c" },
+    "lantern": { "day": "#ffd98a", "lamplight": "#ffc966" },
+    "moss-fresh": { "day": "#6f9c4c", "lamplight": "#6a9349" },
+    "moss-deep": { "day": "#557f43", "lamplight": "#4f7640" },
+    "shoot": { "day": "#6f9450", "lamplight": "#6c8d4e" },
+    "shoot-leaf": { "day": "#93c365", "lamplight": "#8fba60" },
+    "bud": { "day": "#f2c552", "lamplight": "#f5c04c" },
+    "bloom": { "day": "#f7dfe0", "lamplight": "#f9d9cf" },
+    "rose": { "day": "#f08fa6", "lamplight": "#f08c98" },
+    "toadstool": { "day": "#d9674f", "lamplight": "#dc664a" }
+  },
+  "budget": { "nearTriangles": 5400, "farTriangles": 2700, "nearMeshes": 34, "farMeshes": 13 }
+}

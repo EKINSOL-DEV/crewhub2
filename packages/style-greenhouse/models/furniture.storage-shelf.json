@@ -1,0 +1,467 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-furniture-storage-shelf",
+  "name": "Storage shelving",
+  "description": "Open slate-framed shelving with clay and paper boxes, a row of coloured binders and a plant on top.",
+  "category": "storage",
+  "tags": [
+    "greenhouse",
+    "shelf",
+    "boxes",
+    "binders"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.035,
+        1.02,
+        0.035
+      ],
+      "position": [
+        -0.53,
+        0.51,
+        -0.26
+      ],
+      "material": "slate",
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.035,
+        1.02,
+        0.035
+      ],
+      "position": [
+        -0.53,
+        0.51,
+        -0.02
+      ],
+      "material": "slate",
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.035,
+        1.02,
+        0.035
+      ],
+      "position": [
+        0.53,
+        0.51,
+        -0.26
+      ],
+      "material": "slate",
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.035,
+        1.02,
+        0.035
+      ],
+      "position": [
+        0.53,
+        0.51,
+        -0.02
+      ],
+      "material": "slate",
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.1,
+        0.03,
+        0.3
+      ],
+      "position": [
+        0,
+        0.06,
+        -0.12
+      ],
+      "material": "timber-light",
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.1,
+        0.03,
+        0.3
+      ],
+      "position": [
+        0,
+        0.38,
+        -0.12
+      ],
+      "material": "timber-light",
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.1,
+        0.03,
+        0.3
+      ],
+      "position": [
+        0,
+        0.7,
+        -0.12
+      ],
+      "material": "timber-light",
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.1,
+        0.03,
+        0.3
+      ],
+      "position": [
+        0,
+        1,
+        -0.12
+      ],
+      "material": "timber-light",
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.4,
+        0.22,
+        0.24
+      ],
+      "position": [
+        -0.27,
+        0.185,
+        -0.12
+      ],
+      "material": "clay",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.4,
+        0.035,
+        0.25
+      ],
+      "position": [
+        -0.27,
+        0.3,
+        -0.12
+      ],
+      "material": "terracotta",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.3,
+        0.2,
+        0.24
+      ],
+      "position": [
+        0.25,
+        0.175,
+        -0.12
+      ],
+      "material": "paper",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.08,
+        0.04,
+        0.01
+      ],
+      "position": [
+        0.25,
+        0.2,
+        0.005
+      ],
+      "material": "ink",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.055,
+        0.25,
+        0.22
+      ],
+      "position": [
+        -0.45,
+        0.52,
+        -0.12
+      ],
+      "material": "sage",
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.055,
+        0.25,
+        0.22
+      ],
+      "position": [
+        -0.385,
+        0.52,
+        -0.12
+      ],
+      "material": "coral",
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.055,
+        0.25,
+        0.22
+      ],
+      "position": [
+        -0.32,
+        0.52,
+        -0.12
+      ],
+      "material": "moss",
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.055,
+        0.25,
+        0.22
+      ],
+      "position": [
+        -0.255,
+        0.52,
+        -0.12
+      ],
+      "material": "cream",
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.055,
+        0.25,
+        0.22
+      ],
+      "position": [
+        -0.19,
+        0.52,
+        -0.12
+      ],
+      "material": "sage",
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.055,
+        0.25,
+        0.22
+      ],
+      "position": [
+        -0.125,
+        0.52,
+        -0.12
+      ],
+      "material": "tangerine",
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.055,
+        0.25,
+        0.22
+      ],
+      "position": [
+        -0.06,
+        0.52,
+        -0.12
+      ],
+      "material": "slate",
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.32,
+        0.2,
+        0.24
+      ],
+      "position": [
+        0.3,
+        0.495,
+        -0.12
+      ],
+      "material": "clay",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.12,
+        0.05,
+        0.01
+      ],
+      "position": [
+        0.3,
+        0.52,
+        0.005
+      ],
+      "material": "paper",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.36,
+        0.24,
+        0.24
+      ],
+      "position": [
+        -0.25,
+        0.835,
+        -0.12
+      ],
+      "material": "paper",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.36,
+        0.035,
+        0.25
+      ],
+      "position": [
+        -0.25,
+        0.97,
+        -0.12
+      ],
+      "material": "sage",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.28,
+        0.18,
+        0.22
+      ],
+      "position": [
+        0.2,
+        0.805,
+        -0.12
+      ],
+      "material": "clay",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.13,
+        0.12,
+        0.2
+      ],
+      "position": [
+        0.43,
+        0.775,
+        -0.12
+      ],
+      "material": "terracotta",
+      "radius": 0.02
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.056,
+        0.08,
+        0.04
+      ],
+      "position": [
+        -0.3,
+        1.055,
+        -0.12
+      ],
+      "material": "terracotta"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.06,
+        0.056,
+        0.06
+      ],
+      "position": [
+        -0.3,
+        1.135,
+        -0.12
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.048,
+        0.04
+      ],
+      "position": [
+        -0.264,
+        1.175,
+        -0.104
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.036,
+        0.04,
+        0.036
+      ],
+      "position": [
+        -0.34,
+        1.167,
+        -0.136
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.26,
+        0.12,
+        0.2
+      ],
+      "position": [
+        0.2,
+        1.075,
+        -0.12
+      ],
+      "material": "paper",
+      "radius": 0.02
+    }
+  ]
+}

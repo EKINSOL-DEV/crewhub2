@@ -1,0 +1,366 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-civic-parcel-stack",
+  "name": "Parcel stack",
+  "description": "A tumble of string-tied parcels with paper labels and a coral stamp.",
+  "category": "storage",
+  "tags": [
+    "greenhouse",
+    "civic",
+    "post",
+    "parcels"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 2
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.56,
+        0.36,
+        0.46
+      ],
+      "position": [
+        -0.18,
+        0.18,
+        0.05
+      ],
+      "material": "terracotta",
+      "radius": 0.025
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.03,
+        0.01,
+        0.465
+      ],
+      "position": [
+        -0.18,
+        0.36,
+        0.05
+      ],
+      "material": "cream",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.565,
+        0.01,
+        0.03
+      ],
+      "position": [
+        -0.18,
+        0.362,
+        0.05
+      ],
+      "material": "cream",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.46,
+        0.3,
+        0.4
+      ],
+      "position": [
+        0.3,
+        0.15,
+        -0.1
+      ],
+      "material": "clay",
+      "rotation": [
+        0.0,
+        8.0,
+        0.0
+      ],
+      "radius": 0.025
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.03,
+        0.01,
+        0.405
+      ],
+      "position": [
+        0.3,
+        0.3,
+        -0.1
+      ],
+      "material": "cream",
+      "rotation": [
+        0.0,
+        8.0,
+        0.0
+      ],
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.465,
+        0.01,
+        0.03
+      ],
+      "position": [
+        0.3,
+        0.302,
+        -0.1
+      ],
+      "material": "cream",
+      "rotation": [
+        0.0,
+        8.0,
+        0.0
+      ],
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.4,
+        0.26,
+        0.34
+      ],
+      "position": [
+        -0.14,
+        0.49,
+        0.03
+      ],
+      "material": "timber-light",
+      "rotation": [
+        0.0,
+        -10.0,
+        0.0
+      ],
+      "radius": 0.025
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.03,
+        0.01,
+        0.345
+      ],
+      "position": [
+        -0.14,
+        0.62,
+        0.03
+      ],
+      "material": "cream",
+      "rotation": [
+        0.0,
+        -10.0,
+        0.0
+      ],
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.405,
+        0.01,
+        0.03
+      ],
+      "position": [
+        -0.14,
+        0.622,
+        0.03
+      ],
+      "material": "cream",
+      "rotation": [
+        0.0,
+        -10.0,
+        0.0
+      ],
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.3,
+        0.2,
+        0.26
+      ],
+      "position": [
+        0.3,
+        0.4,
+        -0.08
+      ],
+      "material": "terracotta",
+      "rotation": [
+        0.0,
+        15.0,
+        0.0
+      ],
+      "radius": 0.025
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.03,
+        0.01,
+        0.265
+      ],
+      "position": [
+        0.3,
+        0.5,
+        -0.08
+      ],
+      "material": "cream",
+      "rotation": [
+        0.0,
+        15.0,
+        0.0
+      ],
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.305,
+        0.01,
+        0.03
+      ],
+      "position": [
+        0.3,
+        0.502,
+        -0.08
+      ],
+      "material": "cream",
+      "rotation": [
+        0.0,
+        15.0,
+        0.0
+      ],
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.26,
+        0.16,
+        0.22
+      ],
+      "position": [
+        -0.12,
+        0.7,
+        0.04
+      ],
+      "material": "paper",
+      "rotation": [
+        0.0,
+        5.0,
+        0.0
+      ],
+      "radius": 0.025
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.03,
+        0.01,
+        0.225
+      ],
+      "position": [
+        -0.12,
+        0.78,
+        0.04
+      ],
+      "material": "cream",
+      "rotation": [
+        0.0,
+        5.0,
+        0.0
+      ],
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.265,
+        0.01,
+        0.03
+      ],
+      "position": [
+        -0.12,
+        0.782,
+        0.04
+      ],
+      "material": "cream",
+      "rotation": [
+        0.0,
+        5.0,
+        0.0
+      ],
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.16,
+        0.1,
+        0.012
+      ],
+      "position": [
+        -0.24,
+        0.2,
+        0.285
+      ],
+      "material": "paper",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.04,
+        0.04,
+        0.012
+      ],
+      "position": [
+        -0.14,
+        0.22,
+        0.29
+      ],
+      "material": "coral",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.12,
+        0.08,
+        0.012
+      ],
+      "position": [
+        0.32,
+        0.16,
+        0.11
+      ],
+      "material": "paper",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.1,
+        0.06,
+        0.012
+      ],
+      "position": [
+        -0.12,
+        0.5,
+        0.205
+      ],
+      "material": "paper",
+      "radius": 0.004
+    }
+  ]
+}

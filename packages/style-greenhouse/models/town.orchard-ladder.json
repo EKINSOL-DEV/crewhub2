@@ -1,0 +1,312 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-town-orchard-ladder",
+  "name": "Orchard ladder",
+  "description": "A picker's stepladder and a basket of fruit at its foot.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "town"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 2
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.05,
+        1.75,
+        0.05
+      ],
+      "position": [
+        -0.22,
+        0.87,
+        0.2
+      ],
+      "material": "timber",
+      "rotation": [
+        -13,
+        0,
+        0
+      ],
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.05,
+        1.75,
+        0.05
+      ],
+      "position": [
+        -0.2,
+        0.87,
+        -0.2
+      ],
+      "material": "timber",
+      "rotation": [
+        13,
+        0,
+        0
+      ],
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.05,
+        1.75,
+        0.05
+      ],
+      "position": [
+        0.22,
+        0.87,
+        0.2
+      ],
+      "material": "timber",
+      "rotation": [
+        -13,
+        0,
+        0
+      ],
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.05,
+        1.75,
+        0.05
+      ],
+      "position": [
+        0.2,
+        0.87,
+        -0.2
+      ],
+      "material": "timber",
+      "rotation": [
+        13,
+        0,
+        0
+      ],
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.46,
+        0.035,
+        0.05
+      ],
+      "position": [
+        0,
+        0.25,
+        0.333
+      ],
+      "material": "timber-light",
+      "rotation": [
+        -13,
+        0,
+        0
+      ],
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.46,
+        0.035,
+        0.05
+      ],
+      "position": [
+        0,
+        0.55,
+        0.264
+      ],
+      "material": "timber-light",
+      "rotation": [
+        -13,
+        0,
+        0
+      ],
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.46,
+        0.035,
+        0.05
+      ],
+      "position": [
+        0,
+        0.85,
+        0.195
+      ],
+      "material": "timber-light",
+      "rotation": [
+        -13,
+        0,
+        0
+      ],
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.46,
+        0.035,
+        0.05
+      ],
+      "position": [
+        0,
+        1.15,
+        0.126
+      ],
+      "material": "timber-light",
+      "rotation": [
+        -13,
+        0,
+        0
+      ],
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.46,
+        0.035,
+        0.05
+      ],
+      "position": [
+        0,
+        1.45,
+        0.057
+      ],
+      "material": "timber-light",
+      "rotation": [
+        -13,
+        0,
+        0
+      ],
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.5,
+        0.05,
+        0.14
+      ],
+      "position": [
+        0,
+        1.7,
+        0
+      ],
+      "material": "timber-light",
+      "radius": 0.01
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.17,
+        0.2,
+        0.13
+      ],
+      "position": [
+        0.42,
+        0.1,
+        0.34
+      ],
+      "material": "timber-light"
+    },
+    {
+      "shape": "torus",
+      "size": [
+        0.17,
+        0.015,
+        0
+      ],
+      "position": [
+        0.42,
+        0.2,
+        0.34
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.055,
+        0.05,
+        0.055
+      ],
+      "position": [
+        0.36,
+        0.22,
+        0.29
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.055,
+        0.05,
+        0.055
+      ],
+      "position": [
+        0.44,
+        0.25,
+        0.29
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.055,
+        0.05,
+        0.055
+      ],
+      "position": [
+        0.52,
+        0.22,
+        0.29
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.055,
+        0.05,
+        0.055
+      ],
+      "position": [
+        0.36,
+        0.25,
+        0.38
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.055,
+        0.05,
+        0.055
+      ],
+      "position": [
+        0.44,
+        0.22,
+        0.38
+      ],
+      "material": "tangerine"
+    }
+  ]
+}

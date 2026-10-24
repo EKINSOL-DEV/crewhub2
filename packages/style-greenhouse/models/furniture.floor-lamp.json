@@ -1,0 +1,91 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-furniture-floor-lamp",
+  "name": "Floor lamp",
+  "description": "A slim brass floor lamp on a moss base with a cream shade and a warm bulb.",
+  "category": "light",
+  "tags": [
+    "greenhouse",
+    "lamp",
+    "light"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.1,
+        0.035,
+        0.11
+      ],
+      "position": [
+        0,
+        0.018,
+        0
+      ],
+      "material": "moss"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.014,
+        0.88,
+        0.014
+      ],
+      "position": [
+        0,
+        0.47,
+        0
+      ],
+      "material": "brass"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.045,
+        0.045,
+        0.045
+      ],
+      "position": [
+        0,
+        0.89,
+        0
+      ],
+      "material": "lamp-glow",
+      "emissive": true
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.075,
+        0.17,
+        0.14
+      ],
+      "position": [
+        0,
+        0.98,
+        0
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.02,
+        0.02,
+        0.02
+      ],
+      "position": [
+        0,
+        1.075,
+        0
+      ],
+      "material": "brass"
+    }
+  ]
+}

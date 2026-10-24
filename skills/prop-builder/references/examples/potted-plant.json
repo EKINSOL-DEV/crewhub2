@@ -1,0 +1,208 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "user:potted-plant",
+  "name": "Potted plant",
+  "description": "A leafy plant in a pale terracotta pot, for a corner or beside a desk.",
+  "category": "greenery",
+  "tags": [
+    "plant",
+    "corner"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.2,
+        0.34,
+        0.15
+      ],
+      "position": [
+        0,
+        0.17,
+        0
+      ],
+      "material": "terracotta"
+    },
+    {
+      "shape": "torus",
+      "size": [
+        0.19,
+        0.022,
+        0
+      ],
+      "position": [
+        0,
+        0.335,
+        0
+      ],
+      "material": "terracotta"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.18,
+        0.03,
+        0.18
+      ],
+      "position": [
+        0,
+        0.34,
+        0
+      ],
+      "material": "soil"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.018,
+        0.5,
+        0.024
+      ],
+      "position": [
+        0,
+        0.6,
+        0
+      ],
+      "material": "moss"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.085,
+        0.22,
+        0.03
+      ],
+      "position": [
+        0,
+        0.68,
+        0.13
+      ],
+      "rotation": [
+        30.0,
+        0,
+        0
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.085,
+        0.22,
+        0.03
+      ],
+      "position": [
+        0.088,
+        0.81,
+        -0.096
+      ],
+      "rotation": [
+        -22.122,
+        137.51,
+        20.264
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.085,
+        0.22,
+        0.03
+      ],
+      "position": [
+        -0.13,
+        0.94,
+        0.011
+      ],
+      "rotation": [
+        2.625,
+        275.02,
+        -29.885
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.085,
+        0.22,
+        0.03
+      ],
+      "position": [
+        0.103,
+        0.68,
+        0.079
+      ],
+      "rotation": [
+        18.251,
+        52.53,
+        23.81
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.085,
+        0.22,
+        0.03
+      ],
+      "position": [
+        -0.023,
+        0.81,
+        -0.128
+      ],
+      "rotation": [
+        -29.541,
+        190.039,
+        -5.23
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.085,
+        0.22,
+        0.03
+      ],
+      "position": [
+        -0.07,
+        0.94,
+        0.11
+      ],
+      "rotation": [
+        25.316,
+        327.549,
+        -16.097
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.085,
+        0.22,
+        0.03
+      ],
+      "position": [
+        0.126,
+        0.68,
+        -0.034
+      ],
+      "rotation": [
+        -7.795,
+        105.059,
+        28.97
+      ],
+      "material": "leaf-dark"
+    }
+  ]
+}

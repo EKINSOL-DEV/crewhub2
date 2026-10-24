@@ -1,0 +1,1352 @@
+# CrewHub World in demo mode: the whole plan, scripted
+
+Date: 2026-10-01. Status: accepted by the user for an overnight build.
+Branch: `feat/world-demo` (a worktree of this repository, `../crewhub2-world-demo` beside the main checkout),
+based on `docs/loops-integration-plan`, so the plan and ADR 0005 are in this tree.
+Delivery: one PR to `main` at the end of the night. Do not merge; the user reviews.
+
+## Decision
+
+Build everything that [LOOPS_INTEGRATION_PLAN.md](../../LOOPS_INTEGRATION_PLAN.md)
+describes for the 3D world, but **100% in demo mode**:
+
+- No network call to crewhub-loops. No `apps/host`. No socket, no key, no session.
+- No model call of any kind. The director lane, agent awareness and every
+  "AI presence" feature are replaced by scripted behaviour that goes through
+  the same validated seams.
+- A complete, believable world: a town with a few demo projects (the Dev Lead
+  chooses them), each a building with rooms, a lead in the centre, workers by
+  role, tickets as physical objects moving through rooms, deliveries carried
+  between buildings, chat bubbles, stalls and attention states, milestones,
+  a release, and props.
+- Everything scripted is deterministic, seeded, loops forever, and is labelled
+  as demo everywhere it shows. Nothing may imply a real running session.
+
+The user's words: "absolutely no communication with the AI tool, but a full
+demo mode; it may all be scripted at first; the full world with a few projects
+you may choose yourself as demo."
+
+## The one architectural rule for tonight
+
+The demo data must have **exactly the shapes crewhub-loops serves**, as
+documented in `crewhub-loops/docs/integrators/` (read-model.md, events.md,
+team-and-projects.md, agents-and-states.md). Those docs are the current truth.
+Concretely:
+
+- `packages/loops-client`: the TypeScript types and runtime validators for
+  `Envelope` (v1), `ProjectOut`, `ProjectsResponse`, `BoardResponse`,
+  `BoardColumn`, `TicketCard`, `TicketSummary`, `Ticket`, `CommentOut`,
+  `ProgressItem`, `TeamSnapshot`, `TeamSession`, `TeamAgent`,
+  `MilestoneSummary`, `ReleaseSummary`, `DmThread`, `DmMessage`,
+  `DeliveryOut`, `WatchdogResponse`, and the event payloads the world uses.
+  Hand-written validators (loops publishes no schemas yet, proposal L2). No
+  React, no Three.js, no DOM.
+- A `WorldSource` interface with two implementations tonight: `DemoSource`
+  (in-browser, scripted) and a stub for the future host SSE (types only, not
+  implemented). `DemoSource` produces a snapshot in loops shapes and then a
+  stream of `Envelope` events with strictly increasing `seq`, plus periodic
+  `TeamSnapshot` updates every 30 s of demo time, just as the plan's host would.
+- The **projection** (facts → world model) and the **world reducer** (facts →
+  buildings, rooms, objects, agent placements) consume only `WorldSource`
+  output. They must not know they run on demo data. When the host exists, only
+  the source changes.
+- The demo timeline is data: a seeded script of loops-shaped events with demo
+  timestamps, with a speed control (1x, 4x, 16x, pause) and a scrub bar. It
+  covers every event type the world reacts to (see plan section 4 and
+  `events.md`): ticket created/moved/updated/archived, comments, progress lines
+  (`start`, `update`, `done`, `question`), `team.updated` with lane statuses
+  (`working`, `idle`, `done`, `blocked`, `unknown`), `ticket.stalled` and
+  `ticket.resumed` with reasons `stalled` and `attention`, `waitingOnHuman`,
+  deliveries (`delivery.created/updated` with the postman states), DMs
+  (`dm.created`, `dm.answered`), milestones (created, tickets attached,
+  completed, handoff), a release (created, published), a project archived and
+  restored.
+- Respect what the docs say a client may and may not conclude
+  (`agents-and-states.md`): a lane status never proves a task succeeded; a
+  snapshot older than 5 minutes is unknown and is shown as unknown; Ticket
+  Done is a ticket status a person sets.
+
+## Demo content
+
+The Dev Lead chooses three to five demo projects. Suggested, mirroring the
+loops seed so the naming rules are exercised: a product project (key `CR`), the
+loops project itself (`CL`), a creative or marketing project (`MK`), and one
+archived project that gets restored during the script. Each project has:
+
+- one lead lane (`<stem>-lead` or a lead with another name, both cases occur
+  in loops, see `team-and-projects.md`) with `ProjectOut.lead` set;
+- workers by the name convention `<stem>-dev-n`, `<stem>-analyst-n`,
+  `<stem>-design-n`, and at least one worker outside the convention (lands in
+  the workers room);
+- tickets in all five statuses (`backlog`, `planned`, `in_progress`, `review`,
+  `done`) and of the kinds the plan maps to objects (folder, box, bug crate,
+  question envelope), with priorities, a blocked one, labels, and one that waits
+  on a person (name tag on the box);
+- at least one milestone with attached tickets and a target date, one release
+  with a carrier ticket, comments and progress lines with realistic text;
+- one postman lane (`router` role) that carries deliveries between buildings;
+- one agent that works in two buildings (real avatar where it works now,
+  translucent proxies elsewhere).
+
+Take inspiration from crewhub v1's demo mode
+(`/Users/ekinsol_nicky/Documents/GitHub/crewhub/frontend/src/contexts/DemoContext.tsx`,
+`hooks/useDemoMeeting.ts`, `lib/mock/`, `scripts/seed_demo_data.py`): the
+staggered "naturally timed" sessions, the scripted meeting with rounds and
+turns, the persisted user edits, the F-key toggle, the "Watch a demo" button.
+The screenshot of that version is in the scratchpad
+(`crewhub-v1-demo-screenshot.png`): a campus of colour-coded rooms with agents
+and speech labels, a room picker along the bottom, an assistant avatar and an
+agents bubble at the top. Do not copy its look; the design system is now the
+crewhub-loops kit. Copy the idea: a lively, readable, self-running world.
+
+## Scope by phase (the plan's phases, in demo form)
+
+Build in this order. Each phase ends with `npm run check` green, a commit on
+the integration branch, and something a person can open in the browser. If the
+night ends early, later phases are reported as not done, never half-merged.
+
+1. **First light.** `packages/loops-client`, `WorldSource`, `DemoSource` with
+   the snapshot, the town with one building per project (plot, colour and icon
+   from `ProjectOut.color` and `icon` mapped to design tokens), the lead in the
+   centre of each building, status counts per building, navigation (town
+   overview, enter a building, back), a Demo badge, a hidden text view that
+   lists every fact the scene shows. The Greenhouse room and the mock crew are
+   removed in this phase, together with `apps/bridge` and `packages/protocol`
+   (plan section 8). Keep what `packages/world-engine` and the renderer already
+   do well.
+2. **Chat mirror.** The bubbles dock: a verbatim copy of
+   `crewhub-loops/apps/web/src/components/bubbles/` with the loops commit
+   recorded in a header line, the same sync rule as the design-system tokens.
+   It calls the same query functions as in loops (`queries.ts`), backed by an
+   in-browser demo fetch layer that answers those routes from `DemoSource`
+   (threads, messages, pins, the `bubbles` feature flag). Sending a message in
+   demo mode appends to the demo thread and a scripted reply arrives; a Demo
+   label says so. The default head is the project lead of the building you are
+   in, or the crewhub lead in the town view.
+3. **Building interiors.** Rooms by role from the plan's catalogue (lead's
+   office at the centre, workers, analyst, design; role from the name rule with
+   a per-agent override stored locally), the ticket flow as objects (storage,
+   planning table, the agent's desk, the review pile, dispatch, the truck for
+   archived), ticket kinds as object looks, priority and blocked and milestone
+   as tags and bands, piles becoming pallets with a count, postures from lane
+   status (debounced), captions for `ticket.progress`, stalled and attention
+   and waiting-on-human shown with their loops meaning, freshness labels when
+   the team snapshot is old. Every scene state has a text equivalent.
+4. **Town and dynamic pathfinding.** Portal graph of doors between rooms and
+   buildings, local A* per room with a binary heap, one leg at a time,
+   single-occupancy doors, wait budgets with step-aside, event-driven
+   replanning, moving obstacles (other agents, the postman, a moved prop),
+   postman deliveries walking between buildings. Detail levels: one detailed
+   interior at a time, offscreen buildings do no cosmetic routing. A stress
+   fixture with 12 buildings and 100 agents must stay inside the 33 ms frame
+   budget on the reference machine; record the numbers.
+5. **Build mode, layout and props.** Local `TownDocument` (IndexedDB) with
+   plots, modules, placements and user props; export and import as JSON; undo.
+   Prop catalogue, a parts-JSON prop model (v1's idea, `PropModel`-style
+   primitives), a minimal prop editor, placement through the grid engine's
+   footprint rules, props attached to a ticket, an agent or a room, and rule
+   props generated from facts (a milestone banner, a release crate). Reload
+   restores the same town; an invalid import leaves the previous revision
+   intact.
+6. **Scripted director and agent awareness.** The AI-presence settings panel
+   exists (off by default, budget fields visible, a usage counter), but the
+   director is a scripted intent feed from the demo timeline that goes through
+   the same closed intent list and engine validation the real director would.
+   `where` is a pure function over the world model, exposed in the text view
+   ("Where is cl-lead?"). No model call exists in the codebase; a test asserts
+   that no module imports an AI SDK or calls a model endpoint.
+
+## Out of scope tonight
+
+- `apps/host`, SQLite, pairing, the real loops stream, CORS, anything in plan
+  section 9 for loops.
+- Any real Herdr, Claude Code or Codex integration (removed, not replaced).
+- Persisting anything outside the browser.
+- Merging to main.
+
+## Rules
+
+- English everywhere. Small logical commits. The design system is the
+  crewhub-loops kit: tokens only, the hex guard stays green; scene material
+  colours derive from tokens or from the loops project colour names
+  (`coral`, `tangerine`, `circle`, `mist`, `ink`).
+- `AGENTS.md` boundaries that this plan replaces (Herdr first, the bridge,
+  `packages/protocol`) are updated in this branch to match what is built, using
+  plan section 12 as the list. `docs/ROADMAP.md`, `ARCHITECTURE.md` and
+  `docs/README.md` follow. Do not describe the host as implemented.
+- Tests for real behaviour: the event projection (idempotent apply, out-of-order
+  guard, thin `ticket.updated` handling), the world reducer (status → room and
+  object), the portal graph and A*, the wait budget, the demo timeline
+  determinism (same seed, same sequence), the loops-client validators against
+  fixture JSON copied from `read-model.md` examples, and the no-model-call
+  guard. No trivial fixture-restating tests.
+- Zero model calls, zero network calls outside the app's own origin. Vite dev
+  needs no proxy in demo mode.
+- Accessibility as before: keyboard navigation between town, building and
+  rooms; text status next to colour; reduced motion; 40 px targets on touch;
+  the text view is complete.
+
+## Verification for the night report
+
+- `npm run check` green on the final commit, output recorded.
+- Headless screenshots per phase (desktop and 375 px, light and dark) in the
+  scratchpad, and a real browser pass by the Dev Lead of the final state on
+  `npm run dev` (port 5175; never touch 5173).
+- The stress fixture numbers.
+- A section **Challenges with docs/integrators**: every place where the
+  integrator docs were unclear, contradictory, missing, or where the world
+  needed something the docs mark as not available. The user wants this list.
+- What was not done, and why.
+
+## Addendum (2026-10-01, from the user): the prop builder as a ticket, and a prop-builder skill
+
+Building a prop is not a thing a person does in a 3D editor alone. **A prop is
+requested as a ticket in the CrewHub project in crewhub-loops**, an agent builds
+it with a dedicated skill, the result lands on the ticket, and the world picks it
+up. Two deliverables come out of this, and both are in scope tonight.
+
+### A. The `prop-builder` skill (built and fully tested tonight)
+
+A Claude Code skill in this repo, `skills/prop-builder/`, that any agent lane can
+use to turn a prop request into a valid prop. It must produce exactly the output
+the world consumes.
+
+- `SKILL.md` (frontmatter `name`, `description` that triggers on "build a prop",
+  "make a prop", "prop request", ticket labels `prop`), written for an agent that
+  has never seen this repo: what a prop is, the parts-JSON format (shapes,
+  sizes, positions, colours as loops palette names or tokens, never hex), the
+  footprint and the semantics the grid engine needs (geometry separate from
+  semantics, collision from the declared footprint, never from meshes), size
+  limits, naming, and the exact steps: read the request, sketch parts, write
+  the JSON, run the validator, fix until green, attach the result.
+- `references/prop-format.md`: the authoritative format description, generated
+  or checked against the TypeScript types in `packages/world-engine` (a drift
+  test).
+- `references/examples/`: five to eight hand-made props that pass, from simple
+  (a plant) to compound (a workbench with a lamp), each with the request text
+  that led to it.
+- A validator CLI, `npm run prop:validate -- <file.json>`, exit 1 with precise
+  messages; the same code the world uses at import.
+- Tests: the validator (good and bad inputs, limits, a footprint that does not
+  match the parts), the drift test, and an **eval**: the Dev Lead runs the skill
+  with a developer agent (Sonnet or Opus at medium) on six unseen requests, for
+  example "a coffee machine", "a whiteboard with three sticky notes", "a bug
+  crate", "a server rack", "a potted cactus", "a delivery truck"; all six must
+  pass the validator and render in the world. Record the eval in the night
+  report with the request texts and the outcome. If the skill fails an eval,
+  fix the skill, not the props.
+
+### B. The prop-request flow in the world (demo)
+
+- In the demo content, the CrewHub project has tickets with the label `prop`
+  and kind task, titled "Prop: <thing>". The demo script moves such a ticket
+  through backlog, planned and in progress; a progress line reads "building
+  the prop"; when the ticket reaches Review, the prop JSON is on the ticket;
+  when a person moves it to Done, the prop enters the catalogue and appears in
+  the world with the materialise effect, at a place the request named (a room
+  or an agent's desk) or in the building's storage.
+- How the JSON travels on the ticket: choose one of attachment or comment, and
+  document the choice and its reason in the night report. Note for the
+  challenges section: `attachment.added` is accepted as a filter but never
+  emitted (`events.md`), so a world following the stream cannot learn about an
+  attachment; a comment with a fenced `json` block does emit `comment.created`.
+  The validator runs on import; an invalid prop on a Done ticket shows a
+  labelled error object, never a crash.
+- Build mode (phase 5) keeps the local editor for quick edits, and gains a
+  "Request a prop" action that, in demo mode, creates a scripted `prop` ticket
+  in the CrewHub building and lets you watch the flow. Label it as demo.
+- The world treats a prop from a ticket and a prop from the local editor the
+  same way once imported: one catalogue, one placement system, provenance kept
+  (ticket key or "local").
+
+Sequencing: the skill and its validator belong to the foundation (their format
+is the prop model of phase 5, so define the format early and let phase 5 build
+on it); the flow itself is part of phases 3 and 5.
+
+## Addendum (2026-10-01, from the user): keep the existing 3D item style
+
+The user: "the style of the items that were already there is very nice." The
+Greenhouse's art direction for 3D items stays the art direction of the town:
+the soft toon materials, warm timber, chalk walls, framed glass, planted
+details and the soft robots in `apps/world/src/world/` (`models.ts`, `Scene.ts`,
+`shaders.ts`). Buildings, rooms, furniture, ticket objects, the postman's cart
+and every prop-builder example are made in that style. The crewhub-loops kit
+governs the 2D interface only. Removing the Greenhouse *room* in phase 1 does
+not mean removing its models, materials or lighting: reuse them, and grow the
+catalogue from them.
+
+## Addendum (2026-10-01, from the user): the ticket drone
+
+When a ticket changes status, its object does not teleport or slide: **a small
+drone appears out of nowhere, flies in, picks up the package, carries it to the
+room the new status maps to, and drops it there**, then leaves the way it came.
+
+- Trigger: every `ticket.moved` where `from != to` (a reorder inside a column is
+  not a flight), plus archive (to the truck) and unarchive (from the truck).
+- The drone is in the Greenhouse item style: a soft, rounded body, a quiet
+  rotor blur, a small carrying hook; the Dev Lead decides the exact look. It
+  materialises above the package with the same materialise effect as props,
+  descends, hooks the object (a short lift animation), flies a smooth arc
+  through the building (doors are not needed for a drone, it goes over the
+  walls), lands, releases the package into its slot (desk, table, pile,
+  dispatch, truck), and de-materialises.
+- Timing: the whole flight lasts about 2 to 4 seconds at 1x demo speed and
+  scales with the speed control; at 16x flights still complete, but several
+  may be in the air at once. Under reduced motion the drone still appears and
+  the package is placed, but the flight is a short fade instead of an arc.
+- Movement is deterministic and cosmetic: it needs no pathfinding and no AI.
+  The world model updates when the drone drops the package, not when it picks
+  it up, so a text-view reader sees the new room at the same moment the drop
+  happens. During the flight the object is marked "in transit" in the text view.
+- Between buildings (a ticket moved to another project is not a loops
+  operation today, so this stays inside one building). The postman keeps
+  carrying deliveries on foot; the drone only carries tickets.
+- Interruptions: if a second status change arrives while a package is in the
+  air, the drone changes destination mid-flight; it never drops a package on the
+  floor.
+
+This belongs to phase 3 (interiors and ticket flow) and reuses the phase 5
+materialise effect; if phase 5 lands later, a simple fade stands in.
+
+## Addendum (2026-10-01, from the user): Greenhouse is one style of several
+
+The Greenhouse look is the first **style**, not the only one. Build the world
+so that a style is a swappable package, but build only the Greenhouse style
+tonight. No second style is needed now.
+
+- Introduce one seam, for example `WorldStyle`, that owns everything a look
+  consists of: materials and their parameters, the model set for buildings,
+  rooms, furniture, ticket objects, the drone and the postman's cart, lighting
+  per theme (day and lamplight), the environment (ground, sky, planting), and
+  the character look of the robots. Semantics (what a desk is, what a review
+  pile is, footprints, room roles) stay in the world model and the grid engine
+  and know nothing about style.
+- Renderers ask the style for a mesh by semantic key (`desk`, `ticket.bug`,
+  `drone`, `wall`, `door`) and never import a Greenhouse model directly.
+- Props from the prop builder carry their own parts and colours, but colours
+  are palette names that the style resolves, so a prop survives a style change.
+- The style id is stored with the town document; the settings panel shows the
+  current style with only one option for now. A test asserts that no module
+  outside the style package imports the Greenhouse models.
+- Do not build a second style, a style editor, or per-building styles tonight.
+- Leave the door open for a style **per project**: renderers resolve the style
+  through the building they draw (plot style id, falling back to the town
+  default), never through a global singleton. Tonight every plot resolves to
+  Greenhouse; the per-plot field exists but has no UI.
+- Direction, not tonight's scope: a style should become a **plugin or
+  extension that people can add or adapt themselves**. What that asks of
+  tonight's seam: `WorldStyle` is a documented contract (a manifest with id,
+  name, version and the semantic keys it covers; a resolver from semantic key
+  to model and material; palette resolution; lighting presets per theme;
+  environment), registered in a style registry, with Greenhouse as the first
+  registered style and nothing special-cased for it. Prefer data (JSON
+  manifests, parts-JSON models, palette names) over code wherever the
+  Greenhouse style allows it, so a future style can be authored without
+  TypeScript. Write `docs/WORLD_STYLES.md`: the contract, how Greenhouse
+  implements it, and what a third-party style would have to provide. Loading
+  styles from outside the bundle, a style marketplace or an editor are not
+  tonight's work.
+
+## Addendum: the Greenhouse art pass (morning of 2026-10-01)
+
+After the first look in a real browser, the owner's verdict: the world misses the freshness of the buildings and
+interiors of the earlier Greenhouse room, buildings should be bigger and roomier, and the small-town feeling
+(green, paths, lanterns and other details) is very important. The following hours go to beauty, not features;
+functional work resumes afterwards. Nothing functional may be lost.
+
+Reference: the Greenhouse room on `main` at 3a66363. What it had and the world lost: tall back walls with the
+greenhouse glass wall, soft directional light with shadows and a cream floor slab, homely props in the rooms (sofa,
+bookshelf, lamps, pictures, plants), few labels (name pill and one bubble per robot), a close camera.
+
+Scope of the pass, all through the `WorldStyle` seam and the building templates:
+
+- Buildings bigger and roomier, tall walls on the back sides, the glass wall as the signature outer wall, project
+  colour as an accent rather than a ribbon, the old lighting and floor slab, every room type dressed with the homely
+  props, a camera that frames the building and the focused room closely.
+- A real small town in the Greenhouse palette: green, paths that the navigation grid follows, lanterns lit in dark
+  mode, benches, signposts, a square, real post office and town hall buildings, archived buildings boarded up but
+  pretty.
+- Labels: by default only a name pill and at most one bubble per robot; everything else on hover, selection or a
+  persisted details toggle. The text view keeps everything.
+- The gate, the stress fixture budget, reduced motion, 375 px and both themes keep holding. Four to six
+  implementers in parallel; visual work on Opus 5.5 at effort medium.
+
+## Addendum: beauty round two and performance rounds (night of 2026-10-01 to 02)
+
+Approved by the owner after the art pass. Two parts, in order:
+
+1. **Beauty round two:** the Lead's own follow-ups (wall art on interior partitions, cloud shadows, billboard
+   fireflies, café parasols with a wedge part, a slow day-night drift on the demo clock as a setting) and a
+   critical walk through the town and every room kind.
+2. **Performance rounds:** first an fps overlay (fps, frame mean and p95, draw calls, triangles, memory, the
+   Graphics setting; toggled from Settings and with `F`, off by default, near-zero cost when off, the same
+   numbers exposed to the headless scripts). Then repeated rounds of measure, fix the largest contributor,
+   re-measure: instancing of far robots and repeating dressing, merged static geometry, shared materials,
+   culling, amortised shadow maps, cheap label layout, O(visible) ambient life, no memory growth over a long
+   run, faster startup with lazy-loaded build mode and previews, a steady Fast setting on a phone budget. No
+   visible regression on Pretty against the art-pass screenshots; optimisations live in the renderer and the
+   style package, never in the model.
+
+## Addendum: casts (2026-10-05)
+
+The owner doubts that little robots are the right figures for agents: the world became a warm small town, and
+"AI equals robot" lays it on thick. Decision: the cast, the set of figures that stand for agents, becomes a
+swappable part of a style with its own contract and registry, and four casts ship side by side, which also proves
+that modding works:
+
+1. **Classic bots**: the current robots, unchanged, the default.
+2. **Overgrown bots**: the same robots re-dressed in wood, ceramic and moss; shows how small a cast mod can be.
+3. **Sprouts**: an own species, a bean-shaped body with a growth on its head that carries role and state.
+4. **Potlings**: a walking terracotta pot with a plant that carries role and state.
+
+A cast is data first (a manifest, parts-JSON models, a small rig description). A style names its default cast,
+the viewer can choose one in Settings, and the town document can set one per building. A casting room
+(`/cast-preview`) shows every cast in the same sample room in every role and state, alone and side by side.
+
+Later, not now: an agent choosing its own figure through a ticket (a character builder next to the prop
+builder). It costs tokens, so it will be off by default, with a plain pick from the cast as the default.
+
+## Addendum: scale and zones (2026-10-06)
+
+The owner, translated: "In the beginning we usually start small. A fresh installation of crewhub-loops has for
+example only one project, and we must be ready for that. But it must also be possible to have 20 projects. Think
+about how we handle that, maybe several zones that are then also linked to a future feature in crewhub-loops, a level
+above the projects, or a category. That must be possible with CrewHub World. We could set the styling per zone
+ourselves."
+
+Today the town is a fixed 4 x 3 grid. Buildings stand on the plot of their index in `model.buildings`, and the
+town document's plot cells do not decide anything yet. One project looks lost in that grid, and twenty do not fit.
+
+### Four principles (fixed)
+
+1. **The settlement fits its content.** The world is as big as what lives in it: a clearing for nothing, a hamlet
+   for one project, a village, a town, a region of districts. It never shows a grid of empty plots waiting.
+2. **Nothing moves by itself.** People find a project by where it stands. A building keeps its place when projects
+   are added, archived or regrouped; growth adds at the edges. Only an explicit action ("Tidy the town", or moving a
+   building by hand in build mode) re-lays anything.
+3. **Zones are a level above projects that the world owns until crewhub-loops has one.** The world model gets
+   zones now. Where a project's zone comes from is one small resolver, so a future loops feature plugs in without
+   touching the renderer.
+4. **Look resolves from the most specific to the most general:** building, then zone, then the viewer's choice,
+   then the town, then the style's default. This holds for the style, its options and the cast. (It inserts the
+   zone into the casts' order; the viewer's choice now yields to a zone that sets a look.)
+
+### The layout seam: lots, districts and tiers
+
+Pure functions in `apps/world/src/world/settlement.ts` (no Three.js), owned by one developer. Every other part reads
+them:
+
+- **Lots.** The town stands on a lattice of square lots of today's pitch (a 24-unit plot plus a 6-unit street). A
+  plot in the town document is a lot coordinate: `cell` keeps its 0 to 127 range, with the centre lot at
+  `{x: 64, z: 64}`.
+- **Districts.** Each zone owns a district, and a district has a fixed **growth sequence**: an ordered list of
+  district-local lot offsets that depends on nothing but the index. The sequence has three properties:
+  - the first lot is the hamlet's lot beside the district's green;
+  - the next ones form a block of four to six lots around that green;
+  - further blocks follow around small greens of their own, ringing outward.
+- **District slots.** A district's slot (its origin on a coarse lattice of district cells, spiralling out from the
+  centre) is assigned the first time the world sees the zone, then stored. Reordering zones changes lists and
+  labels, never where a district stands. Districts are separated by natural borders on the coarse lattice's gaps:
+  the stream, hedges, a bridge, a gate with the district's name.
+- **Civic lots are reserved.** The central district's sequence skips them. The lodge stands where the town hall
+  will stand, and the mail hut where the post office will. The square, the café, the bus stop and the landmark
+  spots (windmill, chapel, bandstand, farm corner, cottages) also sit on spots that no project ever takes. Civic
+  buildings grow in place, so they never move either.
+- **Allocation.** A project gets the next free lot of its zone's sequence the first time the world sees it. The lot
+  is written into the town document as its plot and never changes after that, except by Tidy or by hand.
+  - Archived projects keep their plot, boarded up.
+  - A viewer setting may fold archived buildings into an "old quarter" row. That is an explicit choice, and it is
+    shown as such.
+  - A project that moves to another zone stays where it stands. It carries its new zone's colour, and the text view
+    and build mode say it belongs elsewhere; Tidy or a hand move rehouses it.
+- **Tier.** The tier is chosen from the number of projects that are not archived, with hysteresis: a tier is
+  entered at its threshold and left only two projects below it.
+
+  | Projects | Tier | What it is |
+  | --- | --- | --- |
+  | 0 | Clearing | A small lodge, a mailbox, a welcome sign, and one staked-out plot that says what to do next ("create a project in crewhub-loops"). The operator and the postman are at home. |
+  | 1 | Hamlet | One building as the centre of the picture, the lodge and the mail hut close by, one lane, a small green. |
+  | 2 to 4 | Village | One street and a small square: today's town, tightened. |
+  | 5 to 9 | Town | Square, streets and the full civic set. |
+  | 10 and more | Region | Districts, joined by roads and separated by natural borders. With a single zone, the district's blocks read as neighbourhoods without names. |
+
+  The tier decides the ground's extent (always covering every allocated lot), the streets, the civic set and which
+  landmarks have arrived. It never moves a lot.
+- **Landmarks** arrive with growth, deterministically: seeded by the town, the same on every load.
+- **A new project** appears as a building going up: scaffolding for a moment, then the building. Under reduced
+  motion it fades in.
+- **The stability test:** add projects one by one from 0 to 40, in several orders and spread over one to four
+  zones, with archiving and restoring mixed in. No building's lot may ever change, and no lot may overlap another
+  or a reserved spot.
+
+### Zones
+
+- **In the model:** a zone has an id, a name, an order, an optional colour and emblem, and a look (style id, style
+  options, cast id). Every building belongs to exactly one zone. Without any grouping there is one unnamed default
+  zone, and the world behaves as a single settlement.
+- **Where a building's zone comes from,** in order:
+  1. a manual assignment in the town document (build mode);
+  2. a group from the source;
+  3. the default zone.
+
+  Item 2 sits behind one function in `packages/loops-client`, in the shape the world would like crewhub-loops to
+  offer: a group with an id, slug, name, order and optional colour and icon, plus `groupId` on `ProjectOut`. The
+  demo source feeds it as the one clearly marked future field.
+- **Look per zone:** Settings and build mode let a person set a zone's style, style options and cast. Only
+  Greenhouse exists, so **style options** prove the idea. Greenhouse declares them as data in its `style.json`:
+  - season: October as today, spring, summer;
+  - planting: orchard, market, waterside, meadow;
+  - accent;
+  - lantern type.
+
+  A style ignores options it does not know. A zone with a different season and cast must read as a different
+  district at a glance.
+- **Proposal L22 "project groups"** for crewhub-loops is written, not built. It goes in `docs/LOOPS_GAP_ANALYSIS.md`
+  section 6 and the integration plan's section 9, named neutrally as a "group".
+
+### Finding your way at scale
+
+- **Zoom levels:** region, district, building, room. The breadcrumb and the Escape chain follow them. The home view
+  frames what exists:
+  - the building, for a hamlet;
+  - the settlement, for a village or town;
+  - the districts, for a region.
+- **Zoomed out, the world summarises.** Per district: its name, counts per status, and one beacon when anything
+  inside needs a person (waiting on a person, attention, stalled). Per building the same, one level down. The calm
+  labels rule holds.
+- **A jump list:** a searchable list of zones, projects and agents (a button, plus `/` and `Cmd/Ctrl+K`) that flies
+  the camera there. The text view groups by zone and offers the same jumps. On a phone, the jump list is the main
+  way around a region.
+- **Far districts are cheap:** silhouettes and the instanced crowd, and interiors are not built until approached.
+  The performance rounds' frame targets hold for 20 buildings and 200 agents in four zones (`?stress=20`).
+- **Travel between districts:** figures take the bus between districts (walk to the stop, the bus drives, walk on),
+  or the simplest honest substitute if the bus is more than a small addition to the navigation.
+
+### The demo shows all of it
+
+A scenario picker on the Demo chip offers:
+
+- **"Fresh install":** no project. A minute in, the first project is created and its building goes up.
+- **"One project".**
+- **"Small team":** today's four projects and storyline, still the default.
+- **"Studio":** twenty projects in four zones with different looks and casts, with enough going on to light the
+  beacons.
+- **The stress fixtures.**
+
+Every scenario is deterministic and seeded, and every scenario keeps its own town document, so switching does not
+mix plots. In "Fresh install" and "One project" the chat, the drone, the prop request and build mode all still work.
+
+### Out of scope
+
+- A second full style.
+- Building the loops side of L22.
+- Re-syncing the chat copy (D9, D10 of the gap analysis).
+
+## Addendum: loops readiness (2026-10-07)
+
+Nicky installs a fresh crewhub-loops on this Mac soon (`loops:docs/porting/MAC-QUICKSTART.md`, commit `053b5f47`), and
+the world must hook in the same day. This round builds the plan's phase 1 data path (`docs/LOOPS_INTEGRATION_PLAN.md`
+section 10) without the parts that need a person: pairing and the chat stay out.
+
+**Principles.**
+
+1. **The reducer and the projection never learn that there is a host.** The seam stays `WorldSource`. A live source is
+   one more implementation of it, next to the demo; the only addition is an optional `connection` beside `playback`,
+   which the UI reads for its chip.
+2. **The key never leaves the host.** The browser talks to the world's own relay (`apps/host`, the integrator doc's
+   Option A); the relay holds the loops key, reads it once, and never logs or returns it. A test greps the built
+   bundle and the host's responses for it.
+3. **Nothing is written to crewhub-loops.** The host's routes come from one allow-list of loops `GET` paths; every
+   other path and every other method answers 404 or 405. A test sends each unsafe method.
+4. **Runs today, before the install.** A fake crewhub-loops (`packages/loops-fake`) plays the demo storyline in real
+   time with the real routes, bearer auth, `seq`, heartbeats and a 410 past its buffer. Switching to the real install
+   changes only the URL and the key file.
+5. **`npm test` stays offline.** The host and the fake may use the network on loopback only (the scanner's
+   `NETWORK_ROOTS`); in the browser only `hostSource.ts` may fetch, and only its own host.
+
+**Shape.**
+
+```text
+crewhub-loops :8091  --bearer key-->  apps/host :5180 (127.0.0.1)  --/world-api-->  browser (HostSource)
+(or loops-fake)                       one stream, a ring buffer,                    snapshot, then events by seq;
+                                      snapshot assembly, allow-list                 reset or a seq gap: re-snapshot
+```
+
+- `GET /world-api/snapshot` is one `LoopsSnapshot`, assembled by read-model.md "Loading a snapshot" so no event falls
+  between the reads and the stream.
+- `GET /world-api/stream?cursor=N` is SSE. The host keeps one loops stream for every tab, replays from its buffer, and
+  sends `reset` when loops answers 410 or the host reconnected past its buffer. Messages are the seam's own
+  (`event`, `heartbeat`) plus `reset` and `status`.
+- The thin-event refetches, `GET /world-api/team`, `GET /world-api/project-groups` (`{groups: []}` until L22) and
+  `GET /world-api/health` (`loops: ok | down | unauthorized`, the key's name, never the key).
+- Host and Origin are checked against `127.0.0.1:<port>` and `localhost:<port>`. Pairing (a one-time link exchanged
+  for an HttpOnly cookie, plan 3.5) is a written known gap: this round the host trusts loopback.
+
+**In the world.** A source setting, Demo (default) or Live (`?source=live`, Settings > Source). Live hides the Demo
+chip, the scenario picker and the playback bar; a connection chip (Live, Catching up, Stale, Loops down, Unauthorized)
+takes the Demo chip's place and the text view says the same. The chat dock shows the plan's "sign in to crewhub-loops"
+link. The town document is keyed by source, so a live town never inherits a demo layout. Every live project sits in
+the default zone until L22 exists; manual zones still work.
+
+**What crewhub-loops changed** (`f55d1288` to `053b5f47`): the read model the world uses is unchanged; new are the
+`grill` ticket kind and its route, pending delegations, key scopes and agent deletion; the executor routes
+(`/api/agent-actions*`, `/api/lane-creates*`, `POST /api/onboarding/lead`) are gone. The validators accept an unknown
+`kind`, `status` or event `type` with one warning, so the next such addition does not break the world.
+
+**Out of scope this round:** pairing, the chat (phase 2), a viewer role (L1), writing anything to loops, Tailscale.
+
+## Addendum: readiness hardening (2026-10-07, afternoon)
+
+The loops readiness round left four known gaps. This round closes them, still against the fake: crewhub-loops is not
+yet running on this Mac.
+
+1. **Pairing** (plan 3.5). Without it, any page in the same browser could read `/world-api` on loopback.
+   - **The flow:** `npm run host -- open` prints a one-time link `http://127.0.0.1:<port>/pair/<token>`, valid for 10
+     minutes and usable once. The browser exchanges it for an HttpOnly `SameSite=Strict` cookie, which is `Secure`
+     when `CREWHUB_WORLD_PUBLIC_URL` says the host sits behind TLS, and lands on `/`.
+   - **Without the cookie:** every `/world-api/*` route answers 401, except `health`, which carries no data. The world
+     then shows a "Pair this browser" page that names the command and never the link.
+   - **Lifetime:** a pairing lasts as long as the host's run, unless `CREWHUB_WORLD_PAIRING_FILE` keeps the secret
+     across restarts.
+   - **Secrets:** the token and the secret never appear in a log or a response.
+   - **Development:** `CREWHUB_WORLD_PAIRING=off` serves the Vite proxy; the host says so loudly at start and refuses
+     it in production.
+2. **A faithful fake.** Streams end after 300 s as loops' do, and the client resumes at its cursor without losing an
+   event. The fake gains the grill and pending-delegation reads, `/api/auth/me`, and loops' 403 for a key that may not
+   read (`--builder-key`). The small-team storyline meets a grill ticket and a pending request.
+3. **Regression checks.** The browser pass grows to cover the jump list, the Region level, a beacon pin, the scenario
+   picker and live mode against the fake: the chip through a fake restart, the sign-in link and the pairing page. A
+   run stays within its 60 s budget.
+4. **The allocation undo gap.** A lot, once given, is a fact of the town, not an edit, so allocations stay out of the
+   undo history. An undo past a hand move never re-allocates a project, and the stability test covers that sequence.
+
+The reducer and the projection still do not know about the host, and nothing is written to crewhub-loops.
+
+## Addendum: three rooms per building (2026-10-07, evening)
+
+From the user. Ten rooms per project mixed two orderings (rooms per role, rooms per ticket status, plus a lobby, an
+office and a meeting room), so what is being worked on was spread over the whole building. Every building now has
+exactly three rooms, each with one meaning.
+
+1. **Administration.** One wall holds four racks: **Backlog, Planning, Review, Done** (formerly storage, planning,
+   review and dispatch). Every package that is not in someone's hands stands on a rack. The rack shows the status; the
+   box shows the kind (folder, box, bug crate, envelope). The mailbox and the archive counter live here, by the front
+   door. No agent works here. Agents and the drone only fetch and return tickets.
+2. **The floor.** One open space with a desk per working agent. A desk holds at most one package: the one in progress.
+   The desk shows the role: an analyst desk has screens, a design desk has a drawing table, a worker desk is plain. A
+   small round table, the huddle, replaces the meeting room; the meeting inference stays, and the agents gather there.
+   A lamp on each desk shows the agent's lane: green working, amber waiting on the operator, grey idle, off when gone.
+3. **The lead's office.** A separate room with its own desk, the amber attention beacon above it as today, a door and
+   a window onto the floor. The lead stays here.
+
+The handover is the building's story:
+- When work starts, the box leaves the rack and lands on a desk.
+- When the work is done, the box goes back to the Review rack.
+- When it is approved, it moves one rack further, to Done.
+- When it is rejected, it goes back to the desk.
+
+### The model stays; the renderer maps
+
+`RoomKind`, `TransitPlace`, flights, the memory of role rooms and their tests do not change. A building template may
+now host several model rooms in one physical room, the **hall**:
+
+| Hall           | Hosts (model rooms)                            | The hall's own kind |
+| -------------- | ---------------------------------------------- | ------------------- |
+| Administration | storage, planning, review, dispatch, lobby     | `lobby`             |
+| The floor      | workers, analyst, design, meeting              | `workers`           |
+| Lead's office  | lead-office                                    | `lead-office`       |
+
+- **`roomOf(template, kind)`** returns the template room whose own kind is `kind` or that hosts `kind`. Code that asks
+  for the analyst room gets the floor.
+- **Walls** stand only between halls. Inside a hall the floor is open, so the navigation grid has three rooms joined by
+  doors.
+- **Desks** carry their zone (`workers`, `analyst` or `design`). An agent sits at a desk of its own room kind, as
+  before.
+- **Piles** are part of the template. Each status has a rack, slot positions and an overflow pallet, so the classic
+  template keeps today's piles and the three-room template has its own.
+- **Model change.** The only one is in the words. `describe`, the agent card and the room summaries say
+  "Administration", "the floor" and "the lead's office", and name racks ("on the Review rack") when the three-room
+  template is in use. The classic labels keep working for the classic template.
+
+### Floor plan (building cells, x east, z south; one cell is 0.6 world units)
+
+```
+ x: 0        9           15  18  21 ........ 27 ........ 33   the floor grows east in 6-cell module columns
+ z0  +--------+-----------------------+-----------+-----------+
+     |LEAD'S  | THE FLOOR    module grid 6 x 6, 3 rows        |
+     |OFFICE  | [w][w]       desks by role (two per module,   |
+     | shelf  |  ...         staggered as today):             |
+     | lead   |              workers, then analyst, then      |
+     | desk * |              design, each role contiguous     |
+ z6  |  (beacon)                                              |
+     |  side  |                                               |
+     |  desks ~ window                                        |
+ z12 |  sofa  +-------+                                       |
+     |  corner| huddle|                                       |
+     |        D (O)   |                                       |
+ z18 +--------+-------+-----------D---+···························
+     |ADMINISTRATION                 |   (outside: lawn, when
+     | [Backlog] [Planning] [Review] [Done]   the floor is wider)
+     |  x1-3      x5-7       x9-11   x13-15
+     |                               |
+     |          mailbox     counter  |
+ z28 +-[load]---------[E]------------+
+       x1-4           x15
+```
+
+- **Lead's office:** origin (0, 0), 9 x 18. It keeps the floor's depth because the halls are rectangles on a 28-deep
+  plot (the floor's three module rows are 18 deep, Administration takes the other 10); its south half is the lead's
+  sitting room, so it reads as one room, not as a second hall.
+  - The lead's desk is near the north wall, with the beacon above it.
+  - Two side desks for agents a person set to lead (as today).
+  - A bookshelf and a sofa corner.
+  - A window on the east wall onto the floor: the partition run north of the door is glazed above the partition
+    height (the glass wall's glass and mullions between timber posts on the cap, `building.partition` variant
+    `glazed`), so from the overview it reads as a window, not as a taller wall. Built 2026-10-21; it replaced the
+    small window piece the decor hung there.
+  - The door to the floor is at office cell (8, 14), opening onto floor cell (0, 14). The office's sign hangs over this
+    door (2026-10-21); the floor's lies beside its door down to Administration, Administration's by the loading door.
+    Partitions between the halls are the classic 0.52 high; the 0.56 of 7 October was a workaround for a partition
+    that no longer vanishes (`apps/world/test/mergeStatic.test.ts`).
+- **The floor:** origin (9, 0), 6 x c cells wide (c = 2 to 4 module columns) and 18 deep (three module rows).
+  - The huddle is floor module (0, 2), the one by the office door: a small round table with places all round, tagged
+    `gather`. It stands at (3, 1) in its module (built 2026-10-21), so its ring of places keeps out of the office
+    door's mouth and of the way from that door to the floor's door down to Administration: a huddle in session cuts
+    nobody off and lengthens the lead's way by two cells at most (a test walks it).
+  - The other modules hold two desks each, filled row by row from the front (the doors' side), west to east (built
+    2026-10-21; the first design said from the back, which left a small team's floor empty in front of its desks). A
+    role's desks are contiguous: workers, then analyst, then design.
+  - A module without desks is a breakout corner, not a void: in turn a lounge (two armchairs round a side table on a
+    rug) and a green corner (a planter, plants, a bench), placed by the dressing planner so every path stays open.
+  - A role room the model has gets at least one module, even when it has no agent now (it stays dimmed, as today).
+  - The column count is the smallest c ≥ 2 that fits every desk module plus the huddle, at most 4. That gives 10, 16
+    and 22 desks.
+  - An agent past capacity gets no desk, as today; the text view lists it.
+- **Administration:** origin (0, 18), 21 x 10.
+  - Four racks stand against its north wall, 3 cells wide and 1 deep, at x 1, 5, 9 and 13.
+  - Each rack holds three slots on four shelves, so 12 boxes. Past that, a pallet with a count stands in front of the
+    rack.
+  - The front door is today's entrance at building cell (15, 28), and the loading door is today's (x 1 to 4).
+  - The door to the floor is at administration cell (18, 0), opening onto floor cell (9, 17).
+  - The mailbox and the archive counter stand between the front door and the racks.
+- **Footprint:** `MAX_WIDTH` (33), `DEPTH` (28), `ENTRANCE` and `LOADING` are unchanged, so plots, roads and the truck
+  apron stay where they are. A small team's building is 21 wide instead of 27; the widest is 33, as before. When the
+  floor is wider than 12 cells, the south-east corner (x 21 and up, z 18 to 28) is outside: lawn.
+
+### Selecting it
+
+- **The setting.** `BuildingPlan = "three-rooms" | "classic"` is a per-viewer setting: Settings > Town > Buildings, with
+  `?rooms=three|classic` overriding it, kept like the Old quarter setting. Both stay selectable so they can be compared
+  side by side.
+- **The template.** `buildingTemplate(building, plan)` returns the classic template unchanged for `classic`.
+- **The default.** The default becomes `three-rooms` once the round passes the lead's gate (one commit at the end).
+
+### Keep working
+
+- **Figures:** picking and the agent card (figures at desks); follow and walk (three halls, the doors, the front
+  door); the director's intents (a prop tag in a model room resolves to that room's hall).
+- **Town and looks:** scale tiers, zones and the 20-project scenario (fewer cells, so the heap should not grow); all
+  four casts; the prop editor and rule props (a placement site naming a model room resolves to its hall; a placement
+  that no longer fits is dropped with the usual notice).
+- **The text view tells the same story as the scene.**
+
+## Addendum: live on the Mac crewhub-loops (2026-10-20, night)
+
+crewhub-loops now runs on this Mac as the desktop app (`Crewhub.app`: a Tauri shell around one Python sidecar that
+serves `http://127.0.0.1:8091` and a Unix socket in its data folder). The world was built against `053b5f47`; loops'
+`origin/main` is `4cdcd383`, 316 commits later. Tonight the world runs against a **private development instance** of
+that commit (`tools/loops-dev.sh`: own checkout, port 8291, data folder `~/crewhub-loops-dev`, socket
+`~/crewhub-loops-dev/run/api.sock`), never against the app. The app is Nicky's, in the morning.
+
+**What loops changed that the world must follow.**
+
+1. **The `probe` road is dead** (CL-295): a probe agent other than team-probe and lane-watch reads nothing. The
+   world's credential is an **external bot** (CL-314), made by the owner in the web, role `lead`, scope `agent`, *not*
+   read-only: it reads projects, boards, the team, agents, tickets and the stream. It could also write like a lead; the
+   host holds it on loopback and forwards an allow-list of `GET`s only. The CL-313 "Read only" key is tickets-only and
+   unusable for the world.
+2. **The stream** is still `GET /api/events/stream` (NDJSON). It ends after 300 s, beats every 15 s, re-checks the
+   credential every 60 s, admits 4 streams per principal (429 `too_many_streams`, `Retry-After: 5`), and since CL-406
+   carries a sealed `cursor` on heartbeats and on `GET /api/events`; `GET /api/events?from=tail` answers "now". There is
+   no buffer: the only 410 is `cursor_expired`. A `lastSeq` below our cursor means a restored database.
+3. **Still no viewer role (L1), no CORS (L8), no project groups (L22).** The relay stays the only road.
+
+**Principles (unchanged, restated).** The reducer and the projection never learn about the host. The key never leaves
+the host. **The host never writes to loops**: only `tools/loops-seed.mjs` writes, as the admin session, to the
+development instance only. `npm test` stays offline; tests against the real instance live in `tools/regress.mjs
+--groups real` and skip cleanly when it is down.
+
+**The round, six tracks.**
+
+| Track | Delivers |
+| --- | --- |
+| realrun | A written list of what the real API does that the fake does not; then the relay and `HostSource` follow it: `from=tail` at start, the sealed cursor sent back when no event followed it (else `after=`), a 1.5 to 3 s jittered reconnect after the 300 s end, 429 with `Retry-After`, 410 `cursor_expired`, restore detection, unknown event types pass. **One upstream stream per host process**, tested. The fake matches the real stream where it differs. A regress group `real` against 8291. |
+| seed | `tools/loops-seed.mjs`: the demo storyline replayed into the development loops through the admin session (projects, tickets, moves, comments, progress), idempotent by title, `--speed`, `--scenario`; it refuses port 8091. |
+| unixsock | `CREWHUB_WORLD_LOOPS_SOCKET=<path>`: the host reads loops over the Unix socket (`node:http` with `socketPath`, Host `127.0.0.1`), same allow-list, same stream. Explicit only, never guessed. `health` reports `transport: "unix" \| "tcp"`. |
+| lanefacts | The agent card's Lane section and `Now` from the real `GET /api/agents` lane (`desired`/`observed`, effort, permission mode, drift, lifecycle, `lastSeenAt`, `computer`) and `GET /api/team` (`status`, `contextLine`); an external bot says it has no lane; freshness from `lastSeenAt`. The fake serves the same shape. |
+| setupdocs | `docs/LOOPS_SETUP.md` rewritten for the Mac app (external bot, key file, `npm run host:start`, pairing, TCP or socket), with the development instance as the developer's section; the gap analysis and integration plan section 10 brought to `4cdcd383`. |
+| viewer | In the loops repository, branch `world/viewer-key` (never pushed): a proposal for L1, an external bot flag that may read projects, board, team, agents, tickets and the stream and write nothing, with loops-style tests. The ask for cl-lead. The world keeps working with the plain external key. |
+
+**Out of scope:** the chat (L8), pending delegations (they need the owner's session, not a key), TLS, writes from the
+host, any change to the Mac app, its data folder, port 8091 or launchd.
+
+## Addendum: a person in the world, and closed buildings (2026-10-21, round 2 of the night)
+
+From what the real crewhub-loops taught tonight.
+
+**1. A person carries work into Done.** In loops a move into Done is a person's act: an agent's move answers 403
+`human_only_done` (`domain/tickets.py` `require_human_for_done`). The world shows that.
+
+- When a `ticket.moved` into `done` arrives whose `actor.kind` is `user`, that person appears at the building's front
+  door as a figure of the town's cast (plain clothes, no project colour, a name tag with the principal's
+  `displayName` from `/api/principals`, the word "person" in the text view). They walk to the package on its rack or
+  desk, carry it to the Done rack, and leave by the front door. The drone does not fly that package.
+- A rejection (resolution `rejected`) is carried the same way, and its package gets the existing "turned down" mark.
+  There is no celebration for a rejection.
+- A person is no resident. They never sit at a desk, they are not an agent and the agent card does not open on them;
+  a click says who they are and what they just did. At most one person figure per building at a time. A second
+  move during the walk queues; past three queued moves, they land at once.
+- The model records the visit as a fact with source time (pure, tested). The renderer walks it. Under reduced motion
+  the package lands directly and the text view says "<name> moved <key> to Done".
+- Demo mode shows it through the storyline's person moves (`DEMO_PERSON`); live mode through the real events.
+
+**2. Closed buildings, and opening again.** An archived project is a closed building: boarded up as now, its lights off,
+a sign "Closed" with the date it was archived, no packages and no agents inside. Clicking it says it is archived and
+since when; it can still be entered.
+
+- `project.archived` plays a short closing: the lights go out and the boards come down. `project.restored` plays the
+  reverse. Reduced motion cuts.
+- The demo storyline restores ops-tooling at 5:00.
+- **Live mode learns archived projects.** An agent key may not list them (`includeArchived` is for human admins), but
+  the event log is never pruned and `GET /api/projects/{slug}` resolves an archived project. So the host's snapshot
+  reads `GET /api/events?types=project.archived,project.restored&after=0` (paged) to find the slugs, and reads each one
+  that is archived now.
+
+Out of scope: a person doing anything else in the world (no person chat, no person at a desk), and the person's own
+figure choice.
+
+## Addendum: a smooth connection (2026-10-21, round 2, from the user: the first priority)
+
+The measure: a person with Crewhub.app running opens the world and sees their real projects **within two minutes,
+without reading a runbook**. Four parts, one contract between them.
+
+**1. The host finds loops by itself.** Without `CREWHUB_WORLD_LOOPS_URL` or `_SOCKET`, the host looks for the Mac app's
+data folder (`~/Library/Application Support/be.ekinsol.crewhub`, overridable with `CREWHUB_WORLD_LOOPS_APP_DATA` for
+tests and the development instance). The host only reads that folder and never writes to it. The order is:
+1. an explicit URL or socket (the scripted road);
+2. the app's socket `<data>/run/api.sock`, when it exists and answers `GET /api/health`;
+3. `http://127.0.0.1:<port>`, with the port from `<data>/settings.json` (default 8091), when it answers;
+4. nothing found.
+
+The web URL for the sign-in link follows the port found. The host looks again every 5 s while nothing is found, so
+starting the app after the world needs no restart. `tools/loops-dev.sh` writes a `settings.json` with its port into
+its own data folder, so the development instance is found the same way.
+
+**2. The key without a file dance.** The host starts **without a key**. It reads a key from the first of these that
+exists:
+1. `CREWHUB_WORLD_KEY_FILE`;
+2. the host's own stored key `~/.config/crewhub-world/loops-key` (folder 0700, file 0600);
+3. the old default `~/.config/crewhub-loops/secrets/agent-crewhub-world.key`.
+
+The builder-key fallback goes. With no key the world shows a **Connect screen**:
+- one short instruction, in the loops web's own words (Settings > Agents > New external bot, name `crewhub-world`,
+  "Read only" off, no projects; copy the key, it is shown once);
+- a button that opens the loops web there;
+- a paste field.
+
+`POST /world-api/connect {key}` (paired browser, same Origin, JSON) checks the key with `GET /api/auth/me`. It refuses
+a probe or reader key with the reason. It stores the key 0600 and switches the host to it without a restart. The key is
+never logged, echoed or returned. `DELETE /world-api/connect` forgets a stored key. These are the host's only writes,
+and they are to its own folder.
+
+**3. One command.** `npm run world` builds if needed, starts the host with pairing on, mints a pairing link and opens
+the default browser on it (macOS `open`; `--no-open` prints it instead). A second run finds the running host and only
+opens a new link.
+
+**4. Honest states.** `GET /world-api/health` grows a `connection` object, which the world reads:
+`{ discovery: { state: "found" | "searching", via: "env-url" | "env-socket" | "app-socket" | "app-port", target },
+key: { state: "none" | "checking" | "rejected" | "ok", name, source: "env" | "stored" | "default", reason? },
+stream: { state, cursor, lastEventAt, reconnects } }`. Until the browser is paired, health shows the states and
+nothing else (no target paths, no names). The world shows one screen per state:
+- no loops found (what was looked for; it keeps looking);
+- pair this browser (exists);
+- connect (paste the key);
+- key rejected (why; paste again);
+- connected (the town).
+
+A Connection panel (the chip opens it) lists discovery, the key's name, the cursor, the last event and the
+reconnects. `npm run host -- doctor` prints the same states in the terminal.
+
+**Not tonight (proposed, loops side):** a "Connect CrewHub World" button in the loops web that creates the bot and
+hands the key to the host, on the `world/viewer-key` branch's road.
+
+## Addendum: the new loops events in the town (2026-10-21, round 7)
+
+crewhub-loops `4cdcd383` emits three event types the world did not show yet (`docs/LOOPS_REAL_VS_FAKE.md` row 13). Each
+gets one small, honest presence; none moves a ticket or an agent, and the projection stays the only reader of facts.
+
+1. **`ticket.quiet`** `{status, minutes, since, ticket}` (actor `system`, one per ticket, status, minutes and quiet
+   stretch; `domain/automation_quiet.py`). The package on its rack or desk gathers **dust**: a thin grey film and a small
+   clock tag "quiet 2 h" in words, from the event's `minutes` and `since`, until a person or an agent next changes
+   the ticket (any `ticket.*` or `comment.*` event on it whose actor is not `system`), or a snapshot says otherwise. A
+   change by `system` (an automation answering the quiet fact, 6 ms later on 8291) leaves the dust: otherwise nobody
+   would ever see it. It is a fact about the ticket, not a stall: the stall
+   lamp (`ticket.stalled`) keeps its own meaning. The text view says "CR-12 has been quiet in Review for 2 h". Reduced
+   motion: the same, without the dust settling.
+2. **`automation.ran`** `{runId, automationId, outcome, automation:{id, name}}` (actor `system`, on the ticket). A short
+   visible act at the building's **board** by the front door: a small card pinned for a few seconds ("Automation
+   'Label stale bugs' ran on CR-12: done"), then gone; a failed outcome says so in words. Several runs queue on the
+   board. The text view keeps the last few as lines. A change the automation made arrives as its own event (a
+   `ticket.updated` with `automation`) and is shown as any change is; the payload's `automation` name may be quoted in
+   the text view ("labels changed by the automation 'Label stale bugs'").
+3. **`owner-request.updated`** `{userId, requestId, state}`: served **to the owner person only** (`api/stream.py`
+   visibility); the world's key (an external bot) never receives it. The world knows the type (no warning), draws
+   nothing, and says nothing. It becomes a note for the person only on a road where the world reads with the owner's
+   session, which does not exist (out of scope).
+
+**The fake** emits `ticket.quiet` and `automation.ran` the loops way (actor `system`, payload as above, on scripted
+tickets of the storyline) and `owner-request.updated` only to a non-agent principal (so a lead key never sees it, as
+on loops). **Demo** shows the same through the storyline. **Regress**: a check per visible event (dust and its words; the
+board card and its words) in the demo group.
+
+## Addendum: project groups and the director in live mode (2026-10-21, round 7): a proposal, not built
+
+Neither is covered by an accepted spec in a form that can be built without a decision; this addendum writes down the
+options so the decision is quick. **Status: both built on 2026-10-21 (round 11), each on its recommendation, with no
+loops change and no style change. Project groups: road 3, as the recommendation says for as long as loops has no groups
+and the world database is not built: in a live town a person makes zones by hand in build mode exactly as in the demo;
+the live town document is kept per crewhub-loops installation (the host's `loopsWebUrl` in the storage key), apart from
+every demo scenario's, and a town kept under the earlier plain key is copied once; the text view, the Connection panel
+and build mode say where zones come from ("made by hand in this browser; crewhub-loops has no project groups; not shared
+with other browsers"); without any zone nothing is said. Roads 1 and 2 stay as written. The director in live mode: the
+same scripted feed, its own opt-in in Settings off by default (a second flag, `liveDirectorEnabled`, so the demo's
+switch never carries into live), plans from the live facts, intents validated as in the demo and played only through
+the walk runtime, the word "scripted" on every intent line, in the text view's director section and in the director
+log; `packages/demo/test/director.test.ts` (live plans, the demo's switch alone silent),
+`packages/world-model/test/presence.test.ts`, `apps/world/test/intentPlayer.test.ts` (the label), and six checks in the
+regress `live` group over the fake.**
+
+**Project groups (L22).** Today a live town puts every project in the default zone (`/world-api/project-groups` answers
+`{groups: []}`), and a person can make zones by hand in the town document, kept in that browser. Three roads:
+1. *Wait for loops* (L22 in the gap analysis): a level above projects in crewhub-loops, read like any other fact.
+2. *The host keeps the groups*: the planned world database in `apps/host` stores zones per loops installation, so every
+   paired browser shares them; the host serves them on the existing route. Needs the world database (planned).
+3. *Keep it per browser* (today): no work, no sharing.
+Recommendation: 2 when the world database is built, 1 when loops has groups; 3 until then.
+
+**The director in live mode.** The scripted director (round 1, `docs/COST_POLICY.md`) runs only in demo mode, off by
+default; the real director (a model behind the host, `docs/ROADMAP.md`) is planned. A middle road needs no model and no
+database: **the same scripted feed in live mode**, off by default, its intents (`goToProp`, `visitAgent`, `gather`,
+`stay`) validated exactly as in the demo, acting only on the world's own figures (never on loops), its plans made from
+the live facts (who is idle in which building). What needs a decision: whether a scripted presence in a world that shows
+real work could be mistaken for real behaviour (the demo labels it; live would need the same "scripted" label on every
+intent and in the text view), and whether it is worth it before the real director.
+Recommendation: build it only with that label and only off by default; else wait for the real director.
+Built that way in round 11 (see the status line above); the real director stays on the roadmap.
+
+## Addendum: chat with the agents (2026-10-21, round 12, from the user: the first requirement)
+
+Nicky chatted with his agent `boing` in the crewhub-loops app while the world was open against his own Crewhub.app,
+and the world showed no bubble over boing. He asked for chat with the agents as the first requirement, and said the
+UI may be exactly crewhub-loops' own. This addendum records what loops offers (read in loops `4cdcd383`) and the two
+roads. **Status: road A built in round 12 (r12-chatpanel); road B option 2 built in round 12 (r12-chatsession) and removed in round 28 (below); option 1, the viewer key, is the key road since round 12 and on crewhub-loops main since #959/#964; the page's own read where loops has the world's origin set (#968) is road 2 since round 28. The default and the honest line: "Round 28" below.**
+
+### What loops has
+
+- **Chat in loops is not a page.** It is the bubbles overlay (`apps/web/src/components/bubbles/Bubbles.tsx`): chat
+  heads in a dock, mounted by the app shell for an admin (a person) when the `bubbles` feature is on (off by default,
+  migration 024). "Bubbles" in loops means these chat heads and the pinned list (`GET/PUT /api/me/bubbles`), not the
+  world's speech bubbles. A chat opens by an in-page event (`crewhub:open-chat` with the agent's id), which no other
+  page can send: there is no address that opens one agent's chat.
+- **Who may do what** (`api/routers/dm.py`): reading threads and messages takes any principal, but a key reads only
+  threads it is part of; sending to an agent, marking read and the pinned bubbles take a person (admin); a reply takes
+  an agent.
+- **Who sees the events.** `dm.*` events and chat deliveries reach only the participants of the thread (the
+  `chat_participant` clause in `api/stream.py`). The world's key is an external bot, not part of Nicky's thread with
+  boing, so the world never sees that conversation. That is why there was no bubble; nothing in the world was broken.
+- **Framing.** loops sets no `X-Frame-Options` and no `frame-ancestors` (only the attachments have a CSP). Its session
+  cookie is `HttpOnly`, `SameSite=Lax`, 30 days (`routers/auth.py`, `auth/service.py`). The world on
+  `127.0.0.1:<port>` and loops on `127.0.0.1:8091` are the same site (the port does not count), so a frame of loops
+  inside the world carries the person's own session.
+
+### Road A: the chat is loops' own, in a frame (built first)
+
+A **Chat panel** in the world, opened from an agent's card ("Chat with <name>") and from the chat chip, frames the
+loops web the host names (`loopsWebUrl`). Inside the frame is loops' own app shell with its chat dock, at the panel's
+width: the chat is exactly loops' own because it is loops. Signed out, loops' own sign-in shows in the frame. The
+world handles no password and no session, and reads nothing from the frame.
+
+- It opens boing's chat by itself on a loops that has the deep link (`?chat=<agent id>`, world/viewer-key cb163004:
+  the shell opens the dock's chat through its own rule and drops the parameter; the login redirect keeps it). An older
+  loops ignores the parameter, so the panel also says "open <name>'s chat head in the dock".
+- It needs the person signed in to crewhub-loops in this browser and the bubbles feature on; the panel says so.
+- "Open in the app" stays beside the frame, as the fallback if a later loops refuses to be framed.
+- The demo keeps its scripted chat.
+
+**As built (round 12).** A panel of the world (a sheet at the right; the whole
+screen on a phone, as loops' own chat is below its narrow width) holds an `<iframe>` on the root of the loops web app
+the host names (`health.loopsWebUrl`, origin only): the app shell with its chat dock, which at the panel's width is
+loops' "Agent chats" menu. The person is signed in to loops in the same browser, so the frame carries their session;
+signed out, loops' own sign-in shows inside the frame. **The world handles no password and keeps no session.** The panel
+opens from the Chat chip (the live town's chat corner, the frame on `/`) and from an agent's card ("Chat with <name>",
+the frame on `/?chat=<loops agent id>`: a loops of world/viewer-key cb163004 or later opens that agent's chat through the
+dock's own rule and drops the parameter from the address, an older loops ignores it). Its words are honest for both: this
+is crewhub-loops' own chat, it opens <name>'s chat, on an older loops open <name>'s head in the dock; it needs you
+signed in to loops as a person in this browser
+with chat bubbles switched on in loops; the world handles no password. The link "Open in the crewhub-loops app" (a new
+tab) is always there: the fallback for a frame that never loads, the day loops refuses framing. The frame's `sandbox`
+is no wider than the chat needs (`state/chatPanel.ts` says each token's reason): `allow-same-origin` (the cookie and
+loops' storage), `allow-scripts`, `allow-forms` (sign-in, compose), `allow-popups` and
+`allow-popups-to-escape-sandbox` (a link in a message opens a real tab), `allow-downloads` (attachments); never
+`allow-top-navigation` (loops cannot navigate the world away) or `allow-modals`; `allow="clipboard-write"` only.
+Escape closes the panel while the focus is outside the frame (a key pressed inside a cross-origin frame never reaches
+the world; the panel says so), the close button always; the focus returns to the opener. The text view says where chat
+lives. The demo keeps its own scripted chat (the copied dock); the demo's card has no Chat button.
+**Leads only (round 13).** Loops' chat dock lists enabled agents of loops role `lead` only (`Bubbles.tsx`:
+`!a.disabled && a.role === "lead"` over `GET /api/agents`; `openChat.ts` opens nothing outside that list), so a card's
+Chat names only an agent that list holds (`AgentCardFacts.chat`, `packages/world-model/src/agentCard.ts` `chatFacts`;
+`state/chatPanel.ts` `chatTargetOf`): a lead's card has "Chat with <name>" and the frame on `/?chat=<id>`; the card of a
+worker (no entry of its own), the postman (role router) or a lead loops does not list has **no Chat button for itself**
+(one that framed the root under that name would pretend) and a line that says why in loops' own terms
+("crewhub-loops chats with leads only: <name> is a worker, not an agent registered in crewhub-loops; chat with its lead
+<lead>"), with a "Chat with <lead>" button when loops lists its lead (the worker's lead from the team snapshot, else the
+building's); the postman at the post office gets the line alone. Loops' role decides, never the world's role words: an
+agent the world calls an analyst by its name is a lead to loops when loops says so, and an enabled external bot of role
+lead is in loops' dock too. The chip's frame stays the root.
+Checks: the pure parts in `apps/world/test/chatPanel.test.ts` (the target and the words per role) and
+`packages/world-model/test/agentCard.test.ts` (the rule); the regress `live` group frames a stub loops web page
+(`tools/lib/loopsWebStub.mjs`, which records that it was fetched as a frame) and checks the src, the words, the link, the
+sandbox, Escape and the focus, the card road, the postman's card without a Chat button and with the line (and no
+`?chat=postman` ever asked), and the phone; `tools/liveshots.mjs --views chat` shows the panel against
+a real loops (its sign-in, in a headless browser that is signed in nowhere); `tools/a11y.mjs` checks the chip, the
+dialog and the focus.
+The loops side (world/viewer-key): `?chat=<agent id>` (cb163004) and `frame-ancestors 'self' http://127.0.0.1:*
+http://localhost:*` on every HTML answer (41c8d102), the allowance the panel's frame needs once loops has a policy at
+all. The world's agent key is loops' agent id for a registered agent, so `chatFrameUrl(health, key)` is the whole link.
+
+The sandbox keeps `allow-same-origin` with `allow-scripts`, which together let a framed page lift its own sandbox; that is
+acceptable here because the frame is another origin than the world (another port), so it can never reach the world's
+page or storage, and loops needs both for its session and its app. The sandbox's real work is what it withholds: top
+navigation and modal dialogs.
+
+### Road B: speech bubbles in the world (needs the person's view)
+
+A speech bubble over boing when boing answers needs the conversation, and only a participant sees it. Three options,
+in order of honesty:
+
+1. **loops gives the world the person's chat events** (a proposal for cl-lead on `world/viewer-key`): either a `dm.*`
+   feed for the world's key scoped to the owner's threads (read only), or CORS for the world's loopback origin, so the
+   page itself can read as the signed-in person. Written now; it waits for loops.
+2. **The host signs in as the person, once.** The Connect screen gets a Sign-in step. The host forwards the id and
+   password to loops over loopback, keeps only the session cookie (0600, beside the key, never the password, never
+   logged), and reads `GET /api/dm/threads`, the messages and the `dm.*` events as the person. It drives the bubbles
+   only. The honest cost: that cookie is a full person's session (an admin's, for 30 days) at rest on the Mac. So the
+   host must use it for **reads of the chat only**: an allow-list of the DM read routes and the stream with
+   `types=dm.*`, never a send, a mark-read or any other route, tested. Its states are said plainly: signed in as …,
+   session expired (sign in again), signed out (Forget the session). The bot key stays for everything else.
+3. Reading the frame is not a road: the world cannot and must not read another origin's page.
+
+**Recommendation:** road A now. For road B, option 2 is buildable tonight if it stays that small (reads of the chat
+only, the cookie on the host's disk only, a Forget), and option 1 is written for loops in parallel; when loops offers
+1, the world switches to it and drops the stored session. Nicky decides whether option 2 may ship; until he says so,
+it stays off by default behind its own Sign-in step.
+
+**As built (round 12, option 2).** The Connection panel's Chat section takes the account id and password once and
+hands them to the host (`POST /world-api/session`, a paired browser on the world's origin), which signs in at loops'
+`POST /api/auth/login` over the road it reads with (loopback TCP or the app's socket; loops needs no CSRF token and
+accepts an absent Origin) and keeps only loops' `chl_session` cookie, with the person's id and name and the time, in
+`<config>/loops-session` (0600, written whole); the device cookie is dropped, the password is dropped at once and is
+in no file, no log line and no answer (tested). The session's own allow-list (`apps/host/src/session.ts`
+`SESSION_ROUTES`) admits the sign-in, the sign-out, `GET /api/dm/threads`, a thread's messages, one message by id and
+the events reads with `types=dm.*` only; its transport refuses anything else before a byte is sent, and the key's
+transport stays GET-only. The host opens the dm stream live from now; a `dm.created` whose actor is an agent is read
+by id (`bodyText`) and sent to every tab as a `chat` line with the first line; the person's own messages show
+nothing. The world keeps the line for 12 s as a speech bubble over the agent's figure (`state/said.ts`; fading in the
+last 4 s); a tap opens the Chat panel on that agent. States in health (`connection.session`) and the panel:
+signed out (no bubbles), signed in as <name>, expired (loops refused the kept cookie: the host retries nothing until
+a new sign-in). Forget the session signs out at loops and deletes the file. A host without a config folder keeps no
+session and answers 503 to a sign-in.
+
+**As built (round 28, road 2: option 1's second form, the page's own origin).** crewhub-loops main (#968, CL-494 step 4,
+`docs/proposals/crewhub-world-viewer-4-origin.md` there) answers `GET` on `/api/dm/threads`,
+`/api/dm/threads/{agent}/messages`, `/api/dm/messages/{id}` and `/api/events` (types forced to `dm.created,dm.answered`,
+`limit` at most 50, a poll, no stream) from the one loopback origin named in `CHL_WORLD_ORIGIN`, with the person's own
+session cookie, filtered to the signed-in person's own conversation; any other route, method, origin, a pre-flight or a
+key from the page is the usual 403 without a CORS header. The world's page reads exactly that
+(`packages/loops-client/src/pageChat.ts`, `apps/world/src/state/pageChat.ts`): `fetch(url, { method: "GET", credentials:
+"include" })` with no header of its own (a simple request: no `OPTIONS`; a test pins the shape and a browser proof reads the
+browser's own network log), at the loops web origin the host names, `from=tail` first and then the sealed cursor, each agent
+message by id into the said store, the threads again after a `dm.*` event. The road: `key` when the host's key reads the
+chat, else `page` when the page's probe (`GET /api/dm/threads`) answers, else `none` (`state/chatRoad.ts`,
+`decideChatRoad`). The poll: 5 s shown, a minute hidden, doubling after a failure to a minute, nothing offline. What the
+browser lets the page tell: a 401 through the origin is "signed out"; a refused origin is one opaque failure, told from
+"unreachable" by a second ask of the same route in `no-cors` mode; the words carry `CHL_WORLD_ORIGIN=<this page's origin>`.
+Nothing of the road goes through the host; the page keeps nothing. Tests: the request shape, the routes, the query, the
+verdicts, the readers, the back-off, the runner (`packages/loops-client/test/pageChat.test.ts`,
+`apps/world/test/pageChat.test.ts`); the browser proof `tools/road2proof.mjs` against the development loops 8293.
+
+**The key road (the same round, after `world/viewer-key`).** Where crewhub-loops lets the world's own key read the
+chat (a viewer key, L1: the key's own entry in `GET /api/agents` says `viewer: true` and `GET /api/dm/threads` answers
+200 to it, as on the second dev instance on 8292; a plain external bot gets that 200 too, with its own empty threads,
+so the flag decides), no person's session is needed or used: the host finds out at the key check (two reads), says
+`session: key` in health, the
+Connection panel's Chat section says "Not needed: this crewhub-loops lets the world's key read the chat" with no
+form, a sign-in answers 409 `not_needed`, a session kept from another loops stays on disk unused, and an agent's
+`dm.created` on the key's own stream is read by id with the key (`/api/dm/threads` and `/api/dm/messages/{id}`
+joined the key's read allow-list) and shown as the same bubble. A loops that refuses the key the chat keeps the
+session road.
+
+**Removal of the session road (decision 9, 21 October; round 15 wrote the plan; removed in round 19 on the branch
+`task/r19-viewer-switch`; on `feat/world-demo` since round 28, once crewhub-loops main carried the viewer key).** The plan as written: the
+road stays as built until `world/viewer-key` is merged in loops and the world has switched to the viewer key (decision 1:
+a new key file or a paste, the bot still `crewhub-world`). In that same track it goes: `apps/host/src/session.ts` (the
+store, the sign-in and sign-out, `SESSION_ROUTES`, the dm stream over the cookie) and its tests; the file
+`<config>/loops-session`; the routes `POST` and `DELETE /world-api/session` (`allowList.ts`, `host.ts`); the health's
+`connection.session` states `signed-out`, `signed-in` and `expired` (the field keeps `key`, or goes when `chatWords` has
+one road left); the Connection panel's Chat section with its form and Forget the session (`ConnectionPanel.tsx`
+`ChatSession`, the `world.connection.panel.session.*` words); the per-road story in `chatWords`; the regress `chat`
+group's session half (its key-road half stays); and the session paragraphs in LOOPS_SETUP.md, the host README and the
+introduction. Condition first, removal second: nothing goes before a loops with the viewer key is what the world reads.
+
+**Round 19 (as built on `task/r19-viewer-switch`; on `feat/world-demo` since round 28, ported as one patch without a conflict).** Removed exactly as
+planned: `apps/host/src/session.ts` and its test (the store, the sign-in and sign-out, `SESSION_ROUTES`, the dm stream
+over the cookie); `POST`/`DELETE /world-api/session` (the allow-list knows `/connect` as its only write; a write to
+`/session` is refused 405, a read 404); the `sessionStore` option of `createHost`; the health states `signed-out`,
+`signed-in` and `expired` (`connection.session` is `{ "state": "key" }` where the key reads the chat and absent where it
+does not; `HostSessionState` is `key` only and `readSessionState` drops anything else); `signInHost` and
+`forgetHostSession` in loops-client; the Connection panel's form and Forget the session (`ChatSession` is `ChatRoad`:
+the road's words and the typing note, `data-session` `key` or `none`); the `world.connection.panel.session.*` words but
+the section's title; `sessionWords`; the per-road branches of `chatWords`, `chatGlance` and `recentEmptyWords` (two
+roads now: key, or none, with the way to a viewer key: "make a viewer key in Settings > Agents > Connect CrewHub World
+(a crewhub-loops with world/viewer-key) and paste it in the world's Connect screen", `VIEWER_KEY_WORDS`); the regress
+`chat` group's session half (a no-chat road came in its place: the plain words in the four places, the gone route, no
+mark and no bubble after an answer), the stub's sign-in parts. `ChatLine` and `firstLine` moved to
+`apps/host/src/chatLine.ts` (the key road reads a message by id with the key). A leftover `<config>/loops-session` is
+deleted on start with one log line (`leftovers.ts`, tested). The host logs once on a loops that does not let the key
+read the chat, with the way to a viewer key. The Connect screen names the "Connect CrewHub World" card first and keeps
+the New external bot steps for an older loops; LOOPS_SETUP, the host README, the introduction and the architecture say
+the same. What a user of today's Mac app loses: the bubbles (and the chat marks and Recent answers rows that come with
+them) until loops ships the card; what stays: the framed chat (road A) on every loops, the world read with a plain
+external bot's key, and the key road's bubbles on a loops with the viewer key.
+
+**Round 28 (on `feat/world-demo`: the two narrow roads, the default, the honest line; cl-lead's review finding F8).**
+crewhub-loops main (88760279; #959, #964, #965, #967, #968 on `4cdcd383`) carries the viewer key and the world's
+origin, and cl-lead asks the world to read the chat through those two roads and nothing else. The session road's
+removal of round 19 landed here as one patch (`039defd`, no conflict): `session.ts`, `/world-api/session`, the
+`chl_session` cookie, the Connection panel's form, the states `signed-out`/`signed-in`/`expired`, their tests and the
+regress half are gone; a leftover `<config>/loops-session` is deleted on start with one log line and never a failure
+(`leftovers.ts`). **Road 1 (the host, the viewer key)**: as built since round 12, with loops main's rule in its words: a
+viewer key reads ONLY the chat of the admin who made it (`agent_keys.made_by`, #964: that person's messages and the
+agents' answers to them; a key with no maker reads no chat; registering a key needs `expectViewer`). Loops names the
+maker to nobody (not on `GET /api/auth/me`, not on the key's agent entry, not on the threads list; a message carries
+its author, which is the maker only once they have written), so the words say "the chat of the person who made the
+key"; `GET /api/dm/threads` 200 and empty is no error, and the host's log says so. The card's thread facts say "unread
+in the key maker's view" (the count is the maker's, `domain/dm.py`). **Road 2 (the page, the world's origin;
+r28-road2)**: where the owner sets `CHL_WORLD_ORIGIN` to the page's exact loopback origin (#968), the page itself reads
+`/api/dm/threads`, `/api/dm/threads/{agent}/messages`, `/api/dm/messages/{id}` and a poll of `/api/events`
+(`dm.created`/`dm.answered`, `limit` at most 50) with the person's cookie (`credentials: "include"`), GET only, no
+custom header, never an Authorization header, nothing through the host; the reads are the signed-in person's own
+conversation (the same filter as the viewer key). **The road is one value** (`apps/world/src/state/chatRoad.ts`, the
+contract both tracks build against): `ChatRoad = "key" | "page" | "none"`, `decideChatRoad({ hostKeyReadsChat,
+pageProbe })`: `key` when the host's key reads the chat (health `connection.session.state === "key"`), else `page` when
+the page's probe of road 2 answered (`on`), else `none`; the probe's other verdicts (`signed-out`, `origin-not-set`,
+`unreachable`, `chat-off`, `remote`, `unknown`; the last two since round 29's review: a 409 `feature_off` through the
+origin, and a loops elsewhere than this computer, which is not asked) only shape the words. `state/chatRoadStore.ts` combines the health store and the probe's
+verdict (`rememberPageProbe`) into `useChatRoad()`. Chat lines from either road go into the same `said` store, so the
+bubbles, the chat mark, Recent answers and the card work the same on both. **The words** (`chatWords`, `chatGlance`,
+`recentEmptyWords`, `cardAnswersEmpty`, `chatPlaceLine`, all in `chatRoad.ts`, tested per road and per `none` case)
+are one story in the Connection panel's Chat section (`.connection-chat`, `data-road`, `data-probe`), the Chat panel's
+glance and "About this chat", Recent answers' empty state, the card's Answers and the text view's Chat line: on `key`
+"A sign-in is not needed for the bubbles: this crewhub-loops lets the world's key read the chat of the person who made
+the key (only theirs), so the agents' answers to that person show as bubbles, and the world keeps no session."; on
+`page` "The bubbles come from your own chat: this crewhub-loops lets this page read the chat as you, signed in there in
+this browser (the world's origin is set there, CHL_WORLD_ORIGIN=<this page's origin>), so the agents' answers to you
+show as bubbles; nothing of it goes through the host, and the world keeps nothing."; on `none` "No bubbles: this
+crewhub-loops does not let the world's key read the chat" and then, by the probe, the way out with the exact value
+`CHL_WORLD_ORIGIN=<this page's origin>`: unknown, both ways (the viewer key by loops' card, or the setting with a
+restart and a sign-in); signed-out, "sign in to crewhub-loops in this browser (the framed chat, or the app)";
+origin-not-set, "set CHL_WORLD_ORIGIN=… on that crewhub-loops and restart it"; unreachable, "this page cannot reach
+crewhub-loops from this browser". The Connect screen's viewer hint and the Key row say whose chat the key reads and
+name road 2 with the setting; the host's two log lines say the same. **Road A** (the framed loops chat in the Chat
+panel) is not a read by the world: it stays on every road, and typing there needs loops' own sign-in in the frame as
+before. The PR says which road is the default and what shows when neither reads the chat (the night report, round 28).
+
+**Round 14 (after the real proof on 8292: the bubble and its words).** One story per road: `chatWords` in
+`apps/world/src/state/chatPanel.ts` gives the Connection panel's Chat section, the Chat panel's small print and the text
+view's Chat line the same two sentences, by `connection.session.state`: what the bubbles need (nothing on the key road,
+where the world keeps no session; "Not signed in: no bubbles" and where to sign in; "Signed in as <name>" with the host
+keeping that session for chat reads only, never "the world keeps no session" there; expired; a host from before keeps
+none) and what typing needs (the framed chat is loops' own on every road: the person signed in to loops in this browser,
+with loops' bubbles feature on; the world handles no password). The text view carries "<name> says: <first line> (in the
+lead's office of Inbox)" in its Town section while the bubble lives (`world/saidText.ts`, from the same `said` store; no
+live region, the text view announces no such lines). The bubble wraps to at most three lines (the whole line stays in
+its title and accessible name), fits a phone's width and keeps a gap above the name label; its accessible name joins the
+line and "Open <name>" without doubling a terminal full stop, exclamation or question mark (`saidLabel`). From the town
+the figure inside a building is not drawn, so a chat mark stands over that building while the bubble lives (the pin's
+anchor, in one row with the pin when both; "<name> answered: open <building>"; a tap or Enter enters the building), and
+the text view's building row carries "<name> answered". The regress `chat` group proves each over the fake, whose
+`sendDm` lets the tools have an agent inside a building answer on cue.
+
+**Round 16 (a missed answer is not lost: Recent answers).** The bubble lives 12 s, so the same `said` store now also
+keeps the last 10 lines the page saw (`RECENT_ANSWERS`, newest first, a replayed message id once, nothing more than a
+bubble holds, nothing on disk, gone with the page). They show as a "Recent answers" list (`components/RecentAnswers`,
+words in `state/recentAnswers.ts`): in the Chat panel a compact collapsible block above the frame (open while it has
+answers), and in the text view a section of its own after the Chat line. A row is the time loops wrote the answer, the
+agent and the first line, a button whose accessible name is "<name> at HH:MM:SS: <line>. Chat with <name>"; a tap opens
+the Chat panel on that agent by the card's rule of round 13 (`chatTargetOf`: the agent's own chat when loops' dock has
+a head for it, else its lead's with the row saying so, else the panel without an agent), the card in the demo. Empty,
+the list says per road whether an answer can arrive (key and signed in: yes, it will show as a bubble and stay here;
+signed out and expired: no, with the way to the sign-in; a host from before keeps no session; the demo's chat is its
+own dock). The regress `chat` group proves the empty state signed out, the answer kept past the bubble and past Forget
+the session with its row opening the panel, the text view's section with both answers newest first, and the block on a
+phone.
+
+**Round 17 (the Chat panel in one glance; the demo's dock feeds Recent answers).** The panel opens on two short lines
+above the list: what this is ("crewhub-loops' own chat, framed here.", with the agent's name from a card) and the one
+thing to do on this road (`chatGlance` in `state/chatPanel.ts`, one story with `chatWords`: "Sign in to crewhub-loops
+below to type; the answers come as bubbles without it" on the key road; "… the answers come as bubbles (signed in as
+<name>)" signed in; "… for bubbles, sign in in the Connection panel's Chat section" signed out, "sign in again" expired;
+"this host shows no bubbles" for a host from before). Everything else (the dock hint and the older-loops line, the road's
+whole story `chatWordsLine`) sits behind an "About this chat" disclosure (`<details>`, its summary a focusable control
+Enter opens; the words stay in full in the Connection panel and the text view). The footer's link to the app stays. In
+pure demo mode the scripted replies of the demo's own dock now feed the same `said` store (`state/demoSaid.ts`: the
+reply's `dm.created` from the demo source, read back from the thread, the first line cut as the host cuts it), so the demo
+shows the bubble over the agent, the text view's "says" line, the chat mark from the town and the Recent answers row, a
+row opening the agent's card; the demo's empty state says to write to an agent in the dock. The bubble in the demo fell
+out of the shared store and was kept. **Round 18:** the Recent answers block's own explanation ("The last 10 answers
+this page saw, newest first; …", `RECENT_NOTE`) moved behind the same "About this chat" disclosure, so the block starts
+with its rows (or its empty words); the text view's section keeps the sentence as its first line.
+
+### Bubbles themselves
+
+The world's speech bubbles exist in demo mode. A message from an agent to the person becomes a bubble over the
+agent's figure with its first line; a tap opens the Chat panel. A message the person sent shows nothing over the
+person. Nothing of the conversation is kept by the world beyond the bubble's few seconds, except (round 16) the last
+10 first lines in the Recent answers list, for the page's life.
+
+
+## Addendum: the world database, first slice (2026-10-22, round 20)
+
+The host keeps the live town document; every paired browser sees the same town. This closes the second road of the
+project-groups addendum (round 7, L22): zones are shared per crewhub-loops installation, by the host, until loops has
+groups of its own. **Status: built in round 20 (the first slice below); the browser's IndexedDB stays for demo mode and
+as the offline fallback.**
+
+**What the town document holds today** (`crewhub-town/1`, `packages/world-model/src/townDocument.ts`): the town's
+style id, cast and style options; a plot per project (its lot, and a style, options or cast of its own); the zones a
+person made and their looks, the manual assignments and where each zone's district stands; the placements of props
+(a stable id, the catalogue id, site, cell, rotation, attachment); the user props imported from prop tickets, with
+their provenance; the rule switches. Every build-mode edit is a new revision of the whole document; undo and redo move
+over the last 50 revisions (`HISTORY_LIMIT`), kept in the browser. Size: an empty town is 282 bytes, twenty plots in
+four zones 3.9 kB, a user prop a few kB each; the document's own limits (`TOWN_LIMITS`: 256 plots, 2000 placements,
+200 user props, 32 zones) keep the worst case under a few MB. The browser's key since round 11:
+`crewhub-world.live.<host>-<port>` of the installation's web app, from the host's health (`loopsWebUrl`).
+
+**The store.** `node:sqlite`'s `DatabaseSync`, built into Node 24 (no dependency; SQLite 3.53 on 24.21). On the Node
+the host requires (24.21) it prints no warning; an older 24.x printed one `ExperimentalWarning: SQLite is an
+experimental feature` at the first open. The host hides nothing: it runs without `--no-warnings`, so every other
+warning prints as Node prints it; its own log says once, at start, that the line is expected when that Node is in use
+(`worldDb.ts` listens for that one warning and names it). The file is `<CREWHUB_WORLD_CONFIG_DIR>/world.db`, mode
+0600 in the 0700 folder (beside the stored key, the pairing secret and `archived.json`), rollback journal, so nothing
+but `world.db` stays on disk between writes. Tables: `schema_version(version)` with one row, and `towns(installation
+PRIMARY KEY, rev, document, updated_at, updated_by)`: one row per installation, keyed like the browser's key
+(`<host>-<port>` of the loops web app the host reads, `installationKey`). Migrations are a list in the code, applied
+in a transaction on open; before a schema change on a file that has one, the host copies the file to
+`world.db.bak-v<current version>` beside it (never overwritten: a second change in the same version keeps the first
+copy). A document is kept as the browser sent it, text, so an export is the same bytes.
+
+**The API** (`apps/host/src/allowList.ts`, local routes, paired and same-origin like `/connect`; the `Origin` header is
+required on the write):
+- `GET /world-api/town` → `200 {installation, rev, updatedAt, document}`; `rev` 0 and `document` null when the host has
+  none for this installation yet (a first contact is no error in a browser's console); `rev` null with a `reason`
+  (`no_loops` while the host has found no loops, since a town belongs to an installation; `no_world_db` on a host that
+  could not open its database) and the browser keeps its town; a write in those states is 503 with the reason.
+- `PUT /world-api/town {document, baseRev}` (`application/json`, 4 MB at most): the document must be an object of
+  format `crewhub-town/1` (the browser validates the rest; the host keeps the text); `baseRev` must equal the host's
+  current `rev` (0 to create) or the answer is `409 town_conflict {rev, document}` with the town as the host has it.
+  Success: `200 {rev}`, the row written, and a `{type: "town", rev}` message on every paired browser's stream.
+  **Last write wins with a revision check, no merge:** an edit is a whole revision with undo in the browser, so the
+  browser that loses the race reloads the host's town and says so in plain words ("Another browser changed the town; your
+  last change was not kept"); merging plots and placements is a later slice.
+- `GET /world-api/town/export` → the document text as a file (`crewhub-town-r<rev>.json`), the same format as build
+  mode's export; 404 while there is none.
+
+**The browser.** In live mode the town runtime wraps its IndexedDB store (the per-installation key of round 11, with
+round 11's one-time copy from the plain key) in a host-backed store: on load it reads the host's town; when the host
+has none, the browser's own town is imported **once** (`PUT` with `baseRev` 0), never over a town the host has; when the
+host has one, the host's wins and the browser's copy becomes its mirror. Every commit, undo, redo and amend goes to the
+host with the revision it is based on; the IndexedDB copy follows, so a browser that loses the host keeps editing
+("kept in this browser until the host is back") and offers its town again when the host answers (as the world's own
+amend when only the world's record changed, as a person's commit otherwise; an edit made while that answer is on its
+way goes first and carries the offline change, nothing of another browser is said). A `town` message with a newer
+revision makes the browser refetch and take the host's document without an undo step. A person's edit remembers the
+picture it was made on: when the host's town replaced that picture before the edit is sent (another browser's town
+taken during the first read or after an offline spell), the edit is kept out and said, never sent over the host's town
+(round 27, review F1); a host town the browser cannot read is offline with a note of its own and the retry. The text view, the
+Connection panel ("Town" and "Zones") and build mode say where the town is kept: "kept by the world's host for this
+crewhub-loops, shared by every paired browser", or offline "kept in this browser until the host is back". Demo mode is
+unchanged: every scenario keeps its town in IndexedDB under its own key.
+
+**Out of this slice:** merging concurrent edits, a town per person, more than the town document in the database (the
+host's archive memory and session stay files), a UI to delete the host's town.
+
+**Second slice (2026-10-22, round 21).** Built:
+- **The undo history is the host's.** Schema version 2 adds `history` to `towns`: the same pure history as the browser's
+  (`packages/world-model/src/history.ts`: the last 50 revisions and a cursor), kept by the host and moved by every
+  paired browser through `PUT /world-api/town {op, document?, baseRev}` with `op` `commit` (a person's edit), `amend`
+  (the world's own record, no undo step), `undo` or `redo`. The host answers `{rev, document, canUndo, canRedo}` and
+  tells every tab, so an undo in one browser shows in the other and survives a host restart. **How a second browser's
+  undo and the revision check meet:** every op names the revision it saw (`baseRev`); an undo sent while another
+  browser wrote first is a 409 like any write, the browser loads the host's town and says so, and the person undoes
+  again on what they now see. The migration from version 1 makes the first copy `world.db.bak-v1`. Offline, a browser
+  undoes in its own history as before and offers its town again when the host answers.
+- **Restore, never silent.** Settings > Town keeps Export and Import and gains "Restore from a backup": the host lists
+  its `world.db.bak-v<n>` files (`GET /world-api/town/backups`) and reads this installation's town out of one
+  (`GET /world-api/town/backups/{name}`, read-only). An import and a restore both open a **preview** first: what would
+  change, in plain words (`townChanges`: zones added, removed, renamed or re-marked, assignments, plots added, removed
+  or moved, props placed or taken away or moved, user props, rules, the style and cast), with "Nothing would change"
+  when so; then an explicit **Restore**, or Cancel/Escape, which changes nothing. A restore is a new revision, so Undo
+  goes back to the town before it, and the preview offers "Download the current town first". The dialog is a modal with
+  the focus inside, Tab kept within, Escape to cancel, and says itself once to a reader.
+- **The demo's town is never the host's:** a demo page's runtime uses the browser's store only; tested.
+Still out: merging concurrent edits, a town per person, deleting the host's town.
+
+## Addendum: the agent card, live (2026-10-22, round 22)
+
+The card is the person's main way into an agent. Read against what crewhub-loops `4cdcd383` offers for **one agent**
+through what the host reads today (the GET allow-list, `apps/host/src/allowList.ts`), this is what the card shows, what
+it did not, and the honest words for a fact that is absent. Everything stays read-only; no new loops read is needed:
+every fact below is in the snapshot the host already composes, in the events it streams, in a browser read the host
+already forwards (`/world-api/tickets/{ref}/progress`), or in the page's own Recent answers store (round 16).
+
+| Fact about one agent | Where loops has it | On the card before round 22 | The card shows now | When absent, the card says |
+| --- | --- | --- | --- | --- |
+| Where it is, its state, posture | the team snapshot (`GET /api/team`), the reducer's placement | yes (Now) | unchanged | "Team says nothing: not in the team snapshot"; "No team snapshot: no team probe has reported" |
+| Its status line (the team's own words) | `GET /api/team` `contextLine` | yes | unchanged | nothing (no line, no row) |
+| When loops last saw its key | `GET /api/agents` `lastSeenAt` | yes | unchanged | "Seen by loops: never; not known to be working" |
+| Lane facts: set up as, seen running, drift, lifecycle, session and pane, computer | `GET /api/agents` `AgentDetailOut.lane`, `computer`; the team session's computer | yes (Lane) | unchanged, behind **More** | "No lane: loops has not tied this agent to a pane"; "Never seen running"; an external bot: "no lane, it runs elsewhere" |
+| Its flags: role, CrewHub lead, coordinator, operator, external, reader, disabled; needs login; deliveries not picked up | `GET /api/agents` | yes (Lane) | unchanged, behind More | nothing to say for a worker (loops has no entry): "a worker of <lead>, not registered" |
+| **Its lead** | the team snapshot (`lead` of a worker's lane); `ProjectOut.lead` of the building it works in | only a worker's, in the Lane section | **Lead** in Now: the worker's lead from the team snapshot, else the lead of the building it is in, by name; nothing for the lead itself | "loops names no lead for it" is never needed: an agent in a building has the building's lead; in the town hall or the post office the row is left out |
+| **The tickets it holds** | `GET /api/board/{slug}` of every project: cards whose `assignee` is the agent (loops assigns tickets to registered agents only) | one: the ticket on its desk, else the first in-progress one | **Holds**: a count by status ("3 open tickets: 2 in progress, 1 in review"), then the open tickets (not done), key and title linked into loops, the status and whom each waits on, in progress first, at most 5 with "and n more" | registered: "No ticket held: crewhub-loops assigns it none right now"; a worker: "No ticket of its own: crewhub-loops assigns tickets to its lead, <lead>; the one on its desk is inferred from its status line" |
+| **The tickets it waits on, and that wait on it** | the board cards' `waitingOn` (a person or an agent) and `waitingOnHuman` | the "waiting on <person>" chip of the one ticket | each held ticket says "waits on <name>" (a person or an agent); **Waited on by**: open tickets of others whose `waitingOn` is this agent, with who holds them | "Waits on nobody" is said in the Holds summary when it holds tickets and none waits; "nobody waits on it" likewise |
+| Its last progress line | `ticket.progress` events (the stream, from the tail: nothing from before the page opened); `GET /api/tickets/{ref}/progress` (the host forwards it, `WORLD_ROUTES`) | yes, from the events only: empty at open against a real loops | the newest line the page saw, else the **last line of the ticket on its desk read once from the source** (`getProgress`: the host's forwarded `/world-api/tickets/{ref}/progress` in live mode, the demo's data in the demo; read-only, one GET while the card is open, never retried by itself) | "No progress line: none seen since this page opened, and CL-9 has none" / "... and no ticket on its desk to read one from" / a read that fails: "... and the lines of CL-9 could not be read from the source" (never "none" for a refused read) |
+| **Its recent answers in the chat** | `dm.created` on the key's stream where loops lets the world's key read the chat (a viewer key, 8292; the person's session of round 12 went in round 19); `GET /api/dm/messages/{id}` | no (the Chat panel and the text view list the last 10 of every agent) | **Answers**: this agent's lines from the Recent answers store (the page's life, newest first, at most 3), each with its time; the Chat button opens its chat | per road (`cardAnswersEmpty` in `state/chatRoad.ts`, three roads since round 28): key: "No answer from it since this page opened; this crewhub-loops lets the world's key read the chat of the person who made the key, so one to them would show here."; page: "No answer from it since this page opened; this page reads your own chat from crewhub-loops, so one to you would show here."; none: "No answers can arrive here: this crewhub-loops does not let the world's key read the chat[, and why the page cannot either]. For the agents' answers, make a viewer key in Settings > Agents > Connect CrewHub World …, or let this page read your own chat: set CHL_WORLD_ORIGIN=<this page's origin> …"; the demo: "No answer yet: write to it in the demo's chat dock" |
+| Its comments, moves, deliveries | the events | yes (Recent, the last 5 facts) | unchanged, behind More | nothing (no fact, no section) |
+| Projects it leads or belongs to | `GET /api/agents` `projects`; the buildings | yes (Projects) | unchanged, behind More | — |
+| Its keys, rights, the reader log (`/api/agents/{name}/keys`, `/reads`), its audit changes (`/changes`), lane-watch alerts (`/api/lane-watch/alerts`) | loops, for admins or the owner only | no | no: the world's key may not read them, and the card says nothing about what it cannot know | — |
+| The chat thread's own facts (`GET /api/dm/threads`: `lastMessageAt`, `unreadCount`) | loops, for the person or a viewer key | no (the host read the list once at the key check, to learn whether the key reads the chat) | **Round 24:** where the key reads the chat, the host keeps the list (the probe's own answer, read again once after a `dm.*` event its stream sees, at most once a second, never polled otherwise) and sends it whole to every tab as a `threads` stream message; the card's Answers section opens with "Chat: last message 2 h ago, 1 unread in the owner's view" before any answer arrives this page, "no thread with it yet" for an agent without one. **Round 25, whose unread:** loops counts `unreadCount` against the caller's read cursor (`domain/dm.py`), and for a viewer key against the installation owner's (world/viewer-key 79cb36a8, "the owner's unread count", the chat as the owner sees it); the host sends the list only where the key reads the chat (a viewer), so the number is always the owner's, what loops' own chat head shows the owner, and the card says "in the owner's view"; a plain key's own count never reaches it, and loops names the owner to nobody but the owner | nothing where the key cannot read the chat (the honest words of round 22 stay) |
+
+**Shape.** The card stays one card: Now (with the Lead row), Work (Holds, Waited on by, the progress line), Answers,
+then a **More** disclosure that holds Lane, Projects and Recent (closed at first, and kept open for the page once
+opened). Keyboard-complete as in round 21: the disclosure is a `details`/`summary` the Tab order reaches, the close
+button stays reachable, Escape closes the card. The leads-only Chat rule (round 13) is unchanged. Demo mode shows the
+same fields from the demo's data (its boards carry assignees and waiting-on, its dock's scripted replies feed the same
+answers store), with "Demo: scripted facts" in the footer as before.
+
+**Facts.** `agentCardFacts` gains `tickets` (`held`, `waitedOnBy`, each a `TicketBrief` with key, title, status,
+project, whom it waits on) and `lead`; the sections read them through `CardContext`, which gains the page's answers
+for the agent and the empty words (`answers`, `answersEmpty`) and the fetched progress line (`fetchedProgress`). Tests
+in `packages/world-model/test/agentCard.test.ts` and `apps/world/test/agentCard.test.ts`; the regress `live` group
+reads the new rows and the absent-fact words over the fake; `tools/a11y.mjs` reads the card's sections and the
+disclosure; pictures demo and live (8291 with a plain key: the honest words; 8292 with the viewer key: an answer on the
+card), light and dark, 1440 and 375.

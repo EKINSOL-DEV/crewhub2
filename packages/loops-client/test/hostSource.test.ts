@@ -1,0 +1,620 @@
+/**
+ * HostSource against a small in-test host that speaks the team map's `/world-api` on 127.0.0.1 port 0
+ * (loopback to a server the test starts: not a network call). The timings are injected so a test runs in
+ * tens of milliseconds where the browser waits seconds.
+ */
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import type { AddressInfo } from "node:net";
+import { after, test } from "node:test";
+import { createHostSource, prefetchSnapshot, probeHost } from "../src/hostSource.ts";
+import type { ConnectionState, LoopsSnapshot, SourceMessage } from "../src/source.ts";
+
+const fixture = (name: string): Record<string, unknown> =>
+  JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8")) as Record<string, unknown>;
+
+const TIMINGS = { staleMs: 150, teamPollMs: 60_000, retryMinMs: 10, retryMaxMs: 20 };
+
+function snapshotAt(cursor: number): LoopsSnapshot {
+  const projects = (fixture("projects.json") as { projects: LoopsSnapshot["projects"] }).projects;
+  return {
+    cursor,
+    projects,
+    archivedProjects: [],
+    boards: { "crewhub-loops": fixture("board.json") as unknown as LoopsSnapshot["boards"][string] },
+    team: fixture("team-snapshot.json") as unknown as LoopsSnapshot["team"],
+    agents: (fixture("agents.json") as { agents: LoopsSnapshot["agents"] }).agents,
+    principals: [{ id: "cl-lead", kind: "agent", displayName: "CL lead" }],
+    watchdog: fixture("watchdog.json") as unknown as LoopsSnapshot["watchdog"],
+    milestones: { "crewhub-loops": (fixture("milestones.json") as { milestones: LoopsSnapshot["milestones"][string] }).milestones },
+    releases: { "crewhub-loops": (fixture("releases.json") as { releases: LoopsSnapshot["releases"][string] }).releases },
+  };
+}
+
+function envelope(seq: number, type = "ticket.moved"): Record<string, unknown> {
+  return { ...fixture("envelope-ticket-moved.json"), seq, type, ts: `2026-10-07T12:00:${String(seq % 60).padStart(2, "0")}Z` };
+}
+
+interface FakeHost {
+  url: string;
+  /** Every stream request's `cursor`, in order. */
+  cursors: (string | null)[];
+  snapshots: number;
+  teamReads: number;
+  cursor: number;
+  snapshotStatus: number;
+  /** Not 200: the stream request is refused with that status (the host is not well); a reconnect back-off grows on it. */
+  streamStatus: number;
+  /** False: the host no longer knows this browser's cookie; the snapshot and the stream answer 401 not_paired. */
+  paired: boolean;
+  /** True: a stream request is taken and never answered (a leg that hangs on open). */
+  hang: boolean;
+  /** Called at every snapshot ask (a test times the retries). */
+  onSnapshot?: () => void;
+  /** Sends one message on every open stream. */
+  push(message: unknown): void;
+  /** Ends every open stream (the host restarted). */
+  endStreams(): void;
+  close(): Promise<void>;
+}
+
+const servers: Server[] = [];
+const stops: (() => void)[] = [];
+after(async () => {
+  // Every source started by `observe` is stopped here, so a test that failed before its own stop leaves no retry loop
+  // behind: one did, under load, and the file never exited (node runs the suite without a test timeout).
+  for (const stop of stops) stop();
+  for (const server of servers) {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+/** Polls on real I/O turns only (no timers, so it works under mock timers too) until `check` holds, within `ms` of wall time. */
+async function settle(check: () => boolean, what: string, ms = 5000): Promise<void> {
+  const deadline = Date.now() + ms;
+  while (!check()) {
+    if (Date.now() > deadline) assert.fail(`timed out waiting for ${what}`);
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+}
+
+async function startHost(): Promise<FakeHost> {
+  const streams = new Set<ServerResponse>();
+  const host: FakeHost = {
+    url: "",
+    cursors: [],
+    snapshots: 0,
+    teamReads: 0,
+    cursor: 100,
+    snapshotStatus: 200,
+    streamStatus: 200,
+    paired: true,
+    hang: false,
+    push(message) {
+      const text = JSON.stringify(message);
+      for (const stream of streams) stream.write(`data: ${text}\n\n`);
+    },
+    endStreams() {
+      for (const stream of streams) stream.end();
+      streams.clear();
+    },
+    close: () =>
+      new Promise((resolve) => {
+        // A test server: nothing waits for a client's idle keep-alive socket, so a failed test cannot hang here.
+        server.closeAllConnections();
+        server.close(() => resolve());
+      }),
+  };
+  const json = (res: ServerResponse, status: number, body: unknown) => {
+    res.writeHead(status, { "content-type": "application/json" });
+    res.end(JSON.stringify(body));
+  };
+  const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+    const url = new URL(req.url ?? "/", host.url);
+    if (url.pathname === "/world-api/health") return json(res, 200, { loops: "ok", keyName: "agent-crewhub-world", sharedKey: false, cursor: host.cursor, loopsWebUrl: "http://127.0.0.1:8091", transport: "unix", extra: "ignored" });
+    if (url.pathname === "/world-api/snapshot") {
+      host.snapshots += 1;
+      host.onSnapshot?.();
+      if (!host.paired) return json(res, 401, { error: "not_paired" });
+      if (host.snapshotStatus !== 200) return json(res, host.snapshotStatus, { error: "loops_down" });
+      return json(res, 200, snapshotAt(host.cursor));
+    }
+    if (url.pathname === "/world-api/team") {
+      host.teamReads += 1;
+      return json(res, 200, fixture("team-snapshot.json"));
+    }
+    if (url.pathname === "/world-api/stream") {
+      host.cursors.push(url.searchParams.get("cursor"));
+      if (host.hang) return; // never answered; closed with the server
+      if (!host.paired) return json(res, 401, { error: "not_paired" });
+      if (host.streamStatus !== 200) return json(res, host.streamStatus, { error: "loops_down" });
+      res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
+      res.write(`: welcome\ndata: ${JSON.stringify({ type: "status", loops: "ok" })}\n\n`);
+      streams.add(res);
+      req.on("close", () => streams.delete(res));
+      return;
+    }
+    if (url.pathname === "/world-api/tickets/CL-85") return json(res, 200, { ticket: fixture("ticket.json") });
+    if (url.pathname === "/world-api/projects/crewhub-loops/milestones") return json(res, 409, { error: "feature_off" });
+    if (url.pathname === "/world-api/project-groups") return json(res, 200, { groups: [] });
+    return json(res, 404, { error: "not_found" });
+  });
+  servers.push(server);
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  host.url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  return host;
+}
+
+/** Runs a source and collects what it sends; resolves helpers wait for a condition with a short deadline. */
+function observe(url: string, extra: Record<string, unknown> = {}) {
+  const messages: SourceMessage[] = [];
+  const states: ConnectionState[] = [];
+  const source = createHostSource({ baseUrl: url, timings: TIMINGS, ...extra });
+  source.connection!.onChange(() => states.push(source.connection!.state()));
+  const stop = source.start((message) => messages.push(message));
+  stops.push(stop);
+  const until = async (check: () => boolean, what: string, ms = 2000): Promise<void> => {
+    const deadline = Date.now() + ms;
+    while (!check()) {
+      if (Date.now() > deadline) assert.fail(`timed out waiting for ${what}; messages ${messages.map((m) => m.type).join(",")}; states ${states.join(",")}`);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+  };
+  return { source, messages, states, stop, until, state: () => source.connection!.state(), key: () => source.connection!.key() };
+}
+
+const count = (messages: SourceMessage[], type: SourceMessage["type"]) => messages.filter((m) => m.type === type).length;
+
+test("snapshot first, then events in seq order; the connection goes connecting → live", async () => {
+  const host = await startHost();
+  const run = observe(host.url);
+  assert.equal(run.source.mode, "live");
+  assert.equal(run.source.playback, null);
+  assert.equal(run.state(), "connecting");
+  await run.until(() => run.messages.length === 1, "the snapshot");
+  assert.equal(run.messages[0]?.type, "snapshot");
+  if (run.messages[0]?.type === "snapshot") assert.equal(run.messages[0].snapshot.cursor, 100);
+  assert.equal(run.state(), "live");
+  await run.until(() => host.cursors.length === 1, "the stream");
+  host.push({ type: "event", envelope: envelope(101) });
+  host.push({ type: "event", envelope: envelope(102) });
+  await run.until(() => count(run.messages, "event") === 2, "two events");
+  const seqs = run.messages.filter((m) => m.type === "event").map((m) => (m.type === "event" ? m.envelope.seq : 0));
+  assert.deepEqual(seqs, [101, 102]);
+  assert.ok(Math.abs(run.source.now() - Date.now()) < 1000);
+  run.stop();
+  await host.close();
+});
+
+test("a replayed seq is skipped; an invalid envelope is skipped, nothing throws", async () => {
+  const host = await startHost();
+  const run = observe(host.url);
+  await run.until(() => host.cursors.length === 1, "the stream");
+  host.push({ type: "event", envelope: envelope(101) });
+  host.push({ type: "event", envelope: envelope(101) });
+  host.push({ type: "event", envelope: { ...envelope(102), v: 2 } });
+  host.push({ type: "event", envelope: envelope(102) });
+  host.push("not an object");
+  await run.until(() => count(run.messages, "event") === 2, "two events");
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(count(run.messages, "event"), 2);
+  assert.equal(run.state(), "live");
+  run.stop();
+  await host.close();
+});
+
+test("the stream reconnects with ?cursor=<last seq> after the host ends it", async () => {
+  const host = await startHost();
+  const run = observe(host.url);
+  await run.until(() => host.cursors.length === 1, "the stream");
+  assert.equal(host.cursors[0], "100");
+  host.push({ type: "event", envelope: envelope(101) });
+  await run.until(() => count(run.messages, "event") === 1, "the event");
+  host.endStreams();
+  await run.until(() => host.cursors.length === 2, "the reconnect");
+  assert.equal(host.cursors[1], "101");
+  assert.equal(host.snapshots, 1, "no new snapshot on a plain reconnect");
+  run.stop();
+  await host.close();
+});
+
+test("a reset message → catching-up, a fresh snapshot, then live", async () => {
+  const host = await startHost();
+  const run = observe(host.url);
+  await run.until(() => host.cursors.length === 1, "the stream");
+  host.cursor = 300;
+  host.push({ type: "reset", reason: "gone" });
+  await run.until(() => count(run.messages, "snapshot") === 2, "the second snapshot");
+  assert.ok(run.states.includes("catching-up"), run.states.join(","));
+  assert.equal(run.state(), "live");
+  await run.until(() => host.cursors.length === 2, "the new stream");
+  assert.equal(host.cursors[1], "300");
+  run.stop();
+  await host.close();
+});
+
+test("a seq gap → catching-up and a fresh snapshot when resnapshotOnGap is on", async () => {
+  const host = await startHost();
+  const run = observe(host.url, { resnapshotOnGap: true });
+  await run.until(() => host.cursors.length === 1, "the stream");
+  host.cursor = 105;
+  host.push({ type: "event", envelope: envelope(101) });
+  host.push({ type: "event", envelope: envelope(105) });
+  await run.until(() => count(run.messages, "snapshot") === 2, "the second snapshot");
+  assert.ok(run.states.includes("catching-up"));
+  assert.equal(count(run.messages, "event"), 1, "the event past the gap is not delivered; the snapshot holds it");
+  await run.until(() => host.cursors.length === 2, "the new stream");
+  assert.equal(host.cursors[1], "105");
+  run.stop();
+  await host.close();
+});
+
+test("by default a seq gap is normal (loops filters the stream per key): the event is delivered, no snapshot", async () => {
+  const host = await startHost();
+  const run = observe(host.url);
+  await run.until(() => host.cursors.length === 1, "the stream");
+  host.push({ type: "event", envelope: envelope(101) });
+  host.push({ type: "event", envelope: envelope(105) });
+  await run.until(() => count(run.messages, "event") === 2, "both events");
+  assert.equal(host.snapshots, 1);
+  assert.equal(run.state(), "live");
+  host.endStreams();
+  await run.until(() => host.cursors.length === 2, "the reconnect");
+  assert.equal(host.cursors[1], "105");
+  run.stop();
+  await host.close();
+});
+
+test("heartbeats keep it live; silence past staleMs → stale, and the stream is healed: the silent read ended, the stream reopened at the cursor, live again (review F3)", async () => {
+  const host = await startHost();
+  const run = observe(host.url);
+  await run.until(() => host.cursors.length === 1, "the stream");
+  for (let i = 0; i < 6; i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    host.push({ type: "heartbeat", seq: 100, ts: "2026-10-07T12:00:00Z" });
+  }
+  assert.equal(run.state(), "live");
+  assert.ok(count(run.messages, "heartbeat") >= 5);
+  host.push({ type: "event", envelope: envelope(101) });
+  await run.until(() => count(run.messages, "event") === 1, "the event");
+  // The stream stays open and goes silent (a dead leg): the source does not wait on it for ever.
+  await run.until(() => run.state() === "stale", "stale", 1000);
+  await run.until(() => host.cursors.length === 2, "the stream reopened after stale", 1000);
+  assert.equal(host.cursors[1], "101", "reopened at the last seq, no snapshot asked again");
+  await run.until(() => run.state() === "live", "live again on the new stream");
+  assert.equal(host.snapshots, 1, "the cursor was kept: the host replays, no new snapshot");
+  assert.ok(run.states.includes("stale"), "the chip said Stale meanwhile");
+  run.stop();
+  await host.close();
+});
+
+test("the page coming back into view while stale heals at once: the hanging read is ended and the stream asked again, not after the back-off (review F3)", async () => {
+  // Node has no document: a stand-in with the page's visibility and its event, in place for this test only.
+  const page = new EventTarget() as EventTarget & { visibilityState: string };
+  page.visibilityState = "hidden";
+  const g = globalThis as { document?: unknown };
+  g.document = page;
+  try {
+    const host = await startHost();
+    // A long back-off, so that only a heal explains a quick second ask.
+    const run = observe(host.url, { timings: { ...TIMINGS, staleMs: 60_000, retryMinMs: 10, retryMaxMs: 10 } });
+    await run.until(() => host.cursors.length === 1, "the stream");
+    // The host ends the stream and the next open hangs (the laptop's lid closed under it): stale, one ask on its way for ever.
+    host.hang = true;
+    host.endStreams();
+    await run.until(() => run.state() === "stale" && host.cursors.length === 2, "stale with a hanging ask");
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert.equal(host.cursors.length, 2, "nothing moves while the page is hidden");
+    // The lid opens: visible while stale → the hanging ask is ended and a new one made at once.
+    host.hang = false;
+    page.visibilityState = "visible";
+    page.dispatchEvent(new Event("visibilitychange"));
+    await run.until(() => host.cursors.length === 3, "a new ask right after the page came into view", 500);
+    await run.until(() => run.state() === "live", "live again");
+    assert.equal(host.cursors[2], "100", "at the cursor");
+    run.stop();
+    await host.close();
+  } finally {
+    delete g.document;
+  }
+});
+
+test("status messages → loops-down / unauthorized; ok again re-snapshots", async () => {
+  const host = await startHost();
+  const run = observe(host.url);
+  await run.until(() => host.cursors.length === 1, "the stream");
+  host.push({ type: "status", loops: "down" });
+  await run.until(() => run.state() === "loops-down", "loops-down");
+  host.push({ type: "status", loops: "unauthorized" });
+  await run.until(() => run.state() === "unauthorized", "unauthorized");
+  host.push({ type: "status", loops: "ok" });
+  await run.until(() => count(run.messages, "snapshot") === 2 && run.state() === "live", "re-snapshot and live");
+  run.stop();
+  await host.close();
+});
+
+test("the status's key: the host's own word kept and exposed, null from a host that does not say, a word it does not know ignored, a change notifies", async () => {
+  const host = await startHost();
+  const run = observe(host.url);
+  let changes = 0;
+  run.source.connection!.onChange(() => (changes += 1));
+  await run.until(() => host.cursors.length === 1, "the stream");
+  assert.equal(run.key(), null, "the welcome status (a host from before) says nothing about the key");
+  host.push({ type: "status", loops: "ok", key: "ok" });
+  await run.until(() => run.key() === "ok", "key ok");
+  const before = changes;
+  host.push({ type: "status", loops: "ok", key: "ok" });
+  host.push({ type: "status", loops: "ok", key: "banana" });
+  host.push({ type: "status", loops: "ok" });
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  assert.equal(run.key(), "ok", "the same word, an unknown word and a status without one leave it");
+  assert.equal(changes, before, "and nothing fires for them");
+  // Forget this key in another tab: the host says unauthorized (its legacy word for no key) with key none.
+  host.push({ type: "status", loops: "unauthorized", key: "none" });
+  await run.until(() => run.state() === "unauthorized" && run.key() === "none", "unauthorized with key none");
+  assert.ok(changes > before, "the key's change notifies the listeners");
+  host.push({ type: "status", loops: "unauthorized", key: "rejected" });
+  await run.until(() => run.key() === "rejected", "key rejected");
+  run.stop();
+  await host.close();
+});
+
+test("status stream busy (loops 429 too_many_streams) → stream-busy, not loops-down; ok again re-snapshots", async () => {
+  const host = await startHost();
+  const run = observe(host.url);
+  await run.until(() => host.cursors.length === 1, "the stream");
+  host.push({ type: "status", loops: "down", stream: "busy", reason: "stream budget exhausted (429): another host or tab uses this key" });
+  await run.until(() => run.state() === "stream-busy", "stream-busy");
+  host.push({ type: "status", loops: "ok" });
+  await run.until(() => count(run.messages, "snapshot") === 2 && run.state() === "live", "re-snapshot and live");
+  run.stop();
+  await host.close();
+});
+
+test("a 503 snapshot → loops-down and retries until it answers", async () => {
+  const host = await startHost();
+  host.snapshotStatus = 503;
+  const run = observe(host.url);
+  await run.until(() => run.state() === "loops-down", "loops-down");
+  await run.until(() => host.snapshots >= 2, "a retry");
+  host.snapshotStatus = 200;
+  await run.until(() => run.state() === "live", "live");
+  assert.equal(count(run.messages, "snapshot"), 1);
+  run.stop();
+  await host.close();
+});
+
+test("a 401 not_paired snapshot → unpaired (not loops-down), asked again soon, live once the cookie is good", async () => {
+  const host = await startHost();
+  host.paired = false;
+  const run = observe(host.url);
+  await run.until(() => run.state() === "unpaired", "unpaired");
+  await run.until(() => host.snapshots >= 3, "retries while unpaired");
+  host.paired = true;
+  await run.until(() => run.state() === "live", "live");
+  assert.deepEqual(run.states.filter((s) => s !== "unpaired"), ["live"], "never loops-down or stale on the way");
+  run.stop();
+  await host.close();
+});
+
+test("a host that forgets the pairing under a live tab → unpaired, not stale; a new cookie brings a fresh snapshot", async () => {
+  const host = await startHost();
+  const run = observe(host.url);
+  await run.until(() => run.state() === "live", "live");
+  await run.until(() => host.cursors.length === 1, "the stream");
+  // The host restarted without its pairing secret: the open stream ends, the reconnect and the snapshot answer 401.
+  host.paired = false;
+  host.endStreams();
+  await run.until(() => run.state() === "unpaired", "unpaired");
+  assert.ok(!run.states.includes("loops-down"), `never loops-down: ${run.states.join(",")}`);
+  const before = host.snapshots;
+  host.paired = true;
+  await run.until(() => run.state() === "live", "live again");
+  assert.ok(host.snapshots > before, "the new host is read from a fresh snapshot, not the old cursor");
+  assert.equal(count(run.messages, "snapshot"), 2);
+  run.stop();
+  await host.close();
+});
+
+test("a host that stops answering → stale, then it recovers at the cursor", async () => {
+  const host = await startHost();
+  const run = observe(host.url);
+  await run.until(() => host.cursors.length === 1, "the stream");
+  host.push({ type: "event", envelope: envelope(101) });
+  await run.until(() => count(run.messages, "event") === 1, "the event");
+  host.endStreams();
+  await host.close();
+  await run.until(() => run.state() === "stale", "stale");
+  run.stop();
+});
+
+test("team.updated → GET /world-api/team and a team message; the stop ends everything", async () => {
+  const host = await startHost();
+  const run = observe(host.url);
+  await run.until(() => host.cursors.length === 1, "the stream");
+  host.push({ type: "event", envelope: { ...envelope(101, "team.updated"), ticket: null, payload: {} } });
+  await run.until(() => count(run.messages, "team") === 1, "the team message");
+  assert.equal(host.teamReads, 1);
+  run.stop();
+  const before = run.messages.length;
+  host.push({ type: "event", envelope: envelope(102) });
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  assert.equal(run.messages.length, before);
+  await host.close();
+});
+
+test("reads: ticket {ticket}, 404 → null, 409 feature_off → [], groups []", async () => {
+  const host = await startHost();
+  const source = createHostSource({ baseUrl: host.url, timings: TIMINGS });
+  assert.equal((await source.getTicket("CL-85"))?.key, "CL-85");
+  assert.equal(await source.getTicket("CL-999"), null);
+  assert.equal(await source.getProject("nope"), null);
+  assert.deepEqual(await source.getMilestones("crewhub-loops"), []);
+  assert.deepEqual(await source.listProjectGroups(), []);
+  await host.close();
+});
+
+test("probeHost answers the health, and null when nothing listens or the answer is not a host's", async () => {
+  const host = await startHost();
+  const health = await probeHost(host.url, 500);
+  // The web URL rides along for the sign-in link (an http(s) string only), the transport when it is tcp or unix; anything the type does not name is dropped.
+  assert.deepEqual(health, { loops: "ok", keyName: "agent-crewhub-world", sharedKey: false, cursor: 100, loopsWebUrl: "http://127.0.0.1:8091", transport: "unix" });
+  await host.close();
+  assert.equal(await probeHost(host.url, 500), null);
+  const other = createServer((_req, res) => {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end("{}");
+  });
+  servers.push(other);
+  await new Promise<void>((resolve) => other.listen(0, "127.0.0.1", resolve));
+  assert.equal(await probeHost(`http://127.0.0.1:${(other.address() as AddressInfo).port}`, 500), null);
+});
+
+test("probeHost reads loops' version and the one the host saw first when loops was updated under it", async () => {
+  const body = { loops: "ok", keyName: "crewhub-world", sharedKey: false, loopsCommit: "0.2.0", loopsCommitBefore: "0.1.0", paired: true, pairing: "off" };
+  const updated = createServer((_req, res) => {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify(body));
+  });
+  servers.push(updated);
+  await new Promise<void>((resolve) => updated.listen(0, "127.0.0.1", resolve));
+  const health = await probeHost(`http://127.0.0.1:${(updated.address() as AddressInfo).port}`, 500);
+  assert.equal(health?.loopsCommit, "0.2.0");
+  assert.equal(health?.loopsCommitBefore, "0.1.0");
+});
+
+test("before the first snapshot the retry is capped at firstRetryMaxMs; after it the full backoff applies", async (t) => {
+  // The retry pause is a setTimeout. Under mock timers it fires only when the test ticks, and a spy on the mocked
+  // setTimeout records the delay the source asked for: the check is on that state (the exact pause, then the ask
+  // after a tick of that length and none after a shorter one), not on measured gaps, which under load grew past
+  // any wall-clock bound. Only the source's own timers count, and not its stale timer (a minute here): fetch keeps
+  // its own on setTimeout too (a keep-alive refresh, the parser's timeouts).
+  const host = await startHost();
+  host.snapshotStatus = 503;
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const pauses: number[] = [];
+  const mocked = globalThis.setTimeout;
+  const spy = (fn: (...args: unknown[]) => void, ms?: number, ...args: unknown[]) => {
+    if (typeof ms === "number" && ms < 1000 && (new Error().stack ?? "").includes("/src/hostSource.ts")) pauses.push(ms);
+    return mocked(fn, ms, ...args);
+  };
+  globalThis.setTimeout = spy as unknown as typeof setTimeout;
+  const run = observe(host.url, { timings: { ...TIMINGS, staleMs: 60_000, retryMinMs: 10, retryMaxMs: 400, firstRetryMaxMs: 30 } });
+  let taken = 0; // the pauses checked so far: each call takes the next one (a reset asks at once, without a pause)
+  const askAfterPause = async (n: number, delay: number): Promise<void> => {
+    await settle(() => pauses.length > taken, `the pause before ask ${n}`);
+    assert.equal(pauses[taken++], delay, `the pause before ask ${n}: ${pauses.join(",")}`);
+    t.mock.timers.tick(delay - 1);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(host.snapshots, n - 1, `no ask ${n} before its ${delay} ms`);
+    t.mock.timers.tick(1);
+    await settle(() => host.snapshots === n, `ask ${n} after ${delay} ms`);
+  };
+  try {
+    await settle(() => host.snapshots === 1, "the first ask");
+    // Before the first snapshot: 10, 20, then the 30 ms cap, never the 400 ms backoff.
+    for (const [n, delay] of [[2, 10], [3, 20], [4, 30], [5, 30], [6, 30]] as const) await askAfterPause(n, delay);
+    host.snapshotStatus = 200;
+    await askAfterPause(7, 30);
+    await settle(() => run.state() === "live" && host.cursors.length === 1, "live, the stream open");
+    // After the first snapshot the full backoff applies: a reset asks again at once, then 10, 20, 40, 80 ms apart.
+    host.snapshotStatus = 503;
+    host.push({ type: "reset", reason: "gone" });
+    await settle(() => host.snapshots === 8, "the ask after the reset");
+    for (const [n, delay] of [[9, 10], [10, 20], [11, 40], [12, 80]] as const) await askAfterPause(n, delay);
+    host.snapshotStatus = 200;
+    await askAfterPause(13, 160);
+    await settle(() => run.state() === "live", "live again");
+  } finally {
+    run.stop();
+    globalThis.setTimeout = mocked;
+    t.mock.timers.reset();
+    host.endStreams();
+    await host.close();
+  }
+});
+
+test("unpaired after a back-off that grew while the host was away: the next ask comes at retryMinMs, then capped at firstRetryMaxMs", async (t) => {
+  // The morning's restart road: the host goes away, the tab's reconnects back off (10, 20, 40, 80 here; up to ten
+  // seconds in life), then the new host answers 401 not_paired. The person is opening the new link now, so the
+  // pauses must shrink at once, not ride the grown back-off (it kept the Pair screen and then the town waiting ~5 s).
+  const host = await startHost();
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const pauses: number[] = [];
+  const mocked = globalThis.setTimeout;
+  const spy = (fn: (...args: unknown[]) => void, ms?: number, ...args: unknown[]) => {
+    if (typeof ms === "number" && ms < 1000 && (new Error().stack ?? "").includes("/src/hostSource.ts")) pauses.push(ms);
+    return mocked(fn, ms, ...args);
+  };
+  globalThis.setTimeout = spy as unknown as typeof setTimeout;
+  const run = observe(host.url, { timings: { ...TIMINGS, staleMs: 60_000, retryMinMs: 10, retryMaxMs: 400, firstRetryMaxMs: 30 } });
+  const pauseThenTick = async (n: number, delay: number, what: string): Promise<void> => {
+    await settle(() => pauses.length >= n, `pause ${n} (${what})`);
+    assert.equal(pauses[n - 1], delay, `pause ${n} (${what}): ${pauses.join(",")}`);
+    t.mock.timers.tick(delay);
+  };
+  try {
+    await settle(() => run.state() === "live" && host.cursors.length === 1, "live, the stream open");
+    // The host is not well for a while: the stream ends and three reconnects are refused, each after a longer pause (10, 20, 40).
+    host.streamStatus = 503;
+    host.endStreams();
+    for (const [n, delay] of [[1, 10], [2, 20], [3, 40]] as const) {
+      await pauseThenTick(n, delay, "a refused reconnect");
+      await settle(() => host.cursors.length === n + 1, `reconnect ${n}`);
+    }
+    // Now it is back, without its pairing secret: the reconnect after the grown pause (80) meets 401.
+    host.paired = false;
+    host.streamStatus = 200;
+    await pauseThenTick(4, 80, "the reconnect that meets 401");
+    await settle(() => run.state() === "unpaired", "unpaired");
+    // Unpaired: the next ask comes after retryMinMs, not 160, and the pauses stay under firstRetryMaxMs.
+    await pauseThenTick(5, 10, "the first ask while unpaired");
+    await settle(() => host.snapshots === 2, "snapshot asked once unpaired");
+    await pauseThenTick(6, 20, "the second ask while unpaired");
+    await settle(() => host.snapshots === 3, "snapshot asked twice unpaired");
+    await pauseThenTick(7, 30, "the third ask while unpaired");
+    await settle(() => host.snapshots === 4, "snapshot asked thrice unpaired");
+    host.paired = true;
+    await pauseThenTick(8, 30, "the ask that meets the new cookie");
+    await settle(() => run.state() === "live", "live again");
+    assert.ok(pauses.slice(4).every((p) => p <= 30), `every pause while unpaired under the cap: ${pauses.join(",")}`);
+  } finally {
+    run.stop();
+    globalThis.setTimeout = mocked;
+    t.mock.timers.reset();
+    host.endStreams();
+    await host.close();
+  }
+});
+
+test("a snapshot read ahead (prefetchSnapshot): its body is the first message, synchronously at start; the stream opens at its cursor and the host is not asked again", async () => {
+  const host = await startHost();
+  const body: unknown = await (await prefetchSnapshot(host.url)).json();
+  assert.equal(host.snapshots, 1);
+  const { messages, states, stop, until, state } = observe(host.url, { firstSnapshot: { body } });
+  // Before any await: the first model has the town.
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0]!.type, "snapshot");
+  assert.equal(state(), "live");
+  await until(() => host.cursors.length === 1, "the stream");
+  assert.deepEqual(host.cursors, [String(host.cursor)]);
+  assert.equal(host.snapshots, 1, "the source read no snapshot of its own");
+  assert.ok(states.includes("live"));
+  stop();
+});
+
+test("a snapshot read ahead that is still pending is the source's first read; one that does not validate is read again", async () => {
+  const host = await startHost();
+  const pending = observe(host.url, { firstSnapshot: { response: prefetchSnapshot(host.url) } });
+  assert.equal(pending.messages.length, 0);
+  await pending.until(() => count(pending.messages, "snapshot") === 1, "the snapshot");
+  assert.equal(host.snapshots, 1, "the pending response was the first read");
+  pending.stop();
+  const broken = observe(host.url, { firstSnapshot: { body: { not: "a snapshot" } } });
+  assert.equal(broken.messages.length, 0);
+  await broken.until(() => count(broken.messages, "snapshot") === 1, "the source's own snapshot");
+  assert.equal(host.snapshots, 2);
+  broken.stop();
+});

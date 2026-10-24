@@ -1,0 +1,99 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-trophy",
+  "name": "Trophy",
+  "description": "A brass trophy on the lead's desk for a published release.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.14,
+        0.04,
+        0.14
+      ],
+      "position": [
+        0,
+        0.02,
+        0
+      ],
+      "material": "slate",
+      "radius": 0.01
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.018,
+        0.08,
+        0.03
+      ],
+      "position": [
+        0,
+        0.08,
+        0
+      ],
+      "material": "brass"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.08,
+        0.1,
+        0.04
+      ],
+      "position": [
+        0,
+        0.17,
+        0
+      ],
+      "material": "brass"
+    },
+    {
+      "shape": "torus",
+      "size": [
+        0.035,
+        0.01,
+        0
+      ],
+      "position": [
+        0.085,
+        0.18,
+        0
+      ],
+      "material": "brass",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "torus",
+      "size": [
+        0.035,
+        0.01,
+        0
+      ],
+      "position": [
+        -0.085,
+        0.18,
+        0
+      ],
+      "material": "brass",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    }
+  ]
+}

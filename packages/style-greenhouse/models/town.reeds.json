@@ -1,0 +1,303 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-town-reeds",
+  "name": "Reeds",
+  "description": "A clump of bulrushes and long water grass.",
+  "category": "greenery",
+  "tags": [
+    "greenhouse",
+    "town"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.012,
+        0.75,
+        0.014
+      ],
+      "position": [
+        0.05,
+        0.385,
+        0.0
+      ],
+      "material": "leaf-dark",
+      "rotation": [
+        0.0,
+        0,
+        -4.0
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.03,
+        0.17,
+        0.03
+      ],
+      "position": [
+        0.05,
+        0.73,
+        0.0
+      ],
+      "material": "soil"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.012,
+        1.11,
+        0.014
+      ],
+      "position": [
+        0.112,
+        0.565,
+        0.141
+      ],
+      "material": "leaf-dark",
+      "rotation": [
+        3.127,
+        0,
+        -2.494
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.012,
+        0.99,
+        0.014
+      ],
+      "position": [
+        -0.026,
+        0.505,
+        0.112
+      ],
+      "material": "leaf-dark",
+      "rotation": [
+        3.9,
+        0,
+        0.89
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.03,
+        0.17,
+        0.03
+      ],
+      "position": [
+        -0.026,
+        0.97,
+        0.112
+      ],
+      "material": "soil"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.012,
+        0.87,
+        0.014
+      ],
+      "position": [
+        -0.045,
+        0.445,
+        0.022
+      ],
+      "material": "leaf-dark",
+      "rotation": [
+        1.736,
+        0,
+        3.604
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.012,
+        0.75,
+        0.014
+      ],
+      "position": [
+        -0.162,
+        0.385,
+        -0.078
+      ],
+      "material": "leaf-dark",
+      "rotation": [
+        -1.736,
+        0,
+        3.604
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.03,
+        0.17,
+        0.03
+      ],
+      "position": [
+        -0.162,
+        0.73,
+        -0.078
+      ],
+      "material": "soil"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.012,
+        1.11,
+        0.014
+      ],
+      "position": [
+        -0.026,
+        0.565,
+        -0.112
+      ],
+      "material": "leaf-dark",
+      "rotation": [
+        -3.9,
+        0,
+        0.89
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.012,
+        0.99,
+        0.014
+      ],
+      "position": [
+        0.031,
+        0.505,
+        -0.039
+      ],
+      "material": "leaf-dark",
+      "rotation": [
+        -3.127,
+        0,
+        -2.494
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.03,
+        0.17,
+        0.03
+      ],
+      "position": [
+        0.031,
+        0.97,
+        -0.039
+      ],
+      "material": "soil"
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.035,
+        0.7,
+        0
+      ],
+      "position": [
+        0.14,
+        0.42,
+        0.077
+      ],
+      "material": "moss",
+      "rotation": [
+        6.712,
+        0,
+        -12.286
+      ]
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.035,
+        0.8,
+        0
+      ],
+      "position": [
+        -0.03,
+        0.42,
+        0.157
+      ],
+      "material": "leaf",
+      "rotation": [
+        13.759,
+        0,
+        2.587
+      ]
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.035,
+        0.7,
+        0
+      ],
+      "position": [
+        -0.159,
+        0.42,
+        0.02
+      ],
+      "material": "moss",
+      "rotation": [
+        1.792,
+        0,
+        13.885
+      ]
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.035,
+        0.8,
+        0
+      ],
+      "position": [
+        -0.069,
+        0.42,
+        -0.145
+      ],
+      "material": "leaf",
+      "rotation": [
+        -12.652,
+        0,
+        5.995
+      ]
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.035,
+        0.7,
+        0
+      ],
+      "position": [
+        0.116,
+        0.42,
+        -0.11
+      ],
+      "material": "moss",
+      "rotation": [
+        -9.611,
+        0,
+        -10.18
+      ]
+    }
+  ]
+}
