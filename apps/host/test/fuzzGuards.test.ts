@@ -1,7 +1,8 @@
 /**
- * Fuzz (round 34): the host's request guards. In process: the pairing cookie's reading and verification, the link
- * token, the dev-origin decision, the constant-time secret compare. Through a host on port 0: the Host and Origin
- * guards, the cookie, `/pair/<token>` and the mint route under odd headers. Seeded; a failing input prints its seed.
+ * Fuzz (round 34): the host's request guards. In process: the pairing header's reading and verification (the per-tab
+ * bearer of round 27, on this branch), the link token, the dev-origin decision, the constant-time secret compare. Through
+ * a host on port 0: the Host and Origin guards, the pairing header, the token exchange at `POST /world-api/pair` and the
+ * mint route under odd headers. Seeded; a failing input prints its seed.
  */
 import assert from "node:assert/strict";
 import { request } from "node:http";
@@ -9,7 +10,7 @@ import { connect } from "node:net";
 import { after, before, describe, it } from "node:test";
 import { DEV_ORIGIN_MAX, devOriginVerdict, loopbackOrigin } from "../src/devOrigin.ts";
 import { MINT_HEADER, MINT_PATH, createHost, sameSecret, type Host } from "../src/host.ts";
-import { PAIR_COOKIE, createPairing, readCookie, readCookies } from "../src/pairing.ts";
+import { PAIR_HEADER, createPairing, readPairHeader } from "../src/pairing.ts";
 import { Rng, assertPrototypeClean, headerText, oddString, oddValue, replay, safeEncode } from "./fuzz.ts";
 import { type LoopsStub, createLoopsStub, installation } from "./loopsStub.ts";
 
@@ -19,40 +20,36 @@ const B64 = /^[A-Za-z0-9_-]+$/;
 const HTTP = ["http:", "//"].join("");
 const AT = String.fromCharCode(64);
 
-/** A Cookie header of odd parts, with the real value placed in it when `real` is given. */
-function oddCookieHeader(rng: Rng, real: string | null): string {
-  const parts = rng.times(rng.int(0, 5), () => {
-    const name = rng.chance(0.5) ? PAIR_COOKIE : rng.pick(["other", "crewhub_world_pair2", " crewhub_world_pair", "CREWHUB_WORLD_PAIR", "", "=", oddString(rng, 2, 0)]);
-    const value = rng.chance(0.3) ? `${oddString(rng, 2, 0)}.${oddString(rng, 2, 0)}` : rng.pick(["", ".", "a.", ".b", "abc.def", `${"A".repeat(22)}.${"B".repeat(43)}`, oddString(rng, 3)]);
-    return rng.chance(0.1) ? name : `${name}=${value}`;
-  });
-  if (real !== null) parts.splice(rng.int(0, parts.length), 0, `${PAIR_COOKIE}=${real}`);
-  return parts.join(rng.pick(["; ", ";", " ;", ";; "]));
+/** An odd value for the pairing header (`<id>.<mac>` is the shape), or the real bearer with the whitespace the header allows. */
+function oddPairHeader(rng: Rng, real: string | null): string {
+  if (real !== null) return rng.pick([real, ` ${real} `, `\t${real}`]);
+  if (rng.chance(0.3)) return `${oddString(rng, 2, 0)}.${oddString(rng, 2, 0)}`;
+  return rng.pick(["", ".", "a.", ".b", "abc.def", `${"A".repeat(22)}.${"B".repeat(43)}`, "A".repeat(43), oddString(rng, 3), `${"x".repeat(201)}.y`]);
 }
 
 describe("fuzz: the guards in process", () => {
-  it("the pairing cookie: odd headers never throw, only an issued value pairs, a token is redeemed once", () => {
+  it("the pairing header: odd values never throw, only an issued bearer pairs, a token is redeemed once", () => {
     for (const seed of SEEDS) {
       const rng = new Rng(seed);
       let t = 0;
       const pairing = createPairing({ now: () => t, ttlMs: 1000 });
       const token = pairing.mintToken();
       const real = pairing.redeem(token) as string;
-      assert.ok(real && pairing.isPaired(`${PAIR_COOKIE}=${real}`));
+      assert.ok(real && pairing.isPaired(real));
+      assert.equal(readPairHeader(undefined), null);
       for (let i = 0; i < 1500; i += 1) {
         const withReal = rng.chance(0.3);
-        const header = !withReal && rng.chance(0.05) ? oddString(rng, 8) : oddCookieHeader(rng, withReal ? real : null);
+        const header = !withReal && rng.chance(0.05) ? oddString(rng, 8) : oddPairHeader(rng, withReal ? real : null);
         let paired: boolean;
         try {
-          const values = readCookies(header, PAIR_COOKIE);
-          assert.ok(values.every((v) => typeof v === "string" && !v.includes(";")), replay(seed, i, header));
-          assert.equal(readCookie(header, PAIR_COOKIE), values[0] ?? null, replay(seed, i, header));
+          const value = readPairHeader(header);
+          assert.ok(value === null || /^[A-Za-z0-9_.-]{1,200}$/.test(value), replay(seed, i, header));
           paired = pairing.isPaired(header);
         } catch (error) {
           assert.fail(`${replay(seed, i, header)}: threw ${String(error)}`);
         }
-        if (withReal) assert.equal(paired, true, `${replay(seed, i, header)}: the issued cookie did not pair`);
-        else assert.equal(paired, false, `${replay(seed, i, header)}: paired on a header without the issued value`);
+        if (withReal) assert.equal(paired, true, `${replay(seed, i, header)}: the issued bearer did not pair`);
+        else assert.equal(paired, false, `${replay(seed, i, header)}: paired on a header without the issued bearer`);
         // A token: odd text never redeems; the real one is gone.
         const odd = rng.chance(0.5) ? oddString(rng, 4) : rng.pick([token, `${token}A`, token.slice(1), token.toLowerCase(), "A".repeat(43), "\u0000".repeat(43)]);
         assert.equal(pairing.redeem(odd), null, replay(seed, i, odd));
@@ -120,21 +117,25 @@ describe("fuzz: the guards in process", () => {
 describe("fuzz: the guards through a host", () => {
   let stub: LoopsStub;
   let host: Host;
-  let cookie = "";
+  let bearer = "";
   const lines: string[] = [];
   before(async () => {
     stub = await createLoopsStub(installation());
     host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", allowedOrigins: ["http://localhost:5173"], mintSecret: "mint-secret-for-the-fuzz", retryMs: { min: 20, max: 100 }, log: (line) => lines.push(line) });
-    const response = await fetch(host.mintPairLink(), { redirect: "manual" });
-    cookie = (/^crewhub_world_pair=([^;]+)/.exec(response.headers.get("set-cookie") ?? "") as RegExpExecArray)[1] as string;
+    // Pairs as the page does: the token from the link's fragment, exchanged once at POST /world-api/pair for the bearer.
+    const token = new URL(host.mintPairLink()).hash.replace(/^#pair=/, "");
+    const response = await fetch(`${host.url}/world-api/pair`, { method: "POST", headers: { origin: host.url, [PAIR_HEADER]: token } });
+    assert.equal(response.status, 200, "the exchange");
+    bearer = ((await response.json()) as { bearer: string }).bearer;
+    assert.ok(bearer, "no bearer");
   });
   after(async () => {
     await host.close();
     await stub.close();
   });
-  const raw = (path: string, headers: Record<string, string>) =>
+  const raw = (path: string, headers: Record<string, string>, method = "GET") =>
     new Promise<{ status: number; headers: Record<string, string | string[] | undefined> }>((resolve, reject) => {
-      const req = request({ host: "127.0.0.1", port: host.port, path, method: "GET", agent: false, headers: { host: `127.0.0.1:${host.port}`, ...headers } }, (res) => {
+      const req = request({ host: "127.0.0.1", port: host.port, path, method, agent: false, headers: { host: `127.0.0.1:${host.port}`, ...headers } }, (res) => {
         res.resume();
         res.on("end", () => resolve({ status: res.statusCode ?? 0, headers: res.headers }));
       });
@@ -170,24 +171,24 @@ describe("fuzz: the guards through a host", () => {
     assertPrototypeClean(seed);
   });
 
-  it("the cookie, the link and the mint under odd headers: 401 without the issued value, 403 for every odd token, 404 for every odd mint header", async () => {
+  it("the pairing header, the token exchange and the mint under odd headers: 401 without the issued bearer, 403 for every odd token, 404 for every odd mint header", async () => {
     const seed = 34111;
     const rng = new Rng(seed);
     let pairedSeen = 0;
     for (let i = 0; i < 300; i += 1) {
       const withReal = rng.chance(0.3);
       // Header-legal characters, and under Node's 16 KB header cap (a longer one is Node's own 431, not the gate's answer).
-      const header = oddCookieHeader(rng, withReal ? cookie : null).replace(/[^\t\x20-\x7e\x80-\xff]/g, "").slice(0, 6000);
-      const answer = await raw("/world-api/team", { cookie: header });
-      if (withReal && header.includes(`${PAIR_COOKIE}=${cookie}`)) {
+      const header = oddPairHeader(rng, withReal ? bearer : null).replace(/[^\t\x20-\x7e\x80-\xff]/g, "").slice(0, 6000);
+      const answer = await raw("/world-api/team", { [PAIR_HEADER]: header });
+      if (withReal) {
         pairedSeen += 1;
         assert.equal(answer.status, 200, replay(seed, i, header));
       } else assert.equal(answer.status, 401, replay(seed, i, header));
       if (i % 3 === 0) {
-        const token = safeEncode(rng.chance(0.5) ? oddString(rng, 4) : rng.pick(["A".repeat(43), "A".repeat(42), "A".repeat(44), cookie, "", "..", "%2F"]));
-        const link = await raw(`/pair/${token}`, {});
-        assert.ok([403, 404].includes(link.status), `${replay(seed, i, token)}: ${link.status}`);
-        assert.equal(link.headers["set-cookie"], undefined, replay(seed, i, token));
+        // The exchange: an odd token (never an issued one) is 403 with the page's Origin, and never pairs anything.
+        const token = safeEncode(rng.chance(0.5) ? oddString(rng, 4) : rng.pick(["A".repeat(43), "A".repeat(42), "A".repeat(44), bearer, "", "..", "%2F"])).slice(0, 6000);
+        const exchange = await raw("/world-api/pair", { origin: host.url, [PAIR_HEADER]: token }, "POST");
+        assert.equal(exchange.status, 403, `${replay(seed, i, token)}: ${exchange.status}`);
         const mint = await raw(MINT_PATH, { [MINT_HEADER]: headerText(rng, 3) || "x" });
         assert.equal(mint.status, 404, replay(seed, i, "mint"));
       }
