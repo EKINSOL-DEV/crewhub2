@@ -330,19 +330,44 @@ export async function createHost(options: HostOptions): Promise<Host> {
   const clientFor = (found: Found, key: string): LoopsClient => createLoopsClient(found.target, key, readTimeoutMs === undefined ? {} : { readTimeoutMs });
 
   // --- The closed buildings the host knows. ---
-  const remembered = options.archiveStore?.read() ?? null;
-  const archive: ArchiveMemoryState = remembered === null ? { source: "none", slugs: new Set() } : { source: "remembered", slugs: new Set(remembered.slugs), at: remembered.at };
-  if (remembered !== null) log(`remembered ${remembered.slugs.length} archived project${remembered.slugs.length === 1 ? "" : "s"} from ${options.archiveStore?.file} (learnt ${remembered.at === "" ? "at an unknown time" : plainTime(remembered.at)})`);
-  /** Keeps the set (and its source), and writes the file only when the set changed. */
+  // The memory on disk belongs to one loops (round 34): the file names the target it was learnt from, and the host
+  // uses it only once discovery finds that same target (a file without a target is the old format and is taken as
+  // is). Another loops' memory is said and ignored, and it stays on disk until this loops' own set is learnt: a
+  // snapshot whose archived set loops told whole (the list, or the whole log) or an archive event on the stream. A
+  // run that found nothing never writes an empty list over it.
+  const onDisk = options.archiveStore?.read() ?? null;
+  const archive: ArchiveMemoryState = { source: "none", slugs: new Set() };
+  /** The target the memory was judged for, so a target change judges it again. */
+  let judgedFor: string | null = null;
+  /** True once this loops told the host its own set, or the memory on disk is this loops' own: then the file is written. */
+  let learnt = false;
+  function judgeMemory(found: Found): void {
+    const target = targetText(found.target);
+    if (judgedFor === target) return;
+    judgedFor = target;
+    if (onDisk === null) return;
+    if (onDisk.target !== undefined && onDisk.target !== target) {
+      learnt = false;
+      log(`${options.archiveStore?.file} remembers ${onDisk.target}, not ${target}: ignored (kept until this crewhub-loops' own archived projects are learnt)`);
+      return;
+    }
+    learnt = true;
+    if (archive.source === "none") archive.slugs = new Set(onDisk.slugs);
+    archive.source = "remembered";
+    archive.at = onDisk.at;
+    log(`remembered ${onDisk.slugs.length} archived project${onDisk.slugs.length === 1 ? "" : "s"} from ${options.archiveStore?.file} (learnt ${onDisk.at === "" ? "at an unknown time" : plainTime(onDisk.at)}${onDisk.target === undefined ? ", from an unnamed crewhub-loops" : ""})`);
+  }
+  /** Keeps the set (and its source), and writes the file only when the set changed and this loops' set is learnt. */
   function rememberArchive(next: Iterable<string>, source: HostArchiveState["source"] | null): void {
     const slugs = normaliseSlugs(next);
     const changed = slugs.join("\n") !== normaliseSlugs(archive.slugs).join("\n");
     archive.slugs = new Set(slugs);
     if (source !== null) archive.source = source;
+    if (source === "list" || source === "log") learnt = true;
     if (!changed && archive.at !== undefined) return;
     archive.at = new Date().toISOString();
     const store = options.archiveStore;
-    if (store === undefined) return;
+    if (store === undefined || !learnt) return;
     try {
       const found = discovery.current();
       store.save({ slugs, at: archive.at, ...(found === null ? {} : { target: targetText(found.target) }) });
@@ -435,10 +460,12 @@ export async function createHost(options: HostOptions): Promise<Host> {
     }, THREADS_REFRESH_MS);
   }
   /** An agent's `dm.created` on the key's stream: the message read by id with the key, as one chat line; null when not readable. */
-  async function chatLineFromKey(client: LoopsClient, payload: Record<string, unknown>): Promise<ChatLine | null> {
-    const messageId = payload["messageId"];
-    const threadId = payload["threadId"];
-    const agentId = payload["agentId"];
+  async function chatLineFromKey(client: LoopsClient, payload: unknown): Promise<ChatLine | null> {
+    // Round 34 (found by the fuzz): a `dm.created` whose payload is null or no object threw out of the stream's loop.
+    if (typeof payload !== "object" || payload === null) return null;
+    const messageId = (payload as Record<string, unknown>)["messageId"];
+    const threadId = (payload as Record<string, unknown>)["threadId"];
+    const agentId = (payload as Record<string, unknown>)["agentId"];
     if (typeof messageId !== "string" || typeof threadId !== "string" || typeof agentId !== "string") return null;
     try {
       const { status, body } = await client.getJson<{ message?: { bodyText?: unknown; createdAt?: unknown; author?: { displayName?: unknown } } }>(`/api/dm/messages/${encodeURIComponent(messageId)}`);
@@ -549,6 +576,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
         clearTimeout(threadsTimer);
         threadsTimer = null;
       }
+      if (found !== null) judgeMemory(found);
       if (found === null || holder === null) {
         for (const tab of tabs.values()) attach(tab);
         return;
@@ -659,7 +687,10 @@ export async function createHost(options: HostOptions): Promise<Host> {
         }
         if (message.type !== "event" || message.envelope.project === null) return;
         const slug = message.envelope.project.slug;
-        if (message.envelope.type === "project.archived") rememberArchive([...archive.slugs, slug], null);
+        if (message.envelope.type === "project.archived") {
+          learnt = true; // loops itself says this project is archived: a fact of this loops' own set
+          rememberArchive([...archive.slugs, slug], null);
+        }
         else if (message.envelope.type === "project.restored") rememberArchive([...archive.slugs].filter((s) => s !== slug), null);
       });
       for (const tab of tabs.values()) attach(tab);

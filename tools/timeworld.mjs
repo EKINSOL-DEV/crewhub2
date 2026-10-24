@@ -25,6 +25,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { appDataPort, ownAppData, ownPort } from "./lib/toolGuard.ts";
 import { cli, hostGet, launch } from "./lib/world.mjs";
 
 const USAGE =
@@ -45,7 +46,9 @@ async function environment() {
   delete env.CREWHUB_WORLD_LOOPS_SOCKET;
   if (opts.fake) {
     const { createLoopsFake } = await import(pathToFileURL(path.join(REPO, "packages", "loops-fake", "src", "index.ts")).href);
-    const fake = await createLoopsFake({ port: Number(opts.fake), scenario: opts.scenario, speed: 0 });
+    const fakeVerdict = ownPort(opts.fake, "--fake");
+    if (!fakeVerdict.ok) opts.fail(fakeVerdict.reason);
+    const fake = await createLoopsFake({ port: fakeVerdict.value, scenario: opts.scenario, speed: 0 });
     const keyFile = path.join(opts.out, "timeworld-fake.key");
     writeFileSync(keyFile, fake.key + "\n", { mode: 0o600 });
     env.CREWHUB_WORLD_LOOPS_URL = fake.url;
@@ -64,7 +67,15 @@ async function environment() {
   const lines = Object.fromEntries(readFileSync(envFile, "utf8").split("\n").filter((l) => /^LOOPS_DEV_(URL|KEY_FILE)=/.test(l)).map((l) => l.split("=", 2)));
   if (!lines.LOOPS_DEV_KEY_FILE) opts.fail(`${envFile} has no LOOPS_DEV_KEY_FILE`);
   env.CREWHUB_WORLD_KEY_FILE = lines.LOOPS_DEV_KEY_FILE.replace(/^~/, process.env.HOME ?? "");
-  env.CREWHUB_WORLD_LOOPS_APP_DATA = (opts["app-data"] || path.join(process.env.HOME ?? "", "crewhub-loops-dev")).replace(/^~/, process.env.HOME ?? "");
+  // The real host's discovery looks in this folder (round 36): a loops' own, never the Mac app's, with a settings.json whose
+  // port is neither the app's nor 5180; without the file the host would fall back to 8091.
+  const home = process.env.HOME ?? "";
+  const folderVerdict = ownAppData(opts["app-data"] || path.join(home, "crewhub-loops-dev"), home);
+  if (!folderVerdict.ok) opts.fail(`--app-data: ${folderVerdict.reason}`);
+  const settingsFile = path.join(folderVerdict.value, "settings.json");
+  const portVerdict = appDataPort(existsSync(settingsFile) ? readFileSync(settingsFile, "utf8") : null);
+  if (!portVerdict.ok) opts.fail(`--app-data ${folderVerdict.value}: ${portVerdict.reason}`);
+  env.CREWHUB_WORLD_LOOPS_APP_DATA = folderVerdict.value;
   return { env, fake: null, what: `crewhub-loops found in ${env.CREWHUB_WORLD_LOOPS_APP_DATA}` };
 }
 

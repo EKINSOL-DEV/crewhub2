@@ -486,6 +486,6 @@ round-29 table of every difference main made and what the world does with it is 
   part, including "chat with the agents" and the proposal for project groups and the live director.
 - [LOOPS_REAL_VS_FAKE.md](LOOPS_REAL_VS_FAKE.md), [LOOPS_GAP_ANALYSIS.md](LOOPS_GAP_ANALYSIS.md),
   [LOOPS_INTEGRATION_PLAN.md](LOOPS_INTEGRATION_PLAN.md): the wire, the gaps, the plan.
-- [tools/README.md](../tools/README.md): the browser checks (the regress pass in ten groups, 194 checks in all with the
-  two halves against the development loops), the pixel-identical proof (`pixcheck.mjs`), the measurements, the
-  accessibility pass, the seed and the development crewhub-loops.
+- [tools/README.md](../tools/README.md): the browser checks (the regress pass in ten groups, two halves of it against
+  the development loops; the tool prints its count last), the pixel-identical proof (`pixcheck.mjs`), the
+  measurements, the accessibility pass, the seed and the development crewhub-loops.

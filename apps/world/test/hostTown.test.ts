@@ -543,3 +543,94 @@ test("round 27 (r27-townback): a host back at the revision this browser left it,
   assert.deepEqual(fresh.writes.map((w) => [w.op, w.baseRev]), [["amend", 1], ["amend", 1]], "the failed try, then the one offer");
   assert.equal(fresh.town?.rev, 2);
 });
+
+/* Round 33, the mutation spot check: three guards of the host town the tests let slip (survivors 2, 4 and 5 of r33-mut-state). */
+
+/** The same document with its keys in another order at every level, as another browser's build or an import serialises it. */
+const reordered = <T>(value: T): T =>
+  Array.isArray(value)
+    ? (value.map(reordered) as unknown as T)
+    : value !== null && typeof value === "object"
+      ? (Object.fromEntries(Object.entries(value as Record<string, unknown>).reverse().map(([k, v]) => [k, reordered(v)])) as T)
+      : value;
+
+test("round 33: the host's copy of the same town with its keys in another order is the same town: taken as nothing new on a read, and a come-back sends nothing", async () => {
+  const empty = createTownStore({ context: CONTEXT, indexedDB: null }).state.doc;
+  const hosted = { ...plot(empty, "web", 1), zones: [{ id: "zone-1", name: "Zone 1", order: 0 }] } as TownDocument;
+  const host = fakeHost({ rev: 1, document: hosted });
+  const lines: string[] = [];
+  const connected = new Set<() => void>();
+  const local = createTownStore({ context: CONTEXT, indexedDB: null });
+  const store = createHostTownStore({ local, transport: host.transport, context: CONTEXT, onTown: host.onTown, onConnected: (l) => (connected.add(l), () => connected.delete(l)), retryMs: 15, log: (line) => lines.push(line) });
+  await store.load();
+  await store.commit({ ...store.state.doc, zones: [...(store.state.doc.zones ?? []), { id: "zone-2", name: "Zone 2", order: 1 }] } as TownDocument);
+  assert.equal(store.rev, 2);
+  // The host now serialises that revision with every key in another order (the same town).
+  host.set(2, reordered(host.town!.document));
+  const taken = () => lines.filter((l) => /taken from the host/.test(l)).length;
+  const takenBefore = taken();
+  for (const l of connected) l();
+  await flush();
+  await flush();
+  assert.equal(store.rev, 2);
+  assert.equal(taken(), takenBefore, `a read of the same town in another key order takes nothing: ${lines.join(" | ")}`);
+  // The host goes away; a zone is added and undone here; the host is back at the revision this browser left it.
+  const writesBefore = host.writes.length;
+  host.away = true;
+  await store.commit({ ...store.state.doc, zones: [...(store.state.doc.zones ?? []), { id: "zone-3", name: "Zone 3", order: 2 }] } as TownDocument);
+  await store.undo();
+  assert.deepEqual(store.state.doc.zones?.map((z) => z.id), ["zone-1", "zone-2"]);
+  host.away = false;
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  assert.equal(store.rev, 2);
+  assert.deepEqual(host.writes.slice(writesBefore).map((w) => [w.op, w.baseRev]), [["commit", 2]], `only the failed write of the away spell, no identical revision: ${lines.join(" | ")}`);
+  assert.equal(host.town?.rev, 2, "the host's revision stands");
+  assert.ok(lines.some((l) => /with the town as it is here: nothing to send/.test(l)), lines.join(" | "));
+});
+
+test("round 33: the host's word on the revision this browser already has (the echo of its own write after the answer) starts no read", async () => {
+  const empty = createTownStore({ context: CONTEXT, indexedDB: null }).state.doc;
+  const host = fakeHost({ rev: 1, document: empty });
+  const { store } = make(host);
+  await store.load();
+  await store.commit(plot(store.state.doc, "mine", 2));
+  assert.equal(store.rev, 2);
+  const reads = host.reads;
+  for (const l of host.listeners) l(2);
+  await flush();
+  await flush();
+  assert.equal(host.reads, reads, "revision 2 is the one this browser wrote: nothing to fetch");
+  // An older word (a message delayed behind the answer) starts none either; a newer one does.
+  for (const l of host.listeners) l(1);
+  await flush();
+  assert.equal(host.reads, reads);
+  host.elsewhere(plot(empty, "theirs", 5));
+  await flush();
+  await flush();
+  assert.equal(host.reads, reads + 1, "revision 3 is new: one read");
+  assert.equal(store.rev, 3);
+});
+
+test("round 33: a read that answers the town already shown changes nothing in the browser's store: no amend, no publish, no 'taken' line", async () => {
+  const empty = createTownStore({ context: CONTEXT, indexedDB: null }).state.doc;
+  const host = fakeHost({ rev: 1, document: plot(empty, "web", 1) });
+  const lines: string[] = [];
+  const connected = new Set<() => void>();
+  const local = createTownStore({ context: CONTEXT, indexedDB: null });
+  const store = createHostTownStore({ local, transport: host.transport, context: CONTEXT, onTown: host.onTown, onConnected: (l) => (connected.add(l), () => connected.delete(l)), retryMs: 15, log: (line) => lines.push(line) });
+  await store.load();
+  assert.equal(lines.filter((l) => /taken from the host/.test(l)).length, 1, "the first read takes the host's town");
+  let published = 0;
+  const stop = local.subscribe(() => (published += 1));
+  const shown = store.state.doc;
+  // The stream comes back up: the town is read again and the host answers the very town shown here.
+  for (const l of connected) l();
+  await flush();
+  await flush();
+  stop();
+  assert.equal(host.reads, 2, "read again on reconnect");
+  assert.equal(published, 0, "the browser's store was not written: nothing changed");
+  assert.equal(store.state.doc, shown, "the document shown is the same object: no amend took place");
+  assert.equal(lines.filter((l) => /taken from the host/.test(l)).length, 1, `nothing new was taken: ${lines.join(" | ")}`);
+  assert.equal(store.rev, 1);
+});

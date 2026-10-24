@@ -9,6 +9,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseScenarioId } from "@crewhub/demo";
 import { createLoopsFake } from "./fake.ts";
+import { fakePortVerdict } from "./ports.ts";
 
 const KEY_FILE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../tools/out/loops-fake.key");
 const SPEEDS = [0, 1, 4, 16] as const;
@@ -22,8 +23,10 @@ function option(name: string): string | undefined {
 }
 
 const builderKey = process.argv.includes("--builder-key");
-const port = Number(option("port") ?? "8391"); // never 8091 by default: that is the Mac app's port, and the host's discovery would take a fake there for the app
-if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error("--port must be a port number");
+// Never 8091 (the Mac app's port: a host's discovery would take a fake there for the app), its other ports, or 5180 (round 36).
+const portVerdict = fakePortVerdict(option("port"));
+if (!portVerdict.ok) throw new Error(portVerdict.reason);
+const port = portVerdict.port;
 const scenario = parseScenarioId(option("scenario"));
 const speed = Number(option("speed") ?? "1");
 if (!(SPEEDS as readonly number[]).includes(speed)) throw new Error(`--speed must be one of ${SPEEDS.join(", ")}`);

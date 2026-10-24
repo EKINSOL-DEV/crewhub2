@@ -21,6 +21,7 @@
    Output in --out: <tag><state>-<theme>-<width>.png. Prints connectshots: <passed>/<total> last; exit 0 at full marks. */
 import { cli, launch, list, pairedTab, problemLines, watch } from "./lib/world.mjs";
 import { createConnectStub } from "./lib/connectStub.mjs";
+import { ownPort } from "./lib/toolGuard.ts";
 
 const STATES = ["no-loops", "pair", "connect", "pasted", "invalid", "checking", "rejected", "rejected-readonly", "loops-down", "connected", "panel", "forget", "busy", "busy-panel", "older"];
 /** States only a real host can show (the stub knows no Read only bot); the stub run's default list leaves them out. */
@@ -29,8 +30,9 @@ const opts = cli("node tools/connectshots.mjs --port <vite port> --stub-port <po
   options: { "stub-port": null, states: null, theme: "light,dark", width: "1440,375", tag: "", "pair-link": null, "key-file": null, "readonly-key-file": null },
   flags: ["no-flow", "real"],
 });
-const stubPort = Number(opts["stub-port"]);
-if (!opts.real && (!Number.isInteger(stubPort) || stubPort <= 0)) opts.fail("--stub-port <port> is required: the port the Vite proxy forwards /world-api to (CREWHUB_WORLD_PORT)");
+const stubVerdict = opts.real ? null : ownPort(opts["stub-port"], "--stub-port");
+if (stubVerdict !== null && !stubVerdict.ok) opts.fail(`${stubVerdict.reason} (the port the Vite proxy forwards /world-api to, CREWHUB_WORLD_PORT)`);
+const stubPort = stubVerdict === null ? 0 : stubVerdict.value;
 const widths = list(opts.width).map(Number);
 const themes = list(opts.theme, ["light", "dark"], opts.fail, "theme");
 const states = list(opts.states ?? (opts.real ? STATES : STATES.filter((s) => !REAL_ONLY.includes(s))).join(","), STATES, opts.fail, "state");

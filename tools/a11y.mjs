@@ -23,10 +23,13 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { cli, launch, problemLines, seek, speed, watch } from "./lib/world.mjs";
 import { createConnectStub } from "./lib/connectStub.mjs";
+import { ownPort } from "./lib/toolGuard.ts";
+import { isProbeRefusal } from "./lib/probeRefusal.ts";
 
 const opts = cli("node tools/a11y.mjs --port <vite port> --stub-port <port> [--demo] [--out <dir>] [--swiftshader]", { options: { "stub-port": null }, flags: ["demo"] });
-const stubPort = Number(opts["stub-port"]);
-if (!Number.isInteger(stubPort) || stubPort <= 0) opts.fail("--stub-port <port> is required: the port the Vite proxy forwards /world-api to (CREWHUB_WORLD_PORT)");
+const stubVerdict = ownPort(opts["stub-port"], "--stub-port");
+if (!stubVerdict.ok) opts.fail(`${stubVerdict.reason} (the port the Vite proxy forwards /world-api to, CREWHUB_WORLD_PORT)`);
+const stubPort = stubVerdict.value;
 const outDir = `${opts.out}a11y/`;
 mkdirSync(outDir, { recursive: true });
 
@@ -537,8 +540,11 @@ if (opts.demo) {
 
 await browser.close();
 // The Chat panel's frame is the one request that leaves the page by design: the loops web page the stub host names.
+// That same origin is what the page's road-2 probe asks (`GET /api/dm/threads`, round 28); the stub's web answers it as
+// a loops without CHL_WORLD_ORIGIN does, without a CORS header, so the browser prints the probe's two refusal lines on
+// every live page of the pass: admitted exactly, and nothing broader (lib/probeRefusal.ts, the regress tool's rule).
 const webUrl = stub.webUrl();
-const lines = problemLines(problems.filter((x) => !(x.kind === "console" && /status of 403/.test(x.text)) && !(x.kind === "external" && webUrl && x.text.includes(webUrl))));
+const lines = problemLines(problems.filter((x) => !(x.kind === "console" && /status of 403/.test(x.text)) && !(x.kind === "external" && webUrl && x.text.includes(webUrl)) && !isProbeRefusal(x, webUrl ? [webUrl] : [])));
 if (lines.length) console.log(lines.join("\n"));
 ok("no page errors, console errors or requests that leave the page", lines.length === 0, String(lines.length));
 console.log(`a11y: ${passed}/${total}`);

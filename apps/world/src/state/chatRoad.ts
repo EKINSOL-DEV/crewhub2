@@ -32,10 +32,12 @@ export const PAGE_PROBES: readonly PageProbe[] = ["on", "signed-out", "origin-no
  * where its connection names no session (it knows the key does not read the chat).
  */
 export function hostKeyReadsChatOf(health: { connection?: { session?: { state: string } } } | null | undefined): boolean | null {
-  const connection = health?.connection;
-  if (!connection) return null;
-  if (connection.session === undefined) return false;
-  return connection.session.state === "key" ? true : null;
+  const connection: unknown = health?.connection;
+  if (typeof connection !== "object" || connection === null) return null;
+  const session: unknown = (connection as { session?: unknown }).session;
+  if (session === undefined) return false;
+  // A session of another shape (null, a number: not what the host sends) is read as not said, never thrown on.
+  return typeof session === "object" && session !== null && (session as { state?: unknown }).state === "key" ? true : null;
 }
 
 export interface ChatRoadInput {

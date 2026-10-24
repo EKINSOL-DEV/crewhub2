@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { request } from "node:http";
+import { connect } from "node:net";
 import { after, before, describe, it } from "node:test";
 import { createHost, type Host } from "../src/host.ts";
 import { type LoopsStub, createLoopsStub, installation } from "./loopsStub.ts";
@@ -35,6 +36,18 @@ describe("the Host and Origin guard", () => {
     for (const bad of ["evil.example", `evil.example:${host.port}`, `127.0.0.1:${host.port + 1}`, "127.0.0.1"]) {
       assert.equal((await get({ host: bad })).status, 421, bad);
     }
+  });
+
+  it("refuses a request without a Host header at all (HTTP/1.0, where Node does not insist on one) with 421", async () => {
+    // `http.request` always adds a Host header, so the request is written by hand on a socket.
+    const status = await new Promise<string>((resolve, reject) => {
+      const socket = connect({ host: "127.0.0.1", port: host.port }, () => socket.write("GET /world-api/health HTTP/1.0\r\n\r\n"));
+      let text = "";
+      socket.on("data", (chunk: Buffer) => (text += chunk.toString("utf8")));
+      socket.on("end", () => resolve(text.split("\r\n")[0] ?? ""));
+      socket.on("error", reject);
+    });
+    assert.match(status, /^HTTP\/1\.[01] 421 /, status);
   });
 
   it("answers OPTIONS on a write route with 405 and never sends an access-control header, so no cross-origin page can write (review N4)", async () => {

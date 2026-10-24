@@ -122,3 +122,37 @@ test("importing the demo's prop tickets places each prop through the engine and 
   assert.equal(resolved.rooms.get("lobby")!.placed.length, 1);
   assert.equal(resolved.rooms.get("storage")!.placed.length, 1);
 });
+
+test("a second ticket whose prop carries an id already in the catalogue keeps both props, the newcomer under a ticket-suffixed id", async () => {
+  const scheduler = createManualScheduler(1_000);
+  const source = createDemoSource({ scheduler, speed: 16 });
+  const projection = new Projection(source, { coalesceMs: 0 });
+  source.start((message) => projection.apply(message));
+  scheduler.advance(Math.ceil((SCRIPT_DURATION_MS - 5_000) / 16));
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  const context = { knownStyles: ["greenhouse"], builtinIds: builtinIds(definitions) };
+  const model = reduceWorld(projection.facts, emptyMemory(), { now: source.now(), mode: "demo", roleOverrides: {} }).model;
+  const ticket = (await source.getTicket("CR-35"))!;
+  const comments = await source.getComments("CR-35");
+  const input = { context, builtins: definitions, model, comments, buildingPlan: "classic" as const };
+
+  const first = importPropRequest({ ...input, doc: emptyTownDocument(), ticket, placementId: "00000000-0000-4000-8000-000000000001" });
+  assert.ok(first.ok);
+  assert.equal(first.propId, "user:tall-fern");
+  // Another ticket, the same prop json: the first prop keeps its id and its provenance, the newcomer gets its own.
+  const again = importPropRequest({ ...input, doc: first.doc, ticket: { ...ticket, key: "CR-99" }, placementId: "00000000-0000-4000-8000-000000000002" });
+  assert.ok(again.ok);
+  assert.equal(again.propId, "user:tall-fern-cr-99");
+  assert.deepEqual(
+    again.doc.userProps.map((p) => [p.id, p.provenance]),
+    [
+      ["user:tall-fern", { kind: "ticket", ticketKey: "CR-35" }],
+      ["user:tall-fern-cr-99", { kind: "ticket", ticketKey: "CR-99" }],
+    ],
+  );
+  // The same ticket imported again is the same prop, not a second one.
+  const same = importPropRequest({ ...input, doc: first.doc, ticket, placementId: "00000000-0000-4000-8000-000000000003" });
+  assert.ok(same.ok);
+  assert.equal(same.propId, "user:tall-fern");
+  assert.equal(same.doc.userProps.length, 1);
+});

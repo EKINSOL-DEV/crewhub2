@@ -4,19 +4,22 @@
    loops on 8291) with `--key-file` (its key; read once, never printed). The host is in-process (`apps/host`): in a
    dev run it listens on `--host-port` behind your Vite (started with CREWHUB_WORLD_PORT=<host-port>) and the browser
    opens your Vite; in a production run (`--preview`) it serves apps/world/dist on `--host-port` (0: a free port) and
-   the browser opens the host itself. Pairing stays on, as in production: every context opens a one-time link first.
+   the browser opens the host itself. `--host-port` is required with `--source live` and is never 5180 (the host's
+   default, where somebody's real `npm run world` listens) nor the Mac app's (lib/toolGuard.ts). Pairing stays on, as in production: every context opens a one-time link first.
 
    Tooling only: nothing under apps/ or packages/ imports this folder. Loops is only ever a loopback address. */
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { ownPort } from "./toolGuard.ts";
 import { pairedTab } from "./world.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 /** The options every tool with a `--source` takes, with their defaults (spread into `cli`'s options). */
-export const LIVE_OPTIONS = { source: "demo", "loops-url": "", "key-file": "", "fake-scenario": "small-team", "fake-speed": "16", "host-port": "5180" };
-export const LIVE_USAGE = "[--source demo|live] [--loops-url <url> --key-file <file>] [--fake-scenario <id>] [--fake-speed 0|1|4|16] [--host-port <port>]";
+// --host-port has no default (round 36): 5180 is the host's default, somebody's real npm run world; a tool names a port of its own.
+export const LIVE_OPTIONS = { source: "demo", "loops-url": "", "key-file": "", "fake-scenario": "small-team", "fake-speed": "16", "host-port": "" };
+export const LIVE_USAGE = "[--source demo|live --host-port <port>] [--loops-url <url> --key-file <file>] [--fake-scenario <id>] [--fake-speed 0|1|4|16]";
 
 /**
  * Starts what live mode needs and answers { base, describe, pair(page), close }. `base` is the page address to open
@@ -52,8 +55,10 @@ export async function startLive(opts, { preview = false } = {}) {
     key = fake.key;
     keyName = fake.keyName;
   }
-  const hostPort = Number(opts["host-port"]);
-  if (!Number.isInteger(hostPort) || hostPort < 0) opts.fail("--host-port must be a port number");
+  // Behind your Vite the port is the one it proxies to (CREWHUB_WORLD_PORT); with --preview 0 is a free port the browser opens.
+  const portVerdict = ownPort(opts["host-port"], "--host-port", { free: preview });
+  if (!portVerdict.ok) opts.fail(`${portVerdict.reason}${preview ? "" : " (the port your Vite was started with as CREWHUB_WORLD_PORT)"}`);
+  const hostPort = portVerdict.value;
   const dist = path.join(REPO, "apps", "world", "dist");
   if (preview && !existsSync(path.join(dist, "index.html"))) opts.fail("--preview with --source live serves apps/world/dist: run npm run build first");
   const hostOptions = { loopsUrl, key, keyName, log: () => undefined };

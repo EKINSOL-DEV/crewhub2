@@ -6,6 +6,7 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
+import { ownPort } from "./toolGuard.ts";
 
 const TOOLS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -15,8 +16,8 @@ export const SWIFTSHADER_ARGS = ["--headless=new", "--use-angle=swiftshader", "-
 
 /**
  * Reads the command line: `--name value` options (with their defaults), `--name` flags, and what is left over in
- * order. Every tool takes --port (required), --out <dir> (default tools/out/) and --swiftshader; `usage` is printed
- * with any mistake. `out` is an absolute directory that exists, ending in a slash.
+ * order. Every tool takes --port (required: your own Vite's port, never 5180 or the Mac app's, lib/toolGuard.ts),
+ * --out <dir> (default tools/out/) and --swiftshader; `usage` is printed with any mistake. `out` is an absolute directory that exists, ending in a slash.
  */
 export function cli(usage, { options = {}, flags = [] } = {}) {
   const argv = process.argv.slice(2);
@@ -40,8 +41,9 @@ export function cli(usage, { options = {}, flags = [] } = {}) {
       values[arg.slice(2)] = argv[++i];
     } else fail(`unknown option ${arg}`);
   }
-  const port = Number(values.port);
-  if (!Number.isInteger(port) || port <= 0) fail("--port <port> is required: the port your own Vite serves the world on");
+  const portVerdict = ownPort(values.port, "--port");
+  if (!portVerdict.ok) fail(`${portVerdict.reason} (--port is the port your own Vite serves the world on)`);
+  const port = portVerdict.value;
   const out = path.resolve(values.out ?? path.join(TOOLS, "out")) + path.sep;
   mkdirSync(out, { recursive: true });
   return { ...values, ...set, port, out, rest, origin: `http://127.0.0.1:${port}`, base: `http://127.0.0.1:${port}/`, fail };

@@ -1,9 +1,9 @@
 /* regress.mjs: the browser regression pass of the integrated world, in ten groups.
 
    Usage:
-     node tools/regress.mjs --port <port> [--groups connect,walk,demo,live,ops,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]
+     node tools/regress.mjs --port <port> [--groups connect,walk,demo,tour,live,town,ops,chat,rooms,real] --host-port <port> [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]
 
-   Groups (--groups, default all eight, in this order; connect first, the connection being the first priority):
+   Groups (--groups, default all ten, in this order; connect first, the connection being the first priority):
      connect the connect flow (spec addendum "a smooth connection"), 23 checks in two halves, both behind your Vite
            (started with CREWHUB_WORLD_PORT=<host-port>; apps/world/dist is never looked at here, whatever the live
            group does with it). Against the stub host of lib/connectStub.mjs, on --host-port, always: one page meets
@@ -41,7 +41,7 @@
            after a new fake on the same port, and, when the host has pairing, the pairing page without the bearer and
            the world after the one-time link. When `apps/world/dist` exists (after `npm run build`) the host serves
            it on a free port and the browser opens the host directly; otherwise the host listens on --host-port
-           (default 5180, Vite's default proxy target) and the browser opens your Vite, which must have been started
+           (required, a port of your own: never 5180, the host's default, nor the Mac app's) and the browser opens your Vite, which must have been started
            with CREWHUB_WORLD_PORT=<host-port>. A dist older than the world's sources (the host's own freshness
            check, apps/host/src/build.ts) is refused before any group runs, with both times: run `npm run build`, or
            remove the dist to run behind your Vite; the same holds for chat and ops. About a minute, most of it the
@@ -122,14 +122,20 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { cli, dressed, hostGet, launch, list, pairedTab, problemLines, seek, speed, watch } from "./lib/world.mjs";
 import { createConnectStub } from "./lib/connectStub.mjs";
 import { createLoopsWebStub } from "./lib/loopsWebStub.mjs";
+import { isProbeRefusal } from "./lib/probeRefusal.ts";
+import { appDataPort, ownAppData, ownPort } from "./lib/toolGuard.ts";
 
 // The connect group first: the connection is the first priority, so a default pass fails on it first.
 const GROUPS = ["connect", "walk", "demo", "tour", "live", "town", "ops", "chat", "rooms", "real"];
-const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,tour,live,town,ops,chat,connect,rooms,real] [--host-port 5180] [--loops dev|main] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]";
-const opts = cli(USAGE, { options: { tag: "pass", groups: GROUPS.join(","), "host-port": "5180", loops: "", "loops-env": "", "loops-socket": "", "loops-app-data": "", "cpu-throttle": "1" } });
+const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,tour,live,town,ops,chat,connect,rooms,real] --host-port <port> [--loops dev|main] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]";
+const opts = cli(USAGE, { options: { tag: "pass", groups: GROUPS.join(","), "host-port": "", loops: "", "loops-env": "", "loops-socket": "", "loops-app-data": "", "cpu-throttle": "1" } });
 const cpuThrottle = Number(opts["cpu-throttle"]);
 if (!(cpuThrottle >= 1)) opts.fail("--cpu-throttle <rate> must be 1 (none) or more");
 const groups = list(opts.groups, GROUPS, opts.fail, "group");
+// The host port every group binds behind your Vite (round 36): named, and never 5180 (the host's default, somebody's
+// real npm run world) nor the Mac app's. Checked here, before a browser opens; the groups read opts["host-port"] as before.
+const hostPortVerdict = ownPort(opts["host-port"], "--host-port");
+if (!hostPortVerdict.ok) opts.fail(`${hostPortVerdict.reason} (the port your Vite was started with as CREWHUB_WORLD_PORT)`);
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const { tag, out: OUT, base: BASE, origin } = opts;
 // The built world the live, chat and ops groups serve when it is there (the browser opens the host directly); without
@@ -216,18 +222,9 @@ const road2Ask = (x) => {
 /**
  * The probe's refusal as the browser prints it (the verdict origin-not-set or unreachable): exactly the CORS line for
  * the threads route at a loops origin of this run from the page's own origin, and the browser's "Failed to load
- * resource" line for that same URL (`net::ERR_FAILED` when nothing readable came back, "the server responded with a
- * status of 401 (Unauthorized)" when loops answered the cookie-less ask and the browser then withheld it). Nothing else.
+ * resource" line for that same URL. Nothing else (lib/probeRefusal.ts, the rule a11y.mjs shares since round 32).
  */
-const probeRefusal = (x) => {
-  if (x.kind !== "console") return false;
-  const text = x.text.replace(/^\[[^\]]*\] /, "");
-  for (const origin of allLoopsOrigins()) {
-    if (text === `Access to fetch at '${origin}/api/dm/threads' from origin '${x.pageOrigin}' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.`) return true;
-    if (x.url === `${origin}/api/dm/threads` && (text === "Failed to load resource: net::ERR_FAILED" || /^Failed to load resource: the server responded with a status of \d{3} \([A-Za-z ]+\)$/.test(text))) return true;
-  }
-  return false;
-};
+const probeRefusal = (x) => isProbeRefusal(x, allLoopsOrigins());
 const sheet = (p) => p.locator("#text-view");
 /** Opens the text view (T), reads it and closes it again. */
 const text = async (p) => {
@@ -2085,6 +2082,12 @@ await group("connect", async () => {
       info(`connect: the real half skipped, no settings.json in ${appData} (--loops-app-data names the development loops' data folder)`);
       return;
     }
+    // The folder must be a development loops' own, never the Mac app's, and its settings.json must name a port that is
+    // neither the app's nor the world host's (round 36): the keyless host below looks exactly there.
+    const folderVerdict = ownAppData(appData, process.env.HOME ?? "~");
+    if (!folderVerdict.ok) opts.fail(`--loops-app-data: ${folderVerdict.reason}`);
+    const portVerdict = appDataPort(readFileSync(path.join(appData, "settings.json"), "utf8"));
+    if (!portVerdict.ok) opts.fail(`--loops-app-data ${appData}: ${portVerdict.reason}`);
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
     const pg = await ctx.newPage();
     const half = (words) => `connect (${parsed.port}): ${words}`;
@@ -2226,6 +2229,135 @@ await group("rooms", async () => {
   const HALLS = ["Administration", "The floor", "Lead's office"];
   let p = await open();
   await town(p, 3000, `${BASE}?rooms=three`);
+  // Round 33 (the mutation check of the scene's teardown, r33-mut-scene): what a browser sees once a scene is torn
+  // down, in two teardowns. (a) StrictMode's rehearsal mount on the dev build makes a scene, disposes it and makes the
+  // one that stays: the host holds one canvas, and no listener from the scene's own files (TownScene.ts,
+  // WorldCanvas.tsx, three's OrbitControls) stands twice on window or document. (b) A scene made beside the live one
+  // from the same view and disposed once laid out: its canvas keeps no listener (the scene's own, the controls' and
+  // the renderer's), the interval it made is cleared, it draws no frame, its host no longer sizes its canvas, the
+  // canvas is out of the host (and, put back, is not sized by the host again), and every geometry the scene alone
+  // held is disposed.
+  // The browser's own listener table for an object (CDP), each listener with the file and line of its handler.
+  const inspector = async (page) => {
+    const cdp = await page.context().newCDPSession(page);
+    const scripts = new Map();
+    cdp.on("Debugger.scriptParsed", (e) => scripts.set(e.scriptId, e.url));
+    await cdp.send("Debugger.enable");
+    const listenersOf = async (expression) => {
+      const { result } = await cdp.send("Runtime.evaluate", { expression });
+      const { listeners } = await cdp.send("DOMDebugger.getEventListeners", { objectId: result.objectId });
+      await cdp.send("Runtime.releaseObject", { objectId: result.objectId }).catch(() => {});
+      return listeners.map((l) => ({ type: l.type, capture: l.useCapture, url: scripts.get(l.scriptId) ?? "", line: l.lineNumber + 1, column: l.columnNumber + 1 }));
+    };
+    const close = async () => {
+      await cdp.send("Debugger.disable").catch(() => {});
+      await cdp.detach().catch(() => {});
+    };
+    return { listenersOf, close };
+  };
+  let { listenersOf, close: closeInspector } = await inspector(p);
+  const sceneFiles = /TownScene\.ts|WorldCanvas\.tsx|OrbitControls/;
+  const doubled = (list) => {
+    const seen = new Map();
+    for (const l of list) {
+      if (!sceneFiles.test(l.url)) continue;
+      const key = `${l.type}${l.capture ? " (capture)" : ""} ${l.url.replace(/^.*\//, "").replace(/\?.*$/, "")}:${l.line}:${l.column}`;
+      seen.set(key, (seen.get(key) ?? 0) + 1);
+    }
+    return [...seen].filter(([, n]) => n > 1).map(([key, n]) => `${key} ×${n}`);
+  };
+  const onWindow = await listenersOf("window");
+  const onDocument = await listenersOf("document");
+  const sceneOwned = [...onWindow, ...onDocument].filter((l) => sceneFiles.test(l.url)).length;
+  const canvases = await p.locator(".canvas-host canvas").count();
+  const twice = [...doubled(onWindow), ...doubled(onDocument)];
+  ok("rooms (round 33, teardown a): StrictMode's rehearsal mount leaves one canvas in the host and no listener of the scene's files twice on window or document", canvases === 1 && sceneOwned > 0 && twice.length === 0, `${canvases} canvas(es); ${sceneOwned} listener(s) of the scene's files on window and document; doubled: ${twice.join(", ") || "none"}`);
+  const made = await p.evaluate(async () => {
+    const live = globalThis.__town;
+    const { TownScene } = await import("/src/world/TownScene.ts");
+    const host = document.createElement("div");
+    host.style.cssText = "position:fixed;left:0;top:0;width:320px;height:200px;opacity:0;pointer-events:none";
+    const labels = document.createElement("div");
+    document.body.append(host, labels);
+    const intervals = [];
+    const cleared = new Set();
+    const setInterval0 = window.setInterval;
+    const clearInterval0 = window.clearInterval;
+    window.setInterval = (...args) => {
+      const id = setInterval0.apply(window, args);
+      intervals.push(id);
+      return id;
+    };
+    window.clearInterval = (id) => {
+      cleared.add(id);
+      return clearInterval0.call(window, id);
+    };
+    const none = () => {};
+    let ready = false;
+    let scene = null;
+    try {
+      scene = new TownScene(host, labels, { ...live.view }, { enter: none, hover: none, pick: none, error: none, build: none, followed: none, followStopped: none, ready: () => (ready = true), walkPlace: none });
+    } finally {
+      // The constructor is synchronous: the intervals it made are the probe's. The dev probe points at the live scene again.
+      window.setInterval = setInterval0;
+      globalThis.__town = live;
+    }
+    const frame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    for (let i = 0; i < 300 && !ready; i++) await pause(50);
+    await frame();
+    // Its host sizes it while it lives.
+    const canvas = host.querySelector("canvas");
+    host.style.width = "400px";
+    await pause(100);
+    await frame();
+    const geometriesOf = (root) => {
+      const set = new Set();
+      root.traverse((o) => o.geometry && set.add(o.geometry));
+      return set;
+    };
+    // Its own geometries: in its graph and not in the live scene's; the plots' hit boxes share one module constant.
+    const shared = geometriesOf(live.scene);
+    scene.scene.traverse((o) => o.userData.plot && o.geometry && shared.add(o.geometry));
+    const own = [...geometriesOf(scene.scene)].filter((g) => !shared.has(g));
+    const disposed = new Set();
+    for (const g of own) {
+      const dispose = g.dispose;
+      g.dispose = function () {
+        disposed.add(this);
+        return dispose.call(this);
+      };
+    }
+    globalThis.__probe = { scene, host, labels, canvas, intervals, cleared, own, disposed, restore: () => (window.clearInterval = clearInterval0) };
+    return { ready, intervals: intervals.length, own: own.length, sizedAlive: canvas?.width ?? -1 };
+  });
+  const canvasListenersAlive = (await listenersOf("globalThis.__probe.canvas")).length;
+  const gone = await p.evaluate(async () => {
+    const { scene, host, labels, canvas, intervals, cleared, own, disposed, restore } = globalThis.__probe;
+    const frame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    scene.dispose();
+    restore();
+    let drawn = 0;
+    scene.renderer.render = () => drawn++;
+    const inHost = host.querySelector("canvas") !== null;
+    // Its canvas put back in the host: a host that changes size must not reach the scene any more (its resize
+    // handler sizes the canvas whenever the canvas has a parent).
+    host.append(canvas);
+    host.style.width = "480px";
+    await pause(300);
+    await frame();
+    const left = own.filter((g) => !disposed.has(g)).map((g) => `${g.type}${g.name ? ` ${g.name}` : ""}`);
+    return { intervalsLeft: intervals.filter((id) => !cleared.has(id)).length, drawn, sizedAfter: canvas.width, inHost, left: left.length, leftNames: [...new Set(left)].slice(0, 6).join(", ") };
+  });
+  const canvasListenersAfter = (await listenersOf("globalThis.__probe.canvas")).length;
+  await p.evaluate(() => {
+    globalThis.__probe.host.remove();
+    globalThis.__probe.labels.remove();
+    delete globalThis.__probe;
+  });
+  await closeInspector();
+  ok("rooms (round 33, teardown b): a scene made beside the live one and disposed once laid out keeps no listener on its canvas, clears its interval, draws no frame, leaves the host and is not sized by it again, and disposes every geometry it alone held", made.ready && made.intervals > 0 && made.own > 0 && canvasListenersAlive > 0 && canvasListenersAfter === 0 && gone.intervalsLeft === 0 && gone.drawn === 0 && made.sizedAlive === 400 && gone.sizedAfter === 400 && !gone.inHost && gone.left === 0, `laid out ${made.ready}; canvas listeners ${canvasListenersAlive} alive, ${canvasListenersAfter} after; intervals ${made.intervals} made, ${gone.intervalsLeft} left; frames drawn after ${gone.drawn}; canvas width ${made.sizedAlive} alive (host 400), ${gone.sizedAfter} after (host 480); in host after: ${gone.inHost}; own geometries ${made.own}, undisposed ${gone.left}${gone.left ? ` (${gone.leftNames})` : ""}`);
   await canvas(p).focus();
   await p.keyboard.press("ArrowRight");
   await p.keyboard.press("Enter");
@@ -2402,7 +2534,16 @@ await group("rooms", async () => {
   }
   ok("rooms: walking on reaches the floor", !!onFloor && /\/workers$/.test(onFloor.room), onFloor ? `${onFloor.room} (x ${onFloor.x.toFixed(2)}, z ${onFloor.z.toFixed(2)}, ${Math.hypot(onFloor.dx, onFloor.dz).toFixed(2)} from the stop)` : "no walk");
   await shot(p, "30-rooms-walk-floor");
+  // Round 33 (teardown c): the walk's key listeners (WalkControls in WorldCanvas.tsx) stand on window while the walk
+  // lasts and are gone once Escape ends it.
+  ({ listenersOf, close: closeInspector } = await inspector(p));
+  const walkKeys = async () => (await listenersOf("window")).filter((l) => /WorldCanvas\.tsx/.test(l.url)).map((l) => l.type).sort();
+  const keysWalking = await walkKeys();
   await p.keyboard.press("Escape");
+  await p.waitForTimeout(500);
+  const keysAfter = await walkKeys();
+  ok("rooms (round 33, teardown c): the walk's key listeners stand on window during the walk and none is left once Escape ends it", keysWalking.length > 0 && keysAfter.length === 0, `walking: ${keysWalking.join(", ") || "none"}; after Escape: ${keysAfter.join(", ") || "none"}`);
+  await closeInspector();
   await p.context().close();
 });
 

@@ -44,7 +44,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildWorld, checkBuild } from "./build.ts";
 import { checkoutId } from "./checkout.ts";
-import { ConfigError, type ServerConfig, loadKey, loadServerConfig, worldEnv } from "./config.ts";
+import { ConfigError, type ServerConfig, loadKey, loadServerConfig, worldEnv, configFolderLine } from "./config.ts";
 import { formatDoctor, runDoctor } from "./doctor.ts";
 import { createArchiveStore } from "./archiveStore.ts";
 import { removeLeftoverSession } from "./leftovers.ts";
@@ -153,6 +153,7 @@ function openBrowser(link: string): boolean {
 
 let args: Args;
 let config: ServerConfig;
+let folderLine = "";
 let key: ReturnType<typeof loadKey>;
 /** `world`: the build check's verdict (the build itself runs after the host listens). */
 let build: ReturnType<typeof checkBuild> | null = null;
@@ -169,6 +170,7 @@ try {
     process.exit(report.ok ? 0 : 1);
   }
   config = loadServerConfig(env);
+  folderLine = configFolderLine(env);
   if (args.command === "open" || args.command === "world") {
     const link = await mintFromRunning(config.port, args.origin);
     if (link !== null) {
@@ -202,6 +204,8 @@ if (args.command === "world") {
     // The pairing secret's own write says what is wrong.
   }
 }
+// Which folder this host keeps its key, archive memory, pairing secret and world database in, and why (round 34).
+log(folderLine);
 // The sign-in road is gone (round 19; round 28 on feat/world-demo): a session file an older host kept is deleted, said once.
 removeLeftoverSession(config.configDir, log);
 const pairingSecret = config.pairingFile === null ? undefined : loadPairingSecret(config.pairingFile);
