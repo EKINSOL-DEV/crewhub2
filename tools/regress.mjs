@@ -1,7 +1,7 @@
 /* regress.mjs: the browser regression pass of the integrated world, in ten groups.
 
    Usage:
-     node tools/regress.mjs --port <port> [--groups connect,walk,demo,tour,live,town,ops,chat,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]
+     node tools/regress.mjs --port <port> [--groups connect,walk,demo,tour,live,town,ops,chat,rooms,real] --host-port <port> [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]
 
    Groups (--groups, default all ten, in this order; connect first, the connection being the first priority):
      connect the connect flow (spec addendum "a smooth connection"), 23 checks in two halves, both behind your Vite
@@ -41,7 +41,7 @@
            after a new fake on the same port, and, when the host has pairing, the pairing page without a cookie and
            the world after the one-time link. When `apps/world/dist` exists (after `npm run build`) the host serves
            it on a free port and the browser opens the host directly; otherwise the host listens on --host-port
-           (default 5180, Vite's default proxy target) and the browser opens your Vite, which must have been started
+           (required, a port of your own: never 5180, the host's default, nor the Mac app's) and the browser opens your Vite, which must have been started
            with CREWHUB_WORLD_PORT=<host-port>. A dist older than the world's sources (the host's own freshness
            check, apps/host/src/build.ts) is refused before any group runs, with both times: run `npm run build`, or
            remove the dist to run behind your Vite; the same holds for chat and ops. About a minute, most of it the
@@ -123,14 +123,19 @@ import { cli, dressed, launch, list, problemLines, seek, speed, watch } from "./
 import { createConnectStub } from "./lib/connectStub.mjs";
 import { createLoopsWebStub } from "./lib/loopsWebStub.mjs";
 import { isProbeRefusal } from "./lib/probeRefusal.ts";
+import { appDataPort, ownAppData, ownPort } from "./lib/toolGuard.ts";
 
 // The connect group first: the connection is the first priority, so a default pass fails on it first.
 const GROUPS = ["connect", "walk", "demo", "tour", "live", "town", "ops", "chat", "rooms", "real"];
-const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,tour,live,town,ops,chat,connect,rooms,real] [--host-port 5180] [--loops dev|main] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]";
-const opts = cli(USAGE, { options: { tag: "pass", groups: GROUPS.join(","), "host-port": "5180", loops: "", "loops-env": "", "loops-socket": "", "loops-app-data": "", "cpu-throttle": "1" } });
+const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,tour,live,town,ops,chat,connect,rooms,real] --host-port <port> [--loops dev|main] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]";
+const opts = cli(USAGE, { options: { tag: "pass", groups: GROUPS.join(","), "host-port": "", loops: "", "loops-env": "", "loops-socket": "", "loops-app-data": "", "cpu-throttle": "1" } });
 const cpuThrottle = Number(opts["cpu-throttle"]);
 if (!(cpuThrottle >= 1)) opts.fail("--cpu-throttle <rate> must be 1 (none) or more");
 const groups = list(opts.groups, GROUPS, opts.fail, "group");
+// The host port every group binds behind your Vite (round 36): named, and never 5180 (the host's default, somebody's
+// real npm run world) nor the Mac app's. Checked here, before a browser opens; the groups read opts["host-port"] as before.
+const hostPortVerdict = ownPort(opts["host-port"], "--host-port");
+if (!hostPortVerdict.ok) opts.fail(`${hostPortVerdict.reason} (the port your Vite was started with as CREWHUB_WORLD_PORT)`);
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const { tag, out: OUT, base: BASE, origin } = opts;
 // The built world the live, chat and ops groups serve when it is there (the browser opens the host directly); without
@@ -2070,6 +2075,12 @@ await group("connect", async () => {
       info(`connect: the real half skipped, no settings.json in ${appData} (--loops-app-data names the development loops' data folder)`);
       return;
     }
+    // The folder must be a development loops' own, never the Mac app's, and its settings.json must name a port that is
+    // neither the app's nor the world host's (round 36): the keyless host below looks exactly there.
+    const folderVerdict = ownAppData(appData, process.env.HOME ?? "~");
+    if (!folderVerdict.ok) opts.fail(`--loops-app-data: ${folderVerdict.reason}`);
+    const portVerdict = appDataPort(readFileSync(path.join(appData, "settings.json"), "utf8"));
+    if (!portVerdict.ok) opts.fail(`--loops-app-data ${appData}: ${portVerdict.reason}`);
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
     const pg = await ctx.newPage();
     const half = (words) => `connect (${parsed.port}): ${words}`;
