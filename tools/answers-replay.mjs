@@ -9,8 +9,9 @@
    `cookie+expiry` is task/q1-cookie-expiry, `cookie` merges neither). A conflict the plan knows (its hand merges A to G,
    kept as data below, each a rule on the two sides' content) is resolved and committed; any other conflict stops the
    run with the file named and the merge left open for a person. After `tab`, the two LOOPS_SETUP.md paragraphs that
-   branch drops are put back from the base (C, a commit of its own); after `cookie+expiry`, q3's health-keys test gets
-   the field q1 adds (B, folded into the merge commit). Prints every step and the result's sha last; with --check runs
+   branch once dropped must be there (C: the branch carries them since round 38; missing means it dropped them again,
+   and the run stops); after `cookie+expiry`, q3's health-keys test gets the field q1 adds (B, folded into the merge
+   commit). Prints every step and the result's sha last; with --check runs
    `npm run check` on the result (its log under tools/out/). Touches no branch, never pushes: the result is a detached
    commit to look at, or to fast-forward feat/world-demo to by hand once the answers are in and the night's regress is
    green.
@@ -99,15 +100,7 @@ function readme(a, b) {
 }
 
 const SETUP_FIRST = "The source setting is `auto`";
-const SETUP_BEARER = "In development the world runs on the Vite origin, which proxies";
-
-/** G. docs/LOOPS_SETUP.md, r27 x q8: r27's bearer paragraph, then q8's side from the source setting on. */
-function setup(a, b) {
-  const [r27, q8] = a.some((l) => l.includes("the bearer rides")) ? [a, b] : [b, a];
-  const starts = q8.map((l, k) => (l.startsWith(SETUP_FIRST) ? k : -1)).filter((k) => k >= 0);
-  if (starts.length !== 1 || r27.length === 0 || !r27[0].startsWith(SETUP_BEARER)) refuse("LOOPS_SETUP.md: not the r27 x q8 shape");
-  return [...r27, "", ...q8.slice(starts[0])];
-}
+const SETUP_ZONES = "Zones: every live project";
 
 /** A. apps/host/src/host.ts, q1 x q3: q3's comment without `const isPaired = paired(req);` (q1 declares isPaired above). */
 function hostTs(a, b) {
@@ -117,13 +110,12 @@ function hostTs(a, b) {
   return q3.filter((l) => !l.includes("const isPaired = paired(req);"));
 }
 
-/** The rules, by the file they resolve; the letters are the plan's. */
+/** The rules, by the file they resolve; the letters are the plan's (G, LOOPS_SETUP.md against q8, retired in round 38: the branch carries the paragraphs, the merge is clean). */
 export const RULES = {
   "apps/host/src/host.ts": { letter: "A", resolve: hostTs },
   "apps/host/README.md": { letter: "D", resolve: readme },
   "apps/world/hostPort.ts": { letter: "E", resolve: hostPort },
   "apps/host/test/pairing.test.ts": { letter: "F", resolve: pairingTest },
-  "docs/LOOPS_SETUP.md": { letter: "G", resolve: setup },
 };
 
 /** A file's text with its conflict blocks resolved by the plan's rule for that file; a Refusal otherwise. */
@@ -138,14 +130,10 @@ export function resolveText(file, text) {
   return out;
 }
 
-/** C. The two LOOPS_SETUP.md paragraphs r27 drops, back from the base's text, after r27's bearer paragraph. */
-export function restoreSetup(text, baseText) {
-  if (text.includes(SETUP_FIRST)) return { text, changed: false };
-  const m = /(The source setting is `auto`[\s\S]*?\n\nZones: every live project[\s\S]*?\nonce\.\n)/.exec(baseText);
-  if (m === null) refuse("restore-setup: the base has no such paragraphs");
-  const anchor = "or open the printed one on the host's origin (a tab is paired per origin).\n";
-  if (text.split(anchor).length !== 2) refuse("restore-setup: r27's bearer paragraph not found once");
-  return { text: text.replace(anchor, `${anchor}\n${m[1].replace(/\n+$/, "")}\n`), changed: true };
+/** C. After `tab`: the two LOOPS_SETUP.md paragraphs r27 once dropped must be there (the branch carries them since round 38). */
+export function setupParagraphs(text) {
+  if (!text.includes(SETUP_FIRST) || !text.includes(SETUP_ZONES)) refuse("docs/LOOPS_SETUP.md: the source-setting and zones paragraphs are missing after task/r27-tab-pairing (the branch dropped them again)");
+  return true;
 }
 
 /** B. q3's test pins health's keys before pairing; r27 and q1 add pairingIdleDays to health (clean textual merge, red test). */
@@ -208,13 +196,13 @@ function main(argv) {
   if (q1 === "tab") {
     merge("tab");
     const file = "docs/LOOPS_SETUP.md";
-    const restored = restoreSetup(readFileSync(path.join(repo, file), "utf8"), git("show", `${base}:${file}`));
-    if (restored.changed) {
-      writeFileSync(path.join(repo, file), restored.text);
-      git("add", file);
-      git("commit", "-q", "-m", "docs: the two LOOPS_SETUP.md paragraphs (the source setting; zones and the town) that task/r27-tab-pairing drops, put back from the base (merge plan, round 37, C)");
-      console.log(`restored ${file} (C) -> ${short()}`);
-    } else console.log("C: the LOOPS_SETUP.md paragraphs are there");
+    try {
+      setupParagraphs(readFileSync(path.join(repo, file), "utf8"));
+      console.log("C: the LOOPS_SETUP.md paragraphs are there");
+    } catch (error) {
+      console.error(`answers-replay: ${error instanceof Error ? error.message : String(error)} (the result ${short()} stands, unmerged further)`);
+      process.exit(1);
+    }
   } else if (q1 === "cookie+expiry") {
     merge("cookie+expiry");
     const file = "apps/host/test/pairing.test.ts";
