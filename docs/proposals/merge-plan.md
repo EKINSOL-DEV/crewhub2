@@ -1,8 +1,8 @@
-# Merging Nicky's answers: the rehearsed plan (rounds 37 and 38, 2026-10-24)
+# Merging Nicky's answers: the rehearsed plan (rounds 37 to 39, 2026-10-24 and 25)
 
 Seven answer branches wait on [the open questions](open-questions.md). This page says, for every set of answers Nicky
 can give, in which order the branches merge into `feat/world-demo` and what has to be done by hand. Every hand merge
-below was rehearsed on a throwaway checkout of the base (`e55ef42` in round 37, `a0750aa` in round 38) with `npm run check`
+below was rehearsed on a throwaway checkout of the base (`e55ef42` in round 37, `a0750aa` in round 38, `c0ae5ec` in round 39) with `npm run check`
 green on the result, and
 is written so it can be redone without thinking. **Nicky needs §1 only**, and only the first three columns of its table
 to find the row; crewy and the Lead use the rest (§2 the evidence, §3 each hand merge exactly, §4 the check and the
@@ -12,11 +12,11 @@ The branches, at the heads this plan was made on (the branches are read only; th
 
 | Question | Answer | Branch | Head |
 | --- | --- | --- | --- |
-| 1 (and 2) | `tab` | `task/r27-tab-pairing` | `4fed988` |
+| 1 (and 2) | `tab` | `task/r27-tab-pairing` | `de2969e` |
 | 1 (and 2) | `cookie+expiry` | `task/q1-cookie-expiry` | `67d6970` |
 | 1 | `cookie` | no branch | |
 | 3 | `less` | `task/q3-health-less` | `dbb5a41` |
-| 8 | `say` | `task/q8-offline-say` | `72e1504` |
+| 8 | `say` | `task/q8-offline-say` | `2fb1847` |
 | 11 | `show` | `task/q11-recent-since` | `2c0bd7f` |
 | 14 | `cap` | `task/q14-dm-read-cap` | `f8fa725` |
 | 15 | `cap` | `task/q15-body-cap` | `c83b27c` |
@@ -90,6 +90,24 @@ order, then question 1's branch last; every hand merge then happens in that last
   (the same tree as the daytime replay `1721cc4`), `npm run check` 1083 / 1083 and the regress **198 / 198**. The one
   check more is `r27-tab-pairing`'s own, in the `chat` group: none of the page's asks on road 2 carries the tab's
   pairing header. Nothing of the replay was pushed; its result is a commit on no branch.
+- **The heaviest set held up as well as the head, round 39's night.** Each run had its own ports and its own
+  `CREWHUB_WORLD_CONFIG_DIR`.
+  - **A 330-minute soak** of the replay `d7cae91`, live against the dev loops with the seed moving work and a second
+    tab paired from its sibling: heap after GC +0.08 MB an hour (round 27 on the head of its day: 0.24), DOM nodes
+    287 throughout, listeners flat, the host process's memory 44 to 65 MB and 4 to 7 sockets from minute 30 on, 65
+    reconnects (two per 10 minutes, loops' 300 s stream end, as round 27). Nothing grows. Road 1's chat was not soaked:
+    that loops is older than the viewer key.
+  - **Two findings against answer branches, both fixed on the branch** (one commit each, no rebase):
+    - `task/q8-offline-say` → `2fb1847`: offline, the Connection panel said the one-tab sentence twice, in the Town
+      and Zones rows (the a11y trees); it now says it once per place.
+    - `task/r27-tab-pairing` → `de2969e`: every unpaired cold start, the demo included, waited 300 ms for the other
+      tabs before the source was decided (348 → 649 ms to the town). The tabs are now asked only when the host says
+      this tab is not paired, and a sibling's answer is followed by one more health probe.
+  - **The replay with both fixes,** `tab q3 q8 q11 q14 q15` on `c0ae5ec` (D, F, E; C passes), result `e0b04e7`:
+    `npm run check` 1086 / 1086, the full regress **197 / 197** (198 less the `real` group's dust check, skipped
+    because the soak's seed left no quiet stretch on the loops), `tools/a11y.mjs --demo` 188 / 188 as on the head, the
+    cold start 337 and 359 ms against the head's 329 and 340. The budget's other rows (bundle +0.15 %, frames, phone,
+    heap at 16x) read as the head's.
 - **The `cookie+expiry` and `cookie` rows, rehearsed in round 37** (detached checkouts; the five independent branches
   then the question-1 branch): the five alone on `e55ef42`, check 1070 of 1070; the five then `q1-cookie-expiry` (A,
   then B), check 1075 of 1075 on `e55ef42` and again on `761db9f` (`769434a`); the five then `r27-tab-pairing`, check
