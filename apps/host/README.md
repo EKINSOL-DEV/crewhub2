@@ -305,7 +305,9 @@ per-tab road; the merged road is the cookie, see `feat/world-demo`):
    demo" button; `health.paired` is what it checks. **A second tab** of the same browser asks the open tabs over a
    BroadcastChannel (same origin only) and gets the bearer handed over within 300 ms, no link needed; with no paired
    tab open it meets the Pair page, and "I opened the link" asks the tabs again (the link opens in a new tab, which
-   then holds the bearer). A tab that was live and gets 401 `not_paired` later (a host restarted without its secret,
+   then holds the bearer). The ask comes after the source decision and only when the host's health says this tab is
+   not paired (round 39), so the demo, a silent host and a tab that holds a bearer or came in through the link never
+   wait for it. A tab that was live and gets 401 `not_paired` later (a host restarted without its secret,
    or a pairing unused past the idle window) shows the same page with the chip word "Pair again".
 5. **Expiry**: a bearer unused for `CREWHUB_WORLD_PAIRING_IDLE_DAYS` (default 30; 0 never) is refused; the window
    slides with every use, the Pair page and the Connection panel say the number. The last use is kept in the host's

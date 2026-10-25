@@ -6,28 +6,30 @@ import { lazy, StrictMode, Suspense, useState, type ComponentType } from "react"
 import { createRoot } from "react-dom/client";
 import { ThemeProvider } from "./state/theme";
 import { answerTabs, askTabsForPairing, prefetchSnapshot, probeHost, readPairing, redeemPairToken, takeFragmentToken, type HostHealth, type HostSourceOptions } from "@crewhub/loops-client";
-import { decideSource, readSourceSetting, setFirstSnapshot, setSourceDecision, type SourceDecision } from "./state/source";
-import { pairingPlan } from "./state/pairing";
+import { decideSource, PROBE_TIMEOUT_MS, readSourceSetting, setFirstSnapshot, setSourceDecision, type SourceDecision } from "./state/source";
+import { pairedDecision, pairingPlan } from "./state/pairing";
 import { connectScreen } from "./state/connect";
 import { ConnectPage } from "./components/ConnectPage";
 
-/* The tab's pairing first (round 27, per-tab bearer): a token in the URL fragment is exchanged for this tab's bearer and
-   taken out of the URL; a tab without one asks the other tabs of this origin for theirs (300 ms); a paired tab answers
-   such asks while it is open. The host's health is then asked with the bearer, so the decision sees `paired`. */
-async function pairedAtStart(): Promise<void> {
-  const plan = pairingPlan({ token: takeFragmentToken(), bearer: readPairing() });
-  if (plan.step === "redeem") {
-    const outcome = await redeemPairToken(plan.token);
-    if (outcome.kind === "refused") console.info(`CrewHub World: the pairing link was refused (${outcome.reason}).`);
-  } else if (plan.step === "ask") await askTabsForPairing();
-  answerTabs();
-}
-
 /* The source (demo or live) is decided before the app's modules load: state/world.ts reads it at import. `auto` asks the
-   host once; a silent host is the demo, said in one info line. */
+   host once; a silent host is the demo, said in one info line. The tab's pairing goes with it (round 27, per-tab bearer;
+   state/pairing.ts has the order): a token in the URL fragment is exchanged for this tab's bearer first and taken out of
+   the URL, so the probe sees `paired`; a tab without one asks the other tabs of this origin for theirs (300 ms) only when
+   the decision is live and the host says this tab is not paired (round 39: the demo, a silent host, a tab that holds a
+   bearer or came in through the link never wait), and a sibling's answer is followed by one more probe with the bearer.
+   A paired tab answers such asks while it is open. */
 async function decided() {
-  await pairedAtStart();
-  const decision = await decideSource({ param: new URLSearchParams(window.location.search).get("source"), setting: readSourceSetting(), probe: (ms) => probeHost("", ms) });
+  const decision = await pairedDecision({
+    plan: pairingPlan({ token: takeFragmentToken(), bearer: readPairing() }),
+    redeem: async (token) => {
+      const outcome = await redeemPairToken(token);
+      if (outcome.kind === "refused") console.info(`CrewHub World: the pairing link was refused (${outcome.reason}).`);
+    },
+    decide: () => decideSource({ param: new URLSearchParams(window.location.search).get("source"), setting: readSourceSetting(), probe: (ms) => probeHost("", ms) }),
+    ask: () => askTabsForPairing(),
+    probe: () => probeHost("", PROBE_TIMEOUT_MS),
+  });
+  answerTabs();
   setSourceDecision(decision);
   if (decision.reason === "probe-silent") console.info("CrewHub World: no host answered /world-api/health; running the demo.");
   return decision;
