@@ -1,4 +1,4 @@
-# Merging Nicky's answers: the rehearsed plan (rounds 37 to 39, 2026-10-24 and 25)
+# Merging Nicky's answers: the rehearsed plan (rounds 37 to 40, 2026-10-24 and 25)
 
 Seven answer branches wait on [the open questions](open-questions.md). This page says, for every set of answers Nicky
 can give, in which order the branches merge into `feat/world-demo` and what has to be done by hand. Every hand merge
@@ -108,6 +108,20 @@ order, then question 1's branch last; every hand merge then happens in that last
     because the soak's seed left no quiet stretch on the loops), `tools/a11y.mjs --demo` 188 / 188 as on the head, the
     cold start 337 and 359 ms against the head's 329 and 340. The budget's other rows (bundle +0.15 %, frames, phone,
     heap at 16x) read as the head's.
+- **Road 1's chat on the heaviest set, round 40's night.** One hour of the replay `e0b04e7` live against the
+  in-process fake, whose key reads the chat (its own ports and `CREWHUB_WORLD_CONFIG_DIR`). The Chat panel was open on
+  road 1 and a paired second tab beside it.
+  - **The load:** 1 019 messages to the agents, one every 5 s plus a burst of 300 at once at minute 30. The host read
+    every one of the 1 020 agent answers over road 1.
+  - **The gate (`task/q14-dm-read-cap`):** during the burst the host made 312 reads, all 200, with at most 8 in flight
+    and no retry. Nothing was lost. Four answers were read twice, at the three moments the fake's sealed cursor expired
+    and the host re-snapshotted from the tail; the page still showed each answer once (1 020 rows for 1 020 answers).
+  - **Nothing of the page's grows:** Recent answers stay at their cap of 10, the bubbles expire, the threads stay 3,
+    and DOM nodes (472 to 492) and listeners (238 to 240) are flat from minute 10 on. Frame p95 was 17.9 to 18.2 ms.
+  - **The heap after GC:** 24.0 → 25.2 MB from minute 10 to 60. The snapshot diff names 0.72 MB as JIT code for the
+    chat's code paths and 0.14 MB as the inspector's own records. About 0.3 MB of JS objects is inside the hour's noise
+    (neighbouring samples moved up to 0.8 MB). The same hour on the head was not needed: it was to run only if the
+    replay grew.
 - **The `cookie+expiry` and `cookie` rows, rehearsed in round 37** (detached checkouts; the five independent branches
   then the question-1 branch): the five alone on `e55ef42`, check 1070 of 1070; the five then `q1-cookie-expiry` (A,
   then B), check 1075 of 1075 on `e55ef42` and again on `761db9f` (`769434a`); the five then `r27-tab-pairing`, check
