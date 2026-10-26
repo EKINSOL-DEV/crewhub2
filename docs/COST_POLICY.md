@@ -362,11 +362,17 @@ the crowd, the figures or the kit runs them before anything opens a browser:
 
 ```sh
 PATH=~/.nvm/versions/node/v24.21.0/bin:$PATH
-node --test apps/world/test/robotCrowdDrift.test.ts      # round 41: the far crowd under 200 emissive strengths, +0 batches
-node --test packages/world-cast/test/fadedShare.test.ts  # round 42: faded figures' copies shared, 0 when none is faded
-# TODO(r43): r4-bundle's guard over the whole demo path (every cast, the drift, looks, fades, themes, figures added and
-# disposed; batches, live materials, faded copies and geometries bounded after a warm-up), named when it has a name.
+node --test apps/world/test/robotCrowdDrift.test.ts            # round 41: the far crowd under 200 emissive strengths, +0 batches
+node --test packages/world-cast/test/fadedShare.test.ts        # round 42: faded figures' copies shared, 0 when none is faded
+node --test packages/style-greenhouse/test/crowdBounded.test.ts  # round 43: the whole demo path bounded (below), 3 s
 ```
+
+`crowdBounded.test.ts` (round 43, r4-bundle) runs every cast on the Greenhouse kit through a seeded demo-like
+timeline of 3,000 steps (the day-night drift at many strengths, look changes, faded flips, near and far, theme
+switches, figures coming and going, the crowd's frame at every step); after a warm-up the batches, the live
+materials, the faded copies and the geometries may not grow and the clones made are bounded. It fails on
+`robotCrowd.ts` from `515dd39` (round 41's leak) and on `runtime.ts` from `cdd7747` (round 42's churn), so the next
+leak of either kind fails `npm test` before any soak.
 
 **1. The per-cast demo memory run** (the one round 41 lacked; run as round 41's fix hour). The demo with the
 day-night drift on, which is the demo's default and what live mode never has, each of the four casts in turn, one hour
