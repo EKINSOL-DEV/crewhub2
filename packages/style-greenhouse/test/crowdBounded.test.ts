@@ -1,8 +1,9 @@
 /* Round 43: one guard over the whole path the demo takes through the figures and the far crowd, so the next leak of
    round 41's kind (a far batch per emissive strength of the day-night drift) or round 42's (a see-through copy per
-   faded figure, re-cloned at every look change) fails `npm test`. Every cast in the registry, on the Greenhouse style
-   the demo uses (through the app's own registries: `styleRegistry.styleFor(null)` and `castRegistry.castFor`), its
-   environment driven the way TownScene drives it (`setDayPhase` with the drift's phases, `setTheme`), a seeded timeline
+   faded figure, re-cloned at every look change) fails `npm test`. Every cast in the registry, on the Greenhouse kit the
+   demo uses: the `Kit` built from style.json (the style's index needs Vite), the style's own `environment()` driving it
+   the way TownScene does (`setDayPhase` with the drift's phases, `setTheme`), and `castRegistry.castFor` handed a style
+   stub over `figureKit` so each cast is built as the demo builds it (colours folded, extensions, persons); a seeded timeline
    of look changes, faded flips, detail switches, figures coming and going, the crowd's frame at every step; after a
    warm-up through every state, light and theme, nothing may grow: the crowd's batches, the live materials, the faded
    copies (0 when no figure is faded), the geometries beyond what added figures bring, and the clones made (the churn).
