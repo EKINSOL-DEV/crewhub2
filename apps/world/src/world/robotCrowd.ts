@@ -1,8 +1,10 @@
 /* The far robots as a crowd: seen from the town a robot is a few pixels tall, and a hundred of them as full models
    are most of the town's draw calls. Each frame the crowd copies the parts of every far robot into one InstancedMesh
    per part and material (body, head, arm, foot, the blob under the feet...). Parts of one shape that differ only by
-   colour (a sage, an apricot and a lead's soft project tint) share one batch, with the colour as an instance colour.
-   Style-agnostic, like instanceStatic: it works on whatever meshes the style's robot handle holds.
+   colour (a sage, an apricot and a lead's soft project tint) share one batch, with the colour as an instance colour; a
+   glowing part batches by its material and draws through the material's instanced twin, so the day-night drift's
+   emissive strength reaches it without a batch per value (round 41). Style-agnostic, like instanceStatic: it works on
+   whatever meshes the style's robot handle holds.
 
    A robot the crowd draws keeps its own meshes, on a layer the camera does not render: they still pose, walk and
    animate as before, and come back as they are when the robot is near again (the entered building). Parts the crowd
@@ -46,6 +48,11 @@ interface Piece {
 const meshOf = (piece: Piece): THREE.Mesh | null => (piece.part ? piece.part.mesh : piece.mesh);
 const materialOf = (piece: Piece): THREE.Material | THREE.Material[] => (piece.part ? piece.part.material : piece.mesh!.material);
 const geometryOf = (piece: Piece): THREE.BufferGeometry => (piece.part ? piece.part.geometry : piece.mesh!.geometry);
+/** A standard material with an emissive colour: it glows, and its strength follows the day-night drift. */
+const glowing = (material: THREE.Material): boolean => {
+  const m = material as THREE.MeshStandardMaterial;
+  return m.isMeshStandardMaterial === true && (m.emissive.r !== 0 || m.emissive.g !== 0 || m.emissive.b !== 0);
+};
 const scratch = new THREE.Matrix4();
 /** The piece's world matrix now: a mesh's own, or the joint's times the part's (what a matrix update gives the mesh). */
 const matrixOf = (piece: Piece): THREE.Matrix4 => (piece.part ? scratch.multiplyMatrices(piece.holder!.matrixWorld, piece.part.matrix) : piece.mesh!.matrixWorld);
@@ -206,7 +213,14 @@ export class RobotCrowd {
     // hook (a pattern) draws on its own.
     const hook = material.onBeforeCompile;
     if (material.transparent || material.map || (hook !== THREE.Material.prototype.onBeforeCompile && hook !== material.userData.lightHook)) return null;
-    return `${geometry.uuid}|${material.roughness}|${material.metalness}|${material.emissive.getHexString()}|${material.emissiveIntensity}|${material.side}`;
+    // A glowing part (an emissive colour) batches by its own material and draws through that material's instanced twin,
+    // which reads the emissive strength from the source. The day-night drift moves that strength in place a few times a
+    // second (the kit's setLight), and a key that carried it made a new batch, with a cloned material and an InstancedMesh
+    // that `#batches` never drops, for every value it passed (round 41: about a thousand an hour with the potlings or
+    // the sprouts chosen). Parts of one shape and one glowing material have one colour anyway, so no instance colour is
+    // missed. A black emissive adds nothing to a frame whatever its strength, so the key of a plain part leaves both out.
+    if (glowing(material)) return `${geometry.uuid}|${material.uuid}`;
+    return `${geometry.uuid}|${material.roughness}|${material.metalness}|${material.side}`;
   }
 
   #batch(key: string, piece: Piece): Batch {
@@ -214,7 +228,8 @@ export class RobotCrowd {
     if (batch && batch.count < batch.mesh.instanceMatrix.count) return batch;
     const capacity = batch ? batch.mesh.instanceMatrix.count * 2 : 16;
     const source = materialOf(piece) as THREE.Material;
-    const tinted = !piece.mesh?.userData.decal;
+    // A decal and a glowing part share their source's twin (the near robots draw the source itself); the rest draw a white copy.
+    const tinted = !piece.mesh?.userData.decal && !glowing(source);
     let material = batch?.mesh.material as THREE.Material | undefined;
     if (!material) {
       if (tinted) {
@@ -223,7 +238,7 @@ export class RobotCrowd {
         white.color.copy(WHITE);
         white.onBeforeCompile = source.onBeforeCompile;
         material = white;
-      } else material = instancedMaterial(source); // the decal's twin: the near robots draw the source itself
+      } else material = instancedMaterial(source);
     }
     const instanced = new THREE.InstancedMesh(geometryOf(piece), material, capacity);
     instanced.frustumCulled = false;
