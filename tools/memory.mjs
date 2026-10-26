@@ -42,8 +42,9 @@
    The chat soak (rounds 40, 41 and 45; live mode, the in-process fake, lib/chatSoak.mjs): --paired-tab opens a second
    tab of the same context on the same host once the first is Live and leaves it open, sampling its heap, DOM and chip
    too; --chat-panel opens the Chat panel (road 1) once the chip says Live and counts the Recent answers rows the page
-   adds; --dm-every <s> makes the fake's person write to the fake's chat agents in turn (the threads its key reads
-   name them), every <s> seconds, and the agents' scripted replies come back over road 1 as the host's reads of
+   adds; --dm-every <s> makes the fake's person write to the scenario's lead agents in turn (GET /api/agents, role
+   lead, not an external bot; the threads' agents when there is no lead), every <s> seconds, and the agents' scripted
+   replies come back over road 1 as the host's reads of
    /api/dm/messages/<id>, which the tool counts from outside (by id: once or twice, the status, how many in flight at
    once: the gate's number); --burst <n> --burst-at <min> sends <n> in one instant right after the sample at that
    minute. With any of these the fake's key reads the chat. Every list the tool keeps in the page is capped. The
@@ -151,7 +152,7 @@ if (live && chat.chatPanel) {
 }
 if (live && (chat.dmEvery !== null || chat.burst > 0)) {
   agents = await chatAgents(live.fake);
-  console.log(`  chat agents (the fake's threads): ${agents.join(", ")}`);
+  console.log(`  chat agents (the scenario's leads, in turn): ${agents.join(", ")}`);
   if (chat.dmEvery !== null) {
     sender = setInterval(() => {
       const dm = nextDm(agents, sent);
