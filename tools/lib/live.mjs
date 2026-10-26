@@ -75,13 +75,13 @@ export async function startLive(opts, { preview = false, keyReadsChat = false } 
   return {
     base: `${origin}/`,
     origin,
-    describe,
-    /** The host the tool started: its `connection()` tells the upstream stream's state and reconnects (round 27). */
-    host,
     /** The in-process fake (null with --loops-url): the chat soak writes to its agents through `fake.sendDm`. */
     fake,
     /** The host's last 2000 log lines, each with its time of day. */
     lines,
+    describe,
+    /** The host the tool started: its `connection()` tells the upstream stream's state and reconnects (round 27). */
+    host,
     /** Pairs the page's context: the one-time link, which lands on `/`. */
     async pair(page) {
       await page.goto(host.mintPairLink(preview ? undefined : origin));
