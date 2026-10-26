@@ -101,6 +101,11 @@ export class Walks {
   /** True while any walker moves or waits on its way. */
   moving = false;
 
+  /** Test-facing: how many idle errand ids the walks remember as done (cleared above 2000). */
+  get idleDoneCount(): number {
+    return this.#idleDone.size;
+  }
+
   /** A new world model (or new options): applies the intents of the change and the detail levels. */
   update(model: WorldModel, options: WalkOptions): void {
     const optionsChanged = options.entered !== this.#options.entered || options.reducedMotion !== this.#options.reducedMotion;

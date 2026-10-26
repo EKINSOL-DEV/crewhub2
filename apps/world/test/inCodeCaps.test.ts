@@ -63,3 +63,72 @@ test("the intent player keeps the last 40 played intents, newest first", () => {
   clearIntents();
   assert.equal(playedIntents().length, 0, "the kill switch empties the log");
 });
+
+/* Round 45: three more caps, through small seams.
+ *   - `state/director.ts` keeps the last 40 plans, newest first (`state/planLog.ts` `logPlans`, the pure step `#onModel` takes).
+ *   - `walks.ts` remembers the idle errands done (`#idleDone`) and clears them above 2000 (`idleDoneCount`).
+ *   - `personWalks.ts` remembers the visits walked (`#started`), clears them on a new snapshot and above 2000
+ *     (`startedCount`); the 2000 is not pinned here, since a visit starts one at a time through the simulation. */
+import type { PlanRecord } from "@crewhub/demo";
+import type { WorldModel } from "@crewhub/world-model";
+import { logPlans } from "../src/state/planLog.ts";
+import { IDLE_BUCKET_MS } from "../src/world/movement.ts";
+import { PersonWalks } from "../src/world/personWalks.ts";
+import { Walks } from "../src/world/walks.ts";
+
+const plan = (id: number): PlanRecord => ({ id, trigger: "scheduled", reason: "interval", building: "cr", at: id * 1000, inputTokens: 1, inputTruncated: false, outputTokens: 1, accepted: [], rejected: [] });
+
+test("the director keeps the last 40 plans, newest first", () => {
+  let log: readonly PlanRecord[] = [];
+  for (let i = 1; i <= 41; i++) log = logPlans(log, [plan(i)]);
+  assert.equal(log.length, 40, "41 planned, 40 kept");
+  assert.equal(log[0]!.id, 41, "the newest first");
+  assert.equal(log[39]!.id, 2, "the first one planned gone");
+  const same = logPlans(log, []);
+  assert.equal(same, log, "no plan made, the same log");
+  const two = logPlans(log, [plan(42), plan(43)]);
+  assert.deepEqual(two.slice(0, 2).map((p) => p.id), [43, 42], "a step's plans land newest first");
+  assert.equal(two.length, 40);
+});
+
+test("the walks remember the idle errands done and clear them above 2000", () => {
+  // Sixty relaxed agents at rest in the entered building: each 90 s bucket offers most of them an errand (one id per
+  // agent and bucket); ticking with `now` a bucket further each time runs the idle planner once per call.
+  const agents = Array.from({ length: 60 }, (_, i) => agent(`cr-dev-${i}`, "lobby", { posture: "relaxed" }));
+  const model = world([building("cr", agents)]);
+  const walks = new Walks();
+  walks.update(model, { entered: "cr", reducedMotion: false, ambient: "on" });
+  let now = model.now;
+  let peak = 0;
+  let cleared = false;
+  for (let k = 0; k < 600 && !cleared; k++) {
+    now += IDLE_BUCKET_MS;
+    walks.tick(0, now);
+    const n = walks.idleDoneCount;
+    if (n < peak) cleared = true;
+    peak = Math.max(peak, n);
+    assert.ok(n <= 2000, `${n} errand ids remembered, over the cap`);
+  }
+  // The idle chance is low, so a tick adds a few ids (about four of the sixty), and the tick that passes 2000 clears in the
+  // same call: the last count seen before the clear sits just under 2000.
+  assert.ok(peak > 1980, `the errands done reached the cap (${peak} seen before the clear, just under 2000)`);
+  assert.ok(cleared, "above 2000 the set was cleared");
+});
+
+test("the person walks remember a visit once, and forget the visits on a new snapshot", () => {
+  const visit = (id: string): WorldModel["buildings"][number]["visits"][number] => ({ id, personId: "nicky", displayName: "Nicky", ticketId: id, ticketKey: id.toUpperCase(), movedAt: 1, startedAt: 1, until: 60_000, from: { room: "review", deskOf: null }, rejected: false, phase: "carrying" });
+  const withVisits = (snapshots: number, ids: string[]) => world([{ ...building("cr", [agent("cr-dev-1", "lobby")]), visits: ids.map(visit) }], { snapshots });
+  const walks = new Walks();
+  const people = new PersonWalks(walks.nav);
+  const options = { entered: "cr", reducedMotion: false };
+  const first = withVisits(1, ["v1", "v2"]);
+  walks.update(first, { ...options, ambient: "on" });
+  people.update(first, options);
+  assert.equal(people.startedCount, 1, "one visit at a time: the first started");
+  people.update(first, options);
+  assert.equal(people.startedCount, 1, "the same model again starts nothing new");
+  const next = withVisits(2, []);
+  walks.update(next, { ...options, ambient: "on" });
+  people.update(next, options);
+  assert.equal(people.startedCount, 0, "a new snapshot forgets the visits walked");
+});
