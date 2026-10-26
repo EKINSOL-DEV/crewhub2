@@ -2,19 +2,22 @@
 
    Usage:
      node tools/memory.mjs --port <port> [demo|stress|live] [--minutes <n>] [--every <s>] [--cast <id>] [--stress <n>]
-                           [--scenario <id>] [--snapshots <min,min,...>] [--preview] [--loops-url <url> --key-file <file>]
-                           [--fake-scenario <id>] [--fake-speed 0|1|4|16] [--host-port <port>]
+                           [--scenario <id>] [--snapshots <min,min,...>] [--save-snapshots <dir>] [--count-names <a,b,...>]
+                           [--preview] [--loops-url <url> --key-file <file>] [--fake-scenario <id>] [--fake-speed 0|1|4|16]
+                           [--host-port <port>] [--paired-tab] [--chat-panel] [--dm-every <s>] [--burst <n> --burst-at <min>]
                            [--json <file>] [--out <dir>] [--swiftshader]
 
    demo    the normal demo town at 16x (default 10 minutes); --scenario <id> picks the demo scenario (the page's
-           ?scenario=<id>; left out: the default storyline)
+           ?scenario=<id>; left out: the default storyline). With --preview the page is a production build you serve
+           on --port yourself (`npx vite preview --port <port>` in apps/world, without CREWHUB_WORLD_PORT: the preview
+           then answers /world-api as "no host" and the page runs the demo).
    stress  the stress fixture (?stress=<n>, default 1; dev builds only) at 16x (default 5 minutes)
    live    live mode (?source=live) against a crewhub-loops behind a host the tool starts (lib/live.mjs): an in-process
            fake playing --fake-scenario (default small-team) at --fake-speed (default 16), or the loops --loops-url
            names with --key-file (the fake on its own port, or the development loops on 8291; loopback only). In a dev
            run the host listens on --host-port behind your Vite (started with CREWHUB_WORLD_PORT=<host-port>); with
-           --preview it serves apps/world/dist on --host-port and the browser opens the host directly (a production
-           build: what users get). Default 30 minutes. One host at a time against the development loops.
+           --preview it serves apps/world/dist on --host-port (0: a free port) and the browser opens the host directly
+           (a production build: what users get). Default 30 minutes. One host at a time against the development loops.
 
    Every `--every` seconds (default 30) it collects garbage (CDP HeapProfiler.collectGarbage), then samples the JS heap
    after GC (Runtime.getHeapUsage), the renderer's geometries and textures (window.__worldPerf, the fps overlay is
@@ -23,13 +26,29 @@
    the first three, after the first minute (warm-up).
    --snapshots <min,...> takes a heap snapshot at those minutes (0 is right after the town is dressed), sums it by
    constructor (lib/heap.mjs) and prints the 25 largest kinds of object; from the second snapshot on it also prints
-   what grew most since the one before, by self size. The snapshot itself is parsed and dropped; the totals land in
-   --json. A snapshot pauses the page for a few seconds, so its sample is not a frame measurement.
+   what grew most since the one before, by self size. Under every snapshot it prints the counts a soak watches (round
+   45): the far crowd's batches (InstancedMesh), the MeshStandardMaterials and the Meshes, found by the flag each
+   three.js constructor sets on its instances, so no minified name is needed; with --preview it also says what the
+   built chunk calls those classes (for a retainer walk). --count-names <a,b> adds the counts of those constructor
+   names as the snapshot sums them. The snapshot itself is parsed and dropped, unless --save-snapshots <dir> keeps the
+   raw file (minute-<n>.heapsnapshot, the heap's size each); the totals land in --json. A snapshot pauses the page for
+   a few seconds, so its sample is not a frame measurement; a heap past about 290 MB no longer fits one string and
+   the snapshot throws, so a run that may grow that far takes its snapshots early.
    Every sample also carries the frame time over the overlay's window (mean and p95, the work per frame); a live run
    (round 27, the soak) adds the host's upstream stream (its state and how often it reconnected, from the host the
    tool started), the page's own stores (`window.__worldStores`, state/soak.ts: the bubbles alive, the Recent answers,
    the chat threads) and the town document's revision with the host's revision the page is on. The growth line also
    says the heap's growth an hour after warm-up.
+   The chat soak (rounds 40, 41 and 45; live mode, the in-process fake, lib/chatSoak.mjs): --paired-tab opens a second
+   tab of the same context on the same host once the first is Live and leaves it open, sampling its heap, DOM and chip
+   too; --chat-panel opens the Chat panel (road 1) once the chip says Live and counts the Recent answers rows the page
+   adds; --dm-every <s> makes the fake's person write to the fake's chat agents in turn (the threads its key reads
+   name them), every <s> seconds, and the agents' scripted replies come back over road 1 as the host's reads of
+   /api/dm/messages/<id>, which the tool counts from outside (by id: once or twice, the status, how many in flight at
+   once: the gate's number); --burst <n> --burst-at <min> sends <n> in one instant right after the sample at that
+   minute. With any of these the fake's key reads the chat. Every list the tool keeps in the page is capped. The
+   sample line and the JSON carry the sent count, the reads and the rows; the end prints the tally, the burst's minute
+   and the host's lost and retry lines.
    When the DOM node count moved since the last sample (round 29), the sample is followed by one line naming what
    changed in the document tree: the nodes added and removed (an element by tag, classes, label and the nearest named
    landmark; a text node by its parent), grouped with counts, at most six entries (lib/domdiff.ts; the point's
@@ -39,16 +58,19 @@
    its node count).
    Same browser set-up as perf.mjs: GPU-backed headless Chromium, 1440 x 900, DPR 1, Pretty, light. --json writes the
    points, the growth and the snapshot totals (a bare file name lands in --out). */
-import { writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { CHAT_FLAGS, CHAT_OPTIONS, CHAT_USAGE, READ_PAGE_CHAT, chatAgents, chatSettings, createDmReadCounter, formatChat, lostAndRetried, nextDm, pageChatCounter } from "./lib/chatSoak.mjs";
 import { capDomDiff, describeDetached, domDiff, domInventory, formatDomDiff } from "./lib/domdiff.ts";
-import { formatRows, growth as heapGrowth, heapTotals, mb as heapMb, topBySize } from "./lib/heap.mjs";
+import { formatRows, formatShapes, growth as heapGrowth, heapTotals, mb as heapMb, resolveThreeNames, topBySize } from "./lib/heap.mjs";
 import { LIVE_OPTIONS, LIVE_USAGE, startLive } from "./lib/live.mjs";
 import { castChoice, cli, launch, speed, store, worldUrl } from "./lib/world.mjs";
 
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const opts = cli(
-  `node tools/memory.mjs --port <port> [demo|stress|live] [--minutes <n>] [--every <s>] [--cast <id>] [--stress <n>] [--scenario <id>] [--snapshots <min,min,...>] [--preview] ${LIVE_USAGE} [--json <file>] [--out <dir>] [--swiftshader]`,
-  { options: { minutes: null, every: "30", json: null, cast: null, stress: "1", scenario: null, snapshots: "", ...LIVE_OPTIONS }, flags: ["preview"] },
+  `node tools/memory.mjs --port <port> [demo|stress|live] [--minutes <n>] [--every <s>] [--cast <id>] [--stress <n>] [--scenario <id>] [--snapshots <min,min,...>] [--save-snapshots <dir>] [--count-names <a,b,...>] [--preview] ${LIVE_USAGE} ${CHAT_USAGE} [--json <file>] [--out <dir>] [--swiftshader]`,
+  { options: { minutes: null, every: "30", json: null, cast: null, stress: "1", scenario: null, snapshots: "", "save-snapshots": "", "count-names": "", ...LIVE_OPTIONS, ...CHAT_OPTIONS }, flags: ["preview", ...CHAT_FLAGS] },
 );
 const scenario = opts.rest[0] ?? "demo";
 if (!["demo", "stress", "live"].includes(scenario)) opts.fail(`unknown scenario "${scenario}"; known: demo, stress, live`);
@@ -56,10 +78,28 @@ const minutes = Number(opts.minutes ?? (scenario === "stress" ? "5" : scenario =
 const every = Number(opts.every);
 const snapshotMinutes = opts.snapshots === "" ? [] : opts.snapshots.split(",").map(Number);
 if (snapshotMinutes.some((m) => !Number.isFinite(m) || m < 0)) opts.fail("--snapshots takes minutes, e.g. 0,10,30");
+const saveSnapshots = opts["save-snapshots"] === "" ? null : path.resolve(opts["save-snapshots"]);
+if (saveSnapshots) mkdirSync(saveSnapshots, { recursive: true });
+const countNames = opts["count-names"] === "" ? [] : opts["count-names"].split(",").filter(Boolean);
 const jsonOut = opts.json && (path.isAbsolute(opts.json) || opts.json.includes(path.sep) ? opts.json : path.join(opts.out, opts.json));
+const chat = chatSettings(opts, opts.fail);
+if (chat.active && scenario !== "live") opts.fail("the chat soak (--chat-panel, --dm-every, --burst) is live mode's: node tools/memory.mjs live ...");
+if (chat.pairedTab && scenario !== "live") opts.fail("--paired-tab is live mode's: node tools/memory.mjs live ...");
+if (chat.active && opts["loops-url"] !== "") opts.fail("the chat soak writes to the in-process fake's chat: leave --loops-url out");
 opts.source = scenario === "live" ? "live" : "demo";
-const live = scenario === "live" ? await startLive(opts, { preview: opts.preview }) : null;
+// The host's reads of the agents' answers, counted from outside: the host uses the process's fetch (round 40).
+const dmReads = createDmReadCounter();
+if (chat.active) globalThis.fetch = dmReads.wrap(globalThis.fetch);
+const live = scenario === "live" ? await startLive(opts, { preview: opts.preview, keyReadsChat: chat.active }) : null;
 const base = live ? live.base : opts.base;
+// What the built chunk calls three's classes (a retainer walk goes by name; the counts below do not): with --preview.
+const threeNames = opts.preview ? resolveFromDist() : null;
+function resolveFromDist() {
+  const assets = path.join(REPO, "apps", "world", "dist", "assets");
+  if (!existsSync(assets)) return null;
+  const chunk = readdirSync(assets).find((f) => /^three-.*\.js$/.test(f));
+  return chunk ? { chunk, ...resolveThreeNames(readFileSync(path.join(assets, chunk), "utf8")) } : null;
+}
 
 const browser = await launch({ swiftshader: opts.swiftshader, extra: ["--enable-precise-memory-info"] });
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, colorScheme: "light" });
@@ -81,6 +121,52 @@ if (live) {
   const ok = await page.waitForSelector('.connection-chip[data-connection="live"]', { timeout: 20000 }).then(() => true).catch(() => false);
   if (!ok) console.log("  live: the connection chip does not say Live after 20 s; measuring anyway");
 } else await speed(page, "16x");
+if (threeNames) console.log(`  three's classes in ${threeNames.chunk}: InstancedMesh ${threeNames.InstancedMesh ?? "?"}, MeshStandardMaterial ${threeNames.MeshStandardMaterial ?? "?"}, Mesh ${threeNames.Mesh ?? "?"}`);
+
+// The paired tab (round 39): a second tab of the same context, opened without a link once the first tab is Live and
+// left open the whole run; the context's pairing (or the page's per-tab bearer, where it has one) makes it Live.
+let paired = null;
+let pairedCdp = null;
+if (live && chat.pairedTab) {
+  paired = await context.newPage();
+  paired.on("pageerror", (e) => console.error(`  paired tab page error: ${e.message}`));
+  pairedCdp = await context.newCDPSession(paired);
+  await paired.goto(worldUrl(base, null, opts.scenario, null, opts.source));
+  const ok = await paired.waitForSelector('.connection-chip[data-connection="live"]', { timeout: 20000 }).then(() => true).catch(() => false);
+  console.log(`  paired tab: ${ok ? "Live" : "not Live after 20 s"}; left open`);
+  await page.bringToFront();
+}
+// The chat soak (rounds 40 and 45): the Chat panel open on road 1, the page's rows counted, a sender over the fake's agents.
+let agents = [];
+let sent = 0;
+let burstSent = 0;
+let burstAt = null;
+let sender = null;
+if (live && chat.chatPanel) {
+  await page.locator(".chat-open").first().click({ timeout: 10000 });
+  const sheet = await page.waitForSelector(".chat-sheet", { timeout: 5000 }).then(() => true).catch(() => false);
+  await page.evaluate(pageChatCounter(20));
+  const glance = (await page.locator(".chat-sheet-lead").innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+  console.log(`  chat panel: ${sheet ? "open" : "not open after 5 s"}; glance: "${glance.slice(0, 160)}"`);
+}
+if (live && (chat.dmEvery !== null || chat.burst > 0)) {
+  agents = await chatAgents(live.fake);
+  console.log(`  chat agents (the fake's threads): ${agents.join(", ")}`);
+  if (chat.dmEvery !== null) {
+    sender = setInterval(() => {
+      const dm = nextDm(agents, sent);
+      sent += 1;
+      live.fake.sendDm(dm.agent, dm.text);
+    }, chat.dmEvery * 1000);
+    console.log(`  sender: one message to an agent every ${chat.dmEvery} s${chat.burst > 0 ? `; a burst of ${chat.burst} right after the sample at minute ${chat.burstAt}` : ""}`);
+  } else console.log(`  a burst of ${chat.burst} right after the sample at minute ${chat.burstAt}`);
+}
+const readPageChat = async () => (chat.chatPanel ? await page.evaluate(READ_PAGE_CHAT).catch(() => null) : null);
+const chatPoint = async () => {
+  if (!chat.active) return null;
+  const onPage = await readPageChat();
+  return { sent, burstSent, reads: dmReads.tally(), rows: onPage?.rows ?? -1, ...lostAndRetried(live.lines) };
+};
 
 const mb = (b) => (b / 1048576).toFixed(1);
 const points = [];
@@ -89,11 +175,13 @@ const started = Date.now();
 let lastTotals = null;
 async function snapshotAt(minute) {
   const t0 = Date.now();
-  const totals = await heapTotals(cdp);
+  const totals = await heapTotals(cdp, { file: saveSnapshots ? path.join(saveSnapshots, `minute-${minute}.heapsnapshot`) : null });
   const took = Date.now() - t0;
   console.log(`${scenario} snapshot at minute ${minute}: ${heapMb(totals.bytes)} in ${totals.nodes} nodes (${(took / 1000).toFixed(1)} s); the largest kinds:`);
   for (const line of formatRows(topBySize(totals))) console.log(line);
-  const record = { minute, bytes: totals.bytes, nodes: totals.nodes, top: topBySize(totals, 40) };
+  const counts = Object.fromEntries(countNames.map((n) => [n, totals.byName.get(n)?.count ?? 0]));
+  console.log(`  counts at minute ${minute}: ${formatShapes(totals.shapes)}${countNames.length > 0 ? `; ${countNames.map((n) => `${n} ${counts[n]}`).join(", ")}` : ""}`);
+  const record = { minute, bytes: totals.bytes, nodes: totals.nodes, shapes: totals.shapes, ...(countNames.length > 0 ? { counts } : {}), top: topBySize(totals, 40) };
   if (lastTotals) {
     const rows = heapGrowth(lastTotals.totals, totals, 40);
     console.log(`${scenario} grown since minute ${lastTotals.minute} (${heapMb(totals.bytes - lastTotals.totals.bytes)} in all):`);
@@ -127,6 +215,15 @@ for (let t = 0; t <= minutes * 60; t += every) {
   // and the host's upstream stream straight from the host the tool started (its state and reconnect count).
   const stores = live ? await page.evaluate(() => (typeof window.__worldStores === "function" ? window.__worldStores() : null)).catch(() => null) : null;
   const upstream = live ? live.host.connection().stream : null;
+  let pairedPoint = null;
+  if (paired) {
+    await pairedCdp.send("HeapProfiler.collectGarbage").catch(() => undefined);
+    const h2 = await pairedCdp.send("Runtime.getHeapUsage").catch(() => null);
+    const d2 = await pairedCdp.send("Memory.getDOMCounters").catch(() => null);
+    const c2 = await paired.locator(".connection-chip").first().getAttribute("data-connection").catch(() => null);
+    pairedPoint = { heap: h2?.usedSize ?? -1, nodes: d2?.nodes ?? -1, listeners: d2?.jsEventListeners ?? -1, connection: c2 };
+  }
+  const chatNow = await chatPoint();
   const point = {
     t,
     heap: heap.usedSize,
@@ -139,6 +236,8 @@ for (let t = 0; t <= minutes * 60; t += every) {
     frameP95: perf?.frameP95 ?? null,
     workMean: perf?.workMean ?? null,
     ...(live ? { connection: chip, upstream: upstream ? { state: upstream.state, reconnects: upstream.reconnects } : null, stores } : {}),
+    ...(pairedPoint ? { paired: pairedPoint } : {}),
+    ...(chatNow ? { chat: chatNow } : {}),
   };
   // The DOM diff (round 29): when the node count moved since the last sample, what was added and removed, by element.
   let domLine = "";
@@ -155,12 +254,43 @@ for (let t = 0; t <= minutes * 60; t += every) {
   points.push(point);
   const frame = perf ? `  frame ${perf.frameMean.toFixed(1)}/${perf.frameP95.toFixed(1)} ms work ${perf.workMean.toFixed(1)}` : "";
   const soak = live ? `  ${chip ?? "no chip"}  upstream ${upstream ? `${upstream.state} r${upstream.reconnects}` : "?"}${stores ? `  said ${stores.said} answers ${stores.answers} threads ${stores.threads ?? "-"} rev ${stores.docRevision}/${stores.hostRev ?? "-"}` : ""}` : "";
+  const pairedLine = pairedPoint ? `  paired ${pairedPoint.connection ?? "no chip"} heap ${mb(pairedPoint.heap)} MB dom ${pairedPoint.nodes} listeners ${pairedPoint.listeners}` : "";
+  const chatLine = chatNow ? `  ${formatChat(chatNow)}` : "";
   console.log(
-    `${scenario} ${String(t).padStart(4)} s  heap ${mb(point.heap).padStart(6)} MB  geo ${String(point.geometries).padStart(4)}  tex ${String(point.textures).padStart(3)}  calls ${String(point.calls).padStart(4)}  dom ${point.nodes}  listeners ${point.listeners}${frame}${soak}${domLine}`,
+    `${scenario} ${String(t).padStart(4)} s  heap ${mb(point.heap).padStart(6)} MB  geo ${String(point.geometries).padStart(4)}  tex ${String(point.textures).padStart(3)}  calls ${String(point.calls).padStart(4)}  dom ${point.nodes}  listeners ${point.listeners}${frame}${soak}${pairedLine}${chatLine}${domLine}`,
   );
+  // A minute's snapshot goes before that minute's burst (round 41: the snapshot at the half reads the town before it).
   while (nextSnapshot < snapshotMinutes.length && t >= snapshotMinutes[nextSnapshot] * 60) {
     await snapshotAt(snapshotMinutes[nextSnapshot]);
     nextSnapshot += 1;
+  }
+  if (live && chat.burst > 0 && burstAt === null && t >= chat.burstAt * 60) {
+    burstAt = new Date();
+    for (let i = 0; i < chat.burst; i++) {
+      live.fake.sendDm(agents[(sent + i) % agents.length], `burst ${i + 1} of ${chat.burst}`);
+    }
+    sent += chat.burst;
+    burstSent = chat.burst;
+    console.log(`  burst: ${chat.burst} messages sent in one instant at ${burstAt.toTimeString().slice(0, 8)} (minute ${t / 60}); the agents' replies follow 8 s later in demo time`);
+  }
+}
+if (sender) clearInterval(sender);
+let chatEnd = null;
+if (live && chat.active) {
+  // The last replies and their reads land in the seconds after the last send.
+  await page.waitForTimeout(15000);
+  const tally = dmReads.tally();
+  const onPage = await readPageChat();
+  const burst = burstAt ? dmReads.inWindow(burstAt.getTime(), 60000) : null;
+  const host = lostAndRetried(live.lines);
+  chatEnd = { sent, burstSent, burstAt: burstAt?.toISOString() ?? null, tally, rows: onPage?.rows ?? -1, lastLabels: onPage?.labels ?? [], burstMinute: burst, ...host };
+  console.log(
+    `chat tally: sent ${sent}${burstAt ? ` (burst ${burstSent} at ${burstAt.toTimeString().slice(0, 8)})` : ""}; the host read ${tally.total} times over ${tally.ids} ids (${tally.once} once, ${tally.twice} twice, ${tally.more} more; ${tally.ok} with 200, ${tally.bad} other, ${tally.errors} errors), at most ${tally.maxInFlight} in flight at once${burst ? `; the burst's minute: ${burst.count} reads, ${JSON.stringify(burst.statuses)}, mean ${burst.meanMs} ms, slowest ${burst.slowestMs} ms` : ""}; the page added ${chatEnd.rows} Recent answers rows; the host's log: ${host.lost} lost, ${host.retried} retried`,
+  );
+  const chatLines = live.lines.filter((l) => /lost|retr|dm|chat/i.test(l));
+  if (chatLines.length > 0) {
+    console.log(`host log, ${chatLines.length} line${chatLines.length === 1 ? "" : "s"} about the chat (the first 20):`);
+    for (const l of chatLines.slice(0, 20)) console.log(`  ${l}`);
   }
 }
 const warm = points.filter((p) => p.t >= 60);
@@ -170,11 +300,29 @@ const last = points[points.length - 1];
 const hours = warm.length > 3 ? (last.t - warm[1].t) / 3600 : 0;
 const growth = { heapMB: +mb(last.heap - baseOf("heap")), geometries: last.geometries - baseOf("geometries"), textures: last.textures - baseOf("textures"), domNodes: last.nodes - baseOf("nodes"), listeners: last.listeners - baseOf("listeners"), hours: +hours.toFixed(2), heapMBPerHour: hours > 0 ? +(mb(last.heap - baseOf("heap")) / hours).toFixed(2) : null };
 console.log(`${scenario} growth after warm-up: heap ${growth.heapMB} MB, geo ${growth.geometries}, tex ${growth.textures}, dom ${growth.domNodes}, listeners ${growth.listeners}${growth.heapMBPerHour !== null ? ` (${growth.heapMBPerHour} MB an hour over ${growth.hours} h)` : ""}`);
+if (snapshots.length > 1) {
+  const first = snapshots[0].shapes, end = snapshots[snapshots.length - 1].shapes;
+  console.log(`${scenario} counts, minute ${snapshots[0].minute} to ${snapshots[snapshots.length - 1].minute}: batches ${first.instancedMeshes} -> ${end.instancedMeshes}, MeshStandardMaterial ${first.materials} -> ${end.materials}, Mesh ${first.meshes} -> ${end.meshes}`);
+}
 if (jsonOut)
   writeFileSync(
     jsonOut,
     JSON.stringify(
-      { scenario, minutes, every, build: opts.preview ? "preview" : "dev", ...(opts.cast ? { cast: opts.cast } : {}), ...(opts.scenario ? { demoScenario: opts.scenario } : {}), ...(live ? { loops: opts["loops-url"] || `fake:${opts["fake-scenario"]}@${opts["fake-speed"]}x` } : {}), points, growth, snapshots },
+      {
+        scenario,
+        minutes,
+        every,
+        build: opts.preview ? "preview" : "dev",
+        ...(opts.cast ? { cast: opts.cast } : {}),
+        ...(opts.scenario ? { demoScenario: opts.scenario } : {}),
+        ...(live ? { loops: opts["loops-url"] || `fake:${opts["fake-scenario"]}@${opts["fake-speed"]}x` } : {}),
+        ...(paired ? { pairedTab: true } : {}),
+        ...(chat.active ? { chat: { agents, dmEvery: chat.dmEvery, burst: chat.burst, burstAt: chat.burstAt, end: chatEnd } } : {}),
+        ...(threeNames ? { threeNames } : {}),
+        points,
+        growth,
+        snapshots,
+      },
       null,
       2,
     ),
