@@ -19,7 +19,6 @@ import { worldRuntime } from "./world";
 
 const STORAGE_KEY = "crewhub.presence.v1";
 
-
 export function loadPresence(): PresenceSettings {
   try {
     const raw = globalThis.localStorage?.getItem(STORAGE_KEY);
