@@ -69,7 +69,8 @@ test("the intent player keeps the last 40 played intents, newest first", () => {
  *   - `walks.ts` remembers the idle errands done (`#idleDone`) and clears them above 2000 (`idleDoneCount`).
  *   - `personWalks.ts` remembers the visits walked (`#started`), clears them on a new snapshot and above 2000
  *     (`startedCount`); the 2000 is not pinned here, since a visit starts one at a time through the simulation. */
-import type { PlanRecord, WorldModel } from "@crewhub/world-model";
+import type { PlanRecord } from "@crewhub/demo";
+import type { WorldModel } from "@crewhub/world-model";
 import { logPlans } from "../src/state/planLog.ts";
 import { IDLE_BUCKET_MS } from "../src/world/movement.ts";
 import { PersonWalks } from "../src/world/personWalks.ts";
