@@ -85,8 +85,15 @@ function acquireFaded(source: THREE.Material, mode: FadedMode, stale: THREE.Colo
     modes.set(mode, (copy = { material: c, users: 0 }));
     fadedAlive++;
   }
-  // The greyed colour follows the source's (the theme) and the kit's stale colour as the figure re-skins, as before.
-  if (greyed) copy.material.color.copy((source as THREE.MeshStandardMaterial).color).lerp(stale, STALE_FADE);
+  // The copy follows its source at every acquire: a theme change rewrites the kit material's colour and emissive in place
+  // and the day-night drift its emissive strength, and no figure re-skins for either, so any holder's next look change
+  // refreshes the shared copy, as each figure's own copy was refreshed before. The greyed colour is the source's lerped
+  // towards the kit's stale colour.
+  const from = source as THREE.MeshStandardMaterial;
+  copy.material.color.copy(from.color);
+  if (greyed) copy.material.color.lerp(stale, STALE_FADE);
+  copy.material.emissive.copy(from.emissive);
+  copy.material.emissiveIntensity = from.emissiveIntensity;
   copy.users++;
   return copy.material;
 }

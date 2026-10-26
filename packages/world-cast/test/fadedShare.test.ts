@@ -161,3 +161,52 @@ test("a stale copy's colour is the kit material's lerped towards the kit's stale
   for (const source of kitColors.keys()) source.dispose();
   assert.equal(fadedCopiesAlive(), alive - copies.length, "the kit materials' dispose took their copies");
 });
+
+test("a shared copy follows its source: a theme's colour and emissive and the drift's strength written in place reach the proxies at any holder's next look change, without a clone", () => {
+  const { handles } = figures(2);
+  const [a, b] = handles as [FigureHandle, FigureHandle];
+  a.setState(proxy);
+  b.setState(proxy);
+  const shared = [...drawnMaterials([a])].filter((m) => drawnMaterials([b]).has(m)) as THREE.MeshStandardMaterial[];
+  assert.ok(shared.length > 0, "the two proxies hold the same copies");
+  // The kit materials the copies stand in for: what the figures draw when not faded.
+  a.setState(idle);
+  const sources = [...drawnMaterials([a])] as THREE.MeshStandardMaterial[];
+  a.setState(proxy);
+  let cloned = 0;
+  const clone = THREE.MeshStandardMaterial.prototype.clone;
+  THREE.MeshStandardMaterial.prototype.clone = function () {
+    cloned++;
+    return clone.call(this);
+  };
+  try {
+    // As setTheme and setLight do: the source's colour, emissive and strength rewritten in place; no figure re-skins.
+    for (const s of sources) {
+      s.color.setHex(0x123456);
+      s.emissive.setHex(0x0f0f0f);
+      s.emissiveIntensity = 1.75;
+    }
+    for (const copy of shared) assert.notEqual(copy.color.getHex(), 0x123456, "the copy still has the old theme until a holder re-skins");
+    // The first figure's look changes (carrying on and off: the same parts and materials) while the second keeps holding the copies.
+    a.setState({ ...proxy, carrying: true });
+    a.setState(proxy);
+    for (const copy of shared) {
+      assert.equal(copy.color.getHex(), 0x123456, "the shared copy has the source's new colour");
+      assert.equal(copy.emissive.getHex(), 0x0f0f0f, "and its emissive");
+      assert.equal(copy.emissiveIntensity, 1.75, "and its strength");
+      assert.equal(copy.opacity, 0.35, "still the proxy's opacity");
+    }
+    assert.equal(cloned, 0, "nothing cloned");
+    for (const copy of shared) assert.ok(drawnMaterials([a]).has(copy) && drawnMaterials([b]).has(copy), "both still draw the shared copies");
+    // A stale holder: the greyed colour is the new source colour lerped towards stale, the emissive and strength the source's.
+    b.setState(stale);
+    const staleColor = new THREE.Color(manifest.colors.stale!.day);
+    for (const copy of drawnMaterials([b]) as Set<THREE.MeshStandardMaterial>) {
+      const expected = new THREE.Color(0x123456).lerp(staleColor, 0.75);
+      assert.ok(Math.abs(copy.color.r - expected.r) < 1e-6 && Math.abs(copy.color.g - expected.g) < 1e-6 && Math.abs(copy.color.b - expected.b) < 1e-6, "a stale copy is the new colour greyed");
+      assert.equal(copy.emissiveIntensity, 1.75);
+    }
+  } finally {
+    THREE.MeshStandardMaterial.prototype.clone = clone;
+  }
+});
