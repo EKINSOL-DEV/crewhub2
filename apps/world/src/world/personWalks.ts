@@ -71,6 +71,11 @@ export class PersonWalks {
     this.nav = nav;
   }
 
+  /** Test-facing: how many visit ids were walked or are walking (cleared on a new snapshot, and above 2000). */
+  get startedCount(): number {
+    return this.#started.size;
+  }
+
   /** A new world model (or new options): starts, ends and aborts visits. Call after the navigation world was synced. */
   update(model: WorldModel, options: PersonOptions): void {
     const before = this.#options;

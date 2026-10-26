@@ -14,10 +14,11 @@ import { clearIntents, playIntent } from "../world/intentPlayer";
 import { VISIT_TAGS } from "../world/movement";
 import { NavWorld } from "../world/navigation";
 import { buildingPlanNow } from "./buildingPlan";
+import { logPlans } from "./planLog";
 import { worldRuntime } from "./world";
 
 const STORAGE_KEY = "crewhub.presence.v1";
-const LOG_LIMIT = 40;
+
 
 export function loadPresence(): PresenceSettings {
   try {
@@ -136,7 +137,7 @@ class DirectorRuntime {
     if (this.#enabled()) nav().sync(model.buildings, undefined, undefined, buildingPlanNow());
     const made = this.#script.step(model);
     for (const plan of made) for (const intent of plan.accepted) playIntent(intent, model);
-    if (made.length > 0) this.#plans = [...made.reverse(), ...this.#plans].slice(0, LOG_LIMIT);
+    this.#plans = logPlans(this.#plans, made);
     // The usage counter also moves when nothing was planned (a cap lifting), so publish on every model.
     this.#publish();
   }
