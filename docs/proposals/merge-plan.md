@@ -1,8 +1,8 @@
-# Merging Nicky's answers: the rehearsed plan (rounds 37 to 40, 2026-10-24 and 25)
+# Merging Nicky's answers: the rehearsed plan (rounds 37 to 41, 2026-10-24 to 26)
 
 Seven answer branches wait on [the open questions](open-questions.md). This page says, for every set of answers Nicky
 can give, in which order the branches merge into `feat/world-demo` and what has to be done by hand. Every hand merge
-below was rehearsed on a throwaway checkout of the base (`e55ef42` in round 37, `a0750aa` in round 38, `c0ae5ec` in round 39) with `npm run check`
+below was rehearsed on a throwaway checkout of the base (`e55ef42` in round 37, `a0750aa` in round 38, `c0ae5ec` in round 39, `e6c934d` in round 41) with `npm run check`
 green on the result, and
 is written so it can be redone without thinking. **Nicky needs §1 only**, and only the first three columns of its table
 to find the row; crewy and the Lead use the rest (§2 the evidence, §3 each hand merge exactly, §4 the check and the
@@ -122,6 +122,22 @@ order, then question 1's branch last; every hand merge then happens in that last
     chat's code paths and 0.14 MB as the inspector's own records. About 0.3 MB of JS objects is inside the hour's noise
     (neighbouring samples moved up to 0.8 MB). The same hour on the head was not needed: it was to run only if the
     replay grew.
+- **Three hours of the same, round 41's night.** The replay `e0b04e7` ran 180 minutes on the same rig, with a burst
+  of 300 at minute 90. Its own ports and `CREWHUB_WORLD_CONFIG_DIR`.
+  - **The chat:** 2 303 messages sent, 2 304 answers read and each shown once, at most 8 reads in flight.
+  - **The heap:** the slope did not level off (0.85 MB an hour over minutes 100 to 180). Every part of it named from
+    raw snapshots is the head's, not an answer branch's. An hour on the head grew the same objects at the same pace.
+  - **What grew:** the figures that are faded at the snapshot's moment (a proxy, a stale agent) and their see-through
+    copies of the kit's materials. They rise and fall with the storyline, and are released when the figure un-fades.
+    The rest is JIT code.
+  - **One leak found and fixed on the head, not on an answer branch:** the far crowd made a batch, with a copied
+    material, for every glow strength the day-night drift passed. With the potlings in the demo that was 5.4 MB a
+    minute. `task/r41-crowd-materials` (`bbcf897`) was merged on `feat/world-demo` as `e6c934d`; with it the batches
+    stay at 90 for an hour.
+  - **The head without q14's gate:** in the same burst of 300 the host opened 300 reads at once, 172 failed, and the
+    page showed 848 of 1 020 answers. With the gate, none was lost.
+  - **The replay on the new base,** `tab q3 q8 q11 q14 q15` on `e6c934d` (D, F, E; C passes), result `8e544c6`:
+    `npm run check` 1089 / 1089. Each answer branch still merges cleanly onto `e6c934d`.
 - **The `cookie+expiry` and `cookie` rows, rehearsed in round 37** (detached checkouts; the five independent branches
   then the question-1 branch): the five alone on `e55ef42`, check 1070 of 1070; the five then `q1-cookie-expiry` (A,
   then B), check 1075 of 1075 on `e55ef42` and again on `761db9f` (`769434a`); the five then `r27-tab-pairing`, check
