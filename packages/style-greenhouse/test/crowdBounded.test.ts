@@ -63,7 +63,7 @@ function newBatches(before: Map<string, number>, now: Map<string, number>): stri
   for (const [k, n] of now) if ((before.get(k) ?? 0) < n) lines.push(`${k} x${n - (before.get(k) ?? 0)}`);
   return lines.join("; ");
 }
-const ROLES = ["lead", "worker", "worker", "analyst", "design", "ops", "worker", "postman"] as const;
+const ROLES = ["lead", "worker", "worker", "analyst", "design", "operator", "worker", "postman"] as const;
 const ACCENTS = [null, "coral", "sage", null] as const;
 const STEPS = 3000;
 const CHECK_EVERY = 100;
@@ -97,7 +97,8 @@ class Counters {
   }
   /** Every material made so far (of any kind): three's id counter, read with a probe. */
   materials(): number {
-    return new THREE.Material().id;
+    // Every Material takes the next id at construction (three's own counter); the typings leave `id` out.
+    return (new THREE.Material() as unknown as { id: number }).id;
   }
   geometries(): number {
     const g = new THREE.BufferGeometry();
