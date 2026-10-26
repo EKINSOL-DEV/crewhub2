@@ -366,8 +366,8 @@ node --test apps/world/test/robotCrowdDrift.test.ts            # round 41: the f
 node --test packages/world-cast/test/fadedShare.test.ts        # round 42: faded figures' copies shared, 0 when none is faded
 node --test packages/style-greenhouse/test/crowdBounded.test.ts  # round 43: the whole demo path bounded (below), 3 s
 node --test apps/world/test/inCodeCaps.test.ts                   # round 44: the template cache of 64, the dressing memo of 256, the intent log of 40
-# TODO(r44): r4-bundle's long-session guards for the model and the demo (the projection's history and delivery caps
-# over about 20 000 envelopes; the demo over ten loops with the carried chat flat), named when they have names.
+node --test packages/world-model/test/longStream.test.ts         # round 44: 20 000 seeded envelopes through the projection and the reducer; every history list at its cap of 300, the deliveries at 500, what is keyed by ticket grows with the tickets, not the events; 0.5 s
+node --test packages/demo/test/manyLoops.test.ts                 # round 44: ten demo loops at 16x with the carried chat; from loop 2 to 10 the envelopes, the chat, the facts and the memory per loop stay flat; 0.9 s
 ```
 
 `crowdBounded.test.ts` (round 43, r4-bundle) runs every cast on the Greenhouse kit through a seeded demo-like
