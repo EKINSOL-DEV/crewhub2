@@ -25,7 +25,7 @@ export const LIVE_USAGE = "[--source demo|live --host-port <port>] [--loops-url 
  * (your Vite, or the host serving dist); `pair(page)` opens the one-time pairing link in that page (once per context).
  * `opts` is the cli() result; `preview` says whether the host serves the production build.
  */
-export async function startLive(opts, { preview = false } = {}) {
+export async function startLive(opts, { preview = false, keyReadsChat = false } = {}) {
   if (opts.source !== "live") throw new Error("startLive: --source is not live");
   const { createHost } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "host.ts")).href);
   let fake = null;
@@ -49,7 +49,9 @@ export async function startLive(opts, { preview = false } = {}) {
     const { createLoopsFake } = await import(pathToFileURL(path.join(REPO, "packages", "loops-fake", "src", "index.ts")).href);
     const speed = Number(opts["fake-speed"]);
     if (![0, 1, 4, 16].includes(speed)) opts.fail("--fake-speed must be 0, 1, 4 or 16");
-    fake = await createLoopsFake({ scenario: opts["fake-scenario"], speed, heartbeatMs: 5000 });
+    // `keyReadsChat` (round 45, the chat soak): the fake lets the world's key read the chat, as a loops with the
+    // viewer key does, so the agents' answers come over road 1 and the tool can write to them (`fake.sendDm`).
+    fake = await createLoopsFake({ scenario: opts["fake-scenario"], speed, heartbeatMs: 5000, ...(keyReadsChat ? { keyReadsChat: true } : {}) });
     loopsUrl = fake.url;
     key = fake.key;
     keyName = fake.keyName;
@@ -60,7 +62,13 @@ export async function startLive(opts, { preview = false } = {}) {
   const hostPort = portVerdict.value;
   const dist = path.join(REPO, "apps", "world", "dist");
   if (preview && !existsSync(path.join(dist, "index.html"))) opts.fail("--preview with --source live serves apps/world/dist: run npm run build first");
-  const hostOptions = { loopsUrl, key, keyName, log: () => undefined };
+  // The host's log lines, kept for the run's end (the chat soak reads its lost and retry lines): the last 2000.
+  const lines = [];
+  const log = (line) => {
+    lines.push(`${new Date().toTimeString().slice(0, 8)} ${line}`);
+    if (lines.length > 2000) lines.splice(0, lines.length - 2000);
+  };
+  const hostOptions = { loopsUrl, key, keyName, log };
   const host = await createHost(preview ? { ...hostOptions, staticDir: dist, port: hostPort } : { ...hostOptions, port: hostPort, allowedOrigins: [opts.origin] });
   const origin = preview ? host.url : opts.origin;
   const describe = `live: loops ${fake ? `fake on 127.0.0.1:${fake.port} (${opts["fake-scenario"]}, speed ${opts["fake-speed"]})` : loopsUrl} (key ${keyName}), host on 127.0.0.1:${host.port} ${preview ? "serving apps/world/dist" : `behind the Vite proxy on ${origin} (Vite started with CREWHUB_WORLD_PORT=${host.port})`}`;
@@ -70,6 +78,10 @@ export async function startLive(opts, { preview = false } = {}) {
     describe,
     /** The host the tool started: its `connection()` tells the upstream stream's state and reconnects (round 27). */
     host,
+    /** The in-process fake (null with --loops-url): the chat soak writes to its agents through `fake.sendDm`. */
+    fake,
+    /** The host's last 2000 log lines, each with its time of day. */
+    lines,
     /** Pairs the page's context: the one-time link, which lands on `/`. */
     async pair(page) {
       await page.goto(host.mintPairLink(preview ? undefined : origin));

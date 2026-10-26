@@ -395,27 +395,38 @@ done
 ```
 
 - The heap after GC on every sample and the growth line's MB an hour (`growth.heapMBPerHour` in the JSON).
-- The crowd's batches and materials: the tool does not print them. Round 41 read them from each snapshot's totals by
-  constructor (`lib/heap.mjs` sums every snapshot by constructor name; the JSON keeps the 40 largest), in a copy of the
-  tool with a `--count-names` option that printed `totals.byName.get(name).count` at every snapshot for three's
-  `InstancedMesh` (one per batch), `MeshStandardMaterial` and `Mesh`. Their names are minified per build: find them in
-  the built `three-*.js` chunk by their class bodies (`isInstancedMesh=!0`, `isMeshStandardMaterial=!0`, `isMesh=!0`;
-  in the builds of 26 October `oi`, `fo`, `Jr`). r4-bundle counted the same name-free: a material is an object with
-  `emissiveIntensity` and `roughness`.
+- The crowd's batches and materials: the tool prints them under every snapshot (round 45), one line
+  `counts at minute <n>: batches (InstancedMesh) <b>, MeshStandardMaterial <m>, Mesh <k>`, and the JSON keeps them as
+  `snapshots[].shapes`; the run's end sums the first and the last. They are counted by shape, not by name: an object
+  with the own flag each three.js constructor sets on its instances (`isInstancedMesh`, `isMeshStandardMaterial`,
+  `isMesh`; an `InstancedMesh` is not counted as a `Mesh`), so a build's minified names do not matter. With
+  `--preview` the tool also says what the built `three-*.js` chunk calls those classes (for a retainer walk, which goes
+  by name; `oi`, `fo`, `Jr` in the builds of 26 October); `--count-names <a,b>` adds the counts of any constructor
+  name as the snapshot sums them; `--save-snapshots <dir>` keeps the raw snapshots (the heap's size each).
 - What good looks like (round 41's fix hour, the potlings): batches 90 and materials 313 to 314 at every snapshot,
   the heap after GC 25.9 to 30.3 MB, the snapshot total 49.2 to 50.4 MB. Before the fix: about 390 batches and 390
   materials more a minute, 5.4 MB a minute, and the snapshot of minute 40 no longer fit the tool (below).
 
-**2. The live chat soak** (rounds 40 and 41). `memory.mjs live --preview` against the in-process fake, with what
-the stock tool does not have: the fake's key reading the chat (`createLoopsFake({ keyReadsChat: true })` in a copy of
-`lib/live.mjs` that also hands the fake out), the Chat panel opened by clicking `.chat-open` once the chip says Live,
-a second tab of the same context left open and paired, a `setInterval` calling `fake.sendDm(agent, text)` every 5 s
-over `g-man`, `cr-lead`, `cl-lead`, a burst of 300 sends in one loop right after the sample at the half, a wrapper on
-the process's `fetch` counting every host read of `/api/dm/messages/<id>` (status, reads in flight), and a
-`MutationObserver` counting the `li` rows added under `.recent-list`. Round 41 ran it three hours at `--fake-speed 1`
-with `--every 600 --snapshots 10,90,180`, the minute-90 snapshot taken before the burst; it is r2-perf's scratch copy
-of `tools/memory.mjs` (`memory-chat.mjs`), not in the tree: folding `--paired-tab`, `--chat-panel`, `--dm-every`,
-`--burst` and `--burst-at` into the tool is a tool task for a night round. What to read:
+**2. The live chat soak** (rounds 40, 41 and 45). `memory.mjs live --preview` against the in-process fake with the
+chat options (round 45, `tools/lib/chatSoak.mjs`): `--paired-tab` opens a second tab of the same context on the host
+once the first is Live and leaves it open, sampled too; `--chat-panel` opens the Chat panel (road 1) once the chip
+says Live and counts the Recent answers rows the page adds; `--dm-every <s>` makes the fake's person write to the
+scenario's lead agents in turn (`GET /api/agents`, `role: "lead"`, not an external bot: `g-man`, `cr-lead`, `cl-lead`
+in the small team; the tool prints which), and the agents' scripted replies come back over road 1 as the host's reads
+of `/api/dm/messages/<id>`, counted from outside by id with the status and the reads in flight at once; `--burst <n>
+--burst-at <min>` sends `<n>` in one instant right after that minute's sample, after that minute's snapshot. With any
+of these the fake's key reads the chat. Every list the tool keeps in the page is capped (20 labels). Round 41's three
+hours, with the stock tool now:
+
+```sh
+export CREWHUB_WORLD_CONFIG_DIR=tools/out/soak/config-chat CREWHUB_WORLD_PORT=5385
+node tools/memory.mjs --port 5385 live --preview --host-port 5385 --fake-speed 1 --minutes 180 --every 600 --snapshots 10,90,180 --paired-tab --chat-panel --dm-every 5 --burst 300 --burst-at 90 --json tools/out/soak/chat.json
+```
+
+Every sample line ends with `chat sent <n> (burst <b>) reads <ids> ids/<total> total (twice <t>, bad <x>, in flight
+<f>, max <m>) rows <r>` (and `lost <l>` when the host's log says so), the JSON keeps it as `points[].chat`, and the end
+prints the tally (sent, the reads over the ids, the most in flight, the burst's minute by status with its mean and
+slowest read, the rows, the host's lost and retried lines) under `chat.end`. What to read:
 
 - Rows added on the page = ids the host read = messages sent plus the storyline's own replies; none lost, none doubled
   (an id read twice at a cursor reset is the re-snapshot replaying the newest `dm.created`, the page shows it once).
@@ -426,8 +437,8 @@ of `tools/memory.mjs` (`memory-chat.mjs`), not in the tree: folding `--paired-ta
 - The stores at their caps (`window.__worldStores`: Recent answers 10, bubbles 2 to 3, threads 3), DOM nodes and
   listeners flat (463 to 492 and 237 to 240 with the Chat panel open), frame p95 about 18 ms, reconnects about 17 an
   hour (the fake's stream ends every 300 s and its sealed cursor expires at the 16-minute pass boundary).
-- Anything the rig itself keeps in the page counts against the page: round 41's observer kept every row's label (0.3
-  MB in three hours); cap such lists.
+- Anything a tool keeps in the page counts against the page: round 41's scratch rig kept every row's label (0.3 MB in
+  three hours); the tool now keeps the row count and the last 20 labels, nothing more.
 
 **3. The verdict, set before looking** (round 41's rule; write it in the report before the run):
 
