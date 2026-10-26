@@ -5,8 +5,9 @@
    the chat per loop, the facts and the reducer's memory stay flat. */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { Projection, emptyMemory, reduceWorld, type PresentationMemory } from "@crewhub/world-model";
-import { SCRIPT_DURATION_MS } from "../src/script.ts";
+import { DEFAULT_PRESENCE, Projection, emptyMemory, reduceWorld, type PresentationMemory } from "@crewhub/world-model";
+import { createDirectorFeed } from "../src/director.ts";
+import { DEMO_SEED, SCRIPT_DURATION_MS } from "../src/script.ts";
 import { createDemoSource } from "../src/source.ts";
 import { createManualScheduler } from "../src/scheduler.ts";
 
@@ -27,6 +28,8 @@ interface LoopStats {
   lanes: number;
   dmMessages: number;
   dmThreads: number;
+  /** The director feed's plan stamps held (round 45: the last day's at most). */
+  stamps: number;
   /** The most the lists, the deliveries and lastMoves held during the loop (the snapshot at its end resets them). */
   peakLists: number;
   peakDeliveries: number;
@@ -38,6 +41,8 @@ test(`${LOOPS} loops through the projection and the reducer: from loop 2 on, the
   const source = createDemoSource({ scheduler, speed: SPEED, seed: 44 });
   const projection = new Projection(source, { coalesceMs: 0 });
   let memory: PresentationMemory = emptyMemory();
+  // The scripted director, stepped on every model as the app's state/director does (round 45).
+  const feed = createDirectorFeed({ seed: DEMO_SEED, reachable: () => true, propTags: () => ["coffee", "whiteboard"], settings: { ...DEFAULT_PRESENCE, directorEnabled: true } });
   const loops: LoopStats[] = [];
   let envelopes = 0, chat = 0, snapshots = 0;
   const peak = { lists: 0, deliveries: 0, lastMoves: 0 };
@@ -50,6 +55,7 @@ test(`${LOOPS} loops through the projection and the reducer: from loop 2 on, the
   const closeLoop = async () => {
     const f = projection.facts;
     loops.push({
+      stamps: feed.stampsHeld(),
       peakLists: peak.lists,
       peakDeliveries: peak.deliveries,
       peakLastMoves: peak.lastMoves,
@@ -100,6 +106,7 @@ test(`${LOOPS} loops through the projection and the reducer: from loop 2 on, the
     if (snapshots === 1 && sent < 3 && wall > 10_000 * (sent + 1)) source.sendDm("g-man", `hello ${sent}`, `client-${sent++}`);
     const result = reduceWorld(projection.facts, memory, { now: source.now(), mode: "demo", roleOverrides: {} });
     memory = result.memory;
+    feed.step(result.model);
   }
   assert.ok(loops.length >= LOOPS - 1, `${loops.length} loops closed`);
   assert.equal(sent, 3, "the three messages were sent in the first loop");
@@ -112,7 +119,9 @@ test(`${LOOPS} loops through the projection and the reducer: from loop 2 on, the
     assert.equal(l.envelopes, second.envelopes, `${at}: envelopes per loop`);
     assert.equal(l.chat, second.chat, `${at}: chat events per loop`);
     for (const key of ["cards", "deliveries", "lists", "lastMoves", "places", "movesSeen", "flights", "lanes", "dmMessages", "dmThreads", "peakLists", "peakDeliveries", "peakLastMoves"] as const) assert.ok(l[key] <= second[key], `${at}: ${key} ${l[key]} > ${second[key]}`);
+    assert.ok(l.stamps <= DEFAULT_PRESENCE.plansPerDay, `${at}: the feed holds ${l.stamps} stamps, more than a day's`);
   }
+  assert.ok(feed.usage().plansTotal > 0, "the feed made plans");
   assert.equal(projection.facts.invalidEvents, 0);
   console.log(`  manyLoops: loop 1 ${JSON.stringify(loops[0])}; loop 2 ${JSON.stringify(second)}; loop ${loops.length} ${JSON.stringify(loops[loops.length - 1])}`);
   projection.dispose();

@@ -52,15 +52,44 @@ describe("the archive memory across a switch of the loops found (round 44)", () 
     await snapshot();
     assert.deepEqual([file().slugs, file().target, (await health()).connection.archived.slugs], [["old-a"], a.url, ["old-a"]], "A's whole log taught old-a, written for A");
 
-    // The switch: A goes away, the folder names B, discovery looks again and finds B.
+    // The switch: A goes away, the folder names B, discovery looks again and finds B. From the moment discovery names B
+    // until B's stream is up, a sampler reads the health and the file (round 45): nothing of A's may show under B, and
+    // B's file may not be written before B taught its own set.
+    const samples: { archived: { source: string; slugs: string[] }; file: { slugs: string[]; target?: string } }[] = [];
+    let sampling = true;
+    const sampler = (async () => {
+      while (sampling) {
+        const h = await health().catch(() => null);
+        if (h?.connection?.discovery?.target === b.url) samples.push({ archived: h.connection.archived, file: file() });
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+    })();
+    cleanup.push(() => {
+      sampling = false;
+    });
     writeFileSync(settings, `{"port": ${b.port}}\n`);
     await a.close();
-    await waitFor("discovery to find B", async () => (await health()).connection.discovery?.target === b.url, 20_000);
-    await waitFor("B's stream", async () => (await health()).connection.stream.state === "ok");
+    try {
+      await waitFor("discovery to find B", async () => (await health()).connection.discovery?.target === b.url, 20_000);
+      const atSwitch = await health();
+      assert.deepEqual(atSwitch.connection.archived.slugs, [], "right after discovery finds B: no slug of A's under B");
+      await waitFor("B's stream", async () => (await health()).connection.stream.state === "ok");
+    } finally {
+      sampling = false;
+      await sampler;
+    }
+    assert.ok(samples.length > 0, "the switch was sampled");
+    for (const s of samples) {
+      assert.ok(!s.archived.slugs.includes("old-a"), `A's slug shown under B: ${JSON.stringify(s.archived)}`);
+      if (s.file.target === b.url) assert.notEqual(s.archived.source, "none", `B's file written (${JSON.stringify(s.file)}) while B's set is not learnt`);
+      assert.ok(!(s.file.target === b.url && s.file.slugs.includes("old-a")), "A's slug written into B's file");
+    }
     const body = await snapshot();
     assert.deepEqual(body.archivedProjects, [], "B does not know old-a: confirmed with B and dropped");
     assert.deepEqual((await health()).connection.archived.slugs, [], "nothing of A's left in memory after B's first snapshot");
-    assert.deepEqual([file().slugs, file().target], [[], b.url], "B's file holds B's set, which is empty, never A's slug");
+    // B has not taught its own set yet (it lists nothing and will not read its log from the start), so B's file is not
+    // written: A's memory stays on disk, under A's name, until B teaches its set below (round 45).
+    assert.deepEqual([file().slugs, file().target], [["old-a"], a.url], "B's file is not written while B's set is not learnt; A's stays on disk under A's name");
     assert.ok(!b.requests.some((r) => r.path === "/api/projects/old-a" && r.method !== "GET"), "A's slug was only asked about, never written to B");
 
     b.emit(archived(901, "beacon"));

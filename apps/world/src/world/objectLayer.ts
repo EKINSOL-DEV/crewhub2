@@ -141,7 +141,8 @@ export class ObjectLayer {
   readonly #slug: string;
   readonly #templates = new Map<string, Template>();
   readonly #states = new Map<string, ObjectState>();
-  readonly #celebrated = new Set<string>();
+  /** The last celebration played per ticket (its `celebrateUntil`), dropped with the object's state (round 45). */
+  readonly #celebrated = new Map<string, number>();
   /** Packages in a person's hands: where the carry anchor is this frame, building-local. */
   readonly #carried = new Map<string, THREE.Vector3>();
   /** Packages a person has put on the Done rack before the model landed them there. */
@@ -235,6 +236,11 @@ export class ObjectLayer {
     return t;
   }
 
+  /** Test-facing: how many tickets' last celebration the layer remembers (at most one per object it shows). */
+  get celebratedCount(): number {
+    return this.#celebrated.size;
+  }
+
   /** Called when the model or the layout changed. */
   sync(building: Building, layout: ObjectLayout) {
     this.#milestoneAccent = new Map(building.milestones.map((m, i) => [m.id, MILESTONE_ACCENTS[i % MILESTONE_ACCENTS.length]!]));
@@ -268,6 +274,7 @@ export class ObjectLayer {
         this.#dropDrone(state);
         if (state.hop) state.hop.sparkle.removeFromParent();
         this.#states.delete(id);
+        this.#celebrated.delete(id);
         this.#carried.delete(id);
         this.#delivered.delete(id);
         this.anchors.delete(`o:${this.#slug}:${id}`);
@@ -369,10 +376,10 @@ export class ObjectLayer {
 
   #syncHop(state: ObjectState) {
     const until = state.object.celebrateUntil;
-    const key = `${state.object.ticketId}:${until}`;
-    // A package a person carries hops once it is out of their hands, on the rack.
-    if (until === null || this.#celebrated.has(key) || this.#ctx.reducedMotion() || state.object.transit || this.#carried.has(state.object.ticketId)) return;
-    this.#celebrated.add(key);
+    // A package a person carries hops once it is out of their hands, on the rack. One entry per ticket, its last
+    // celebration: a set of every `ticket:until` pair grew with every celebration a long session ever showed.
+    if (until === null || this.#celebrated.get(state.object.ticketId) === until || this.#ctx.reducedMotion() || state.object.transit || this.#carried.has(state.object.ticketId)) return;
+    this.#celebrated.set(state.object.ticketId, until);
     const sparkle = this.#ctx.style.model("sparkle");
     this.group.add(sparkle);
     if (state.hop) state.hop.sparkle.removeFromParent();
