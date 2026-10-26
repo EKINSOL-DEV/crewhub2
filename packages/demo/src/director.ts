@@ -78,6 +78,8 @@ export interface DirectorFeed {
   step(model: WorldModel): PlanRecord[];
   setSettings(settings: PresenceSettings): void;
   usage(): FeedUsage;
+  /** Test-facing: how many plan stamps the feed holds now (the last day's, at most `plansPerDay`). */
+  stampsHeld(): number;
 }
 
 export interface DirectorFeedOptions {
@@ -207,6 +209,9 @@ export function createDirectorFeed(options: DirectorFeedOptions): DirectorFeed {
       ? { accepted: [], rejected: intents.map((intent) => ({ intent, reason: `output is ${outputTokens} tokens, over the ${settings.outputBudget} budget` })) }
       : validateIntents(model, intents, options.reachable);
     stamps.push(clock);
+    // Only the last day's stamps are kept (round 45): `windowCount` never looks further back, and the array is in
+    // clock order, so the oldest go first. Before, a town left running kept every plan's stamp.
+    while (stamps.length > 0 && clock - stamps[0]! >= DAY) stamps.shift();
     totals.plans += 1;
     totals.accepted += accepted.length;
     totals.rejected += rejected.length;
@@ -218,6 +223,7 @@ export function createDirectorFeed(options: DirectorFeedOptions): DirectorFeed {
     setSettings(next) {
       settings = next;
     },
+    stampsHeld: () => stamps.length,
     usage: () => ({
       plansToday: windowCount(DAY),
       plansThisHour: windowCount(HOUR),

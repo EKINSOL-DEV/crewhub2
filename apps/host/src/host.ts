@@ -334,6 +334,13 @@ export async function createHost(options: HostOptions): Promise<Host> {
     const target = targetText(found.target);
     if (judgedFor === target) return;
     judgedFor = target;
+    // A new target: nothing learnt from the old loops holds for this one (round 45). The set empties and the file is
+    // not written until this loops teaches its own set, or the memory on disk turns out to be its own (below); the
+    // health never shows the old loops' slugs under the new one.
+    learnt = false;
+    archive.source = "none";
+    archive.slugs = new Set();
+    delete archive.at;
     if (onDisk === null) return;
     if (onDisk.target !== undefined && onDisk.target !== target) {
       learnt = false;
