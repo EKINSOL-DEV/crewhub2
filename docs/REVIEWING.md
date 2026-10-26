@@ -318,6 +318,12 @@ that would show the mutation: a redirect, a resent seq, a tab at the buffer's ed
 at exactly a limit. The scene's teardown had no observer at all before this round; three `rooms` checks now read
 the browser's own listener table, its timers and the geometries.
 
+What a long session would show is guarded the same way, in node and in seconds: the crowd's batches, the figures'
+faded copies and the demo's whole path through every cast (rounds 41 to 43), the caps the scene's code keeps on its
+own memory (round 44), and the model's history and delivery caps over a long stream (round 44). The list, with the
+commands and what each guard would have caught, is in [COST_POLICY.md](COST_POLICY.md), "What to soak and how",
+beside the soak that a night round runs when a guard is not enough.
+
 Line numbers are at `9a765f0`. "Killed by" names the test file (under the package's `test/`) or the regress group,
 and for a **New** test (one written for a mutation that got past the tests) its title or the regress check's words,
 close enough to find it with grep. Read again on 2026-10-23 (round 34) by a developer who did not make the table:

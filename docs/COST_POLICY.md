@@ -365,6 +365,9 @@ PATH=~/.nvm/versions/node/v24.21.0/bin:$PATH
 node --test apps/world/test/robotCrowdDrift.test.ts            # round 41: the far crowd under 200 emissive strengths, +0 batches
 node --test packages/world-cast/test/fadedShare.test.ts        # round 42: faded figures' copies shared, 0 when none is faded
 node --test packages/style-greenhouse/test/crowdBounded.test.ts  # round 43: the whole demo path bounded (below), 3 s
+node --test apps/world/test/inCodeCaps.test.ts                   # round 44: the template cache of 64, the dressing memo of 256, the intent log of 40
+# TODO(r44): r4-bundle's long-session guards for the model and the demo (the projection's history and delivery caps
+# over about 20 000 envelopes; the demo over ten loops with the carried chat flat), named when they have names.
 ```
 
 `crowdBounded.test.ts` (round 43, r4-bundle) runs every cast on the Greenhouse kit through a seeded demo-like
