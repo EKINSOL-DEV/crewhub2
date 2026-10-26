@@ -121,10 +121,31 @@ fallback for unsupported graphics. Do not make color the only status signal.
 
 - Use Node.js 24, npm 11, and the committed npm lockfile. Run `npm ci`. Tests run
   with `node --test` directly on `.ts` files (type stripping): use `import type`,
-  no enums, and relative imports ending in `.ts`.
+  no enums, no parameter properties (`constructor(readonly x: number)`), and
+  relative imports ending in `.ts`. The root `tsconfig.json` sets
+  `erasableSyntaxOnly`, so `npm run typecheck` refuses an enum or a parameter
+  property before `node --test` would fail to load the file.
 - Run `npm run check` before delivery. Add focused tests when introducing actual
   projection, state, identity, reconnect, or command behavior; do not add trivial
   tests that only restate static fixtures.
+- Writing tests, what the harness does that a first test does not expect:
+  - A test or tool that could start a host sets its own `CREWHUB_WORLD_PORT` and
+    `CREWHUB_WORLD_CONFIG_DIR` (a temp folder), never 5180 and never
+    `~/.config/crewhub-world`; `scripts/no-app-reach.mjs`, preloaded by `npm test`,
+    refuses the Mac app's ports (8091, 8000, 9443) and Nicky's folders before a
+    packet leaves or a file opens, so a test that forgets fails by name.
+  - The loops stub (`apps/host/test/loopsStub.ts`) writes its headers with
+    `writeHead` before `end(body)`, so its answers come chunked with no
+    `Content-Length`; its `/api/agents` lists the host's own `crewhub-world` only
+    with `keyReadsChat`, and its `/api/dm/threads` answers 403 without it.
+  - The listen backlog: above about 128 connections opened at once the stub host
+    answers `ECONNRESET` (macOS's backlog), so a fuzz spreads its openings
+    (`apps/host/test/chatFuzz.test.ts`).
+  - A host test that leaves the app data folder empty would probe 8091 through
+    discovery's default; give the folder a `settings.json` naming a free port, as
+    `apps/host/test/town.test.ts` does since round 35.
+  - The node guards that stand in for a soak, and the caps the scene's code keeps
+    on its own memory, are listed in `docs/COST_POLICY.md`, "What to soak and how".
 - Add dependencies when used. Do not preinstall a rendering engine, UI kit, agent
   SDK, or tooling for a later milestone.
 - Do not introduce API keys or paid calls merely to build, preview, or verify UI.
