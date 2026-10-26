@@ -41,6 +41,65 @@ const CHANNELS = ["rotation.x", "rotation.y", "rotation.z", "offset.x", "offset.
 const STALE_FADE = 0.75;
 const STALE_OPACITY = 0.8;
 const PROXY_OPACITY = 0.35;
+
+/* The see-through copies faded figures draw with (a proxy's, or a stale figure's greyed one), shared per kit material and
+   mode (round 42): N faded figures cost one copy per kit material they use, and a look change clones nothing. A copy
+   differs from its source by what the mode says only (the opacity, the depth write, the lerp towards the kit's `stale`
+   colour), nothing per figure: a project tint is a kit material of its own. Ref-counted by the figures holding them: the
+   last figure leaving a copy disposes it, and a source's dispose takes its copies with it (the kit's or the style's
+   dispose), so nothing is kept for a kit that is gone. */
+/** What fades a figure: a proxy (see-through, no depth write), a stale one (greyed towards `stale`), or both at once. */
+type FadedMode = "proxy" | "stale" | "proxy-stale";
+interface FadedCopy {
+  material: THREE.MeshStandardMaterial;
+  /** The figures holding it. */
+  users: number;
+}
+const fadedCopies = new WeakMap<THREE.Material, Map<FadedMode, FadedCopy>>();
+let fadedAlive = 0;
+/** How many faded copies exist now (tests and tools). */
+export const fadedCopiesAlive = (): number => fadedAlive;
+
+/** The copy of `source` for `mode`, held by one more figure; a stale copy's colour is the source's lerped towards `stale`. */
+function acquireFaded(source: THREE.Material, mode: FadedMode, stale: THREE.Color): THREE.MeshStandardMaterial {
+  let modes = fadedCopies.get(source);
+  if (!modes) {
+    const made = new Map<FadedMode, FadedCopy>();
+    fadedCopies.set(source, (modes = made));
+    source.addEventListener("dispose", () => {
+      for (const copy of made.values()) {
+        copy.material.dispose();
+        fadedAlive--;
+      }
+      made.clear();
+    });
+  }
+  const proxy = mode !== "stale",
+    greyed = mode !== "proxy";
+  let copy = modes.get(mode);
+  if (!copy) {
+    const c = (source as THREE.MeshStandardMaterial).clone();
+    c.transparent = true;
+    c.opacity = proxy ? PROXY_OPACITY : STALE_OPACITY;
+    c.depthWrite = !proxy;
+    modes.set(mode, (copy = { material: c, users: 0 }));
+    fadedAlive++;
+  }
+  // The greyed colour follows the source's (the theme) and the kit's stale colour as the figure re-skins, as before.
+  if (greyed) copy.material.color.copy((source as THREE.MeshStandardMaterial).color).lerp(stale, STALE_FADE);
+  copy.users++;
+  return copy.material;
+}
+
+/** One figure lets go of its hold; the last one disposes the copy. */
+function releaseFaded(source: THREE.Material, mode: FadedMode): void {
+  const modes = fadedCopies.get(source);
+  const copy = modes?.get(mode);
+  if (!copy || --copy.users > 0) return;
+  modes!.delete(mode);
+  copy.material.dispose();
+  fadedAlive--;
+}
 /** A seeded glance's beat stretches by up to this share of its period. */
 const BEAT_STRETCH = 0.6;
 /** Getting on or off a perch: seconds per figure unit of the way (at least `HOP_MIN`), and how high the hop arcs. */
@@ -244,8 +303,12 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
   const waves: Wave[] = [];
   const moving: Joint[] = [];
   let glance: Wave | null = null;
-  /** Materials this figure owns (the see-through or greyed copies), by the shared material they stand in for. */
-  const owned = new Map<THREE.Material, THREE.Material>();
+  /** The shared see-through copies this figure holds (round 42), by the kit material each stands in for. */
+  const owned = new Map<THREE.Material, { copy: THREE.MeshStandardMaterial; mode: FadedMode }>();
+  const releaseAll = () => {
+    for (const [source, held] of owned) releaseFaded(source, held.mode);
+    owned.clear();
+  };
 
   const layer = (base: Float32Array, pose: JointPose | undefined) => {
     if (!pose) return;
@@ -335,7 +398,9 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
    */
   const skin = () => {
     const faded = state.proxy || state.activity === "stale";
-    for (const m of owned.values()) m.dispose();
+    const mode: FadedMode = state.proxy ? (state.activity === "stale" ? "proxy-stale" : "proxy") : "stale";
+    // The holds of the last look are let go after the new ones are taken, so a figure that stays faded re-clones nothing.
+    const before = new Map(owned);
     owned.clear();
     if (faded) stale.set(kit.hex("stale"));
     for (const part of parts) {
@@ -355,19 +420,11 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
       if (highlight !== "none") lookOf(part, looks[highlight], look);
       part.material = kit.material(look.color, look.glow ? { glow: look.glow } : undefined);
       piece.castShadow = !state.proxy && detail === "near";
-      let drawn = part.material;
+      let drawn: THREE.Material = part.material;
       if (faded) {
-        let copy = owned.get(part.material);
-        if (!copy) {
-          const c = (part.material as THREE.MeshStandardMaterial).clone();
-          if (state.activity === "stale") c.color.lerp(stale, STALE_FADE);
-          c.transparent = true;
-          c.opacity = state.proxy ? PROXY_OPACITY : STALE_OPACITY;
-          c.depthWrite = !state.proxy;
-          owned.set(part.material, c);
-          copy = c;
-        }
-        drawn = copy;
+        let held = owned.get(part.material);
+        if (!held) owned.set(part.material, (held = { copy: acquireFaded(part.material, mode, stale), mode }));
+        drawn = held.copy;
       }
       piece.material = drawn;
       const mesh = piece.mesh;
@@ -377,6 +434,7 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
         mesh.material = drawn;
       }
     }
+    for (const [source, held] of before) releaseFaded(source, held.mode);
     if (faded) materialise();
   };
 
@@ -476,8 +534,7 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
       extension?.update?.(seconds);
     },
     dispose() {
-      for (const m of owned.values()) m.dispose();
-      owned.clear();
+      releaseAll();
       extension?.dispose?.();
       halo.dispose();
       root.removeFromParent();
