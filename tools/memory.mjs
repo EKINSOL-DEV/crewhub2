@@ -88,7 +88,7 @@ if (chat.active && scenario !== "live") opts.fail("the chat soak (--chat-panel, 
 if (chat.pairedTab && scenario !== "live") opts.fail("--paired-tab is live mode's: node tools/memory.mjs live ...");
 if (chat.active && opts["loops-url"] !== "") opts.fail("the chat soak writes to the in-process fake's chat: leave --loops-url out");
 opts.source = scenario === "live" ? "live" : "demo";
-// The host's reads of the agents' answers, counted from outside: the host uses the process's fetch (round 40).
+// The host's reads of the agents' answers, counted from outside: the host uses the process-wide fetch, round 40.
 const dmReads = createDmReadCounter();
 if (chat.active) globalThis.fetch = dmReads.wrap(globalThis.fetch);
 const live = scenario === "live" ? await startLive(opts, { preview: opts.preview, keyReadsChat: chat.active }) : null;
