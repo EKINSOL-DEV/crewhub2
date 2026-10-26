@@ -99,7 +99,7 @@ test(`${EVENTS} seeded envelopes over ${PROJECTS.length * TICKETS_PER_PROJECT} t
       event(ticketEvent("delivery.created", { deliveryId: id, recipientId: pick(agents), reason: "handoff" }, t));
       if (random() < 0.5) event(ticketEvent("delivery.updated", { deliveryId: id, state: pick(["claimed", "forwarded", "unroutable"]) }, t));
     } else if (roll < 0.95) event(ticketEvent("delivery.updated", { deliveryId: `dlv_${Math.floor(random() * Math.max(1, deliveries))}`, state: "forwarded" }, t));
-    else projection.apply({ type: "heartbeat", seq: projection.facts.cursor });
+    else projection.apply({ type: "heartbeat", seq: projection.facts.cursor, ts: at() });
     if (i % 50 === 0) {
       scheduler.advance(1000);
       const result = reduceWorld(projection.facts, memory, { now: clock, mode: "demo", roleOverrides: {} });
