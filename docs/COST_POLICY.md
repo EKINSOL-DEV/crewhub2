@@ -349,6 +349,108 @@ the uniforms' `setValue` and `upload` 77 together over the ten seconds) and the 
 code beside it is a few milliseconds a second. The same on the phone's Fast town at 4x: `renderBufferDirect` 182 ms,
 `projectObject` 150, the matrix pass 139 over ten seconds, 1.6 s of CPU in all, no task over 50 ms.
 
+## What to soak and how (rounds 27, 40 to 42)
+
+A soak is a night job: the Mac quiet, one soak at a time, a production build (`npm run build` once), every host,
+Vite and tool on ports of your own with your own `CREWHUB_WORLD_CONFIG_DIR` (never 5180, 8091, `~/.config/crewhub-world`;
+8291 to 8293 only for a soak against the development loops with your own key). Nothing a soak finds goes on a branch
+as a number without its date and commit. The tools' manual is [tools/README.md](../tools/README.md); the rounds this
+section comes from are 27 (the two-hour live soak above), 40 and 41 (the chat soaks), 41 and 42 (the materials).
+
+**The node guards first.** Three tests stand in for a soak and run in seconds, in `npm test`; a night that changes
+the crowd, the figures or the kit runs them before anything opens a browser:
+
+```sh
+PATH=~/.nvm/versions/node/v24.21.0/bin:$PATH
+node --test apps/world/test/robotCrowdDrift.test.ts      # round 41: the far crowd under 200 emissive strengths, +0 batches
+node --test packages/world-cast/test/fadedShare.test.ts  # round 42: faded figures' copies shared, 0 when none is faded
+# TODO(r43): r4-bundle's guard over the whole demo path (every cast, the drift, looks, fades, themes, figures added and
+# disposed; batches, live materials, faded copies and geometries bounded after a warm-up), named when it has a name.
+```
+
+**1. The per-cast demo memory run** (the one round 41 lacked; run as round 41's fix hour). The demo with the
+day-night drift on, which is the demo's default and what live mode never has, each of the four casts in turn, one hour
+each, a production build behind a Vite preview. Without `CREWHUB_WORLD_PORT` the preview answers `/world-api` itself
+with "no host", so the page runs the demo; the `--preview` flag only tells the tool it is a production build.
+
+```sh
+npm run build
+export CREWHUB_WORLD_CONFIG_DIR=tools/out/soak/config; unset CREWHUB_WORLD_PORT
+(cd apps/world && npx vite preview --port 5385 --strictPort --host 127.0.0.1) &
+for cast in classic-bots overgrown-bots sprouts potlings; do
+  node tools/memory.mjs --port 5385 demo --preview --cast $cast --minutes 60 --every 600 --snapshots 10,20,30,40,50,60 --json tools/out/soak/demo-$cast.json
+done
+```
+
+- The heap after GC on every sample and the growth line's MB an hour (`growth.heapMBPerHour` in the JSON).
+- The crowd's batches and materials: the tool does not print them. Round 41 read them from each snapshot's totals by
+  constructor (`lib/heap.mjs` sums every snapshot by constructor name; the JSON keeps the 40 largest), in a copy of the
+  tool with a `--count-names` option that printed `totals.byName.get(name).count` at every snapshot for three's
+  `InstancedMesh` (one per batch), `MeshStandardMaterial` and `Mesh`. Their names are minified per build: find them in
+  the built `three-*.js` chunk by their class bodies (`isInstancedMesh=!0`, `isMeshStandardMaterial=!0`, `isMesh=!0`;
+  in the builds of 26 October `oi`, `fo`, `Jr`). r4-bundle counted the same name-free: a material is an object with
+  `emissiveIntensity` and `roughness`.
+- What good looks like (round 41's fix hour, the potlings): batches 90 and materials 313 to 314 at every snapshot,
+  the heap after GC 25.9 to 30.3 MB, the snapshot total 49.2 to 50.4 MB. Before the fix: about 390 batches and 390
+  materials more a minute, 5.4 MB a minute, and the snapshot of minute 40 no longer fit the tool (below).
+
+**2. The live chat soak** (rounds 40 and 41). `memory.mjs live --preview` against the in-process fake, with what
+the stock tool does not have: the fake's key reading the chat (`createLoopsFake({ keyReadsChat: true })` in a copy of
+`lib/live.mjs` that also hands the fake out), the Chat panel opened by clicking `.chat-open` once the chip says Live,
+a second tab of the same context left open and paired, a `setInterval` calling `fake.sendDm(agent, text)` every 5 s
+over `g-man`, `cr-lead`, `cl-lead`, a burst of 300 sends in one loop right after the sample at the half, a wrapper on
+the process's `fetch` counting every host read of `/api/dm/messages/<id>` (status, reads in flight), and a
+`MutationObserver` counting the `li` rows added under `.recent-list`. Round 41 ran it three hours at `--fake-speed 1`
+with `--every 600 --snapshots 10,90,180`, the minute-90 snapshot taken before the burst; it is r2-perf's scratch copy
+of `tools/memory.mjs` (`memory-chat.mjs`), not in the tree: folding `--paired-tab`, `--chat-panel`, `--dm-every`,
+`--burst` and `--burst-at` into the tool is a tool task for a night round. What to read:
+
+- Rows added on the page = ids the host read = messages sent plus the storyline's own replies; none lost, none doubled
+  (an id read twice at a cursor reset is the re-snapshot replaying the newest `dm.created`, the page shows it once).
+- Reads in flight: at most 8 with round 35's read gate (`apps/host/src/dmReads.ts` on the answer branch for question
+  14, in the merge plan's replay), all 200, no retry line, no lost line in the host's log, the burst's replies read
+  within a minute at about 50 ms each; the head without the gate opened all 300 at once and lost 172 of them to
+  "fetch failed" (rounds 40 and 41), so a run on a head without it reads that loss, not a regression.
+- The stores at their caps (`window.__worldStores`: Recent answers 10, bubbles 2 to 3, threads 3), DOM nodes and
+  listeners flat (463 to 492 and 237 to 240 with the Chat panel open), frame p95 about 18 ms, reconnects about 17 an
+  hour (the fake's stream ends every 300 s and its sealed cursor expires at the 16-minute pass boundary).
+- Anything the rig itself keeps in the page counts against the page: round 41's observer kept every row's label (0.3
+  MB in three hours); cap such lists.
+
+**3. The verdict, set before looking** (round 41's rule; write it in the report before the run):
+
+- The heap after GC fitted by least squares over the last 80 minutes rises under **0.2 MB an hour**, and
+- the JS-object part of the snapshot diff from the first snapshot to the last (arrays, strings, external string data,
+  objects, closures, numbers, named constructors; not `(code)`, not the inspector's `NetworkResourcesData`, not V8's
+  `native system /` bookkeeping) is at most **0.5 MB**.
+- Samples taken while the Mac starved the process are left out and said so: a tool started in the background runs
+  niced (10) and under a load of 13 to 18 its timers stall for minutes; the gaps show in the host's reads.
+- The readings swing about 0.5 MB with the town's state (the samples with 186 geometries and 270 to 280 draw calls read
+  above those with 180 and 230 to 250) and with the storyline pass (faded figures in one half of it); fit within one
+  state when in doubt, and when the slope is still in doubt run the head beside the branch, same rig, same hour, same
+  ports apart.
+- JIT code grows about 0.7 MB per 90 minutes in every diff and is not the page's.
+
+**4. How to name the holder.** In this order; stop when the holder is named.
+
+- The tool's `--snapshots`: the 40 largest kinds per snapshot and what grew between two, by self size, in the JSON.
+- A raw snapshot (the chunks of `HeapProfiler.takeHeapSnapshot` written to a file before `lib/heap.mjs` sums them;
+  44 MB for the demo town, round 41's `--save-snapshots`), then a retainer walk: breadth-first over the retaining
+  edges from the newest objects of the grown constructor to the nearest root, weak edges left out, the first hops
+  grouped; a Map's string keys read from its `table`; what a holder reaches, counted by constructor. The minified names
+  resolve in the built chunks by their class bodies (`isMeshStandardMaterial=!0`, `group.name = "robot-crowd"`, a
+  class's field list). Round 41's walkers are r2-perf's scratch `retainers.mjs`, `kitmap.mjs` and `reach.mjs`.
+- The sampling heap profiler for the maker: `HeapProfiler.startSampling` at 512 bytes with collected objects left out
+  (`includeObjectsCollectedByMajorGC: false`) for an hour, or at 2048 bytes with them kept for at most five minutes,
+  `getSamplingProfile` at the end, the stacks resolved by `url:line:column` in the chunk (round 41 named
+  `packages/world-cast/src/runtime.ts`'s look function and `mergeStatic.ts`'s palette material that way). **Not**
+  `startTrackingHeapObjects({ trackAllocations: true })`: it crashed the page within seconds of starting (round 41),
+  and a 256-byte sampler that kept collected objects made the next snapshot take 395 s.
+- The limits: a snapshot sums in about a second per 50 MB of heap (225 MB in 10 s) and holds about a gigabyte in the
+  tool process while it parses; a snapshot of a heap over about **290 MB** does not fit one string (`RangeError:
+  Invalid string length` in `lib/heap.mjs`) and ends the run, so a run that may grow that far takes its snapshots
+  early and reads the heap after GC alone from there.
+
 ## Acceptance
 
 The world, in demo mode and when it later reads crewhub-loops through the host,
