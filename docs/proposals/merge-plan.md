@@ -1,8 +1,8 @@
-# Merging Nicky's answers: the rehearsed plan (rounds 37 to 41, 2026-10-24 to 26)
+# Merging Nicky's answers: the rehearsed plan (rounds 37 to 45, 2026-10-24 to 27)
 
 Seven answer branches wait on [the open questions](open-questions.md). This page says, for every set of answers Nicky
 can give, in which order the branches merge into `feat/world-demo` and what has to be done by hand. Every hand merge
-below was rehearsed on a throwaway checkout of the base (`e55ef42` in round 37, `a0750aa` in round 38, `c0ae5ec` in round 39, `e6c934d` in round 41) with `npm run check`
+below was rehearsed on a throwaway checkout of the base (`e55ef42` in round 37, `a0750aa` in round 38, `c0ae5ec` in round 39, `e6c934d` in round 41, `d220f3a` in round 45) with `npm run check`
 green on the result, and
 is written so it can be redone without thinking. **Nicky needs §1 only**, and only the first three columns of its table
 to find the row; crewy and the Lead use the rest (§2 the evidence, §3 each hand merge exactly, §4 the check and the
@@ -138,6 +138,18 @@ order, then question 1's branch last; every hand merge then happens in that last
     page showed 848 of 1 020 answers. With the gate, none was lost.
   - **The replay on the new base,** `tab q3 q8 q11 q14 q15` on `e6c934d` (D, F, E; C passes), result `8e544c6`:
     `npm run check` 1089 / 1089. Each answer branch still merges cleanly onto `e6c934d`.
+- **Round 45's night, on the head only.** The head moved under the answers in rounds 42 to 45: the faded figures'
+  shared copies, the node guards, `erasableSyntaxOnly`, round 44's three small makers (one in `apps/host/src/host.ts`,
+  the archive memory on a new target), the soak tool in `tools/memory.mjs` and `tools/lib/live.mjs`.
+  - **The merges:**
+    - `task/r27-tab-pairing` conflicted for a moment with the soak tool in `tools/lib/live.mjs`, two new fields
+      beside its `pair()`. A Lead commit on the head moved them (`d435d2b`), and no answer branch changed.
+    - All seven merge cleanly onto `d220f3a`. None adds an enum, a namespace or a parameter property, so the new
+      type flag passes on them.
+  - **The per-cast demo hour on the head** (each cast an hour, drift on): the crowd's batches and materials and the
+    JS objects are flat for all four. The heap's remaining slope of about 1 MB an hour is V8's optimised code.
+  - **The replay on the new base,** `tab q3 q8 q11 q14 q15` on `d220f3a` (D, F, E; C passes), result `3e37de5`:
+    `npm run check` 1110 / 1110.
 - **The `cookie+expiry` and `cookie` rows, rehearsed in round 37** (detached checkouts; the five independent branches
   then the question-1 branch): the five alone on `e55ef42`, check 1070 of 1070; the five then `q1-cookie-expiry` (A,
   then B), check 1075 of 1075 on `e55ef42` and again on `761db9f` (`769434a`); the five then `r27-tab-pairing`, check
