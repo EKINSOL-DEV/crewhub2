@@ -441,19 +441,43 @@ slowest read, the rows, the host's lost and retried lines) under `chat.end`. Wha
 - Anything a tool keeps in the page counts against the page: round 41's scratch rig kept every row's label (0.3 MB in
   three hours); the tool now keeps the row count and the last 20 labels, nothing more.
 
-**3. The verdict, set before looking** (round 41's rule; write it in the report before the run):
+**3. The verdict, set before looking** (round 41's rule, the fit moved to the snapshots in round 46; write it in the
+report before the run):
 
-- The heap after GC fitted by least squares over the last 80 minutes rises under **0.2 MB an hour**, and
+- **The fit: the snapshot total without `(code)`**, fitted by least squares over the window (the last 80 minutes of
+  a run of two hours or more; minutes 10 to 60 of an hour), rises under **0.2 MB an hour**; and
 - the JS-object part of the snapshot diff from the first snapshot to the last (arrays, strings, external string data,
   objects, closures, numbers, named constructors; not `(code)`, not the inspector's `NetworkResourcesData`, not V8's
   `native system /` bookkeeping) is at most **0.5 MB**.
+- **The numbers come from the tool's snapshots:** each snapshot's total (`snapshots[].bytes`, the `<n> MB in <k>
+  nodes` line) minus its `(code)` row (`snapshots[].top`, always among the 40 largest kinds; the `(code)` line of
+  the snapshot table). A fit needs points: ask `--snapshots` for at least four minutes across the window, one every
+  10 to 30 minutes (an hour: `10,20,30,40,50,60`; three hours: `10,30,60,90,120,150,180`); every snapshot pauses the
+  page about a second per 50 MB of heap, so its own sample is not a frame measurement. Printing the total without
+  code and its fit at the run's end is a later tool task (`tools/memory.mjs`); until then the two numbers are read
+  from the JSON.
+- **A ceiling on `(code)` of its own: at most 1.5 MB an hour** over the window, and, **for a run of more than an
+  hour, a levelling test: the `(code)` rate over the second half of the window is at most the rate over the first
+  half.** Where the ceiling sits: round 45's six demo hours (the four casts, then the potlings and the classic bots
+  again a sample a minute) read `(code)` +0.85 to +0.97 MB from minute 10 to 60, round 41's chat soak about 0.7 MB
+  per 90 minutes and round 39's 0.65 MB over five hours, so 1.5 is above the noise of every run so far by half again;
+  and it is far below a real code leak, which scales with events: an `eval` or `new Function` on every chat message
+  (one small function, about 3 kB of code and tables each, 720 messages an hour) adds about 2 MB an hour from the
+  first hour on, and endless re-tiering from a bug makes a new optimised code object a second or faster, 10 MB an
+  hour and more; neither levels off, both pass the ceiling within the first hour.
+- **Why `(code)` is fitted on its own.** It is V8's code space: the optimised machine code of the page's hot functions
+  with their byte arrays and deoptimisation data, held under each closure's `code` slot and flushed under memory
+  pressure; it holds no page object. Every soak since round 39 has shown it as the one steady "code" row of the diff
+  (about 160 functions re-tiered an hour, 0.5 MB of instructions), with the JS objects flat beside it.
 - Samples taken while the Mac starved the process are left out and said so: a tool started in the background runs
   niced (10) and under a load of 13 to 18 its timers stall for minutes; the gaps show in the host's reads.
-- The readings swing about 0.5 MB with the town's state (the samples with 186 geometries and 270 to 280 draw calls read
-  above those with 180 and 230 to 250) and with the storyline pass (faded figures in one half of it); fit within one
-  state when in doubt, and when the slope is still in doubt run the head beside the branch, same rig, same hour, same
-  ports apart.
-- JIT code grows about 0.7 MB per 90 minutes in every diff and is not the page's.
+- The heap after GC and the `(code)` growth are reported beside the fit. The heap-after-GC reading swings about 0.5
+  MB with the town's state (the samples with 186 geometries and 270 to 280 draw calls read above those with 180 and
+  230 to 250) and with the storyline pass (faded figures in one half of it); fit within one state when in doubt, and
+  when the slope is still in doubt run the head beside the branch, same rig, same hour, same ports apart.
+- History: until round 45 the first rule fitted the heap after GC (`Runtime.getHeapUsage`) under 0.2 MB an hour;
+  round 45's pair 3 read 0.96 and 1.12 MB an hour on two casts with the JS objects flat and all of the rise in
+  `(code)`, which is why the fit moved.
 
 **4. How to name the holder.** In this order; stop when the holder is named.
 
