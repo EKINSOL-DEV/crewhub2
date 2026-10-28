@@ -1,7 +1,7 @@
 /* A read-only probe for the long-session tools (round 27, `tools/memory.mjs live`): the sizes of the page's own stores
    (the bubbles, the Recent answers, the chat threads), the town document's revision and the host's revision this page
-   is on, the host's stream state as this page last read it, and the page's own connection state, on
-   `window.__worldStores`. Pure: the reads come in (state/soakPage.ts has the page's), nothing is kept, and nothing of
+   is on, the host's stream state as this page last read it, the page's own connection state, and (round 47, every
+   mode) the faded figures' shared copies alive, on `window.__worldStores`. Pure: the reads come in (state/soakPage.ts has the page's), nothing is kept, and nothing of
    the world reads the probe. */
 
 export interface WorldStores {
@@ -20,6 +20,9 @@ export interface WorldStores {
   connection: unknown;
   /** Road 2 of the chat (round 28, state/pageChat.ts): the probe's verdict, the road, whether the page polls, how many polls and lines. */
   pageChat: { probe: string; road: string; polling: boolean; polls: number; lines: number };
+  /** The faded figures' see-through copies alive (round 47, `fadedCopiesAlive` in world-cast): one MeshStandardMaterial
+      each, so the soak's materials count moves with it. */
+  faded: number;
 }
 
 /** The getters the probe reads through: the stores' own, and the page's connection where the world has one. */
@@ -31,13 +34,14 @@ export interface StoreReads {
   stream: () => { state: string; reconnects: number } | null;
   connection: () => unknown;
   pageChat: () => { probe: string; road: string; polling: boolean; polls: number; lines: number };
+  faded: () => number;
 }
 
 /** What the probe answers for `reads`: every size read fresh, nothing kept. */
 export function worldStores(reads: StoreReads): WorldStores {
   const threads = reads.threads();
   const town = reads.town();
-  return { said: reads.said(), answers: reads.answers(), threads: threads ? threads.size : null, docRevision: town.docRevision, hostRev: town.hostRev, stream: reads.stream(), connection: reads.connection(), pageChat: reads.pageChat() };
+  return { said: reads.said(), answers: reads.answers(), threads: threads ? threads.size : null, docRevision: town.docRevision, hostRev: town.hostRev, stream: reads.stream(), connection: reads.connection(), pageChat: reads.pageChat(), faded: reads.faded() };
 }
 
 /** Where the probe goes: the window, or a stand-in in a test. */
