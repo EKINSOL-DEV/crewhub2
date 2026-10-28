@@ -118,3 +118,28 @@ test(`${EVENTS} seeded envelopes over ${PROJECTS.length * TICKETS_PER_PROJECT} t
   assert.ok(peak.lastMoves <= ticketIds.size && peak.lastMoves > ticketIds.size * 0.9, `lastMoves covers the tickets (${peak.lastMoves} of ${ticketIds.size})`);
   console.log(`  longStream: ${EVENTS} events, ${deliveries} deliveries, ${runs} runs; peaks ${JSON.stringify(peak)}`);
 });
+
+/* Round 47: the long stream above runs 80 % of its automation changes, and a run takes its change out again, so
+   `automationChanges` peaks just under the cap (299) and its `pushCapped` was never exercised. Here 400 changes whose
+   run never comes, each by another automation: the list stops at 300 and keeps the newest. */
+test("automation changes whose run never comes stay at the cap of 300, the newest kept", () => {
+  const p = PROJECTS[0]!;
+  const t = { id: "cl_0", key: "CL-1", title: "CL ticket 1" };
+  const projection = new Projection(new FakeSource(), { scheduler: new ManualScheduler() });
+  projection.apply({
+    type: "snapshot",
+    snapshot: snapshot({ projects: [project(p.slug, p.key, p.lead)], agents: [registered(p.lead)], boards: { [p.slug]: board([card(t.id, t.key, "in_progress", { position: 1 })]) }, team: team(T0, [lane(p.lead, "working")]) }),
+  });
+  let seq = projection.facts.cursor;
+  let peak = 0;
+  for (let i = 0; i < 400; i++) {
+    const e = envelope("ticket.updated", { automation: { id: `auto_${i}`, name: "auto" }, changed: ["status"] }, { ts: new Date(T0 + i * 1000).toISOString(), project: { slug: p.slug, key: p.key }, ticket: t, actor: { id: p.lead, kind: "agent" } });
+    projection.apply({ type: "event", envelope: { ...e, seq: ++seq } });
+    const n = projection.facts.automationChanges.length;
+    assert.ok(n <= HISTORY_CAP, `automationChanges ${n} > ${HISTORY_CAP}`);
+    peak = Math.max(peak, n);
+  }
+  assert.equal(peak, HISTORY_CAP, "the automation changes reached the cap");
+  const kept = projection.facts.automationChanges.map((c) => c.automationId);
+  assert.deepEqual([kept[0], kept.at(-1)], ["auto_100", "auto_399"], "the oldest hundred dropped, the newest kept");
+});
