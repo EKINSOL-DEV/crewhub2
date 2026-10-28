@@ -163,6 +163,29 @@ test("a stale copy's colour is the kit material's lerped towards the kit's stale
   assert.equal(fadedCopiesAlive(), alive - copies.length, "the kit materials' dispose took their copies");
 });
 
+// Round 47: a proxy that is stale too (mode "proxy-stale") is both: greyed like a stale figure, and see-through like a
+// proxy, with no depth write. The stale-only test above cannot see a copy left ungreyed in this mode.
+test("a proxy-stale copy is greyed like a stale one and drawn at the proxy's opacity, with no depth write", () => {
+  const { kit, handles } = figures(3);
+  const staleColor = new THREE.Color(kit.hex("stale"));
+  const kitColors = new Map<THREE.Material, THREE.Color>();
+  for (const h of handles) h.object.traverse((o) => { const holder = figurePiecesOf(o); if (holder) for (const p of holder.figurePieces) kitColors.set(p.material, (p.material as THREE.MeshStandardMaterial).color); });
+  const greyed = [...kitColors.values()].map((color) => color.clone().lerp(staleColor, 0.75));
+  for (const h of handles) h.setState({ ...proxy, activity: "stale" });
+  const copies = [...drawnMaterials(handles)] as THREE.MeshStandardMaterial[];
+  assert.ok(copies.length >= 2, `${copies.length} copies`);
+  for (const copy of copies) {
+    assert.ok(!kitColors.has(copy), "a proxy-stale figure draws no kit material directly");
+    const near = (c: THREE.Color) => Math.abs(c.r - copy.color.r) < 1e-6 && Math.abs(c.g - copy.color.g) < 1e-6 && Math.abs(c.b - copy.color.b) < 1e-6;
+    assert.ok(greyed.some(near), `a proxy-stale copy's colour is a kit colour lerped 0.75 towards stale (#${copy.color.getHexString()} is none)`);
+    assert.equal(copy.transparent, true);
+    assert.equal(copy.opacity, 0.35, "the proxy's opacity");
+    assert.equal(copy.depthWrite, false, "a proxy-stale copy writes no depth");
+  }
+  for (const h of handles) h.dispose();
+  assert.equal(fadedCopiesAlive(), 0);
+});
+
 test("a shared copy follows its source: a theme's colour and emissive and the drift's strength written in place reach the proxies at any holder's next look change, without a clone", () => {
   const { handles } = figures(2);
   const [a, b] = handles as [FigureHandle, FigureHandle];
