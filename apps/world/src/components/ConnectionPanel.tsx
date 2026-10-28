@@ -15,7 +15,7 @@ import { forgetHostKey, probeHost, type ConnectionState, type HostHealth } from 
 import { useT } from "../i18n";
 import { chatWords } from "../state/chatRoad";
 import { useChatRoad } from "../state/chatRoadStore";
-import { connectOutcome, loopsVersion, relativeTime, untilTime } from "../state/connect";
+import { archivedSourceKey, connectOutcome, loopsVersion, relativeTime, untilTime } from "../state/connect";
 import { rememberHealth } from "../state/health";
 import { useTown } from "../state/town";
 import { useWorld } from "../state/world";
@@ -138,7 +138,7 @@ export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_M
   const archivedWords = archived
     ? t("world.connection.panel.archived.from", {
         count: archived.count === 0 ? t("world.connection.panel.archived.zero") : archived.count === 1 ? t("world.connection.panel.archived.one") : t("world.connection.panel.archived.many", { count: archived.count }),
-        source: t(`world.connection.panel.archived.${archived.source}`),
+        source: t(archivedSourceKey(archived)),
       })
     : null;
 

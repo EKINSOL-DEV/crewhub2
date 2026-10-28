@@ -2,7 +2,7 @@
    panel. `connectScreen` maps the host's health to the one screen the world shows instead of the town; the key helpers
    handle a pasted access key (trimmed, shaped, only its tail ever shown); `connectOutcome` turns the host's answer to
    `POST /world-api/connect` into words. Nothing here keeps a key, logs or touches the DOM. */
-import type { ConnectionState, HostHealth, HostKeyState } from "@crewhub/loops-client";
+import type { ConnectionState, HostArchiveState, HostHealth, HostKeyState } from "@crewhub/loops-client";
 import { needsPairing, type SourceDecision } from "./source.ts";
 
 /** The screens between the demo decision and the town, in the order the person meets them. `null` is the town. */
@@ -98,6 +98,16 @@ export function loopsVersion(health: Pick<HostHealth, "loopsCommit" | "loopsComm
   if (!health || typeof health.loopsCommit !== "string" || health.loopsCommit === "") return null;
   const before = typeof health.loopsCommitBefore === "string" && health.loopsCommitBefore !== "" && health.loopsCommitBefore !== health.loopsCommit ? health.loopsCommitBefore : null;
   return { version: health.loopsCommit, before };
+}
+
+/**
+ * Which words say where the host's archived projects come from (the Connection panel's Closed buildings row), as an
+ * i18n key. `none` with a count is the stream's own archive events in this run (they count on top of any source,
+ * `HostArchiveState`): after a switch of loops or on a first start without a file, so "nothing known yet" beside
+ * "1 archived project" would contradict itself (round 47, the review's F1).
+ */
+export function archivedSourceKey(archived: Pick<HostArchiveState, "source" | "count">): string {
+  return archived.source === "none" && archived.count > 0 ? "world.connection.panel.archived.events" : `world.connection.panel.archived.${archived.source}`;
 }
 
 /**

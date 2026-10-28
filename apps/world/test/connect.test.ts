@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { HostConnection, HostHealth } from "@crewhub/loops-client";
-import { connectOutcome, connectScreen, keyTail, liveScreen, looksLikeKey, loopsVersion, normaliseKey, relativeTime, untilTime, withStreamKey } from "../src/state/connect.ts";
+import { archivedSourceKey, connectOutcome, connectScreen, keyTail, liveScreen, looksLikeKey, loopsVersion, normaliseKey, relativeTime, untilTime, withStreamKey } from "../src/state/connect.ts";
 
 const connection = (over: { discovery?: Partial<HostConnection["discovery"]>; key?: Partial<HostConnection["key"]>; stream?: Partial<HostConnection["stream"]> } = {}): HostConnection => ({
   discovery: { state: "found", via: "app-port", target: "http://127.0.0.1:8091", ...over.discovery },
@@ -93,6 +93,14 @@ test("loops' version: the host's loopsCommit, and the version it saw first when 
   assert.deepEqual(loopsVersion(health({ loopsCommit: "0.1.0", loopsCommitBefore: "0.1.0" })), { version: "0.1.0", before: null }, "the same version is no update");
   assert.deepEqual(loopsVersion(health({ loopsCommit: "0.2.0", loopsCommitBefore: "0.1.0" })), { version: "0.2.0", before: "0.1.0" });
   assert.equal(loopsVersion(health({ loopsCommitBefore: "0.1.0" })), null, "no current version, nothing to say");
+});
+
+test("the Closed buildings row: each source in its own words; none with a count is the stream's own events, not 'nothing known yet' (round 47)", () => {
+  assert.equal(archivedSourceKey({ source: "list", count: 2 }), "world.connection.panel.archived.list");
+  assert.equal(archivedSourceKey({ source: "remembered", count: 1 }), "world.connection.panel.archived.remembered");
+  assert.equal(archivedSourceKey({ source: "none", count: 0 }), "world.connection.panel.archived.none");
+  // After a switch of loops (round 45's reset) the target's own archive event counts with no source learnt yet.
+  assert.equal(archivedSourceKey({ source: "none", count: 1 }), "world.connection.panel.archived.events");
 });
 
 test("screen: no loops found comes first, even before pairing", () => {

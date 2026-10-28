@@ -219,6 +219,7 @@ export const EN: Record<string, string> = {
   "world.connection.panel.archived.log": "from loops' event log",
   "world.connection.panel.archived.remembered": "remembered from an earlier run",
   "world.connection.panel.archived.none": "nothing known yet",
+  "world.connection.panel.archived.events": "seen on the stream in this run",
   "world.connection.panel.archived.from": "{count}, {source}",
   "world.connection.panel.version": "crewhub-loops version",
   "world.connection.panel.version.updated": "{version}; it was {before} when this host started: crewhub-loops was updated under the host, which read everything again",
