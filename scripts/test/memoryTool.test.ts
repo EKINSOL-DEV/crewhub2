@@ -1,6 +1,6 @@
 /* The memory tool's pure parts (round 45, tools/lib/chatSoak.mjs and tools/lib/heap.mjs): the chat soak's options,
    the counter of the host's reads of agent messages, the agents a fake's chat names, the sender's turn, the page-side
-   counter's cap, the counts by shape on a hand-made heap snapshot, the summing by constructor, and the minified
+   counter's cap, the counts by shape on a hand-made heap snapshot (and, since round 47, on a real one), the summing by constructor, and the minified
    names of three's classes read from a chunk's class bodies. Node only: no browser, no host. */
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -130,6 +130,35 @@ test("the counts by shape: the own flag names the instance, an InstancedMesh is 
   assert.deepEqual(totals.byName.get("Object"), { count: 2, size: 80 });
   assert.deepEqual(totals.byName.get("(string)"), { count: 1, size: 24 });
   assert.deepEqual(topBySize(totals, 2).map((r) => r.name), ["InstancedMesh", "Object"]);
+});
+
+/* Round 47: the walker on V8's own snapshot, not the test's idea of it. The soak's batch and material counts rest on V8
+   recording three's `this.isMesh = true` as a property edge of the instance; this pins that across a V8 or a three
+   upgrade. Two snapshots of this process (the snapshot collects garbage first) around 7 InstancedMesh, 5 Mesh and 3
+   MeshStandardMaterial kept alive: the deltas are exactly those. About half a second on the Mac (two snapshots of a small heap). */
+import { getHeapSnapshot } from "node:v8";
+import { text } from "node:stream/consumers";
+import * as THREE from "three";
+import type { HeapSnapshot } from "../../tools/lib/heap.mjs";
+
+const realSnapshot = async (): Promise<HeapSnapshot> => JSON.parse(await text(getHeapSnapshot()));
+
+test("the counts by shape on a real V8 heap snapshot: the instances made between two snapshots, each counted once", async () => {
+  const before = shapeCounts(await realSnapshot());
+  const geometry = new THREE.BufferGeometry();
+  const basic = new THREE.MeshBasicMaterial();
+  const kept: object[] = [
+    ...Array.from({ length: 7 }, () => new THREE.InstancedMesh(geometry, basic, 1)),
+    ...Array.from({ length: 5 }, () => new THREE.Mesh(geometry, basic)),
+    ...Array.from({ length: 3 }, () => new THREE.MeshStandardMaterial()),
+  ];
+  const after = shapeCounts(await realSnapshot());
+  assert.equal(kept.length, 15);
+  assert.deepEqual(
+    { instancedMeshes: after.instancedMeshes - before.instancedMeshes, materials: after.materials - before.materials, meshes: after.meshes - before.meshes },
+    { instancedMeshes: 7, materials: 3, meshes: 5 },
+    "an InstancedMesh counts as a batch and not as a Mesh; a MeshBasicMaterial is no MeshStandardMaterial",
+  );
 });
 
 test("three's minified names come from the chunk's class bodies, or stay null", () => {
