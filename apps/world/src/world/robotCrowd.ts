@@ -61,9 +61,10 @@ export class RobotCrowd {
   readonly group = new THREE.Group();
   #batches = new Map<string, Batch>();
   #pieces = new WeakMap<THREE.Object3D, Piece[]>();
-  /** Each part's batch key, kept while its material, emissive colour and strength stay the same (a theme change
-      recolours the emissive and so gets a new key): building the key string per part per frame was most of the copy. */
-  #keys = new WeakMap<object, { material: THREE.Material | THREE.Material[]; r: number; g: number; b: number; i: number; key: string | null }>();
+  /** Each part's batch key, kept while its material and emissive colour stay the same (a theme change recolours the
+      emissive, which can make a part glowing or plain): building the key string per part per frame was most of the
+      copy. No key carries the emissive strength since round 41, so the day-night drift does not rebuild them. */
+  #keys = new WeakMap<object, { material: THREE.Material | THREE.Material[]; r: number; g: number; b: number; key: string | null }>();
   /** Robots the crowd draws this frame and the last, by root object. */
   #claimed = new Set<THREE.Object3D>();
   #next = new Set<THREE.Object3D>();
@@ -192,14 +193,13 @@ export class RobotCrowd {
   #key(piece: Piece): string | null {
     const material = materialOf(piece);
     const cached = this.#keys.get(piece.part ?? piece.mesh!);
-    const e = (material as THREE.MeshStandardMaterial).emissive,
-      i = (material as THREE.MeshStandardMaterial).emissiveIntensity ?? 0;
+    const e = (material as THREE.MeshStandardMaterial).emissive;
     const r = e?.r ?? 0,
       g = e?.g ?? 0,
       b = e?.b ?? 0;
-    if (cached && cached.material === material && cached.r === r && cached.g === g && cached.b === b && cached.i === i) return cached.key;
+    if (cached && cached.material === material && cached.r === r && cached.g === g && cached.b === b) return cached.key;
     const key = this.#makeKey(piece);
-    this.#keys.set(piece.part ?? piece.mesh!, { material, r, g, b, i, key });
+    this.#keys.set(piece.part ?? piece.mesh!, { material, r, g, b, key });
     return key;
   }
 
