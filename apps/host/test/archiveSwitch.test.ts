@@ -97,4 +97,75 @@ describe("the archive memory across a switch of the loops found (round 44)", () 
     assert.deepEqual([file().slugs, file().target], [["beacon"], b.url], "B's own set alone");
     assert.deepEqual((await health()).connection.archived.slugs, ["beacon"]);
   });
+
+  // Round 47 (the review's F1): the host read the file once at its start, so a loops found again was judged by the file
+  // as it was then. Here A teaches a slug after the start, discovery goes to B and back: A's memory is the file as it
+  // stands now (both slugs, the time of the last save); and once B has written the file, A finds B's memory, not A's
+  // startup slugs under "remembered".
+  it("a loops found again is judged by the file as it stands, not as it was when the host started", async () => {
+    const base = installation();
+    const old = base.routes["/api/projects/old"] as { project: Record<string, unknown> };
+    const project = (slug: string) => ({ project: { ...old.project, id: `pr_${slug}`, slug, key: slug.toUpperCase().replace("-", ""), name: slug } });
+    // A knows both its archived projects; neither A nor B reads its log from the start or lists anything.
+    const aOptions = { ...base, routes: { ...base.routes, "/api/projects/old-a": project("old-a"), "/api/projects/new-a": project("new-a") }, events: [envelope(900, "ticket.created")], logMinAfter: 800 };
+    let a = await createLoopsStub(aOptions);
+    const key = a.key, aPort = a.port, aUrl = a.url;
+    const bOptions = { ...base, key, events: [envelope(900, "ticket.created")], logMinAfter: 800 };
+    let b = await createLoopsStub(bOptions);
+    const bPort = b.port, bUrl = b.url;
+    cleanup.push(() => a.close(), () => b.close());
+    const appData = mkdtempSync(path.join(tmpdir(), "chw-app-"));
+    cleanup.push(() => rmSync(appData, { recursive: true, force: true }));
+    mkdirSync(path.join(appData, "run"));
+    const settings = path.join(appData, "settings.json");
+    writeFileSync(settings, `{"port": ${aPort}}\n`);
+    const dir = mkdtempSync(path.join(tmpdir(), "chw-memory-"));
+    cleanup.push(() => rmSync(dir, { recursive: true, force: true }));
+    const store = createArchiveStore(path.join(dir, "crewhub-world"));
+    // The file at the host's start: A's, with one slug.
+    store.save({ slugs: ["old-a"], at: "2026-10-27T00:00:00.000Z", target: aUrl });
+    const host = await createHost({ discovery: { appData, intervalMs: 40 }, key, keyName: "crewhub-world", keySource: "env", archiveStore: store, pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 20, max: 100 } });
+    cleanup.push(() => host.close());
+    const health = async () => (await (await fetch(`${host.url}/world-api/health`)).json()) as Record<string, any>;
+    const file = () => JSON.parse(readFileSync(store.file, "utf8")) as { slugs: string[]; at: string; target?: string };
+    /** Discovery to the stub on `port` (opened by `open`), the one on the other port closed. */
+    const switchTo = async (what: string, port: number, url: string, close: () => Promise<void>) => {
+      writeFileSync(settings, `{"port": ${port}}\n`);
+      await close();
+      await waitFor(`discovery to find ${what}`, async () => (await health()).connection.discovery?.target === url, 20_000);
+      const atSwitch = (await health()).connection.archived;
+      await waitFor(`${what}'s stream`, async () => (await health()).connection.stream.state === "ok");
+      await fetch(`${host.url}/world-api/snapshot`);
+      return atSwitch as { source: string; slugs: string[]; at?: string };
+    };
+
+    await waitFor("A's stream", async () => (await health()).connection.stream.state === "ok");
+    await fetch(`${host.url}/world-api/snapshot`);
+    a.emit(archived(901, "new-a"));
+    await waitFor("A's event to enter A's file", () => file().slugs.includes("new-a"));
+    const learntAt = file().at;
+    assert.deepEqual([file().slugs, file().target], [["new-a", "old-a"], aUrl], "A taught new-a after the start");
+
+    // A → B: B teaches nothing, so the file stays A's.
+    await switchTo("B", bPort, bUrl, () => a.close());
+    assert.deepEqual((await health()).connection.archived.slugs, [], "nothing of A's under B");
+    assert.deepEqual([file().slugs, file().target], [["new-a", "old-a"], aUrl], "B wrote nothing");
+
+    // B → A: A's memory is the file as it stands now, both slugs, learnt when new-a was saved.
+    a = await createLoopsStub({ ...aOptions, key, port: aPort });
+    const back = await switchTo("A again", aPort, aUrl, () => b.close());
+    assert.deepEqual([back.source, back.slugs, back.at], ["remembered", ["new-a", "old-a"], learntAt], "right after discovery finds A again: the file as it stands, not the startup's old-a alone");
+    assert.deepEqual((await health()).connection.archived.slugs, ["new-a", "old-a"], "A's first snapshot confirms both");
+
+    // A → B, B's own archive event writes the file under B; then B → A: A finds B's memory and ignores it.
+    b = await createLoopsStub({ ...bOptions, key, port: bPort });
+    await switchTo("B again", bPort, bUrl, () => a.close());
+    b.emit(archived(901, "beacon"));
+    await waitFor("B's event to enter B's file", () => file().target === bUrl);
+    a = await createLoopsStub({ ...aOptions, key, port: aPort });
+    const last = await switchTo("A a third time", aPort, aUrl, () => b.close());
+    assert.deepEqual([last.source, last.slugs], ["none", []], "the file is B's now: nothing remembered for A, and never the startup's old-a");
+    assert.deepEqual((await health()).connection.archived.slugs, [], "still nothing after A's first snapshot (A teaches no set)");
+    assert.deepEqual([file().slugs, file().target], [["beacon"], bUrl], "B's file stays until A teaches its own set");
+  });
 });

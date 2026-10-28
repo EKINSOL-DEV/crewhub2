@@ -141,7 +141,9 @@ export class ObjectLayer {
   readonly #slug: string;
   readonly #templates = new Map<string, Template>();
   readonly #states = new Map<string, ObjectState>();
-  /** The last celebration played per ticket (its `celebrateUntil`), dropped with the object's state (round 45). */
+  /** The last celebration played per ticket (its `celebrateUntil`, source time). An object's entry outlives its state
+      until that time has passed, so a ticket that leaves and comes back inside its celebration does not hop twice
+      (round 47, the review's F10); then it goes at the next sync (round 45: one entry per ticket, never a growing set). */
   readonly #celebrated = new Map<string, number>();
   /** Packages in a person's hands: where the carry anchor is this frame, building-local. */
   readonly #carried = new Map<string, THREE.Vector3>();
@@ -236,7 +238,8 @@ export class ObjectLayer {
     return t;
   }
 
-  /** Test-facing: how many tickets' last celebration the layer remembers (at most one per object it shows). */
+  /** Test-facing: how many tickets' last celebration the layer remembers (one per object it shows at most, and a gone
+      object's until its celebration has passed). */
   get celebratedCount(): number {
     return this.#celebrated.size;
   }
@@ -274,11 +277,12 @@ export class ObjectLayer {
         this.#dropDrone(state);
         if (state.hop) state.hop.sparkle.removeFromParent();
         this.#states.delete(id);
-        this.#celebrated.delete(id);
         this.#carried.delete(id);
         this.#delivered.delete(id);
         this.anchors.delete(`o:${this.#slug}:${id}`);
       }
+    const now = this.#ctx.now();
+    for (const [id, until] of this.#celebrated) if (until <= now && !this.#states.has(id)) this.#celebrated.delete(id);
   }
 
   /**

@@ -2,7 +2,9 @@
    `celebrateUntil`; the layer remembered every `ticket:until` pair it ever played in a Set that nothing emptied (one new
    pair per demo loop, 90 a day at 1x). Now it keeps the last `until` per ticket and drops a ticket's entry with its
    object's state: many loops' worth of celebrations of the same tickets leave at most one entry per ticket, and none
-   once the objects are gone, while every new celebration still plays. */
+   once the objects are gone, while every new celebration still plays. Round 47 (the review's F10): a gone object's entry
+   stays until its `until` has passed (source time, `ctx.now`), so a ticket that comes back inside its celebration does
+   not hop twice. */
 import assert from "node:assert/strict";
 import test from "node:test";
 import * as THREE from "three";
@@ -24,7 +26,8 @@ const style = {
   },
   color: () => new THREE.Color(),
 } as unknown as ResolvedStyle;
-const ctx: ObjectLayerContext = { style, now: () => 0, reducedMotion: () => false, truck: new THREE.Vector3(), surface: () => 0.5, shelfPitch: () => 0.3, theme: () => "day" };
+let clock = 0;
+const ctx: ObjectLayerContext = { style, now: () => clock, reducedMotion: () => false, truck: new THREE.Vector3(), surface: () => 0.5, shelfPitch: () => 0.3, theme: () => "day" };
 const TICKETS = ["t1", "t2", "t3", "t4"];
 const layout = (ids: string[]): ObjectLayout => {
   const placements = new Map<string, Placement>();
@@ -44,7 +47,8 @@ test("200 loops of celebrations of the same four tickets leave four entries, eac
     assert.equal(layer.celebratedCount, TICKETS.length, `loop ${loop}: one entry per ticket (the old Set kept every loop's pair)`);
   }
   assert.equal(sparkles, TICKETS.length * LOOPS, "every new celebration played once");
-  // The objects leave the building: their entries go with their states.
+  // The objects leave the building once their last celebration has passed: their entries go with their states.
+  clock = LOOPS * 60_000;
   layer.sync(building("crewhub", [], []), layout([]));
   assert.equal(layer.celebratedCount, 0, "no object, no entry");
   // Back with a fresh celebration: it plays, one entry each.
@@ -52,4 +56,23 @@ test("200 loops of celebrations of the same four tickets leave four entries, eac
   layer.sync(building("crewhub", [], back), layout(TICKETS));
   assert.equal(layer.celebratedCount, TICKETS.length);
   assert.equal(sparkles, TICKETS.length * (LOOPS + 1));
+});
+
+test("a ticket that leaves and comes back inside its celebration hops once; its entry goes once the celebration has passed (round 47)", () => {
+  clock = 0;
+  const layer = new ObjectLayer("crewhub", ctx);
+  const before = sparkles;
+  const done = [object("t1", "dispatch", { status: "done", celebrateUntil: 5_000 })];
+  layer.sync(building("crewhub", [], done), layout(["t1"]));
+  assert.equal(sparkles - before, 1, "the celebration plays");
+  // A model without it (a re-snapshot, a move away and back), then the same celebration again, all inside its window.
+  clock = 2_000;
+  layer.sync(building("crewhub", [], []), layout([]));
+  assert.equal(layer.celebratedCount, 1, "the gone object's entry stays while its celebration runs");
+  layer.sync(building("crewhub", [], done), layout(["t1"]));
+  assert.equal(sparkles - before, 1, "back inside its window: no second hop");
+  // Gone again, and the celebration has passed: the entry goes at that sync.
+  clock = 5_000;
+  layer.sync(building("crewhub", [], []), layout([]));
+  assert.equal(layer.celebratedCount, 0, "no object and the celebration over: no entry");
 });

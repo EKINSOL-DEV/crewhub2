@@ -323,8 +323,10 @@ export async function createHost(options: HostOptions): Promise<Host> {
   // uses it only once discovery finds that same target (a file without a target is the old format and is taken as
   // is). Another loops' memory is said and ignored, and it stays on disk until this loops' own set is learnt: a
   // snapshot whose archived set loops told whole (the list, or the whole log) or an archive event on the stream. A
-  // run that found nothing never writes an empty list over it.
-  const onDisk = options.archiveStore?.read() ?? null;
+  // run that found nothing never writes an empty list over it. `onDisk` is the file as it stands: read at the start
+  // and kept current by every save (round 47, the review's F1), so a target found again judges the file as it is now,
+  // not as it was when the host started.
+  let onDisk = options.archiveStore?.read() ?? null;
   const archive: ArchiveMemoryState = { source: "none", slugs: new Set() };
   /** The target the memory was judged for, so a target change judges it again. */
   let judgedFor: string | null = null;
@@ -348,7 +350,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
       return;
     }
     learnt = true;
-    if (archive.source === "none") archive.slugs = new Set(onDisk.slugs);
+    archive.slugs = new Set(onDisk.slugs);
     archive.source = "remembered";
     archive.at = onDisk.at;
     log(`remembered ${onDisk.slugs.length} archived project${onDisk.slugs.length === 1 ? "" : "s"} from ${options.archiveStore?.file} (learnt ${onDisk.at === "" ? "at an unknown time" : plainTime(onDisk.at)}${onDisk.target === undefined ? ", from an unnamed crewhub-loops" : ""})`);
@@ -366,7 +368,9 @@ export async function createHost(options: HostOptions): Promise<Host> {
     if (store === undefined || !learnt) return;
     try {
       const found = discovery.current();
-      store.save({ slugs, at: archive.at, ...(found === null ? {} : { target: targetText(found.target) }) });
+      const memory = { slugs, at: archive.at, ...(found === null ? {} : { target: targetText(found.target) }) };
+      store.save(memory);
+      onDisk = memory;
       log(`remembered ${slugs.length} archived project${slugs.length === 1 ? "" : "s"} in ${store.file}`);
     } catch (error) {
       log(`cannot write the archive memory ${store.file}: ${error instanceof Error ? error.message : "unknown error"}`);
