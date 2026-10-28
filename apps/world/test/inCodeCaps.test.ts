@@ -68,7 +68,7 @@ test("the intent player keeps the last 40 played intents, newest first", () => {
  *   - `state/director.ts` keeps the last 40 plans, newest first (`state/planLog.ts` `logPlans`, the pure step `#onModel` takes).
  *   - `walks.ts` remembers the idle errands done (`#idleDone`) and clears them above 2000 (`idleDoneCount`).
  *   - `personWalks.ts` remembers the visits walked (`#started`), clears them on a new snapshot and above 2000
- *     (`startedCount`); the 2000 is not pinned here, since a visit starts one at a time through the simulation. */
+ *     (`startedCount`); the 2000 is pinned by round 47's test at the end. */
 import type { PlanRecord } from "@crewhub/demo";
 import type { WorldModel } from "@crewhub/world-model";
 import { logPlans } from "../src/state/planLog.ts";
@@ -131,4 +131,32 @@ test("the person walks remember a visit once, and forget the visits on a new sna
   walks.update(next, { ...options, ambient: "on" });
   people.update(next, options);
   assert.equal(people.startedCount, 0, "a new snapshot forgets the visits walked");
+});
+
+/* Round 47: the 2000 on `#started`, pinned after all. A visit starts one at a time, but no simulation is needed: leaving
+   and entering the building again (or reduced motion on and off) drops the walker without forgetting its visit, and the
+   next update starts the next visit not yet walked. 2,100 queued visits and 2,050 such toggles start one each. */
+test("the person walks forget the visits walked above 2000", () => {
+  const visit = (id: string): WorldModel["buildings"][number]["visits"][number] => ({ id, personId: "nicky", displayName: "Nicky", ticketId: id, ticketKey: id.toUpperCase(), movedAt: 1, startedAt: 1, until: 60_000, from: { room: "review", deskOf: null }, rejected: false, phase: "carrying" });
+  const model = world([{ ...building("cr", [agent("cr-dev-1", "lobby")]), visits: Array.from({ length: 2100 }, (_, i) => visit(`v${i}`)) }], { snapshots: 1 });
+  const walks = new Walks();
+  const people = new PersonWalks(walks.nav);
+  walks.update(model, { entered: "cr", reducedMotion: false, ambient: "on" });
+  let peak = 0;
+  let drops = 0;
+  let last = 0;
+  for (let k = 0; k < 2050; k++) {
+    // Half the toggles leave the building, half turn reduced motion on: both end the walk and keep the visit walked.
+    people.update(model, k % 2 ? { entered: null, reducedMotion: false } : { entered: "cr", reducedMotion: true });
+    people.update(model, { entered: "cr", reducedMotion: false });
+    const n = people.startedCount;
+    assert.ok(n <= 2000, `${n} visits remembered, over the cap`);
+    if (n < last) drops++;
+    else assert.equal(n, last + 1, "one new visit started per toggle");
+    peak = Math.max(peak, n);
+    last = n;
+  }
+  assert.equal(peak, 2000, "the visits walked reached the cap");
+  assert.equal(drops, 1, "above 2000 the set was cleared, once");
+  assert.equal(last, 2050 - 2001, "and counting started again from the clear");
 });
