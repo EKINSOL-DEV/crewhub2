@@ -28,7 +28,8 @@ interface LoopStats {
   lanes: number;
   dmMessages: number;
   dmThreads: number;
-  /** The director feed's plan stamps held (round 45: the last day's at most). */
+  /** The director feed's plan stamps held. Ten loops are under a feed-day, so the day trim (round 45) never acts here and
+      this only shows the feed is stepped within the day cap; `directorStamps.test.ts` is the trim's guard (round 47). */
   stamps: number;
   /** The most the lists, the deliveries and lastMoves held during the loop (the snapshot at its end resets them). */
   peakLists: number;
@@ -119,7 +120,7 @@ test(`${LOOPS} loops through the projection and the reducer: from loop 2 on, the
     assert.equal(l.envelopes, second.envelopes, `${at}: envelopes per loop`);
     assert.equal(l.chat, second.chat, `${at}: chat events per loop`);
     for (const key of ["cards", "deliveries", "lists", "lastMoves", "places", "movesSeen", "flights", "lanes", "dmMessages", "dmThreads", "peakLists", "peakDeliveries", "peakLastMoves"] as const) assert.ok(l[key] <= second[key], `${at}: ${key} ${l[key]} > ${second[key]}`);
-    assert.ok(l.stamps <= DEFAULT_PRESENCE.plansPerDay, `${at}: the feed holds ${l.stamps} stamps, more than a day's`);
+    assert.ok(l.stamps <= DEFAULT_PRESENCE.plansPerDay, `${at}: the feed holds ${l.stamps} stamps, more than the day cap lets it plan`);
   }
   assert.ok(feed.usage().plansTotal > 0, "the feed made plans");
   assert.equal(projection.facts.invalidEvents, 0);
