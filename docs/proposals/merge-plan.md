@@ -1,8 +1,8 @@
-# Merging Nicky's answers: the rehearsed plan (rounds 37 to 45, 2026-10-24 to 27)
+# Merging Nicky's answers: the rehearsed plan (rounds 37 to 47, 2026-10-24 to 29)
 
 Seven answer branches wait on [the open questions](open-questions.md). This page says, for every set of answers Nicky
 can give, in which order the branches merge into `feat/world-demo` and what has to be done by hand. Every hand merge
-below was rehearsed on a throwaway checkout of the base (`e55ef42` in round 37, `a0750aa` in round 38, `c0ae5ec` in round 39, `e6c934d` in round 41, `d220f3a` in round 45) with `npm run check`
+below was rehearsed on a throwaway checkout of the base (`e55ef42` in round 37, `a0750aa` in round 38, `c0ae5ec` in round 39, `e6c934d` in round 41, `d220f3a` in round 45, `b811561` in round 47) with `npm run check`
 green on the result, and
 is written so it can be redone without thinking. **Nicky needs §1 only**, and only the first three columns of its table
 to find the row; crewy and the Lead use the rest (§2 the evidence, §3 each hand merge exactly, §4 the check and the
@@ -150,6 +150,16 @@ order, then question 1's branch last; every hand merge then happens in that last
     JS objects are flat for all four. The heap's remaining slope of about 1 MB an hour is V8's optimised code.
   - **The replay on the new base,** `tab q3 q8 q11 q14 q15` on `d220f3a` (D, F, E; C passes), result `3e37de5`:
     `npm run check` 1110 / 1110.
+- **Round 47's night, on the head only.** A fresh review of rounds 41 to 46 found two bugs that touch the answers'
+  areas, fixed on the head (`b811561`):
+  - **`apps/host/src/host.ts`:** a loops found again is judged by the archive file as it stands, not as it was when
+    the host started (F1).
+  - **`tools/lib/chatSoak.mjs` and `tools/lib/live.mjs`:** the chat soak sums question 14's lost count from its
+    exact log line (F8). Before, 172 lost reads printed `lost 1`.
+  - **The merges:** all seven merge cleanly onto `b811561`. `task/r27-tab-pairing`'s `pair()` in `live.mjs` stayed
+    clear of the tool's changes.
+  - **The replay on the new base,** `tab q3 q8 q11 q14 q15` on `b811561` (D, F, E; C passes), result `49bc427`:
+    `npm run check` 1125 / 1125. No rule of the plan changed.
 - **The `cookie+expiry` and `cookie` rows, rehearsed in round 37** (detached checkouts; the five independent branches
   then the question-1 branch): the five alone on `e55ef42`, check 1070 of 1070; the five then `q1-cookie-expiry` (A,
   then B), check 1075 of 1075 on `e55ef42` and again on `761db9f` (`769434a`); the five then `r27-tab-pairing`, check
