@@ -359,7 +359,7 @@ Vite and tool on ports of your own with your own `CREWHUB_WORLD_CONFIG_DIR` (nev
 as a number without its date and commit. The tools' manual is [tools/README.md](../tools/README.md); the rounds this
 section comes from are 27 (the two-hour live soak above), 40 and 41 (the chat soaks), 41 and 42 (the materials).
 
-**The node guards first.** Three tests stand in for a soak and run in seconds, in `npm test`; a night that changes
+**The node guards first.** These tests stand in for a soak and run in seconds, in `npm test`; a night that changes
 the crowd, the figures or the kit runs them before anything opens a browser:
 
 ```sh
