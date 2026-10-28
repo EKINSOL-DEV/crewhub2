@@ -30,11 +30,19 @@
    45): the far crowd's batches (InstancedMesh), the MeshStandardMaterials and the Meshes, found by the flag each
    three.js constructor sets on its instances, so no minified name is needed; with --preview it also says what the
    built chunk calls those classes (for a retainer walk). --count-names <a,b> adds the counts of those constructor
-   names as the snapshot sums them. The snapshot itself is parsed and dropped, unless --save-snapshots <dir> keeps the
+   names as the snapshot sums them, and (round 47) the faded figures' shared copies alive, read from the page right
+   before and after the snapshot: each is a MeshStandardMaterial, so the materials minus the faded copies are the ones
+   the far crowd and the kit hold. The snapshot itself is parsed and dropped, unless --save-snapshots <dir> keeps the
    raw file (minute-<n>.heapsnapshot, the heap's size each); the totals land in --json. A snapshot pauses the page for
    a few seconds, so its sample is not a frame measurement; a heap past about 290 MB no longer fits one string and
    the snapshot throws, so a run that may grow that far takes its snapshots early.
-   Every sample also carries the frame time over the overlay's window (mean and p95, the work per frame); a live run
+   At the run's end (round 47) the tool judges the snapshots by docs/COST_POLICY.md "What to soak and how", item 3
+   (lib/verdict.mjs): the total without (code) at each snapshot and its fit over the window, the JS objects from the
+   first snapshot to the last by kind, the (code) rate against its ceiling, the levelling test for a run over an hour,
+   and one verdict line: levels off, does not (and which rule failed), or cannot judge (and why: a run too short for
+   the window, too few snapshots in it). The JSON keeps it as `verdict`.
+   Every sample also carries the frame time over the overlay's window (mean and p95, the work per frame) and the faded
+   copies alive (`faded`, round 47, from `window.__worldStores` in every mode); a live run
    (round 27, the soak) adds the host's upstream stream (its state and how often it reconnected, from the host the
    tool started), the page's own stores (`window.__worldStores`, state/soak.ts: the bubbles alive, the Recent answers,
    the chat threads) and the town document's revision with the host's revision the page is on. The growth line also
@@ -49,7 +57,8 @@
    once: the gate's number); --burst <n> --burst-at <min> sends <n> in one instant right after the sample at that
    minute. With any of these the fake's key reads the chat. Every list the tool keeps in the page is capped. The
    sample line and the JSON carry the sent count, the reads and the rows; the end prints the tally, the burst's minute
-   and the host's lost and retry lines.
+   and the messages the host's log says were lost (the counts on the read gate's lost lines, summed over the whole run;
+   the gate logs no retry, round 47). --burst-at must leave a sample after the burst.
    When the DOM node count moved since the last sample (round 29), the sample is followed by one line naming what
    changed in the document tree: the nodes added and removed (an element by tag, classes, label and the nearest named
    landmark; a text node by its parent), grouped with counts, at most six entries (lib/domdiff.ts; the point's
@@ -62,10 +71,11 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { CHAT_FLAGS, CHAT_OPTIONS, CHAT_USAGE, READ_PAGE_CHAT, chatAgents, chatSettings, createDmReadCounter, formatChat, lostAndRetried, nextDm, pageChatCounter } from "./lib/chatSoak.mjs";
+import { CHAT_FLAGS, CHAT_OPTIONS, CHAT_USAGE, READ_PAGE_CHAT, chatAgents, chatSettings, createDmReadCounter, formatChat, nextDm, pageChatCounter } from "./lib/chatSoak.mjs";
 import { capDomDiff, describeDetached, domDiff, domInventory, formatDomDiff } from "./lib/domdiff.ts";
 import { formatRows, formatShapes, growth as heapGrowth, heapTotals, mb as heapMb, resolveThreeNames, topBySize } from "./lib/heap.mjs";
 import { LIVE_OPTIONS, LIVE_USAGE, startLive } from "./lib/live.mjs";
+import { formatVerdict, judge, snapshotDiff } from "./lib/verdict.mjs";
 import { castChoice, cli, launch, speed, store, worldUrl } from "./lib/world.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -83,7 +93,7 @@ const saveSnapshots = opts["save-snapshots"] === "" ? null : path.resolve(opts["
 if (saveSnapshots) mkdirSync(saveSnapshots, { recursive: true });
 const countNames = opts["count-names"] === "" ? [] : opts["count-names"].split(",").filter(Boolean);
 const jsonOut = opts.json && (path.isAbsolute(opts.json) || opts.json.includes(path.sep) ? opts.json : path.join(opts.out, opts.json));
-const chat = chatSettings(opts, opts.fail);
+const chat = chatSettings(opts, opts.fail, { minutes, every });
 if (chat.active && scenario !== "live") opts.fail("the chat soak (--chat-panel, --dm-every, --burst) is live mode's: node tools/memory.mjs live ...");
 if (chat.pairedTab && scenario !== "live") opts.fail("--paired-tab is live mode's: node tools/memory.mjs live ...");
 if (chat.active && opts["loops-url"] !== "") opts.fail("the chat soak writes to the in-process fake's chat: leave --loops-url out");
@@ -166,7 +176,7 @@ const readPageChat = async () => (chat.chatPanel ? await page.evaluate(READ_PAGE
 const chatPoint = async () => {
   if (!chat.active) return null;
   const onPage = await readPageChat();
-  return { sent, burstSent, reads: dmReads.tally(), rows: onPage?.rows ?? -1, ...lostAndRetried(live.lines) };
+  return { sent, burstSent, reads: dmReads.tally(), rows: onPage?.rows ?? -1, lost: live.lost() };
 };
 
 const mb = (b) => (b / 1048576).toFixed(1);
@@ -174,15 +184,32 @@ const points = [];
 const snapshots = [];
 const started = Date.now();
 let lastTotals = null;
+// The first snapshot from minute 10 on (the warm-up's end), kept whole: the verdict's diff runs from it to the last.
+let firstRead = null;
+// The page's probe (state/soak.ts): the stores in a live run, the faded copies in every run; null where it is missing.
+const readStores = () => page.evaluate(() => (typeof window.__worldStores === "function" ? window.__worldStores() : null)).catch(() => null);
 async function snapshotAt(minute) {
   const t0 = Date.now();
+  const fadedBefore = (await readStores())?.faded ?? null;
   const totals = await heapTotals(cdp, { file: saveSnapshots ? path.join(saveSnapshots, `minute-${minute}.heapsnapshot`) : null });
+  const fadedAfter = (await readStores())?.faded ?? null;
   const took = Date.now() - t0;
   console.log(`${scenario} snapshot at minute ${minute}: ${heapMb(totals.bytes)} in ${totals.nodes} nodes (${(took / 1000).toFixed(1)} s); the largest kinds:`);
   for (const line of formatRows(topBySize(totals))) console.log(line);
   const counts = Object.fromEntries(countNames.map((n) => [n, totals.byName.get(n)?.count ?? 0]));
   console.log(`  counts at minute ${minute}: ${formatShapes(totals.shapes)}${countNames.length > 0 ? `; ${countNames.map((n) => `${n} ${counts[n]}`).join(", ")}` : ""}`);
-  const record = { minute, bytes: totals.bytes, nodes: totals.nodes, shapes: totals.shapes, ...(countNames.length > 0 ? { counts } : {}), top: topBySize(totals, 40) };
+  // Each faded copy is a MeshStandardMaterial of its own: the materials less the faded copies are the crowd's and the kit's.
+  // The count read right before is the snapshot's (only a GC lies between); the page moves when the snapshot lets it go
+  // (round 47's smoke: 27 before, 21 after, 27 again at the next sample), so the one after is said beside it only.
+  const faded = fadedBefore ?? fadedAfter;
+  console.log(
+    faded === null
+      ? "  faded copies: the page has no probe"
+      : `  faded copies at minute ${minute}: ${faded} (MeshStandardMaterial less the faded copies: ${totals.shapes.materials - faded})${fadedAfter !== faded ? `; ${fadedAfter ?? "?"} right after the snapshot` : ""}`,
+  );
+  const code = totals.byName.get("(code)")?.size ?? 0;
+  const record = { minute, bytes: totals.bytes, code, nodes: totals.nodes, shapes: totals.shapes, faded, ...(fadedAfter !== faded ? { fadedAfter } : {}), ...(countNames.length > 0 ? { counts } : {}), top: topBySize(totals, 40) };
+  if (firstRead === null && minute >= 10) firstRead = { minute, totals };
   if (lastTotals) {
     const rows = heapGrowth(lastTotals.totals, totals, 40);
     console.log(`${scenario} grown since minute ${lastTotals.minute} (${heapMb(totals.bytes - lastTotals.totals.bytes)} in all):`);
@@ -214,7 +241,7 @@ for (let t = 0; t <= minutes * 60; t += every) {
   const chip = live ? await page.locator(".connection-chip").first().getAttribute("data-connection").catch(() => null) : null;
   // Live (round 27, the soak): the page's own stores and the town's revision (`window.__worldStores`, state/soak.ts),
   // and the host's upstream stream straight from the host the tool started (its state and reconnect count).
-  const stores = live ? await page.evaluate(() => (typeof window.__worldStores === "function" ? window.__worldStores() : null)).catch(() => null) : null;
+  const stores = await readStores();
   const upstream = live ? live.host.connection().stream : null;
   let pairedPoint = null;
   if (paired) {
@@ -236,6 +263,7 @@ for (let t = 0; t <= minutes * 60; t += every) {
     frameMean: perf?.frameMean ?? null,
     frameP95: perf?.frameP95 ?? null,
     workMean: perf?.workMean ?? null,
+    faded: stores?.faded ?? null,
     ...(live ? { connection: chip, upstream: upstream ? { state: upstream.state, reconnects: upstream.reconnects } : null, stores } : {}),
     ...(pairedPoint ? { paired: pairedPoint } : {}),
     ...(chatNow ? { chat: chatNow } : {}),
@@ -253,7 +281,7 @@ for (let t = 0; t <= minutes * 60; t += every) {
   }
   lastDom = { nodes: dom.nodes, documents: dom.documents, inventory };
   points.push(point);
-  const frame = perf ? `  frame ${perf.frameMean.toFixed(1)}/${perf.frameP95.toFixed(1)} ms work ${perf.workMean.toFixed(1)}` : "";
+  const frame = `${perf ? `  frame ${perf.frameMean.toFixed(1)}/${perf.frameP95.toFixed(1)} ms work ${perf.workMean.toFixed(1)}` : ""}  faded ${point.faded ?? "?"}`;
   const soak = live ? `  ${chip ?? "no chip"}  upstream ${upstream ? `${upstream.state} r${upstream.reconnects}` : "?"}${stores ? `  said ${stores.said} answers ${stores.answers} threads ${stores.threads ?? "-"} rev ${stores.docRevision}/${stores.hostRev ?? "-"}` : ""}` : "";
   const pairedLine = pairedPoint ? `  paired ${pairedPoint.connection ?? "no chip"} heap ${mb(pairedPoint.heap)} MB dom ${pairedPoint.nodes} listeners ${pairedPoint.listeners}` : "";
   const chatLine = chatNow ? `  ${formatChat(chatNow)}` : "";
@@ -283,10 +311,10 @@ if (live && chat.active) {
   const tally = dmReads.tally();
   const onPage = await readPageChat();
   const burst = burstAt ? dmReads.inWindow(burstAt.getTime(), 60000) : null;
-  const host = lostAndRetried(live.lines);
-  chatEnd = { sent, burstSent, burstAt: burstAt?.toISOString() ?? null, tally, rows: onPage?.rows ?? -1, lastLabels: onPage?.labels ?? [], burstMinute: burst, ...host };
+  const lost = live.lost();
+  chatEnd = { sent, burstSent, burstAt: burstAt?.toISOString() ?? null, tally, rows: onPage?.rows ?? -1, lastLabels: onPage?.labels ?? [], burstMinute: burst, lost };
   console.log(
-    `chat tally: sent ${sent}${burstAt ? ` (burst ${burstSent} at ${burstAt.toTimeString().slice(0, 8)})` : ""}; the host read ${tally.total} times over ${tally.ids} ids (${tally.once} once, ${tally.twice} twice, ${tally.more} more; ${tally.ok} with 200, ${tally.bad} other, ${tally.errors} errors), at most ${tally.maxInFlight} in flight at once${burst ? `; the burst's minute: ${burst.count} reads, ${JSON.stringify(burst.statuses)}, mean ${burst.meanMs} ms, slowest ${burst.slowestMs} ms` : ""}; the page added ${chatEnd.rows} Recent answers rows; the host's log: ${host.lost} lost, ${host.retried} retried`,
+    `chat tally: sent ${sent}${burstAt ? ` (burst ${burstSent} at ${burstAt.toTimeString().slice(0, 8)})` : ""}; the host read ${tally.total} times over ${tally.ids} ids (${tally.once} once, ${tally.twice} twice, ${tally.more} more; ${tally.ok} with 200, ${tally.bad} with another status, ${tally.errors} with no answer), at most ${tally.maxInFlight} in flight at once${burst ? `; the burst's minute: ${burst.count} reads, ${JSON.stringify(burst.statuses)}, mean ${burst.meanMs} ms, slowest ${burst.slowestMs} ms` : ""}; the page added ${chatEnd.rows} Recent answers rows; the host's log: ${lost} agent message${lost === 1 ? "" : "s"} lost`,
   );
   const chatLines = live.lines.filter((l) => /lost|retr|dm|chat/i.test(l));
   if (chatLines.length > 0) {
@@ -303,8 +331,12 @@ const growth = { heapMB: +mb(last.heap - baseOf("heap")), geometries: last.geome
 console.log(`${scenario} growth after warm-up: heap ${growth.heapMB} MB, geo ${growth.geometries}, tex ${growth.textures}, dom ${growth.domNodes}, listeners ${growth.listeners}${growth.heapMBPerHour !== null ? ` (${growth.heapMBPerHour} MB an hour over ${growth.hours} h)` : ""}`);
 if (snapshots.length > 1) {
   const first = snapshots[0].shapes, end = snapshots[snapshots.length - 1].shapes;
-  console.log(`${scenario} counts, minute ${snapshots[0].minute} to ${snapshots[snapshots.length - 1].minute}: batches ${first.instancedMeshes} -> ${end.instancedMeshes}, MeshStandardMaterial ${first.materials} -> ${end.materials}, Mesh ${first.meshes} -> ${end.meshes}`);
+  const fadedLine = snapshots[0].faded !== null || snapshots[snapshots.length - 1].faded !== null ? `, faded copies ${snapshots[0].faded ?? "?"} -> ${snapshots[snapshots.length - 1].faded ?? "?"}` : "";
+  console.log(`${scenario} counts, minute ${snapshots[0].minute} to ${snapshots[snapshots.length - 1].minute}: batches ${first.instancedMeshes} -> ${end.instancedMeshes}, MeshStandardMaterial ${first.materials} -> ${end.materials}${fadedLine}, Mesh ${first.meshes} -> ${end.meshes}`);
 }
+// The verdict (round 47, lib/verdict.mjs): item 3 of "What to soak and how" on the snapshots, said in one line at the end.
+const verdict = judge({ minutes, snapshots: snapshots.map((s) => ({ minute: s.minute, bytes: s.bytes, code: s.code })), diff: firstRead && lastTotals && lastTotals.minute > firstRead.minute ? snapshotDiff(firstRead.totals.byName, lastTotals.totals.byName) : null });
+for (const line of formatVerdict(verdict)) console.log(line);
 if (jsonOut)
   writeFileSync(
     jsonOut,
@@ -323,6 +355,7 @@ if (jsonOut)
         points,
         growth,
         snapshots,
+        verdict,
       },
       null,
       2,

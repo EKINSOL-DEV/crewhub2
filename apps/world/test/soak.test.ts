@@ -10,6 +10,7 @@ const line = (messageId: string, agentId = "a1"): ChatLine => ({ messageId, thre
 
 test("worldStores: every size read fresh through the reads, threads null before the first read, nothing kept", () => {
   let said = 1;
+  let faded = 12;
   const threads = new Map<string, unknown>([["t1", {}]]);
   const reads: StoreReads = {
     said: () => said,
@@ -19,9 +20,12 @@ test("worldStores: every size read fresh through the reads, threads null before 
     stream: () => ({ state: "open", reconnects: 3 }),
     connection: () => ({ state: "live" }),
     pageChat: () => ({ probe: "on", road: "page", polling: true, polls: 5, lines: 1 }),
+    faded: () => faded,
   };
-  assert.deepEqual(worldStores(reads), { said: 1, answers: 2, threads: 1, docRevision: 7, hostRev: 7, stream: { state: "open", reconnects: 3 }, connection: { state: "live" }, pageChat: { probe: "on", road: "page", polling: true, polls: 5, lines: 1 } });
+  assert.deepEqual(worldStores(reads), { said: 1, answers: 2, threads: 1, docRevision: 7, hostRev: 7, stream: { state: "open", reconnects: 3 }, connection: { state: "live" }, pageChat: { probe: "on", road: "page", polling: true, polls: 5, lines: 1 }, faded: 12 });
   said = 4;
+  faded = 0;
+  assert.equal(worldStores(reads).faded, 0, "the faded copies read fresh too");
   threads.set("t2", {});
   assert.equal(worldStores(reads).said, 4, "read again, not remembered");
   assert.equal(worldStores(reads).threads, 2);

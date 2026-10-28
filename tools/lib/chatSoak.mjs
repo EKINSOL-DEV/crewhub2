@@ -12,9 +12,11 @@ export const CHAT_USAGE = "[--paired-tab] [--chat-panel] [--dm-every <s>] [--bur
 /**
  * The chat soak's settings from the parsed options: `pairedTab`, `chatPanel`, `dmEvery` (seconds, null for no sender),
  * `burst` (messages, 0 for none), `burstAt` (the minute whose sample the burst follows, null for none), and `active`,
- * true when anything of the chat is asked for. `fail(message)` is called on a bad value, as `cli`'s is.
+ * true when anything of the chat is asked for. `fail(message)` is called on a bad value, as `cli`'s is. With the run's
+ * `minutes` and `every` (seconds between samples), a burst must follow a sample that has another after it (round 47,
+ * the review's F11: a burst at or after the run's end was never sent, and the end line just had no burst).
  */
-export function chatSettings(opts, fail = (message) => { throw new Error(message); }) {
+export function chatSettings(opts, fail = (message) => { throw new Error(message); }, run = null) {
   const number = (name, { integer = false, min = 0 } = {}) => {
     const text = opts[name] ?? "";
     if (text === "") return null;
@@ -27,6 +29,12 @@ export function chatSettings(opts, fail = (message) => { throw new Error(message
   const burstAt = number("burst-at");
   if (burst > 0 && burstAt === null) fail("--burst needs --burst-at <min>: the burst goes out right after that minute's sample");
   if (burst === 0 && burstAt !== null) fail("--burst-at needs --burst <n>");
+  if (run && burst > 0 && burstAt !== null) {
+    // The samples are at 0, every, 2 every, ... up to the run's end; the burst goes out after the first at or past its minute.
+    const lastSample = Math.floor((run.minutes * 60) / run.every) * run.every;
+    const burstSample = Math.ceil((burstAt * 60) / run.every) * run.every;
+    if (burstSample >= lastSample) fail(`--burst-at ${burstAt} leaves no sample after the burst (--minutes ${run.minutes}, a sample every ${run.every} s, the last at minute ${lastSample / 60}): at most --burst-at ${Math.max(0, (lastSample - run.every) / 60)}`);
+  }
   const pairedTab = Boolean(opts["paired-tab"]);
   const chatPanel = Boolean(opts["chat-panel"]);
   return { pairedTab, chatPanel, dmEvery, burst, burstAt, active: chatPanel || dmEvery !== null || burst > 0 };
@@ -68,13 +76,15 @@ export function createDmReadCounter() {
       };
     },
     tally() {
+      // ok, bad and errors are disjoint (round 47, the review's F11): a read that threw has no status and counts in
+      // `errors` only, so ok + bad + errors = total.
       let total = 0, once = 0, twice = 0, more = 0, ok = 0, bad = 0;
       for (const list of reads.values()) {
         total += list.length;
         if (list.length === 1) once += 1;
         else if (list.length === 2) twice += 1;
         else more += 1;
-        for (const r of list) if (r.status === 200) ok += 1; else bad += 1;
+        for (const r of list) if (r.status === 200) ok += 1; else if (r.status !== null) bad += 1;
       }
       return { ids: reads.size, total, once, twice, more, ok, bad, inFlight, maxInFlight, errors };
     },
@@ -112,16 +122,18 @@ export function nextDm(agents, sent, now = new Date()) {
 }
 
 /**
- * Installed in the page once the Chat panel is open: counts the `li` rows added under `.recent-list` (the page's
- * answers) and keeps the last `keep` labels and nothing more (round 41's uncapped list was 0.3 MB of the heap after
- * three hours). Read back with `readPageChat`. A plain function body, so `page.evaluate` takes it.
+ * Installed in the page once the Chat panel is open: counts the `li` rows added under the Chat panel's `.recent-list`
+ * (the page's answers) and keeps the last `keep` labels and nothing more (round 41's uncapped list was 0.3 MB of the
+ * heap after three hours). Only the panel's list (`.chat-sheet`): the text view renders a second Recent answers list,
+ * which would count each answer twice (round 47, the review's F11). Read back with `readPageChat`. A plain function
+ * body, so `page.evaluate` takes it.
  */
 export function pageChatCounter(keep = 20) {
   return `(() => {
     const state = { rows: 0, labels: [], keep: ${keep} };
     window.__worldChatSoak = state;
     const seen = (node) => {
-      if (!(node instanceof HTMLLIElement) || !node.parentElement || !node.parentElement.classList.contains("recent-list")) return;
+      if (!(node instanceof HTMLLIElement) || !node.parentElement || !node.parentElement.classList.contains("recent-list") || !node.parentElement.closest(".chat-sheet")) return;
       state.rows += 1;
       const row = node.querySelector(".recent-row");
       state.labels.push(row ? row.getAttribute("aria-label") || "" : "");
@@ -140,14 +152,24 @@ export function pageChatCounter(keep = 20) {
 /** What `pageChatCounter` keeps, read in the page: `{ rows, labels }`, or null before it is installed. */
 export const READ_PAGE_CHAT = "(() => (window.__worldChatSoak ? { rows: window.__worldChatSoak.rows, labels: window.__worldChatSoak.labels.slice() } : null))()";
 
-/** The host's lines that say a read was lost or tried again (the gate's log, `apps/host/src/dmReads.ts` where it is). */
-export function lostAndRetried(lines) {
-  const lost = lines.filter((l) => /\blost\b/i.test(l));
-  return { lost: lost.length, retried: lines.filter((l) => /\bretr(y|ied)\b/i.test(l) && !lost.includes(l)).length };
+/**
+ * The host's line that counts the agent messages lost after the read gate's one retry (question 14's gate,
+ * `apps/host/src/host.ts` `noteLostLine` on `task/q14-dm-read-cap`): at most one line every `DM_LOST_LOG_MS` (5 s),
+ * each with the count since the line before, `chat: <N> agent message(s) not read after one retry, those bubbles are
+ * lost (last: <id>, <status>)`. The gate logs nothing when it retries, so there is no retry count to read (round 47,
+ * the review's F8: the old tally counted lines, so a burst that lost 172 within 5 s said 1, and its "retried" was 0
+ * on every run).
+ */
+export const LOST_LINE = /chat: (\d+) agent message\(s\) not read after one retry, those bubbles are lost/;
+
+/** The messages one host log line says were lost: the count on a lost line, else 0. */
+export function lostIn(line) {
+  const m = LOST_LINE.exec(line);
+  return m ? Number(m[1]) : 0;
 }
 
 /** One line of the chat counts, as the tool prints it on every sample. */
 export function formatChat(chat) {
   const r = chat.reads;
-  return `chat sent ${chat.sent}${chat.burstSent ? ` (burst ${chat.burstSent})` : ""} reads ${r.ids} ids/${r.total} total (twice ${r.twice}, bad ${r.bad}, in flight ${r.inFlight}, max ${r.maxInFlight}) rows ${chat.rows}${chat.lost ? ` lost ${chat.lost}` : ""}`;
+  return `chat sent ${chat.sent}${chat.burstSent ? ` (burst ${chat.burstSent})` : ""} reads ${r.ids} ids/${r.total} total (twice ${r.twice}, bad ${r.bad}, errors ${r.errors}, in flight ${r.inFlight}, max ${r.maxInFlight}) rows ${chat.rows}${chat.lost ? ` lost ${chat.lost}` : ""}`;
 }

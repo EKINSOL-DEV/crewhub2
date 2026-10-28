@@ -11,7 +11,7 @@ export interface ChatSettings {
   burstAt: number | null;
   active: boolean;
 }
-export function chatSettings(opts: Record<string, unknown>, fail?: (message: string) => never): ChatSettings;
+export function chatSettings(opts: Record<string, unknown>, fail?: (message: string) => never, run?: { minutes: number; every: number } | null): ChatSettings;
 
 export interface DmRead {
   status: number | null;
@@ -49,13 +49,13 @@ export function chatAgents(fake: { url: string; key: string; keyName?: string },
 export function nextDm(agents: string[], sent: number, now?: Date): { agent: string; text: string };
 export function pageChatCounter(keep?: number): string;
 export const READ_PAGE_CHAT: string;
-export function lostAndRetried(lines: string[]): { lost: number; retried: number };
+export const LOST_LINE: RegExp;
+export function lostIn(line: string): number;
 export interface ChatPoint {
   sent: number;
   burstSent: number;
   reads: DmTally;
   rows: number;
   lost: number;
-  retried: number;
 }
 export function formatChat(chat: ChatPoint): string;
