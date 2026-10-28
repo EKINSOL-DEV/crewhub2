@@ -404,6 +404,17 @@ done
   `--preview` the tool also says what the built `three-*.js` chunk calls those classes (for a retainer walk, which goes
   by name; `oi`, `fo`, `Jr` in the builds of 26 October); `--count-names <a,b>` adds the counts of any constructor
   name as the snapshot sums them; `--save-snapshots <dir>` keeps the raw snapshots (the heap's size each).
+- **The materials against the faded copies** (round 47). Every faded figure (a proxy, or a stale one) draws through a
+  see-through copy of a kit material, shared per kit material and mode (round 42), and each copy is a
+  `MeshStandardMaterial` of its own: the materials count moves with them as the storyline fades figures in and out.
+  The tool reads the copies alive from the page (`window.__worldStores().faded`, world-cast's `fadedCopiesAlive`),
+  prints `faded <n>` on every sample line and, under every snapshot's counts line, `faded copies at minute <n>: <f>
+  (MeshStandardMaterial less the faded copies: <m>)`; the JSON keeps `points[].faded` and `snapshots[].faded`. Read the
+  materials less the faded copies: that is what the far crowd and the kit hold, and it should stay flat; a rise in
+  materials that the faded copies account for is the storyline, one they do not is a leak. The copies are read right
+  before the snapshot, which is the count the snapshot holds; the page moves when the snapshot lets it go (round 47's
+  smoke: 27 before, 21 just after, 27 again at the next sample), so a different count just after is said beside it
+  (`snapshots[].fadedAfter`), not subtracted.
 - What good looks like (round 41's fix hour, the potlings): batches 90 and materials 313 to 314 at every snapshot,
   the heap after GC 25.9 to 30.3 MB, the snapshot total 49.2 to 50.4 MB. Before the fix: about 390 batches and 390
   materials more a minute, 5.4 MB a minute, and the snapshot of minute 40 no longer fit the tool (below).
@@ -424,15 +435,23 @@ export CREWHUB_WORLD_CONFIG_DIR=tools/out/soak/config-chat CREWHUB_WORLD_PORT=53
 node tools/memory.mjs --port 5385 live --preview --host-port 5385 --fake-speed 1 --minutes 180 --every 600 --snapshots 10,90,180 --paired-tab --chat-panel --dm-every 5 --burst 300 --burst-at 90 --json tools/out/soak/chat.json
 ```
 
-Every sample line ends with `chat sent <n> (burst <b>) reads <ids> ids/<total> total (twice <t>, bad <x>, in flight
-<f>, max <m>) rows <r>` (and `lost <l>` when the host's log says so), the JSON keeps it as `points[].chat`, and the end
-prints the tally (sent, the reads over the ids, the most in flight, the burst's minute by status with its mean and
-slowest read, the rows, the host's lost and retried lines) under `chat.end`. What to read:
+Every sample line ends with `chat sent <n> (burst <b>) reads <ids> ids/<total> total (twice <t>, bad <x>, errors <e>,
+in flight <f>, max <m>) rows <r>` (and `lost <l>` when the host's log says so), the JSON keeps it as `points[].chat`,
+and the end prints the tally (sent, the reads over the ids, the most in flight, the reads with 200, with another status
+and with no answer, three groups that add up to the reads, the burst's minute by status with its mean and slowest
+read, the rows, the agent messages the host's log says were lost) under `chat.end`. `bad` is a read loops answered
+with another status; `errors` one that got no answer (the fetch threw); a read is in one of them only. The lost count
+is the sum of the counts on the read gate's lost lines (question 14's host logs `chat: <N> agent message(s) not read
+after one retry, those bubbles are lost (last: <id>, <status>)` at most once every 5 s, with the count since the line
+before), summed over the whole run, not over the 2000 lines the tool keeps. The gate logs nothing when it retries, so
+there is no retry count. `--burst-at` must leave a sample after the burst's (the tool refuses one at or past the
+run's last sample). The page counts only the Chat panel's Recent answers rows, not the text view's second list. What to
+read:
 
 - Rows added on the page = ids the host read = messages sent plus the storyline's own replies; none lost, none doubled
   (an id read twice at a cursor reset is the re-snapshot replaying the newest `dm.created`, the page shows it once).
 - Reads in flight: at most 8 with round 35's read gate (`apps/host/src/dmReads.ts` on the answer branch for question
-  14, in the merge plan's replay), all 200, no retry line, no lost line in the host's log, the burst's replies read
+  14, in the merge plan's replay), all 200, no lost line in the host's log (`lost 0`), the burst's replies read
   within a minute at about 50 ms each; the head without the gate opened all 300 at once and lost 172 of them to
   "fetch failed" (rounds 40 and 41), so a run on a head without it reads that loss, not a regression.
 - The stores at their caps (`window.__worldStores`: Recent answers 10, bubbles 2 to 3, threads 3), DOM nodes and
@@ -451,11 +470,21 @@ report before the run):
   `native system /` bookkeeping) is at most **0.5 MB**.
 - **The numbers come from the tool's snapshots:** each snapshot's total (`snapshots[].bytes`, the `<n> MB in <k>
   nodes` line) minus its `(code)` row (`snapshots[].top`, always among the 40 largest kinds; the `(code)` line of
-  the snapshot table). A fit needs points: ask `--snapshots` for at least four minutes across the window, one every
-  10 to 30 minutes (an hour: `10,20,30,40,50,60`; three hours: `10,30,60,90,120,150,180`); every snapshot pauses the
-  page about a second per 50 MB of heap, so its own sample is not a frame measurement. Printing the total without
-  code and its fit at the run's end is a later tool task (`tools/memory.mjs`); until then the two numbers are read
-  from the JSON.
+  the snapshot table). A fit needs points: ask `--snapshots` for at least three minutes inside the window, one every
+  10 to 30 minutes (an hour: `10,20,30,40,50,60`; three hours: `10,30,60,90,120,150,180`, which puts 120, 150 and 180
+  in the window); every snapshot pauses the page about a second per 50 MB of heap, so its own sample is not a frame
+  measurement.
+- **The tool prints the verdict** at the run's end (round 47, `tools/lib/verdict.mjs`), and the JSON keeps it as
+  `verdict`: the total, `(code)` and the total without code at each snapshot, the window marked; the fit; the JS
+  objects from the first snapshot to the last by kind (the kinds left out printed beside them) with the rows that moved
+  most; the `(code)` rate in MB an hour against the ceiling, with each stretch between snapshots; the levelling test
+  for a run over an hour; and one line, `verdict: levels off (…)`, `verdict: does not level off: <the rules> failed`,
+  or `verdict: cannot judge: <why>` (a run under an hour, fewer than three snapshots in the window, no snapshot
+  between the first and the last for the levelling test). How it reads this item: the diff, the ceiling and the
+  levelling test run from the first snapshot at or after minute 10 to the last, the halves split at the snapshot
+  nearest the middle (round 46: 10 to 180, split at 90); a run of one to two hours takes minutes 10 to 60 as its
+  window. Round 46's three potlings hours read through it: the fit 0.154 MB an hour, the JS objects 0.15 MB, `(code)`
+  0.51 MB an hour, the halves 0.94 and 0.13: levels off.
 - **A ceiling on `(code)` of its own: at most 1.5 MB an hour** over the window, and, **for a run of more than an
   hour, a levelling test: the `(code)` rate over the second half of the window is at most the rate over the first
   half.** Where the ceiling sits: round 45's six demo hours (the four casts, then the potlings and the classic bots
