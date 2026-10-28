@@ -88,4 +88,14 @@ test("the classic bots: parts of one shape in different colours share a batch as
   frame();
   frame();
   for (const m of batches(crowd)) if (m.count > 1) assert.ok(m.instanceColor, "a shared batch carries its colours per instance");
+  // Round 47: every tinted batch has instanceColor whatever the key, so the line above holds even if the plain key
+  // carried the colour (one batch per colour). Shared means a batch whose instances have two colours or more.
+  const colours = (m: THREE.InstancedMesh) => {
+    const seen = new Set<string>();
+    const a = m.instanceColor?.array;
+    if (a) for (let i = 0; i < m.count; i++) seen.add(`${a[i * 3]},${a[i * 3 + 1]},${a[i * 3 + 2]}`);
+    return seen.size;
+  };
+  const mixed = batches(crowd).filter((m) => colours(m) > 1);
+  assert.ok(mixed.length > 0, `a batch holds parts of one shape in different colours (${batches(crowd).length} batches, none mixed)`);
 });
