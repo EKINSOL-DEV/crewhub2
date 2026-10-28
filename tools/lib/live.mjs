@@ -11,6 +11,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { lostIn } from "./chatSoak.mjs";
 import { ownPort } from "./toolGuard.ts";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -19,6 +20,25 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".
 // --host-port has no default (round 36): 5180 is the host's default, somebody's real npm run world; a tool names a port of its own.
 export const LIVE_OPTIONS = { source: "demo", "loops-url": "", "key-file": "", "fake-scenario": "small-team", "fake-speed": "16", "host-port": "" };
 export const LIVE_USAGE = "[--source demo|live --host-port <port>] [--loops-url <url> --key-file <file>] [--fake-scenario <id>] [--fake-speed 0|1|4|16]";
+
+/**
+ * The host's log as the tool keeps it: the last `keep` lines, each with its time of day, and the running total of the
+ * agent messages the host's lost lines count (`chatSoak.mjs` `lostIn`), summed as the lines come in, so lines that
+ * roll off the kept ones still count (round 47, the review's F8: the total was read from the capped lines).
+ */
+export function createHostLog(keep = 2000, now = () => new Date()) {
+  const lines = [];
+  let lost = 0;
+  return {
+    lines,
+    log(line) {
+      lost += lostIn(line);
+      lines.push(`${now().toTimeString().slice(0, 8)} ${line}`);
+      if (lines.length > keep) lines.splice(0, lines.length - keep);
+    },
+    lost: () => lost,
+  };
+}
 
 /**
  * Starts what live mode needs and answers { base, describe, pair(page), close }. `base` is the page address to open
@@ -62,13 +82,11 @@ export async function startLive(opts, { preview = false, keyReadsChat = false } 
   const hostPort = portVerdict.value;
   const dist = path.join(REPO, "apps", "world", "dist");
   if (preview && !existsSync(path.join(dist, "index.html"))) opts.fail("--preview with --source live serves apps/world/dist: run npm run build first");
-  // The host's log lines, kept for the run's end (the chat soak reads its lost and retry lines): the last 2000.
-  const lines = [];
-  const log = (line) => {
-    lines.push(`${new Date().toTimeString().slice(0, 8)} ${line}`);
-    if (lines.length > 2000) lines.splice(0, lines.length - 2000);
-  };
-  const hostOptions = { loopsUrl, key, keyName, log };
+  // The host's log lines, kept for the run's end (the chat soak prints its chat lines): the last 2000, with the lost
+  // messages summed over all of them.
+  const hostLog = createHostLog(2000);
+  const { lines } = hostLog;
+  const hostOptions = { loopsUrl, key, keyName, log: hostLog.log };
   const host = await createHost(preview ? { ...hostOptions, staticDir: dist, port: hostPort } : { ...hostOptions, port: hostPort, allowedOrigins: [opts.origin] });
   const origin = preview ? host.url : opts.origin;
   const describe = `live: loops ${fake ? `fake on 127.0.0.1:${fake.port} (${opts["fake-scenario"]}, speed ${opts["fake-speed"]})` : loopsUrl} (key ${keyName}), host on 127.0.0.1:${host.port} ${preview ? "serving apps/world/dist" : `behind the Vite proxy on ${origin} (Vite started with CREWHUB_WORLD_PORT=${host.port})`}`;
@@ -79,6 +97,8 @@ export async function startLive(opts, { preview = false, keyReadsChat = false } 
     fake,
     /** The host's last 2000 log lines, each with its time of day. */
     lines,
+    /** The agent messages the host's log said were lost, over the whole run. */
+    lost: hostLog.lost,
     describe,
     /** The host the tool started: its `connection()` tells the upstream stream's state and reconnects (round 27). */
     host,
