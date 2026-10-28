@@ -150,12 +150,13 @@ test("a stale copy's colour is the kit material's lerped towards the kit's stale
   const staleColor = new THREE.Color(kit.hex("stale"));
   const kitColors = new Map<THREE.Material, THREE.Color>();
   for (const h of handles) { h.setState(idle); h.object.traverse((o) => { const holder = figurePiecesOf(o); if (holder) for (const p of holder.figurePieces) kitColors.set(p.material, (p.material as THREE.MeshStandardMaterial).color); }); h.setState(stale); }
-  let matched = 0;
-  for (const copy of copies) for (const [, color] of kitColors) {
-    const expected = color.clone().lerp(staleColor, 0.75);
-    if (Math.abs(expected.r - copy.color.r) < 1e-6 && Math.abs(expected.g - copy.color.g) < 1e-6 && Math.abs(expected.b - copy.color.b) < 1e-6) matched++;
+  // Per copy (round 47): a count of matches over all pairs let one wrong copy hide behind another's extra matches, since
+  // kit materials of equal colour (the pale knob and flag) make a right copy match more than once.
+  const greyed = [...kitColors.values()].map((color) => color.clone().lerp(staleColor, 0.75));
+  for (const copy of copies) {
+    const near = (c: THREE.Color) => Math.abs(c.r - copy.color.r) < 1e-6 && Math.abs(c.g - copy.color.g) < 1e-6 && Math.abs(c.b - copy.color.b) < 1e-6;
+    assert.ok(greyed.some(near), `every stale copy's colour is a kit colour lerped 0.75 towards stale (#${copy.color.getHexString()} is none)`);
   }
-  assert.ok(matched >= copies.length, `every stale copy's colour is a kit colour lerped 0.75 towards stale (${matched} matches for ${copies.length} copies)`);
   const alive = fadedCopiesAlive();
   assert.ok(alive >= copies.length);
   for (const source of kitColors.keys()) source.dispose();
