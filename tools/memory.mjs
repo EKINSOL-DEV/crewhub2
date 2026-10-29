@@ -199,8 +199,8 @@ async function snapshotAt(minute) {
   const counts = Object.fromEntries(countNames.map((n) => [n, totals.byName.get(n)?.count ?? 0]));
   console.log(`  counts at minute ${minute}: ${formatShapes(totals.shapes)}${countNames.length > 0 ? `; ${countNames.map((n) => `${n} ${counts[n]}`).join(", ")}` : ""}`);
   // Each faded copy is a MeshStandardMaterial of its own: the materials less the faded copies are the crowd's and the kit's.
-  // The count read right before is the snapshot's (only a GC lies between); the page moves when the snapshot lets it go
-  // (round 47's smoke: 27 before, 21 after, 27 again at the next sample), so the one after is said beside it only.
+  // The count read right before is the snapshot's (only a GC lies between); the pause can carry the demo past a loop's
+  // end (round 48: 27 before, 21 after, 27 again at the next sample), so the one after is said beside it only.
   const faded = fadedBefore ?? fadedAfter;
   console.log(
     faded === null
