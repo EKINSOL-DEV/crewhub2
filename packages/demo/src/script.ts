@@ -372,7 +372,9 @@ function storyline(s: ScriptBuilder): void {
   s.add("14:26", { type: "progress", ticket: "MK-12", agent: "analyst", kind: "update", text: "three numbers written up with their definitions" });
   s.post("14:52", { type: "comment", by: "sam", ticket: "CR-20", text: "The camera stays put now. Nice." });
   s.post("15:16", { type: "comment", by: "nicky", ticket: "MK-14", text: "Keep the voice-over under 90 seconds." });
-  s.add("15:56", { type: "comment", by: "cl-lead", ticket: `@${release}`, text: "Notes ready for 0.9.0." });
+  // Before the quiet minutes, not at 15:56 (round 48, r48-cl88): the page reads a ticket 250 ms after an event on it, and
+  // at 16x the fake's loop end, which rebuilds its store without the carrier, came first (a 404 on the live page).
+  s.add("15:25", { type: "comment", by: "cl-lead", ticket: `@${release}`, text: "Notes ready for 0.9.0." });
   // A person turns a ticket down (CL-89): it goes to Done as "won't do", which is no celebration. Added last and
   // without jitter, so every action above keeps its id and its time.
   s.add(personDone("CR-25"), { type: "move", by: "nicky", ticket: "CR-25", to: "done", rejected: "The building sign already shows the counts." }, false);

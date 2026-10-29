@@ -97,6 +97,29 @@ for (const id of SCENARIO_IDS) {
     assert.equal(projection.facts.skippedEvents, byDesign);
     projection.dispose();
   });
+
+  // Round 48 (r48-cl88): an event on a ticket makes the page read that ticket `coalesceMs` (250 ms) later. Against the
+  // fake, the read goes over the network to a store that the loop's end rebuilds from the seed, while the page only
+  // learns of the new loop when its stream comes back. A ticket the loop made itself is gone then: a 404 and the
+  // browser's "Failed to load resource" line (small team's 15:56 comment on the 0.9.0 carrier, CL-88, at the stub's 16x).
+  // At the fastest speed, every event on such a ticket leaves the read a second of room before the loop ends.
+  test(`${id}: at 16x, every event on a ticket the loop made leaves the page's read of it a second before the loop ends`, () => {
+    const READ_AFTER_MS = 250; // the projection's default coalesceMs
+    const ROOM_MS = 1_000;
+    const scheduler = createManualScheduler(1_000);
+    const source = createDemoSource({ scheduler, speed: 16, scenario: id });
+    const sent: { wall: number; message: SourceMessage }[] = [];
+    source.start((message) => sent.push({ wall: scheduler.now(), message }));
+    scheduler.advance(Math.ceil((demoScenario(id).story.durationMs + 20_000) / 16));
+    const end = sent.findIndex((s, i) => i > 0 && s.message.type === "snapshot");
+    assert.ok(end > 0, "the loop ended");
+    const loopEnd = sent[end]!.wall;
+    const events = sent.slice(0, end).flatMap((s) => (s.message.type === "event" ? [{ wall: s.wall, envelope: s.message.envelope }] : []));
+    const made = new Set(events.filter((e) => e.envelope.type === "ticket.created").flatMap((e) => (e.envelope.ticket ? [e.envelope.ticket.id] : [])));
+    const names = (e: (typeof events)[number]) => (e.envelope.ticket !== null && made.has(e.envelope.ticket.id)) || ((e.envelope.payload["ticketIds"] as string[] | undefined) ?? []).some((t) => made.has(t));
+    const late = events.filter((e) => names(e) && loopEnd - e.wall < READ_AFTER_MS + ROOM_MS);
+    assert.deepEqual(late.map((e) => `${e.envelope.type} on ${e.envelope.ticket?.key} ${loopEnd - e.wall} ms before the loop's end`), []);
+  });
 }
 
 test("Fresh install: no project at the start, then the person creates the first one as loops emits it", async () => {
