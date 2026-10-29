@@ -67,8 +67,8 @@ export interface DemoSource extends WorldSource {
   /**
    * Build mode's "Request a prop" (demo only): runs the scripted prop flow for `thing` from the
    * current position, or from the moment the scenario's project exists (Fresh install before its first
-   * project). The ticket appears one second of demo time later; a seek before that point or the next loop
-   * drops it again. `project` is the name of the project the ticket lands in.
+   * project). The ticket appears one second of demo time later. A seek back keeps the request (it plays again at its
+   * time, as a chat exchange does); the next loop drops it. `project` is the name of the project the ticket lands in.
    */
   createPropRequest(thing: string): { title: string; startsAtMs: number; project: string };
   /**
