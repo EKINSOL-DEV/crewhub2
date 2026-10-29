@@ -18,7 +18,7 @@
      --app-data <dir>  the folder the host's discovery reads (`CREWHUB_WORLD_LOOPS_APP_DATA`); never the Mac app's.
      --config-dir <dir> the host's own folder (`CREWHUB_WORLD_CONFIG_DIR`); default <out>/timeworld-config.
      --json <file>     every number, per run.
-   The port (`--port`) is the host's, must be free and yours; the browser opens the host directly. The host is stopped by its own pid at the end, never by a pattern.
+   The port (`--port`) is the host's, must be free and yours; the browser opens the host directly. The host is stopped by its own process group at the end of every run, whatever the run did (SIGINT, SIGKILL after 5 s), never by a pattern; a Ctrl-C of the tool takes it too.
    Loopback only. The key is never printed. */
 import { spawn, execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
