@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
@@ -24,6 +24,7 @@ describe("the run file", () => {
     } finally {
       if (before === undefined) delete process.env["TMPDIR"];
       else process.env["TMPDIR"] = before;
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });

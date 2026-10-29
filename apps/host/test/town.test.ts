@@ -150,12 +150,15 @@ describe("the town routes", () => {
     // Mac app's port, and on a Mac where the app runs the host finds it (an installation, revision 0) when its probe
     // wins the race against the read below (round 35).
     const appData = mkdtempSync(path.join(tmpdir(), "chw-app-"));
-    writeFileSync(path.join(appData, "settings.json"), `{"port": ${await freePort()}}\n`);
-    host = await createHost({ discovery: { appData, intervalMs: 40 }, pairing: "off", retryMs: { min: 20, max: 100 }, worldDb: db });
-    const lost = await get("/town");
-    assert.deepEqual([lost.status, ((await lost.json()) as { reason: string; rev: unknown }).reason, ((await (await get("/town")).json()) as { rev: unknown }).rev], [200, "no_loops", null]);
-    assert.equal((await put({ document: DOC(0), baseRev: 0 })).status, 503);
-    rmSync(appData, { recursive: true, force: true });
+    try {
+      writeFileSync(path.join(appData, "settings.json"), `{"port": ${await freePort()}}\n`);
+      host = await createHost({ discovery: { appData, intervalMs: 40 }, pairing: "off", retryMs: { min: 20, max: 100 }, worldDb: db });
+      const lost = await get("/town");
+      assert.deepEqual([lost.status, ((await lost.json()) as { reason: string; rev: unknown }).reason, ((await (await get("/town")).json()) as { rev: unknown }).rev], [200, "no_loops", null]);
+      assert.equal((await put({ document: DOC(0), baseRev: 0 })).status, 503);
+    } finally {
+      rmSync(appData, { recursive: true, force: true });
+    }
   });
 });
 

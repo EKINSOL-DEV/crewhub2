@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
@@ -22,6 +22,7 @@ describe("static files and the host's own heartbeat", () => {
   after(async () => {
     await host.close();
     await stub.close();
+    await rm(dir, { recursive: true, force: true });
   });
 
   it("serves the built world with an SPA fallback and never a file outside the folder", async () => {

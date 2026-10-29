@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, utimesSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
@@ -52,20 +52,24 @@ describe("the build freshness check", () => {
 
   it("the walk takes the world's sources and config, every package, the lockfile; never node_modules, dist, tests or dotfiles", () => {
     const root = mkdtempSync(path.join(tmpdir(), "crewhub-build-"));
-    const put = (file: string) => {
-      mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
-      writeFileSync(path.join(root, file), "x");
-    };
-    for (const f of ["apps/world/src/App.tsx", "apps/world/src/world/a.ts", "apps/world/index.html", "apps/world/vite.config.ts", "apps/world/package.json", "package-lock.json", "packages/demo/src/a.ts", "packages/demo/package.json"]) put(f);
-    for (const f of ["apps/world/src/.hidden", "apps/world/dist/index.html", "packages/demo/node_modules/x/i.js", "packages/demo/test/a.test.ts", "packages/demo/dist/x.js", "apps/host/src/main.ts"]) put(f);
-    const files = worldSources(root).map((f) => f.path).sort();
-    assert.deepEqual(files, ["apps/world/index.html", "apps/world/package.json", "apps/world/src/App.tsx", "apps/world/src/world/a.ts", "apps/world/vite.config.ts", "package-lock.json", "packages/demo/package.json", "packages/demo/src/a.ts"]);
-    const dist = path.join(root, "apps", "world", "dist");
-    utimesSync(path.join(dist, "index.html"), new Date(5000), new Date(5000));
-    assert.deepEqual(distState(dist), { distMtimeMs: 5000, stamp: null });
-    writeFileSync(path.join(dist, ".crewhub-world-build.json"), JSON.stringify({ files: 8, newestMtimeMs: 4000 }));
-    assert.deepEqual(distState(dist).stamp, { files: 8, newestMtimeMs: 4000 });
-    writeFileSync(path.join(dist, ".crewhub-world-build.json"), "not json");
-    assert.equal(distState(dist).stamp, null, "a broken stamp is no stamp");
+    try {
+      const put = (file: string) => {
+        mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+        writeFileSync(path.join(root, file), "x");
+      };
+      for (const f of ["apps/world/src/App.tsx", "apps/world/src/world/a.ts", "apps/world/index.html", "apps/world/vite.config.ts", "apps/world/package.json", "package-lock.json", "packages/demo/src/a.ts", "packages/demo/package.json"]) put(f);
+      for (const f of ["apps/world/src/.hidden", "apps/world/dist/index.html", "packages/demo/node_modules/x/i.js", "packages/demo/test/a.test.ts", "packages/demo/dist/x.js", "apps/host/src/main.ts"]) put(f);
+      const files = worldSources(root).map((f) => f.path).sort();
+      assert.deepEqual(files, ["apps/world/index.html", "apps/world/package.json", "apps/world/src/App.tsx", "apps/world/src/world/a.ts", "apps/world/vite.config.ts", "package-lock.json", "packages/demo/package.json", "packages/demo/src/a.ts"]);
+      const dist = path.join(root, "apps", "world", "dist");
+      utimesSync(path.join(dist, "index.html"), new Date(5000), new Date(5000));
+      assert.deepEqual(distState(dist), { distMtimeMs: 5000, stamp: null });
+      writeFileSync(path.join(dist, ".crewhub-world-build.json"), JSON.stringify({ files: 8, newestMtimeMs: 4000 }));
+      assert.deepEqual(distState(dist).stamp, { files: 8, newestMtimeMs: 4000 });
+      writeFileSync(path.join(dist, ".crewhub-world-build.json"), "not json");
+      assert.equal(distState(dist).stamp, null, "a broken stamp is no stamp");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
