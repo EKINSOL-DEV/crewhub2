@@ -80,10 +80,36 @@ async function environment() {
 }
 
 const ms = (t) => `${String(Math.round(t)).padStart(6)} ms`;
-/** The hosts' process groups still running: stopped on every way out of the tool, a Ctrl-C included (review F6). */
-const running = new Set();
+
+/**
+ * The hosts still running (pid → the child and its exit), so that every way out stops them (review F6): the end of a run,
+ * a run that throws (the tool's `finally`), the tool's own exit and a Ctrl-C.
+ */
+const running = new Map();
+/** Stops one host's whole process group: SIGINT (its own clean stop), SIGKILL after 5 s. Answers what happened, in words. */
+async function stopHost(pid) {
+  const host = running.get(pid);
+  if (host === undefined) return "host stopped";
+  const gone = (ms) => Promise.race([host.exited.then(() => true), new Promise((r) => setTimeout(() => r(false), ms))]);
+  const signal = (name) => {
+    try {
+      process.kill(-pid, name);
+    } catch {}
+  };
+  let word = "host stopped";
+  if (host.child.exitCode === null && host.child.signalCode === null) {
+    signal("SIGINT");
+    if (!(await gone(5000))) {
+      signal("SIGKILL");
+      if (!(await gone(2000))) return "host did NOT stop: its process group outlived SIGKILL";
+      word = "host stopped (SIGKILL after 5 s without an exit)";
+    }
+  }
+  running.delete(pid);
+  return word;
+}
 process.on("exit", () => {
-  for (const pid of running) {
+  for (const pid of running.keys()) {
     try {
       process.kill(-pid, "SIGTERM");
     } catch {}
@@ -127,96 +153,73 @@ async function run(env, browser, index) {
     }
   });
   const exited = new Promise((resolve) => child.once("exit", (code) => resolve(code)));
-  running.add(child.pid);
-  /** The host's whole process group: SIGINT (its own clean stop), SIGKILL after 5 s; the word for the step list. */
-  const stopHost = async () => {
-    const gone = (ms) => Promise.race([exited.then(() => true), new Promise((r) => setTimeout(() => r(false), ms))]);
-    const signal = (name) => {
-      try {
-        process.kill(-child.pid, name);
-      } catch {}
-    };
-    if (child.exitCode === null && child.signalCode === null) {
-      signal("SIGINT");
-      if (!(await gone(5000))) {
-        signal("SIGKILL");
-        if (!(await gone(2000))) return "host did NOT stop: its process group outlived SIGKILL";
-        running.delete(child.pid);
-        return "host stopped (SIGKILL after 5 s without an exit)";
-      }
-    }
-    running.delete(child.pid);
-    return "host stopped";
-  };
-  // Whatever happens in between (a page that never loads, a throw), the host goes with the run (review F6).
-  try {
-    const got = await Promise.race([linkPromise, exited.then(() => null), new Promise((r) => setTimeout(() => r(null), 180_000))]);
-    if (got === null) {
-      console.log(`  no link within the wait; stdout: ${stdout.slice(0, 300)}`);
-      return { steps, hostLines, failed: true };
-    }
-    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
-    const page = await ctx.newPage();
-    const problems = [];
-    page.on("pageerror", (e) => problems.push(`pageerror ${e.message}`));
-    page.on("console", (m) => m.type() === "error" && problems.push(`console ${m.text()}`));
-    await page.goto(link, { waitUntil: "domcontentloaded" });
-    at("page loaded (after the pairing redirect)");
-    // The chip's states as they come, the canvas, the dressed town, the text view with every project.
-    const seen = new Set();
-    const deadline = Date.now() + 120_000;
-    let canvasAt = null;
-    let dressedAt = null;
-    let projects = 0;
-    while (Date.now() < deadline) {
-      const now = await page
-        .evaluate(() => ({
-          chip: document.querySelector(".connection-chip")?.getAttribute("data-connection") ?? null,
-          status: [...document.querySelectorAll('[role="status"]')].map((e) => e.textContent?.trim()).filter(Boolean).slice(0, 3),
-          canvas: !!document.querySelector("canvas"),
-          dressed: performance.getEntriesByName("world:town-dressed").length > 0,
-          buildings: globalThis.__town?.buildings?.length ?? null,
-          jump: [...document.querySelectorAll(".jump-list li, [data-building]")].length,
-        }))
-        .catch(() => null);
-      if (now === null) {
-        // The Building page reloads itself into the world: an evaluate during that navigation fails; ask again.
-        if (page.isClosed()) break;
-        await page.waitForTimeout(50);
-        continue;
-      }
-      for (const s of now.status) if (!seen.has("s:" + s)) (seen.add("s:" + s), at("page says", JSON.stringify(s.slice(0, 80))));
-      if (now.chip && !seen.has("c:" + now.chip)) (seen.add("c:" + now.chip), at(`chip: ${now.chip}`));
-      if (now.canvas && canvasAt === null) (canvasAt = true, at("canvas on screen"));
-      if (now.dressed && dressedAt === null) {
-        dressedAt = true;
-        at("town drawn and dressed (world:town-dressed)");
-      }
-      if (now.dressed && now.chip === "live") break;
-      await page.waitForTimeout(50);
-    }
-    // The text view names every project the host's snapshot has (the page's request carries the pairing cookie).
-    const origin = new URL(link).origin;
-    const snapshot = await page.request.get(`${origin}/world-api/snapshot`).then((r) => (r.ok() ? r.json() : null)).catch(() => null);
-    const names = (snapshot?.projects ?? []).map((p) => `${p.name} (${p.key})`);
-    await page.keyboard.press("t");
-    await page.waitForTimeout(300);
-    const tv = (await page.locator("#text-view").innerText({ timeout: 5000 }).catch(() => "")) ?? "";
-    await page.keyboard.press("Escape");
-    projects = names.filter((n) => tv.includes(n)).length;
-    at("text view read", `${projects} of ${names.length} projects named; ${/Demo mode/.test(tv) ? "DEMO MODE" : "live"}`);
-    const marks = await page.evaluate(() => performance.getEntriesByType("mark").map((m) => ({ name: m.name, ms: Math.round(m.startTime) })));
-    for (const mark of marks.filter((m) => /^world:(snapshot|first-frame|walks|town-dressed)$/.test(m.name))) console.log(`  page mark ${mark.name} at ${mark.ms} ms after navigation`);
-    const nav = await page.evaluate(() => {
-      const n = performance.getEntriesByType("navigation")[0];
-      return n ? { responseEnd: Math.round(n.responseEnd), domContentLoaded: Math.round(n.domContentLoadedEventEnd), load: Math.round(n.loadEventEnd) } : null;
-    });
-    await page.screenshot({ path: path.join(opts.out, `${opts.tag}-${index}-town.png`) }).catch(() => {});
-    await ctx.close();
-    return { steps, hostLines, marks, nav, projects, problems, failed: false };
-  } finally {
-    at(await stopHost());
+  running.set(child.pid, { child, exited });
+  const got = await Promise.race([linkPromise, exited.then(() => null), new Promise((r) => setTimeout(() => r(null), 180_000))]);
+  if (got === null) {
+    console.log(`  no link within the wait; stdout: ${stdout.slice(0, 300)}`);
+    at(await stopHost(child.pid));
+    return { steps, hostLines, failed: true };
   }
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
+  const page = await ctx.newPage();
+  const problems = [];
+  page.on("pageerror", (e) => problems.push(`pageerror ${e.message}`));
+  page.on("console", (m) => m.type() === "error" && problems.push(`console ${m.text()}`));
+  await page.goto(link, { waitUntil: "domcontentloaded" });
+  at("page loaded (after the pairing redirect)");
+  // The chip's states as they come, the canvas, the dressed town, the text view with every project.
+  const seen = new Set();
+  const deadline = Date.now() + 120_000;
+  let canvasAt = null;
+  let dressedAt = null;
+  let projects = 0;
+  while (Date.now() < deadline) {
+    const now = await page
+      .evaluate(() => ({
+        chip: document.querySelector(".connection-chip")?.getAttribute("data-connection") ?? null,
+        status: [...document.querySelectorAll('[role="status"]')].map((e) => e.textContent?.trim()).filter(Boolean).slice(0, 3),
+        canvas: !!document.querySelector("canvas"),
+        dressed: performance.getEntriesByName("world:town-dressed").length > 0,
+        buildings: globalThis.__town?.buildings?.length ?? null,
+        jump: [...document.querySelectorAll(".jump-list li, [data-building]")].length,
+      }))
+      .catch(() => null);
+    if (now === null) {
+      // The Building page reloads itself into the world: an evaluate during that navigation fails; ask again.
+      if (page.isClosed()) break;
+      await page.waitForTimeout(50);
+      continue;
+    }
+    for (const s of now.status) if (!seen.has("s:" + s)) (seen.add("s:" + s), at("page says", JSON.stringify(s.slice(0, 80))));
+    if (now.chip && !seen.has("c:" + now.chip)) (seen.add("c:" + now.chip), at(`chip: ${now.chip}`));
+    if (now.canvas && canvasAt === null) (canvasAt = true, at("canvas on screen"));
+    if (now.dressed && dressedAt === null) {
+      dressedAt = true;
+      at("town drawn and dressed (world:town-dressed)");
+    }
+    if (now.dressed && now.chip === "live") break;
+    await page.waitForTimeout(50);
+  }
+  // The text view names every project the host's snapshot has (the page's request carries the pairing cookie).
+  const origin = new URL(link).origin;
+  const snapshot = await page.request.get(`${origin}/world-api/snapshot`).then((r) => (r.ok() ? r.json() : null)).catch(() => null);
+  const names = (snapshot?.projects ?? []).map((p) => `${p.name} (${p.key})`);
+  await page.keyboard.press("t");
+  await page.waitForTimeout(300);
+  const tv = (await page.locator("#text-view").innerText({ timeout: 5000 }).catch(() => "")) ?? "";
+  await page.keyboard.press("Escape");
+  projects = names.filter((n) => tv.includes(n)).length;
+  at("text view read", `${projects} of ${names.length} projects named; ${/Demo mode/.test(tv) ? "DEMO MODE" : "live"}`);
+  const marks = await page.evaluate(() => performance.getEntriesByType("mark").map((m) => ({ name: m.name, ms: Math.round(m.startTime) })));
+  for (const mark of marks.filter((m) => /^world:(snapshot|first-frame|walks|town-dressed)$/.test(m.name))) console.log(`  page mark ${mark.name} at ${mark.ms} ms after navigation`);
+  const nav = await page.evaluate(() => {
+    const n = performance.getEntriesByType("navigation")[0];
+    return n ? { responseEnd: Math.round(n.responseEnd), domContentLoaded: Math.round(n.domContentLoadedEventEnd), load: Math.round(n.loadEventEnd) } : null;
+  });
+  await page.screenshot({ path: path.join(opts.out, `${opts.tag}-${index}-town.png`) }).catch(() => {});
+  await ctx.close();
+  at(await stopHost(child.pid));
+  return { steps, hostLines, marks, nav, projects, problems, failed: false };
 }
 
 const { env, fake, what } = await environment();
@@ -232,6 +235,8 @@ try {
     if (last.problems?.length) console.log(`  page problems: ${last.problems.join(" | ")}`);
   }
 } finally {
+  // A run that threw left its host: stopped here, before anything else (review F6).
+  for (const pid of [...running.keys()]) console.log(`  after the run's error: ${await stopHost(pid)}`);
   await browser.close();
   await fake?.close?.();
   // The run file of a host that is gone (a SIGKILL leaves it); never the file of one still running.
