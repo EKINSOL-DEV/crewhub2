@@ -205,7 +205,7 @@ export function loadServerConfig(env: Record<string, string | undefined>, probe:
     warnings.push("WARNING: this is for development only (the Vite proxy); production refuses it.");
   }
   const pairingFileText = (env.CREWHUB_WORLD_PAIRING_FILE ?? "").trim();
-  const pairingFile = pairingFileText === "" ? null : path.resolve(pairingFileText);
+  const pairingFile = pairingFileText === "" ? null : path.resolve(expandHome(pairingFileText));
   const publicUrlText = (env.CREWHUB_WORLD_PUBLIC_URL ?? "").trim();
   let publicUrl: string | null = null;
   if (publicUrlText !== "") {
