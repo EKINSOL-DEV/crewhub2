@@ -1520,8 +1520,6 @@ await group("town", async () => {
   const { createLoopsFake } = await import(pathToFileURL(path.join(REPO, "packages", "loops-fake", "src", "index.ts")).href);
   const { createHost } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "host.ts")).href);
   const { openWorldDb } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "worldDb.ts")).href);
-  const { mkdtempSync } = await import("node:fs");
-  const { tmpdir } = await import("node:os");
   const dist = DIST;
   const served = DIST_SERVED;
   const hostPort = Number(opts["host-port"]);
@@ -1530,7 +1528,11 @@ await group("town", async () => {
   // One pairing secret for every host of this group, so a restart keeps the browsers paired; two databases: the first
   // host's, left behind, and the one the rest of the group runs on.
   const pairingSecret = randomBytes(32);
-  const dbs = [openWorldDb(mkdtempSync(path.join(tmpdir(), "chw-town-a-"))), openWorldDb(mkdtempSync(path.join(tmpdir(), "chw-town-b-")))];
+  // Under --out, fresh for this run and removed at its end, as the ops group's config folder (review F9: two folders a
+  // run were left in $TMPDIR).
+  const dbDirs = ["a", "b"].map((side) => path.join(OUT, `${tag}-town-${side}`));
+  for (const dir of dbDirs) rmSync(dir, { recursive: true, force: true });
+  const dbs = dbDirs.map((dir) => openWorldDb(dir));
   const hostLog = [];
   const base = { loopsUrl: fake.url, key: fake.key, keyName: fake.keyName, retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: (line) => hostLog.push(line), pairingSecret };
   const start = (worldDb, port) => createHost(served ? { ...base, worldDb, staticDir: dist, ...(port ? { port } : {}) } : { ...base, worldDb, port: hostPort, allowedOrigins: [origin] });
@@ -1748,6 +1750,7 @@ await group("town", async () => {
     await host.close().catch(() => {});
     await fake.close().catch(() => {});
     for (const db of dbs) db.close();
+    for (const dir of dbDirs) rmSync(dir, { recursive: true, force: true });
   }
 });
 

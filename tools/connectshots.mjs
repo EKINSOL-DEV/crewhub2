@@ -21,6 +21,7 @@
    Output in --out: <tag><state>-<theme>-<width>.png. Prints connectshots: <passed>/<total> last; exit 0 at full marks. */
 import { cli, launch, list, problemLines, watch } from "./lib/world.mjs";
 import { createConnectStub } from "./lib/connectStub.mjs";
+import { isProbeRefusal } from "./lib/probeRefusal.ts";
 import { ownPort } from "./lib/toolGuard.ts";
 
 const STATES = ["no-loops", "pair", "connect", "pasted", "invalid", "checking", "rejected", "rejected-readonly", "loops-down", "connected", "panel", "forget", "busy", "busy-panel", "older"];
@@ -143,7 +144,7 @@ async function realRun() {
               if (theme === themes[0] && width === widths[0]) {
                 const html = await p.content();
                 ok("real: the key is in no DOM after connecting", !html.includes(realKey.slice(4, 20)));
-                ok("real: the Live chip against the real crewhub-loops", true);
+                ok("real: the Live chip against the real crewhub-loops", (await p.locator('.connection-chip[data-connection="live"]').count()) > 0);
               }
               break;
             }
@@ -164,13 +165,15 @@ async function realRun() {
               notes.push(`${state} ${tag}: shot`);
               await p.getByRole("button", { name: "Forget", exact: true }).click();
               await screen(p, "connect", 20000);
-              if (theme === themes[0] && width === widths[0]) ok("real: Forget this key hands the Connect screen back", true);
+              if (theme === themes[0] && width === widths[0]) ok("real: Forget this key hands the Connect screen back", (await p.locator('.connect-page[data-screen="connect"]').count()) > 0);
               continue;
             }
           }
           await p.screenshot({ path: name(state, theme, width) });
           notes.push(`${state} ${tag}: shot`);
         } catch (error) {
+          // A step that throws is a failing check (review F20): its own checks never ran, and the total must not shrink.
+          ok(`real: ${state} ${tag} ran`, false, error.message.split("\n")[0]);
           notes.push(`${state} ${tag}: ${error.message.split("\n")[0]}`);
           await p.screenshot({ path: name(`${state}-FAILED`, theme, width) }).catch(() => undefined);
         }
@@ -179,13 +182,19 @@ async function realRun() {
     }
 }
 
-function finish() {
+/**
+ * `loopsWeb`: the loops web origins the run's host named (the stub's web page). The Chat panel frames that page, and the
+ * page's road-2 probe asks it (`GET /api/dm/threads`, round 28) and meets a loops without CHL_WORLD_ORIGIN, so the browser
+ * prints the probe's two refusal lines: admitted exactly, as a11y.mjs and regress.mjs do (lib/probeRefusal.ts), and
+ * nothing broader (review F21: before, the stub run failed its closing check on them).
+ */
+function finish(loopsWeb = []) {
   console.log(notes.join("\n"));
   // The one console line a refused key must produce: the browser logs every 4xx answer to a fetch, and the host answers a
   // bad key with 403 key_rejected. It is expected, so it is a note, not a problem.
   const expected = problems.filter((p) => p.kind === "console" && /status of 403/.test(p.text));
   if (expected.length) console.log(`expected: ${expected.length} console line(s) "403 (Forbidden)" from the refused key's POST /world-api/connect`);
-  const lines = problemLines(problems.filter((p) => !expected.includes(p)));
+  const lines = problemLines(problems.filter((p) => !expected.includes(p) && !(p.kind === "external" && loopsWeb.some((web) => (p.url ?? "").startsWith(`${web}/`))) && !isProbeRefusal(p, loopsWeb)));
   if (lines.length) console.log(lines.join("\n"));
   ok("no page errors, console errors or requests that leave the page", lines.length === 0, String(lines.length));
   console.log(`connectshots: ${passed}/${total}`);
@@ -228,6 +237,8 @@ for (const state of states)
         await p.screenshot({ path: name(state, theme, width) });
         notes.push(`${state} ${theme} ${width}: shot`);
       } catch (error) {
+        // A screen that did not come is a failing check (review F20), not only a note beside full marks.
+        ok(`${state} ${theme} ${width}: the screen came`, false, error.message.split("\n")[0]);
         notes.push(`${state} ${theme} ${width}: ${error.message.split("\n")[0]}`);
         await p.screenshot({ path: name(`${state}-FAILED`, theme, width) }).catch(() => undefined);
       }
@@ -284,5 +295,6 @@ if (!opts["no-flow"]) {
 }
 
 await browser.close();
+const loopsWeb = [stub.webUrl()].filter((web) => web !== null);
 await stub.close();
-finish();
+finish(loopsWeb);

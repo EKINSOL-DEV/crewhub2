@@ -18,7 +18,7 @@
      --app-data <dir>  the folder the host's discovery reads (`CREWHUB_WORLD_LOOPS_APP_DATA`); never the Mac app's.
      --config-dir <dir> the host's own folder (`CREWHUB_WORLD_CONFIG_DIR`); default <out>/timeworld-config.
      --json <file>     every number, per run.
-   The port (`--port`) is the host's, must be free and yours; the browser opens the host directly. The host is stopped by its own pid at the end, never by a pattern.
+   The port (`--port`) is the host's, must be free and yours; the browser opens the host directly. The host is stopped by its own process group at the end of every run, whatever the run did (SIGINT, SIGKILL after 5 s), never by a pattern; a Ctrl-C of the tool takes it too.
    Loopback only. The key is never printed. */
 import { spawn, execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -81,6 +81,42 @@ async function environment() {
 
 const ms = (t) => `${String(Math.round(t)).padStart(6)} ms`;
 
+/**
+ * The hosts still running (pid → the child and its exit), so that every way out stops them (review F6): the end of a run,
+ * a run that throws (the tool's `finally`), the tool's own exit and a Ctrl-C.
+ */
+const running = new Map();
+/** Stops one host's whole process group: SIGINT (its own clean stop), SIGKILL after 5 s. Answers what happened, in words. */
+async function stopHost(pid) {
+  const host = running.get(pid);
+  if (host === undefined) return "host stopped";
+  const gone = (ms) => Promise.race([host.exited.then(() => true), new Promise((r) => setTimeout(() => r(false), ms))]);
+  const signal = (name) => {
+    try {
+      process.kill(-pid, name);
+    } catch {}
+  };
+  let word = "host stopped";
+  if (host.child.exitCode === null && host.child.signalCode === null) {
+    signal("SIGINT");
+    if (!(await gone(5000))) {
+      signal("SIGKILL");
+      if (!(await gone(2000))) return "host did NOT stop: its process group outlived SIGKILL";
+      word = "host stopped (SIGKILL after 5 s without an exit)";
+    }
+  }
+  running.delete(pid);
+  return word;
+}
+process.on("exit", () => {
+  for (const pid of running.keys()) {
+    try {
+      process.kill(-pid, "SIGTERM");
+    } catch {}
+  }
+});
+for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => process.exit(130));
+
 /** One run: the command, the link, the page, the town. Resolves with the steps. */
 async function run(env, browser, index) {
   const steps = [];
@@ -117,12 +153,11 @@ async function run(env, browser, index) {
     }
   });
   const exited = new Promise((resolve) => child.once("exit", (code) => resolve(code)));
+  running.set(child.pid, { child, exited });
   const got = await Promise.race([linkPromise, exited.then(() => null), new Promise((r) => setTimeout(() => r(null), 180_000))]);
   if (got === null) {
     console.log(`  no link within the wait; stdout: ${stdout.slice(0, 300)}`);
-    try {
-      process.kill(-child.pid, "SIGINT");
-    } catch {}
+    at(await stopHost(child.pid));
     return { steps, hostLines, failed: true };
   }
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
@@ -183,11 +218,7 @@ async function run(env, browser, index) {
   });
   await page.screenshot({ path: path.join(opts.out, `${opts.tag}-${index}-town.png`) }).catch(() => {});
   await ctx.close();
-  try {
-    process.kill(-child.pid, "SIGINT");
-  } catch {}
-  await Promise.race([exited, new Promise((r) => setTimeout(r, 5000))]);
-  at("host stopped");
+  at(await stopHost(child.pid));
   return { steps, hostLines, marks, nav, projects, problems, failed: false };
 }
 
@@ -204,10 +235,13 @@ try {
     if (last.problems?.length) console.log(`  page problems: ${last.problems.join(" | ")}`);
   }
 } finally {
+  // A run that threw left its host: stopped here, before anything else (review F6).
+  for (const pid of [...running.keys()]) console.log(`  after the run's error: ${await stopHost(pid)}`);
   await browser.close();
   await fake?.close?.();
+  // The run file of a host that is gone (a SIGKILL leaves it); never the file of one still running.
   const stale = path.join(tmpdir(), `crewhub-world-host-${hostPort}.json`);
-  if (existsSync(stale)) rmSync(stale, { force: true });
+  if (running.size === 0 && existsSync(stale)) rmSync(stale, { force: true });
 }
 if (opts.json) writeFileSync(opts.json, JSON.stringify({ what, hostPort, results }, null, 2) + "\n");
 const failed = results.some((r) => r.failed || r.projects === 0);

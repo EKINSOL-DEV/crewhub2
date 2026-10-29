@@ -22,6 +22,14 @@ PID_FILE="$DATA/run/serve.pid"
 LOG_FILE="$DATA/serve.log"
 
 case "$PORT" in 8091|8000|9443) echo "loops-dev: port $PORT is reserved (the Mac app, make dev-api, the nginx https port)" >&2; exit 2;; esac
+case "$PORT" in 5180) echo "loops-dev: port 5180 is the world host's default (npm run world), not a crewhub-loops port" >&2; exit 2;; esac
+# Never the Mac app's data folder nor inside it (round 48 review F7): `start` writes settings.json, the app's own port.
+# Compared as given and with symlinks and `..` resolved where the folder exists.
+APP_DATA="$HOME/Library/Application Support/be.ekinsol.crewhub"
+resolved() { if [ -d "$1" ]; then (cd -P "$1" && pwd); else printf '%s\n' "${1%/}"; fi; }
+for pair in "${DATA%/}|${APP_DATA}" "$(resolved "$DATA")|$(resolved "$APP_DATA")"; do
+  case "${pair%%|*}/" in "${pair#*|}/"*) echo "loops-dev: LOOPS_DEV_DATA=$DATA is the Mac app's data folder or inside it: never this script's" >&2; exit 2;; esac
+done
 [ -d "$CHECKOUT/services/api" ] || { echo "loops-dev: no checkout at $CHECKOUT" >&2; exit 2; }
 
 loops_env() {

@@ -45,4 +45,20 @@ describe("mapLimit: the snapshot's capped parallel reads", () => {
       /boom/,
     );
   });
+
+  it("starts nothing new after the first rejection (review F13): a refused key costs the reads in flight, not the whole queue", async () => {
+    const started: number[] = [];
+    await assert.rejects(
+      mapLimit(Array.from({ length: 40 }, (_, i) => i), 6, async (i) => {
+        started.push(i);
+        await new Promise((r) => setTimeout(r, i === 0 ? 5 : 20));
+        if (i === 0) throw new Error("401");
+        return i;
+      }),
+      /401/,
+    );
+    // The five reads in flight beside the refused one finish on their own; give them time to take more if they would.
+    await new Promise((r) => setTimeout(r, 80));
+    assert.deepEqual(started, [0, 1, 2, 3, 4, 5]);
+  });
 });
