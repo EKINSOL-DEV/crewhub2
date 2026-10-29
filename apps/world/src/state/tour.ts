@@ -133,6 +133,23 @@ export interface Rect {
   height: number;
 }
 
+/**
+ * The box a step's ring goes round: the element's own, or, when the element has no box of its own (a 0 x 0 wrapper
+ * whose children are placed absolutely, as the demo's chat corner is on a desktop), the box round its children's
+ * boxes. Null when nothing of it is on the screen. `own` first, then `children`, each as getBoundingClientRect gives it
+ * (round 48: the chat step rang nothing and centred its card while its description said the chip was highlighted).
+ */
+export function boxOf(own: Rect, children: readonly Rect[]): Rect | null {
+  if (own.width > 0 || own.height > 0) return own;
+  const shown = children.filter((r) => r.width > 0 || r.height > 0);
+  if (shown.length === 0) return null;
+  const left = Math.min(...shown.map((r) => r.left)),
+    top = Math.min(...shown.map((r) => r.top));
+  const right = Math.max(...shown.map((r) => r.left + r.width)),
+    bottom = Math.max(...shown.map((r) => r.top + r.height));
+  return { left, top, width: right - left, height: bottom - top };
+}
+
 export interface Placement {
   /** Fixed-position offsets of the card, in px. */
   left: number;

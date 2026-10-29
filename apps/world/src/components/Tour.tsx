@@ -4,7 +4,7 @@
    dimmed and the camera never moves (reduced motion or not). Tab cycles among the card's buttons (Escape leaves). The
    steps, the placement and the flag are state/tour.ts. */
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
-import { placeStep, tourSteps, type Placement, type Rect, type TourStep } from "../state/tour";
+import { boxOf, placeStep, tourSteps, type Placement, type Rect, type TourStep } from "../state/tour";
 import { Button } from "./primitives";
 
 interface TourProps {
@@ -21,8 +21,11 @@ interface TourProps {
 
 const rectOf = (el: Element | null): Rect | null => {
   if (!el) return null;
-  const r = el.getBoundingClientRect();
-  return r.width === 0 && r.height === 0 ? null : { left: r.left, top: r.top, width: r.width, height: r.height };
+  const box = (e: Element): Rect => {
+    const r = e.getBoundingClientRect();
+    return { left: r.left, top: r.top, width: r.width, height: r.height };
+  };
+  return boxOf(box(el), [...el.querySelectorAll("*")].map(box));
 };
 
 /** The accessible name of the highlighted element: its aria-label, else its visible text. */
