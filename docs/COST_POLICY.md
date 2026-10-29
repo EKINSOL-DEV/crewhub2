@@ -412,9 +412,16 @@ done
   (MeshStandardMaterial less the faded copies: <m>)`; the JSON keeps `points[].faded` and `snapshots[].faded`. Read the
   materials less the faded copies: that is what the far crowd and the kit hold, and it should stay flat; a rise in
   materials that the faded copies account for is the storyline, one they do not is a leak. The copies are read right
-  before the snapshot, which is the count the snapshot holds; the page moves when the snapshot lets it go (round 47's
-  smoke: 27 before, 21 just after, 27 again at the next sample), so a different count just after is said beside it
-  (`snapshots[].fadedAfter`), not subtracted.
+  before the snapshot, which is the count the snapshot holds; a different count just after is said beside it
+  (`snapshots[].fadedAfter`), not subtracted: the snapshot's pause is one long wall step, the demo catches up at most
+  5 s of it (80 s of story at 16x, `MAX_WALL_STEP_MS`), and a pause near a loop's end lands in the next loop (round 48:
+  27 before, 21 just after, every snapshot of round 47's hour).
+- **At 16x the small-team demo's loop is exactly 60 s of wall time** (16 minutes of story). `--every 60` and
+  snapshots at whole minutes all read the same moment of it: round 47's hour read the loop's last seconds (the
+  storyline's probe silence, 10:10 to 15:40, greys every agent; two were still waiting out the posture debounce) at
+  every sample, so the faded copies never moved. Over one loop the faded copies go 30, 36, 21 and 29 to 31 (potlings,
+  round 48); to see the materials follow them, sample more often and put the snapshots off the whole minute (round
+  48: `--every 15 --snapshots 10,15.25,20.5,...`). The studio scenario draws no faded figure at all.
 - What good looks like (round 41's fix hour, the potlings): batches 90 and materials 313 to 314 at every snapshot,
   the heap after GC 25.9 to 30.3 MB, the snapshot total 49.2 to 50.4 MB. Before the fix: about 390 batches and 390
   materials more a minute, 5.4 MB a minute, and the snapshot of minute 40 no longer fit the tool (below).
