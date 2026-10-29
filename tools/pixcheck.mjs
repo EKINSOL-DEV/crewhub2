@@ -128,11 +128,26 @@ const listening = (port) =>
     socket.once("error", () => done(false));
     socket.setTimeout(500, () => done(false));
   });
+/** The previews' process groups still running: killed on every way out (review F12), a Ctrl-C and `opts.fail` included. */
+const groups = new Set();
+const killGroups = () => {
+  for (const pid of groups) {
+    try {
+      process.kill(-pid, "SIGTERM");
+    } catch {}
+  }
+  groups.clear();
+};
+process.on("exit", killGroups);
+for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => process.exit(130));
 /** `vite preview` of a built world on `port`, without a host (no CREWHUB_WORLD_PORT: no proxy); stopped by its process group. */
 async function preview(dist, port) {
+  // Whatever answers there already would be photographed as this side (a preview a killed run left, review F12).
+  if (await listening(port)) opts.fail(`port ${port} is in use already (a preview an earlier run left?): stop what listens there, or take another port`);
   const env = { ...process.env };
   delete env.CREWHUB_WORLD_PORT;
   const child = spawn("npx", ["vite", "preview", "--outDir", dist, "--port", String(port), "--strictPort", "--host", "127.0.0.1"], { cwd: path.join(REPO, "apps", "world"), env, stdio: ["ignore", "ignore", "pipe"], detached: true });
+  groups.add(child.pid);
   let stderr = "";
   child.stderr.on("data", (d) => (stderr += d));
   const origin = `http://127.0.0.1:${port}`;
@@ -147,6 +162,7 @@ async function preview(dist, port) {
       try {
         process.kill(-child.pid, "SIGTERM");
       } catch {}
+      groups.delete(child.pid);
     },
   };
 }
