@@ -30,6 +30,12 @@ test("conflictBlocks: every block, the two sides as lines; a block without an en
   refuses(() => conflictBlocks("<<<<<<< x\na\n=======\nb"), /without an end/);
 });
 
+test("conflictBlocks: a diff3 or zdiff3 block (a merge.conflictStyle set in git's config) is refused, never read as part of a side", () => {
+  const diff3 = "keep\n<<<<<<< ours\nmine\n||||||| base\nold\n=======\ntheirs\n>>>>>>> theirs\nend";
+  refuses(() => conflictBlocks(diff3), /base section/);
+  refuses(() => resolveText("apps/host/README.md", diff3), /base section/);
+});
+
 test("E. hostPort.ts: r27's head line, q3's key with its comment, whichever side is first; another shape is refused", () => {
   const q3 = "  const head = `dev: /world-api and /pair go to the host on ${where} (${named})`;\n  // The key's name is a paired browser's (round 31, question 3)\n  // and the probe is never paired.\n  const key = (name: string, state: string | null) => (name !== \"\" ? `key ${name}` : state === null ? \"no key yet\" : `a key, ${state}`);";
   const r27 = "  const head = `dev: /world-api goes to the host on ${where} (${named})`;\n  const key = (name: string) => (name === \"\" ? \"no key yet\" : `key ${name}`);";

@@ -48,7 +48,11 @@ export function conflictBlocks(text) {
   for (let i = 0; i < lines.length; i++) {
     if (!lines[i].startsWith("<<<<<<< ")) continue;
     let j = i + 1;
-    while (j < lines.length && !lines[j].startsWith("=======")) j++;
+    while (j < lines.length && !lines[j].startsWith("=======")) {
+      // A diff3 or zdiff3 block (merge.conflictStyle in git's config) carries the base between the sides: never a side.
+      if (lines[j].startsWith("||||||| ")) refuse("a conflict block with a base section (merge.conflictStyle diff3 or zdiff3)");
+      j++;
+    }
     let k = j + 1;
     while (k < lines.length && !lines[k].startsWith(">>>>>>> ")) k++;
     if (j >= lines.length || k >= lines.length) refuse("conflict markers without an end");
@@ -167,7 +171,8 @@ function main(argv) {
   const merge = (key) => {
     const branch = BRANCHES[key];
     try {
-      git("merge", "--no-ff", "--no-edit", branch);
+      // The plain two-sided markers the rules read, whatever merge.conflictStyle the person's git config sets.
+      git("-c", "merge.conflictStyle=merge", "merge", "--no-ff", "--no-edit", branch);
       console.log(`merged ${key} (${branch}): clean -> ${short()}`);
       return;
     } catch {
