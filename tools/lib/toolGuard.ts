@@ -35,6 +35,25 @@ export function ownPort(text: string | number | null | undefined, what: string, 
   return { ok: true, value: port };
 }
 
+/**
+ * A crewhub-loops URL a tool reads (`LOOPS_DEV_URL` of an env file): plain http on this machine, a named port, and
+ * neither the Mac app's port nor the host's default (a typo of 8291 is 8091). Answers the origin.
+ */
+export function ownLoopsUrl(text: string | null | undefined): Verdict<string> {
+  const given = text === null || text === undefined ? "" : String(text).trim();
+  let url: URL;
+  try {
+    url = new URL(given);
+  } catch {
+    return { ok: false, reason: `"${given}" is not a URL` };
+  }
+  if (url.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(url.hostname) || url.port === "") return { ok: false, reason: `${given} is not a loopback http URL with a port` };
+  const port = Number(url.port);
+  if (port === HOST_DEFAULT_PORT) return { ok: false, reason: `${given}: port ${port} is the host's default, not a crewhub-loops` };
+  if (APP_PORTS.includes(port)) return { ok: false, reason: `${given}: port ${port} is the Mac app's, never a tool's target` };
+  return { ok: true, value: url.origin };
+}
+
 /** `~` and `~/…` as the shell would read them. */
 export const expandHome = (text: string, home: string): string => (text === "~" || text.startsWith("~/") ? path.join(home, text.slice(1)) : text);
 
