@@ -143,7 +143,7 @@ async function realRun() {
               if (theme === themes[0] && width === widths[0]) {
                 const html = await p.content();
                 ok("real: the key is in no DOM after connecting", !html.includes(realKey.slice(4, 20)));
-                ok("real: the Live chip against the real crewhub-loops", true);
+                ok("real: the Live chip against the real crewhub-loops", (await p.locator('.connection-chip[data-connection="live"]').count()) > 0);
               }
               break;
             }
@@ -164,13 +164,15 @@ async function realRun() {
               notes.push(`${state} ${tag}: shot`);
               await p.getByRole("button", { name: "Forget", exact: true }).click();
               await screen(p, "connect", 20000);
-              if (theme === themes[0] && width === widths[0]) ok("real: Forget this key hands the Connect screen back", true);
+              if (theme === themes[0] && width === widths[0]) ok("real: Forget this key hands the Connect screen back", (await p.locator('.connect-page[data-screen="connect"]').count()) > 0);
               continue;
             }
           }
           await p.screenshot({ path: name(state, theme, width) });
           notes.push(`${state} ${tag}: shot`);
         } catch (error) {
+          // A step that throws is a failing check (review F20): its own checks never ran, and the total must not shrink.
+          ok(`real: ${state} ${tag} ran`, false, error.message.split("\n")[0]);
           notes.push(`${state} ${tag}: ${error.message.split("\n")[0]}`);
           await p.screenshot({ path: name(`${state}-FAILED`, theme, width) }).catch(() => undefined);
         }
@@ -228,6 +230,8 @@ for (const state of states)
         await p.screenshot({ path: name(state, theme, width) });
         notes.push(`${state} ${theme} ${width}: shot`);
       } catch (error) {
+        // A screen that did not come is a failing check (review F20), not only a note beside full marks.
+        ok(`${state} ${theme} ${width}: the screen came`, false, error.message.split("\n")[0]);
         notes.push(`${state} ${theme} ${width}: ${error.message.split("\n")[0]}`);
         await p.screenshot({ path: name(`${state}-FAILED`, theme, width) }).catch(() => undefined);
       }
