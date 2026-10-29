@@ -77,7 +77,7 @@ function storyline(s: ScriptBuilder): void {
   s.post("1:44", { type: "move", by: "nicky", ticket: `@${readme}`, to: "planned" });
   s.add("2:02", { type: "assign", by: "fn-lead", ticket: `@${readme}`, assignee: "fn-lead" });
   s.add("2:06", { type: "move", by: "fn-lead", ticket: `@${readme}`, to: "in_progress" });
-  s.add("2:08", { type: "lane", name: "fn-lead", status: "working", contextLine: "FN-1: outline of the README" });
+  s.add("2:08", { type: "lane", name: "fn-lead", status: "working", contextLine: `@${readme}: outline of the README` });
   s.add("2:12", { type: "progress", ticket: `@${readme}`, agent: "fn-lead", kind: "start", text: "starting with the outline" });
   const list = s.post("2:30", {
     type: "createTicket",
@@ -88,7 +88,7 @@ function storyline(s: ScriptBuilder): void {
     priority: "high",
     body: "The home screen groups notes under the day they were written.",
   });
-  s.add("2:44", { type: "laneJoin", name: "fn-dev-1", status: "working", contextLine: "FN-1: run instructions" });
+  s.add("2:44", { type: "laneJoin", name: "fn-dev-1", status: "working", contextLine: `@${readme}: run instructions` });
   s.add("2:50", { type: "progress", ticket: `@${readme}`, agent: "fn-lead", worker: "fn-dev-1", kind: "update", text: "run instructions written and tried on a clean checkout" });
   const typo = s.post("3:08", {
     type: "createTicket",
@@ -106,19 +106,19 @@ function storyline(s: ScriptBuilder): void {
   s.add("3:50", { type: "comment", by: "fn-lead", ticket: `@${readme}`, text: "Ready for a read. The storage section is the part to check." });
   s.add("3:56", { type: "assign", by: "fn-lead", ticket: `@${list}`, assignee: "fn-lead" });
   s.add("4:00", { type: "move", by: "fn-lead", ticket: `@${list}`, to: "in_progress" });
-  s.add("4:02", { type: "lane", name: "fn-lead", contextLine: "FN-2: grouping notes by day" });
-  s.add("4:04", { type: "lane", name: "fn-dev-1", contextLine: "FN-2: the day header" });
+  s.add("4:02", { type: "lane", name: "fn-lead", contextLine: `@${list}: grouping notes by day` });
+  s.add("4:04", { type: "lane", name: "fn-dev-1", contextLine: `@${list}: the day header` });
   s.add("4:10", { type: "progress", ticket: `@${list}`, agent: "fn-lead", worker: "fn-dev-1", kind: "start", text: "day header and an empty state" });
   s.add("4:30", { type: "move", by: "nicky", ticket: `@${readme}`, to: "done" });
   s.add("4:52", { type: "progress", ticket: `@${list}`, agent: "fn-lead", kind: "update", text: "notes sort inside a day, newest first" });
 
   // 5:10: the first prop request, the same flow as in every scenario.
-  propFlow(s, at("5:10"), { title: "Prop: a welcome mat", json: requestedProp("a welcome mat"), worker: "fn-dev-1", doneAfter: 132 }, FRESH_PROPS);
-  s.add("5:52", { type: "lane", name: "fn-dev-1", contextLine: "FN-4: building the prop" });
+  const mat = propFlow(s, at("5:10"), { title: "Prop: a welcome mat", json: requestedProp("a welcome mat"), worker: "fn-dev-1", doneAfter: 132 }, FRESH_PROPS);
+  s.add("5:52", { type: "lane", name: "fn-dev-1", contextLine: `${mat}: building the prop` });
 
   s.post("7:34", { type: "move", by: "nicky", ticket: `@${typo}`, to: "planned" });
   s.add("7:50", { type: "progress", ticket: `@${list}`, agent: "fn-lead", worker: "fn-dev-1", kind: "update", text: "the day header follows the local clock" });
-  s.add("7:54", { type: "lane", name: "fn-dev-1", contextLine: "FN-2: the day header" });
+  s.add("7:54", { type: "lane", name: "fn-dev-1", contextLine: `@${list}: the day header` });
   s.post("8:20", { type: "comment", by: "nicky", ticket: `@${list}`, text: "Looks right. Does an empty day show at all?" });
   s.add("8:40", { type: "comment", by: "fn-lead", ticket: `@${list}`, text: "No: only days with a note are listed." });
   s.add("9:00", { type: "move", by: "fn-lead", ticket: `@${list}`, to: "review" });

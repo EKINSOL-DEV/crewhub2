@@ -217,6 +217,14 @@ function ticketOf(ctx: Context, ref: string): StoredTicket {
   return requireTicket(ctx.state, id);
 }
 
+/**
+ * A lane's context line as the storyline writes it: `@<actionId>: …` names the ticket that action created by the key it
+ * got, so a ticket made in the loop keeps its line when a visitor's prop request took a key before it (round 48).
+ */
+function contextLineOf(ctx: Context, line: string | null): string | null {
+  return line === null ? null : line.replace(/^@(\d+):/, (_, id: string) => `${ticketOf(ctx, `@${id}`).key}:`);
+}
+
 function touch(ctx: Context, t: StoredTicket): void {
   t.version += 1;
   t.updatedAt = ctx.state.now;
@@ -582,7 +590,7 @@ const HANDLERS: Handlers = {
     const lane = ctx.state.lanes.find((l) => l.name === a.name);
     if (lane === undefined) throw new Error(`No lane ${a.name}`);
     if (a.status !== undefined) lane.status = a.status;
-    if (a.contextLine !== undefined) lane.contextLine = a.contextLine;
+    if (a.contextLine !== undefined) lane.contextLine = contextLineOf(ctx, a.contextLine);
   },
 
   laneJoin(ctx, a) {
@@ -591,7 +599,7 @@ const HANDLERS: Handlers = {
     lanes.push({
       name: a.name,
       status: a.status,
-      contextLine: a.contextLine,
+      contextLine: contextLineOf(ctx, a.contextLine),
       paneId: `p${nextNumber(ctx.state, "pane") + 40}`,
       workspaceId: a.name.startsWith("cl-") ? "w2" : "w1",
     });

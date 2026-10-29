@@ -106,14 +106,15 @@ const CREWHUB_HOME: PropHome = { project: "crewhub", lead: "cr-lead", person: "n
 
 /**
  * One prop request, start to Done: created (or taken from the backlog), planned by a person,
- * fetched by the lead, built by a worker (or the lead), posted as a comment, reviewed, done.
+ * fetched by the lead, built by a worker (or the lead), posted as a comment, reviewed, done. Returns the ticket's
+ * reference: its key, or `@<actionId>` for one the flow creates (a lane line names it so, see `contextLineOf`).
  */
 export function propFlow(
   s: ScriptBuilder,
   start: number,
   prop: { title?: string; ticket?: string; by?: string; body?: string; json: unknown; worker?: string; doneAfter: number },
   home: PropHome = CREWHUB_HOME,
-): void {
+): string {
   const { lead, person } = home;
   const t = (seconds: number) => start + seconds * SECOND;
   let ref = prop.ticket ?? "";
@@ -146,6 +147,7 @@ export function propFlow(
   s.add(t(102), { type: "comment", by: lead, ticket: ref, text: propComment(prop.json) });
   s.add(t(106), { type: "move", by: lead, ticket: ref, to: "review" });
   s.add(t(prop.doneAfter), { type: "move", by: person, ticket: ref, to: "done" });
+  return ref;
 }
 
 function storyline(s: ScriptBuilder): void {
@@ -156,7 +158,7 @@ function storyline(s: ScriptBuilder): void {
   s.add("0:14", { type: "progress", ticket: "MK-9", agent: "ux-lead", kind: "update", text: "hero sketch: the town at golden hour, two variants" });
   s.add("0:20", { type: "progress", ticket: "CL-40", agent: "analyst", kind: "update", text: "ticket events mapped; deliveries next" });
   s.add("0:23", { type: "lane", name: "cr-scout", status: "working", contextLine: "comparing the v1 room picker with the town" });
-  propFlow(s, at("0:26"), {
+  const nook = propFlow(s, at("0:26"), {
     title: "Prop: a reading nook with a lamp",
     body: "A low armchair, a rug and a standing lamp. Place it in the lead's office.",
     json: DEMO_PROPS.readingNook,
@@ -168,7 +170,8 @@ function storyline(s: ScriptBuilder): void {
   s.add("0:47", { type: "progress", ticket: "MK-12", agent: "analyst", kind: "update", text: "five numbers, each with how we measure it" });
   s.add("0:50", { type: "waitOn", by: "cr-lead", ticket: "CR-20", on: "nicky" });
   s.add("0:53", { type: "comment", by: "cr-lead", ticket: "CR-20", text: "Fixed by keeping the last camera target on exit. Nicky, can you try it?" });
-  s.add("0:57", { type: "lane", name: "cr-design-1", status: "working", contextLine: "CR-37: building the prop" });
+  // Named by handle (round 48): a visitor's prop request before 0:26 takes CR-37, and the nook gets the next key.
+  s.add("0:57", { type: "lane", name: "cr-design-1", status: "working", contextLine: `${nook}: building the prop` });
   s.add("1:10", { type: "progress", ticket: "CL-44", agent: "cl-lead", worker: "cl-dev-2", kind: "update", text: "tail handler returns lastSeq; wiring the route" });
   s.post("1:14", { type: "comment", by: "sam", ticket: "MK-7", text: "The second headline reads better to me." });
   s.add("1:21", { type: "progress", ticket: "CL-81", agent: "cl-lead", worker: "cl-dev-1", kind: "update", text: "milestone events table done" });
@@ -245,7 +248,7 @@ function storyline(s: ScriptBuilder): void {
   // person's event the world's key never receives.
   s.add("8:10", { type: "quiet", ticket: "CR-17", minutes: 30 });
   s.add("8:14", { type: "progress", ticket: "MK-10", agent: "marky", kind: "update", text: "phone screenshots cropped" });
-  propFlow(s, at("8:20"), {
+  const sign = propFlow(s, at("8:20"), {
     title: "Prop: a broken sign",
     by: "sam",
     body: "An old signpost for the town square.",
@@ -260,7 +263,7 @@ function storyline(s: ScriptBuilder): void {
   s.add("8:43", { type: "automationRun", ticket: "CR-21", automation: { id: "au_demo_review_date", name: "Ask for a review date" }, outcome: "ok", runId: "run_demo_2" });
   s.add("8:44", { type: "lane", name: "cl-lead", status: "working", contextLine: "OPS-4: restarting the probe" });
   s.add("8:52", { type: "automationRun", ticket: "CL-76", automation: { id: "au_demo_nudge", name: "Nudge the reviewer" }, outcome: "failed", runId: "run_demo_3" });
-  s.add("8:58", { type: "lane", name: "cr-scout", status: "working", contextLine: "CR-38: building the prop" });
+  s.add("8:58", { type: "lane", name: "cr-scout", status: "working", contextLine: `${sign}: building the prop` });
   s.add("9:06", { type: "lane", name: "cl-dev-2", status: "working", contextLine: "CL-44: tail route registered" });
   s.add("9:10", { type: "unarchive", by: "sam", ticket: "MK-5" });
   s.post("9:14", { type: "comment", by: "sam", ticket: "MK-5", text: "Unarchived: the press kit needs the new logo." }, "uncertain", "input box held typed text");
