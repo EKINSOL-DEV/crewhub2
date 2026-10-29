@@ -694,6 +694,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
         else if (message.envelope.type === "project.restored") rememberArchive([...archive.slugs].filter((s) => s !== slug), null);
       });
       for (const tab of tabs.values()) attach(tab);
+      // The first attempt decides the states a connect answers with; it is bounded by the read timeout. A first
       // attempt that finds loops down is no state change the listener hears (the stream starts down).
       const streamStarted = performance.now();
       await upstream.start().then(() => {
