@@ -302,6 +302,9 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
       ready();
       return { kind: "error" };
     }
+    // Stopped while the tail read was out (a relink, a key switch): `abort` was not yet this attempt's, so nothing
+    // stopped the stream from opening, and it would hold one of the key's stream slots until loops' 300 s end.
+    if (stopped) return { kind: "ended" };
     if (cursor === -1) {
       clearBuffer(tail.lastSeq);
       seal(tail.cursor, cursor);
