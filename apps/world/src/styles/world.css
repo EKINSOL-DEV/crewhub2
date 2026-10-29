@@ -115,7 +115,12 @@
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
 }
+/* The brand row holds the Demo chip's scenario menu. It and the breadcrumb under it each make a stacking context (the
+   backdrop filter), so the breadcrumb, later in the page, painted over the open menu's first rows (round 48): the brand
+   row stacks above it. */
 .world-brand {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -836,15 +841,21 @@
   margin: var(--space-2) 0 0;
   padding: 0;
   display: grid;
-  gap: var(--space-2);
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-2) var(--space-3);
 }
+/* One column of names, one of selects (round 48): as flex rows with space-between the name took what the select left
+   and broke at its hyphens ("cl- / analyst- / 1"), and each select started where its own name ended. */
 .role-settings li > div,
 .role-settings li {
-  display: flex;
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
   font-size: var(--text-sm);
+}
+.role-settings li label {
+  white-space: nowrap;
 }
 .settings-style {
   margin: 0;
