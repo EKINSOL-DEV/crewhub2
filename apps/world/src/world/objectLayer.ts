@@ -12,7 +12,7 @@ import * as THREE from "three";
 import { useInstancedMaterials } from "./instancedMaterial.ts";
 import { mergeStatic } from "./mergeStatic.ts";
 import type { ModelKey, ModelOptions, PaletteName, ResolvedStyle, StyleTheme } from "@crewhub/world-style";
-import type { Building, WorkObject } from "@crewhub/world-model";
+import type { Building, ObjectLook, WorkObject } from "@crewhub/world-model";
 import { BUILDING_CELL } from "./buildingTemplate.ts";
 import type { ObjectLayout, Placement, Surface } from "./interiorLayout.ts";
 import { MOTE_OPACITY, MOTE_SIZE, MOTE_TOWARDS_INK, VEIL_OPACITY, VEIL_TOWARDS_INK, mote, moteCount, type MotePlace } from "./dust.ts";
@@ -28,6 +28,8 @@ const ASIDE_TURN = 0.62;
 const ASIDE_STRIKE: PaletteName = "slate";
 const MILESTONE_ACCENTS: readonly PaletteName[] = ["sage", "tangerine", "circle", "brass", "leaf", "coral"];
 const STICKER_ACCENTS: readonly PaletteName[] = ["coral", "tangerine", "circle", "sage", "brass", "leaf", "mist"];
+/** The style's ticket model for each look the model gives a package (a grill reads as mail: the question's envelope). */
+const BODIES: Record<ObjectLook, ModelKey> = { folder: "ticket.task", box: "ticket.feature", "bug-crate": "ticket.bug", envelope: "ticket.question" };
 
 interface Part {
   geometry: THREE.BufferGeometry;
@@ -183,7 +185,7 @@ export class ObjectLayer {
   }
 
   #body(o: WorkObject): Template {
-    return this.#template(`ticket.${o.kind}` as ModelKey);
+    return this.#template(BODIES[o.look]);
   }
 
   /**
