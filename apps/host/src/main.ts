@@ -189,7 +189,8 @@ try {
   key = loadKey(env, readFileOrNull);
   for (const warning of config.warnings) log(warning);
 } catch (error) {
-  log(error instanceof ConfigError ? error.message : "configuration failed");
+  // Not one of its own words (a URL that does not parse, a folder it cannot read): the reason still goes with it (review F16).
+  log(error instanceof ConfigError ? error.message : `configuration failed: ${error instanceof Error ? error.message : String(error)}`);
   process.exit(1);
 }
 
@@ -238,7 +239,28 @@ const host = await createHost({
   ...(staticDir === undefined ? {} : { staticDir }),
   ...(pairingSecret === undefined ? {} : { pairingSecret }),
   ...(config.publicUrl === null ? {} : { publicUrl: config.publicUrl }),
+}).catch((error: unknown) => {
+  // A port another program holds is the one start failure a person meets: one line that says what to do, no stack (review F16).
+  const code = (error as { code?: unknown } | null)?.code;
+  log(code === "EADDRINUSE" ? `port ${config.port} on 127.0.0.1 is in use by another program: stop it, or start the host on another port (CREWHUB_WORLD_PORT=<port>)` : `the host could not start: ${error instanceof Error ? error.message : String(error)}`);
+  worldDb?.close();
+  return process.exit(1);
 });
+// The stop comes before the run file (review F16): a SIGINT or SIGTERM between the file and the handlers, or during the
+// build below, met the default action and left the file behind.
+const shutdown = () => {
+  try {
+    unlinkSync(runFile(host.port));
+  } catch {
+    // Already gone.
+  }
+  void host.close().then(() => {
+    worldDb?.close();
+    process.exit(0);
+  });
+};
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
 if (build !== null && !build.fresh) host.setBuilding(true);
 try {
   writeFileSync(runFile(host.port), JSON.stringify({ pid: process.pid, url: host.url, mintSecret }) + "\n", { mode: 0o600 });
@@ -283,17 +305,3 @@ if (build !== null && !build.fresh) {
   host.setBuilding(false);
   stepLine(true, args.noOpen ? "world built; open the link above" : "world built, the browser opens it", result.ms);
 }
-
-const shutdown = () => {
-  try {
-    unlinkSync(runFile(host.port));
-  } catch {
-    // Already gone.
-  }
-  void host.close().then(() => {
-    worldDb?.close();
-    process.exit(0);
-  });
-};
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
