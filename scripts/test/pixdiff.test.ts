@@ -1,7 +1,7 @@
 /* The pixel diff behind tools/pixcheck.mjs (tools/lib/pixdiff.ts, tools/lib/png.ts): any channel, any delta, where
    the pixels are, the masks, the diff image, and the PNG reader and writer round trip. */
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -85,4 +85,5 @@ test("the PNG writer and reader round trip RGBA, read RGB, and refuse what they 
   assert.equal("image" in d, false);
   const diffImage = decodePng(readFileSync(out));
   assert.deepEqual([...diffImage.data.subarray(5 * 37 * 4, 5 * 37 * 4 + 4)], [255, 0, 0, 255]);
+  rmSync(dir, { recursive: true, force: true });
 });
