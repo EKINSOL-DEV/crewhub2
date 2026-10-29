@@ -123,7 +123,7 @@ import { cli, dressed, launch, list, problemLines, seek, speed, watch } from "./
 import { createConnectStub } from "./lib/connectStub.mjs";
 import { createLoopsWebStub } from "./lib/loopsWebStub.mjs";
 import { isProbeRefusal } from "./lib/probeRefusal.ts";
-import { appDataPort, ownAppData, ownPort } from "./lib/toolGuard.ts";
+import { appDataPort, ownAppData, ownLoopsUrl, ownPort } from "./lib/toolGuard.ts";
 
 // The connect group first: the connection is the first priority, so a default pass fails on it first.
 const GROUPS = ["connect", "walk", "demo", "tour", "live", "town", "ops", "chat", "rooms", "real"];
@@ -2070,6 +2070,9 @@ await group("connect", async () => {
       info(`connect: the real half skipped, no loopback LOOPS_DEV_URL and LOOPS_DEV_KEY_FILE in ${envFile}`);
       return;
     }
+    // Never the Mac app's port nor 5180, even when the env file names it (a typo of 8291 is 8091).
+    const urlVerdict = ownLoopsUrl(loopsUrl);
+    if (!urlVerdict.ok) opts.fail(`${envFile}: LOOPS_DEV_URL ${urlVerdict.reason}`);
     const appData = loopsAppData();
     if (!existsSync(path.join(appData, "settings.json"))) {
       info(`connect: the real half skipped, no settings.json in ${appData} (--loops-app-data names the development loops' data folder)`);
@@ -2560,6 +2563,9 @@ await group("real", async () => {
     info(`real: skipped, no loopback LOOPS_DEV_URL and LOOPS_DEV_KEY_FILE in ${envFile}`);
     return;
   }
+  // Never the Mac app's port nor 5180, even when the env file names it (a typo of 8291 is 8091).
+  const urlVerdict = ownLoopsUrl(loopsUrl);
+  if (!urlVerdict.ok) opts.fail(`${envFile}: LOOPS_DEV_URL ${urlVerdict.reason}`);
   const loopsPort = parsed.port;
   // Every read of this group goes through the browser's request context (a tool makes no network call of its own).
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
@@ -2684,6 +2690,9 @@ await group("real", async () => {
   // The socket: with the TCP host closed (one upstream stream of this key at a time), a second host reads the same
   // loops over its Unix socket (CREWHUB_WORLD_LOOPS_SOCKET): the same key, the same projects, `transport: "unix"`.
   const socketPath = loopsSocketPath();
+  // A development loops' socket, never the Mac app's (its data folder holds run/api.sock).
+  const socketVerdict = ownAppData(socketPath, process.env.HOME ?? "~");
+  if (!socketVerdict.ok) opts.fail(`--loops-socket: ${socketVerdict.reason}`);
   let unixHost = null;
   try {
     if (!isUnixSocket(socketPath)) {

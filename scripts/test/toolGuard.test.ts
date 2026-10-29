@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
-import { APP_DATA_PARTS, APP_PORTS, HOST_DEFAULT_PORT, appDataPort, expandHome, ownAppData, ownPort } from "../../tools/lib/toolGuard.ts";
+import { APP_DATA_PARTS, APP_PORTS, HOST_DEFAULT_PORT, appDataPort, expandHome, ownAppData, ownLoopsUrl, ownPort } from "../../tools/lib/toolGuard.ts";
 
 const HOME = "/Users/someone";
 const reason = (v: { ok: boolean; reason?: string }) => (v.ok ? "" : (v.reason as string));
@@ -65,4 +65,16 @@ test("appDataPort: the settings.json port as the host reads it; missing, unusabl
   assert.match(reason(appDataPort('{"port": 8091}')), /8091, the Mac app's/);
   assert.match(reason(appDataPort('{"port": 9443}')), /9443, the Mac app's/);
   assert.match(reason(appDataPort('{"port": 5180}')), /5180, the world host's default/);
+});
+
+test("ownLoopsUrl: a development loops' URL passes as its origin; the Mac app's ports and 5180 are refused, and so is anything not loopback http with a port", () => {
+  assert.deepEqual(ownLoopsUrl("http://127.0.0.1:8291"), { ok: true, value: "http://127.0.0.1:8291" });
+  assert.deepEqual(ownLoopsUrl(" http://localhost:8293/ "), { ok: true, value: "http://localhost:8293" });
+  for (const port of APP_PORTS) assert.match(reason(ownLoopsUrl(`http://127.0.0.1:${port}`)), new RegExp(`port ${port} is the Mac app's`));
+  assert.match(reason(ownLoopsUrl("http://127.0.0.1:5180")), /port 5180 is the host's default/);
+  assert.match(reason(ownLoopsUrl("https://127.0.0.1:8291")), /not a loopback http URL/);
+  assert.match(reason(ownLoopsUrl("http://example.com:8291")), /not a loopback http URL/);
+  assert.match(reason(ownLoopsUrl("http://127.0.0.1")), /not a loopback http URL with a port/);
+  assert.match(reason(ownLoopsUrl("")), /is not a URL/);
+  assert.match(reason(ownLoopsUrl(undefined)), /is not a URL/);
 });

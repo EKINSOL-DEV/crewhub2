@@ -47,6 +47,10 @@ describe("the key file", () => {
     assert.equal(loadServerConfig(worldEnv({ CREWHUB_WORLD_CONFIG_DIR: "/tmp/cw" })).pairingFile, "/tmp/cw/pairing-secret");
   });
 
+  it("reads ~/ in CREWHUB_WORLD_PAIRING_FILE as the home folder, as every other path it takes (never a folder named ~ in the working directory)", () => {
+    assert.equal(loadServerConfig({ CREWHUB_WORLD_PAIRING_FILE: "~/cw/pairing-secret" }).pairingFile, path.join(homedir(), "cw", "pairing-secret"));
+  });
+
   it("puts the stored key in the host's own folder, CREWHUB_WORLD_CONFIG_DIR when set", () => {
     assert.equal(keyFilesOf({}).storedKey, path.join(homedir(), ".config", "crewhub-world", "loops-key"));
     assert.equal(keyFilesOf({ CREWHUB_WORLD_CONFIG_DIR: "/tmp/cw" }).storedKey, "/tmp/cw/loops-key");

@@ -54,6 +54,18 @@ describe("the doctor", () => {
     }
   });
 
+  it("a warn line is no fix: on another Node major, everything else ok, the report is ok and exits 0", async () => {
+    const stub = await createLoopsStub({ ...installation() });
+    cleanup.push(() => stub.close());
+    const dir = folder();
+    const keyFile = path.join(dir, "agent-crewhub-world.key");
+    writeFileSync(keyFile, `${stub.key}\n`, { mode: 0o600 });
+    const report = await runDoctor({ env: { CREWHUB_WORLD_LOOPS_URL: stub.url, CREWHUB_WORLD_KEY_FILE: keyFile, CREWHUB_WORLD_PORT: "5187", CREWHUB_WORLD_CONFIG_DIR: dir }, probePort: free, nodeVersion: "22.22.0" });
+    assert.deepEqual(report.lines.filter((l) => l.status !== "ok").map((l) => `${l.status} ${l.id}`), ["warn node"], formatDoctor(report).join("\n"));
+    assert.equal(report.ok, true, "a warning alone must not make the doctor exit 1 with nothing to fix");
+    assert.match(formatDoctor(report).at(-1) ?? "", /^doctor: all 13 checks ok \(1 warning\)\. Next: npm run world$/);
+  });
+
   it("warns when archived.json remembers another loops, and says the host ignores and keeps it", async () => {
     const stub = await createLoopsStub({ ...installation() });
     cleanup.push(() => stub.close());
