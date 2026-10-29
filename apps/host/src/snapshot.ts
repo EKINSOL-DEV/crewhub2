@@ -53,17 +53,24 @@ export const DEFAULT_CONCURRENCY = 6;
 
 /**
  * `Promise.all(items.map(fn))` under a cap: never more than `limit` calls of `fn` in flight, started in the items'
- * order, the results in the items' order. The first rejection rejects the whole (the rest finish on their own).
+ * order, the results in the items' order. The first rejection rejects the whole: the calls in flight finish on their
+ * own and no new one starts (review F13: a refused key cost every read of the queue).
  */
 export async function mapLimit<T, R>(items: readonly T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
   const cap = Math.max(1, Math.floor(limit));
   const results: R[] = new Array<R>(items.length);
   let next = 0;
+  let failed = false;
   async function worker(): Promise<void> {
-    while (next < items.length) {
+    while (!failed && next < items.length) {
       const index = next;
       next += 1;
-      results[index] = await fn(items[index] as T, index);
+      try {
+        results[index] = await fn(items[index] as T, index);
+      } catch (error) {
+        failed = true;
+        throw error;
+      }
     }
   }
   await Promise.all(Array.from({ length: Math.min(cap, items.length) }, () => worker()));
