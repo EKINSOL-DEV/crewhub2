@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { INTRODUCTION_URL, placeStep, readTourDone, tourShouldStart, tourSteps, TOUR_KEY, writeTourDone } from "../src/state/tour.ts";
+import { boxOf, INTRODUCTION_URL, placeStep, readTourDone, tourShouldStart, tourSteps, TOUR_KEY, writeTourDone } from "../src/state/tour.ts";
 
 const INTRODUCTION = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "docs", "INTRODUCTION.md"), "utf8");
 
@@ -121,4 +121,15 @@ test("the card never covers what it describes: below the element, else above, el
   for (const p of [top, bottom]) {
     assert.ok(p.left >= 16 && p.left + narrow.width <= 375 - 16, "inside the phone's gutters");
   }
+});
+
+test("the ring's box: the element's own, else the box round its children's (a 0 x 0 wrapper of absolutely placed chips), else none (round 48)", () => {
+  const own = { left: 10, top: 20, width: 100, height: 30 };
+  assert.deepEqual(boxOf(own, [{ left: 0, top: 0, width: 500, height: 500 }]), own, "an element with a box keeps its own");
+  // The demo's chat corner on a desktop: .world-chat 0 x 0 at the top right, its chip at the bottom right.
+  const corner = { left: 1424, top: 68, width: 0, height: 0 };
+  assert.deepEqual(boxOf(corner, [{ left: 1251, top: 758, width: 177, height: 24 }]), { left: 1251, top: 758, width: 177, height: 24 });
+  assert.deepEqual(boxOf(corner, [{ left: 1251, top: 758, width: 177, height: 24 }, { left: 1240, top: 700, width: 40, height: 40 }, { left: 0, top: 0, width: 0, height: 0 }]), { left: 1240, top: 700, width: 188, height: 82 }, "the union, empty children left out");
+  assert.equal(boxOf(corner, []), null);
+  assert.equal(boxOf(corner, [{ left: 5, top: 5, width: 0, height: 0 }]), null, "nothing shown, no ring");
 });
