@@ -98,7 +98,8 @@ smooth connection" below):
   when `CREWHUB_WORLD_PUBLIC_URL` is https). `GET /pair/<token>` sets it and answers `303 Location: /`; a used,
   expired or unknown token gets a plain HTML 403 page. See "Pairing" below.
 - **Allow-list** in `src/allowList.ts`: the loops routes the host may read and the browser routes it answers,
-  in one file. Every other path is 404, every method but GET is 405, and nothing reaches loops for either.
+  in one file. Every other path is 404, every method a route does not name is 405 (GET unless it says otherwise:
+  `/connect` takes POST and DELETE, `/town` GET and PUT, `/dev-origin` POST), and nothing reaches loops for either.
 - **Host and Origin guard**: the `Host` header must be `127.0.0.1:<port>` or `localhost:<port>` (else 421), an
   `Origin` header when present must be the host's own, one from `CREWHUB_WORLD_ALLOWED_ORIGINS`, or one this
   checkout's dev server told the host (else 403).
@@ -228,10 +229,10 @@ The host starts with neither loops nor a key and reports the honest states; the 
   (0600, the folder 0700; `worldEnv` in `src/config.ts`), so a host restart keeps every paired browser: an open tab
   goes Stale for the restart and is Live again a few seconds later. `tools/timeworld.mjs` measures the whole road.
 - **`npm run host -- doctor`** (`src/doctor.ts`): the same states in the terminal, one line per check, `ok` or the
+  fix; exit 0 only when all pass (a `warn` line passes). Read only, never the stream; tests run it against the stub.
   On another Node major than `.nvmrc`'s (24) the host says one line at its start, "Node 24 is what CrewHub World is tested on
   (.nvmrc); this is v22.22.0: run nvm use if anything misbehaves.", and goes on; the doctor lists it as a `warn` check
   (`src/nodeVersion.ts`, the rule shared with `scripts/check-node.mjs`).
-  fix; exit 0 only when all pass. Read only, never the stream; tests run it against the stub.
 
 ## The socket
 
