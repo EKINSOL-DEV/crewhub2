@@ -1298,7 +1298,11 @@ export async function createHost(options: HostOptions): Promise<Host> {
   server.keepAliveTimeout = 5000;
 
   await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
+    server.once("error", (error) => {
+      // A port in use: the host never was, so its heartbeat must not keep the caller's process open.
+      if (!server.listening) clearInterval(idleBeat);
+      reject(error);
+    });
     server.listen(options.port ?? 0, "127.0.0.1", () => resolve());
   });
   port = (server.address() as AddressInfo).port;
