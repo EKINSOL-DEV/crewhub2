@@ -282,7 +282,8 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
   if (config.pairing === "on") ok("pairing", "on: npm run world opens the browser on a one-time link (or npm run host -- open prints one)");
   else ok("pairing", "off (development only: any page on this machine can read the world's data; production refuses it)");
 
-  return { lines, ok: lines.every((l) => l.status === "ok") };
+  // A warning (another Node major, another loops' archive memory) says something, but it is no fix: it never fails the run.
+  return { lines, ok: lines.every((l) => l.status === "ok" || l.status === "warn") };
 }
 
 const LABEL: Record<DoctorStatus, string> = { ok: "ok  ", fix: "FIX ", skip: "skip", warn: "warn" };
