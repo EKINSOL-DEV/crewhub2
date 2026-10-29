@@ -1319,10 +1319,10 @@ export async function createHost(options: HostOptions): Promise<Host> {
     },
     async close() {
       closed = true;
-      clearInterval(idleBeat);
-      clearRecheck();
       if (threadsTimer !== null) clearTimeout(threadsTimer);
       threadsTimer = null;
+      clearInterval(idleBeat);
+      clearRecheck();
       discovery.stop();
       await relinking;
       if (link !== null) await link.upstream.stop();
