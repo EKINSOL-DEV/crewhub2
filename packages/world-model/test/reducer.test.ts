@@ -397,6 +397,32 @@ test("a stall counts its nudges and the text view names them, the dimmed lamp an
   assert.match(text, /CL-10 .*a star sticker: a prop request/);
 });
 
+test("round 48 (r48-enums): a stall state or a priority this build does not know is tolerated and not drawn: no beacon, no tag, no words", () => {
+  const quietSince = new Date(T0 - 30 * 60_000).toISOString();
+  const cards = [
+    card("t1", "CL-1", "in_progress", { assignee: agentRef("cl-lead"), stall: { state: "frozen" as never, quietSince } }),
+    card("t2", "CL-2", "in_progress", { assignee: agentRef("cl-lead"), priority: "critical" as never }),
+    card("t3", "CL-3", "in_progress", { assignee: agentRef("cl-lead") }),
+  ];
+  const source = new FakeSource();
+  const projection = new Projection(source, { scheduler: new ManualScheduler() });
+  const base = snapshot({ projects: [CL], agents: [registered("cl-lead")], boards: { "crewhub-loops": board(cards) }, team: team(T0, [lane("cl-lead", "working")]) });
+  const stall = { state: "dormant" as never, quietSince, detectedAt: quietSince, quietMinutes: 30 };
+  const ticketCL3 = { id: "t3", key: "CL-3", title: "Ticket CL-3", status: "in_progress", assignee: agentRef("cl-lead") } as never;
+  projection.apply({ type: "snapshot", snapshot: { ...base, watchdog: { mode: "observe", open: [{ ticket: ticketCL3, stall }] } } });
+  const model = reduceWorld(projection.facts, emptyMemory(), { now: T0, mode: "demo", roleOverrides: {} }).model;
+  const objects = building(model).objects;
+  for (const key of ["CL-1", "CL-2", "CL-3"]) {
+    const o = objects.find((x) => x.key === key);
+    assert.ok(o, key);
+    assert.equal(o.stall, null, `${key}: an unknown stall state draws no stall`);
+    assert.equal(o.priorityTag, null, `${key}: an unknown priority is not urgent`);
+  }
+  assert.deepEqual(model.buildings.flatMap((b) => b.agents.flatMap((a) => a.alerts)), [], "no alert for a stall the world cannot name");
+  const text = describeWorld(model).map((l) => l.text).join("\n");
+  assert.doesNotMatch(text, /needs attention|stalled|priority tag|undefined/);
+});
+
 test("the source's own principal (the observer) gets no figure and no count, and the text view says it is not shown", () => {
   const w = world({
     projects: [CL],
