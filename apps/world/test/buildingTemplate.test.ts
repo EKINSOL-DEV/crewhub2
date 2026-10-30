@@ -51,6 +51,7 @@ const object = (id: string, room: RoomKind, extra: Partial<WorkObject> = {}): Wo
   kind: "task",
   look: "folder",
   status: room === "storage" ? "backlog" : room === "planning" ? "planned" : room === "review" ? "review" : room === "dispatch" ? "done" : "in_progress",
+  newStatus: null,
   room,
   deskOf: null,
   deskInferred: false,

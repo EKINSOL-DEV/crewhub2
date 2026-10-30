@@ -328,7 +328,9 @@ function placeWords(place: TransitPlace, rooms: RoomWording): string {
 }
 
 function describeObject(section: string, object: WorkObject, building: Building, add: Add, rooms: RoomWording): void {
-  const parts = [`${object.key} "${object.title}": ${object.kind} as a ${LOOK_WORDS[object.look]}, ${STATUS_WORDS[object.status]}`];
+  // A status newer than this build is said as loops sent it, as a newer kind or outcome is (round 48).
+  const status = object.newStatus === null ? STATUS_WORDS[object.status] : `status "${object.newStatus}" (new to this world, kept with the backlog)`;
+  const parts = [`${object.key} "${object.title}": ${object.kind} as a ${LOOK_WORDS[object.look]}, ${status}`];
   if (object.rejected) {
     const reason = object.rejected.reason ? `: "${object.rejected.reason}"` : "";
     parts.push(`turned down (closed as won't do${reason}), set aside askew, struck through with a dark band`);

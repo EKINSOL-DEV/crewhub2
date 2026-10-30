@@ -64,6 +64,7 @@ export function object(key: string, extra: Partial<WorkObject> = {}): WorkObject
     kind: "task",
     look: "folder",
     status: "in_progress",
+    newStatus: null,
     room: "workers",
     deskOf: null,
     deskInferred: false,

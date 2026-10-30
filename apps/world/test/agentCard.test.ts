@@ -88,7 +88,7 @@ test("the registry is ordered and every section has a distinct id", () => {
 });
 
 test("Work: the ticket with its link into loops, its chips, the project and the last line; no link in the demo", () => {
-  const work = { ticketId: "t1", key: "CL-7", title: "Agent card", kind: "task", look: "folder", status: "in_progress", room: "lead-office", deskOf: "cl-lead", deskInferred: false, position: 1, priorityTag: "high", blocked: false, sealed: false, stall: { state: "stalled", quietSince: "", quietMinutes: 12, nudges: 1 }, quiet: null, nameTag: "Nicky", waitingOnHuman: true, milestone: null, labels: [], speechMarkUntil: null, celebrateUntil: null, rejected: null, turnedDownUntil: null, transit: null } satisfies WorkObject;
+  const work = { ticketId: "t1", key: "CL-7", title: "Agent card", kind: "task", look: "folder", status: "in_progress", newStatus: null, room: "lead-office", deskOf: "cl-lead", deskInferred: false, position: 1, priorityTag: "high", blocked: false, sealed: false, stall: { state: "stalled", quietSince: "", quietMinutes: 12, nudges: 1 }, quiet: null, nameTag: "Nicky", waitingOnHuman: true, milestone: null, labels: [], speechMarkUntil: null, celebrateUntil: null, rejected: null, turnedDownUntil: null, transit: null } satisfies WorkObject;
   const held = [brief("CL-7", "in_progress", { title: "Agent card", waitsOn: { id: "nicky", displayName: "Nicky", kind: "user" }, waitingOnHuman: true })];
   const facts = bare({ work: { ...work }, workProject: { slug: "crewhub-loops", key: "CL", name: "crewhub-loops" }, progress: { ts: NOW - 3 * 60_000, kind: "update", ticketKey: "CL-7", text: "sections from a registry" }, tickets: { held, waitedOnBy: [] } });
   const section = renderAgentCard(facts, ctx()).find((s) => s.id === "work");
@@ -103,12 +103,12 @@ test("Work: the ticket with its link into loops, its chips, the project and the 
   assert.equal(demo?.kind === "ticket" && demo.href, null);
 });
 
-const brief = (key: string, status: TicketBrief["status"], over: Partial<TicketBrief> = {}): TicketBrief => ({ key, title: `Ticket ${key}`, status, project: { slug: "crewhub-loops", key: "CL", name: "crewhub-loops" }, waitsOn: null, waitingOnHuman: false, holder: { id: "cl-lead", displayName: "CL Lead" }, updatedAt: NOW - 60_000, ...over });
+const brief = (key: string, status: TicketBrief["status"], over: Partial<TicketBrief> = {}): TicketBrief => ({ key, title: `Ticket ${key}`, status, newStatus: null, project: { slug: "crewhub-loops", key: "CL", name: "crewhub-loops" }, waitsOn: null, waitingOnHuman: false, holder: { id: "cl-lead", displayName: "CL Lead" }, updatedAt: NOW - 60_000, ...over });
 
 test("Work (round 22): Holds counts the open tickets by status and whom they wait on, lists the ones beyond the desk with a cap, Waited on by names the holders; the honest words for none, for a worker, and for the progress line read once", () => {
   const held = [brief("CL-9", "in_progress"), brief("CL-8", "in_progress", { waitsOn: { id: "nicky", displayName: "Nicky", kind: "user" } }), brief("CL-7", "review", { waitsOn: { id: "nicky", displayName: "Nicky", kind: "user" } }), brief("CL-6", "review", { waitingOnHuman: true }), brief("CL-5", "planned"), brief("CL-4", "planned"), brief("CR-3", "backlog", { project: { slug: "crewhub", key: "CR", name: "CrewHub product" } })];
   const waitedOnBy = [brief("CL-10", "planned", { holder: { id: "analyst", displayName: "Analyst" } }), brief("CL-11", "backlog", { holder: null })];
-  const work = { ticketId: "t9", key: "CL-9", title: "Ticket CL-9", kind: "task", look: "folder", status: "in_progress", room: "lead-office", deskOf: "cl-lead", deskInferred: false, position: 1, priorityTag: null, blocked: false, sealed: false, stall: null, quiet: null, nameTag: null, waitingOnHuman: false, milestone: null, labels: [], speechMarkUntil: null, celebrateUntil: null, rejected: null, turnedDownUntil: null } as unknown as WorkObject;
+  const work = { ticketId: "t9", key: "CL-9", title: "Ticket CL-9", kind: "task", look: "folder", status: "in_progress", newStatus: null, room: "lead-office", deskOf: "cl-lead", deskInferred: false, position: 1, priorityTag: null, blocked: false, sealed: false, stall: null, quiet: null, nameTag: null, waitingOnHuman: false, milestone: null, labels: [], speechMarkUntil: null, celebrateUntil: null, rejected: null, turnedDownUntil: null } as unknown as WorkObject;
   const out = renderAgentCard(bare({ work, tickets: { held, waitedOnBy } }), ctx()).find((s) => s.id === "work")!;
   assert.deepEqual(texts(out.rows), [
     "CL-9",
@@ -297,4 +297,19 @@ test("words: ages read in source time, and the ticket link is the loops web app'
   assert.deepEqual([spanWords(10_000), spanWords(90_000), spanWords(2 * 3_600_000), spanWords(25 * 3_600_000), spanWords(72 * 3_600_000)], ["<1 min", "2 min", "2 h", "1 day", "3 days"]);
   assert.equal(ticketHref("http://127.0.0.1:8091/", "CL-7"), "http://127.0.0.1:8091/t/CL-7");
   assert.equal(ticketHref(null, "CL-7"), null);
+});
+
+test("Work (round 48): a ticket status newer than this build reads as loops sent it, new to this world, with the backlog's chip", () => {
+  const base = { ticketId: "t3", key: "CL-3", title: "Ticket CL-3", kind: "task", look: "folder", room: "storage", deskOf: "cl-lead", deskInferred: false, position: 1, priorityTag: null, blocked: false, sealed: false, stall: null, quiet: null, nameTag: null, waitingOnHuman: false, milestone: null, labels: [], speechMarkUntil: null, celebrateUntil: null, rejected: null, turnedDownUntil: null, transit: null } satisfies Omit<WorkObject, "status" | "newStatus">;
+  const work: WorkObject = { ...base, status: "backlog", newStatus: "triage" };
+  const held = [brief("CL-3", "backlog", { newStatus: "triage" }), brief("CL-4", "backlog", { newStatus: "blocked", waitsOn: { id: "nicky", displayName: "Nicky", kind: "user" } })];
+  const waitedOnBy = [brief("CL-12", "backlog", { newStatus: "blocked", holder: { id: "analyst", displayName: "Analyst" } })];
+  const out = renderAgentCard(bare({ work, tickets: { held, waitedOnBy } }), ctx()).find((s) => s.id === "work")!;
+  const chip = out.rows.find((r) => r.kind === "chips");
+  assert.deepEqual(chip?.kind === "chips" && chip.chips[0], { kind: "status", status: "backlog", label: "triage (new to this world)" });
+  const lines = texts(out.rows);
+  assert.ok(lines.includes("Holds|2 open tickets: 1 triage (new to this world), 1 blocked (new to this world); 1 waits on Nicky"), lines.join("\n"));
+  assert.ok(lines.includes("CL-4 blocked (new to this world), waits on Nicky"), lines.join("\n"));
+  assert.ok(lines.includes("CL-12 blocked (new to this world), Analyst holds it"), lines.join("\n"));
+  for (const line of lines) assert.doesNotMatch(line, /undefined|NaN/);
 });

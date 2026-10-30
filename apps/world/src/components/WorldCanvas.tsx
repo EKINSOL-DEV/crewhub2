@@ -5,13 +5,15 @@ import { archivedWords, agentCardFacts, doneWord, pinnedCard, quietWords, roleWo
 import { STRESS, worldRuntime } from "../state/world";
 import { useHostHealth } from "../state/health";
 import { loopsWebUrl } from "../state/source";
-import { AgentCard } from "./AgentCard";
+import { AgentCard, AgentCardFailed } from "./AgentCard";
+import { OverlayBoundary } from "./SceneBoundary";
 import { cardAnswersEmpty } from "../state/chatRoad";
 import { useChatRoad } from "../state/chatRoadStore";
 import { useRecentAnswers } from "../state/said";
 import { useChatThreads } from "../state/threads";
 import type { FetchedProgress } from "../world/agentCard/types";
 import { renderAgentCard } from "../world/agentCard/registry";
+import { statusWords } from "../world/agentCard/words";
 import { useDark } from "../state/theme";
 import { useQuality } from "../state/quality";
 import { useCast } from "../state/cast";
@@ -303,6 +305,9 @@ export default function WorldCanvas(props: Props) {
       {fps && ready && <FpsOverlay scene={scene} />}
       {props.walking && ready && <WalkControls scene={scene} />}
       <div ref={labels} className="world-labels">
+        {/* The labels, signs and the card beside a figure (round 48): a throw here drops this layer, not the town; it is
+            drawn again in another building or back in the town. The scene keeps the div itself. */}
+        <OverlayBoundary name="labels" resetKey={inside?.slug ?? null} fallback={null}>
         {props.walking && (
           <div className="anchor agent-anchor picked" data-anchor="you">
             <span className="agent-stack">
@@ -384,9 +389,23 @@ export default function WorldCanvas(props: Props) {
             </div>
           </>
         )}
+        </OverlayBoundary>
       </div>
     </>
   );
+}
+
+/** Marks a part of the agent card that could not be worked out (round 48): the card's failure, not the town's. */
+const CARD_FAILED = Symbol("card failed");
+const cardWarned = new Set<string>();
+function cardPart<T>(part: string, make: () => T): T | typeof CARD_FAILED {
+  try {
+    return make();
+  } catch (error) {
+    if (!cardWarned.has(part)) console.warn(`CrewHub World: the agent card's ${part} could not be worked out; the town stays.`, error);
+    cardWarned.add(part);
+    return CARD_FAILED;
+  }
 }
 
 /** The agent card for the selected agent, when it is open: a figure of the entered building, or in the town one of the
@@ -396,7 +415,8 @@ function useAgentCard(props: Props, inside: Building | null, compact: boolean, p
   const key = props.card && props.selection.selected?.kind === "agent" ? props.selection.selected.key : null;
   const { model } = props;
   const demo = model.mode === "demo";
-  const facts = useMemo(() => (key ? agentCardFacts(model, worldRuntime().projection.facts, key) : null), [key, model]);
+  const gathered = useMemo(() => (key ? cardPart("facts", () => agentCardFacts(model, worldRuntime().projection.facts, key)) : null), [key, model]);
+  const facts = gathered === CARD_FAILED ? null : gathered;
   const rooms = useBuildingPlan();
   // Round 22: the page's Recent answers for the Answers section (with why none can be known), and the desk ticket's
   // last progress line read once when the page saw none.
@@ -410,14 +430,19 @@ function useAgentCard(props: Props, inside: Building | null, compact: boolean, p
   const threads = useChatThreads();
   const thread = threads === null || !key ? undefined : (threads.get(key) ?? null);
   const sections = useMemo(
-    () => (facts ? renderAgentCard(facts, { now: model.now, freshness: model.freshness, loopsUrl: demo ? null : loopsWebUrl(health), rooms, answers, answersEmpty, ...(fetchedProgress ? { fetchedProgress } : {}), ...(thread === undefined ? {} : { thread }) }) : []),
+    () => (facts ? cardPart("sections", () => renderAgentCard(facts, { now: model.now, freshness: model.freshness, loopsUrl: demo ? null : loopsWebUrl(health), rooms, answers, answersEmpty, ...(fetchedProgress ? { fetchedProgress } : {}), ...(thread === undefined ? {} : { thread }) })) : []),
     [facts, model.now, model.freshness, demo, health, rooms, answers, answersEmpty, fetchedProgress, thread],
   );
   const here = inside ? inside.agents.some((a) => a.key === key) : [...model.townHall, ...model.postOffice].some((a) => a.key === key);
-  if (!key || !facts || !here) return null;
+  if (!key || gathered === null || !here) return null;
+  // A card that cannot be drawn says so in its place; the town stays (round 48). Another agent's card tries again.
+  const name = facts?.displayName ?? [...model.buildings.flatMap((b) => b.agents), ...model.townHall, ...model.postOffice].find((a) => a.key === key)?.displayName ?? key;
+  const failed = <AgentCardFailed name={name} sheet={compact} onClose={props.onCloseCard} />;
+  if (facts === null || sections === CARD_FAILED) return { key, element: failed };
   return {
     key,
     element: (
+      <OverlayBoundary name="agent card" resetKey={key} fallback={failed}>
       <AgentCard
         facts={facts}
         sections={sections}
@@ -430,6 +455,7 @@ function useAgentCard(props: Props, inside: Building | null, compact: boolean, p
         onClose={props.onCloseCard}
         portrait={portrait}
       />
+      </OverlayBoundary>
     ),
   };
 }
@@ -1012,8 +1038,6 @@ function AgentLabel({
   );
 }
 
-const STATUS_WORDS = { backlog: "backlog", planned: "planned", in_progress: "in progress", review: "review", done: "done" } as const;
-
 /**
  * A person in the building (spec addendum "a person in the world"): a plain name pill over the figure's head while the
  * scene has a figure for the visit (the anchor is the figure's; without one the label stays hidden), and when picked a
@@ -1055,7 +1079,7 @@ function ObjectPlate({ object: o, building, model }: { object: WorkObject; build
       <span className="plate-name">
         <strong>{o.key}</strong>
         <span className="sign-muted">
-          {o.kind}, {o.rejected ? "turned down" : STATUS_WORDS[o.status]}
+          {o.kind}, {o.rejected ? "turned down" : statusWords(o)}
         </span>
       </span>
       <span className="plate-title">{o.title}</span>

@@ -26,7 +26,8 @@
            stored key is gone. Under half a minute. One host at a time against that loops (4 streams per key).
      walk  37 checks along a visitor's walk through the demo (keyboard, the text view, the timeline, chat, build mode and the prop editor's focus,
            settings, the where form, reduced motion, a phone, both themes). About two minutes.
-     demo  the jump list (/ opens it, a building's name, Enter lands inside; the postman's card in the town), the scenario picker (the Demo chip, One
+     demo  the jump list (/ opens it, a building's name, Enter lands inside; the postman's card in the town; a card that
+           cannot be drawn says so in its place and the town stays, round 48), the scenario picker (the Demo chip, One
            project, back to Small team) and the Studio scenario's Region level (district cards, a beacon, a pin, a
            district, a building, the Escape chain back to the Region); and 17 checks of the new loops events (round 7):
            the storyline played to the quiet fact (the dusty package, its clock tag, the text view's line), the card an
@@ -719,6 +720,39 @@ await group("demo", async () => {
   ok("jump list: the postman's card opens in the town", (await entered(p)) == null && (await townCard.count()) > 0 && /the post office/.test(townCardText), townCardText.slice(0, 100) || "no card");
   await shot(p, "15b-town-card");
   await p.context().close();
+
+  // 12c. Round 48 (r48-unknown U5): a card that cannot be drawn says so in its place, and the town stays (it used to
+  // take the canvas with it, as a graphics failure). The AgentCard module Vite serves this one page throws when it
+  // renders: a route of this check's own, the app has no switch for it. Its console errors are the throw's, on purpose,
+  // so this page keeps its own list instead of the run's.
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
+    await ctx.route(/\/src\/components\/AgentCard\.tsx(\?|$)/, async (route) => {
+      // Read through the context's request client (the module as Vite serves it), then served rewritten.
+      const original = await ctx.request.get(route.request().url());
+      const body = (await original.text()).replace("export function AgentCard(", 'export function AgentCard() {\n  throw new Error("regress: this card throws on purpose");\n}\nfunction AgentCardDrawn(');
+      await route.fulfill({ status: original.status(), headers: original.headers(), body });
+    });
+    const pg = await ctx.newPage();
+    watch(pg, origin, [], "card throws");
+    await town(pg, 2000);
+    await canvas(pg).focus();
+    await pg.keyboard.press("/");
+    await pg.getByRole("dialog", { name: "Jump to" }).waitFor({ timeout: 3000 }).catch(() => {});
+    await pg.keyboard.type("postman");
+    await pg.waitForTimeout(400);
+    await pg.keyboard.press("Enter");
+    await pg.waitForTimeout(1500);
+    await canvas(pg).focus();
+    await pg.keyboard.press("Enter");
+    await pg.waitForTimeout(800);
+    const failed = (await pg.locator(".agent-card-failed").innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+    const canvases = await pg.locator(".canvas-host canvas").count();
+    const fallback = await pg.locator(".text-sheet.fallback").count();
+    ok("a card that cannot be drawn says so in its place, and the town stays", /could not be drawn/.test(failed) && canvases > 0 && fallback === 0, `card "${failed.slice(0, 80)}", canvas ${canvases}, graphics-failure text view ${fallback}`);
+    await shot(pg, "15c-card-failed");
+    await ctx.close();
+  }
 
   // 13. The scenario picker: the Demo chip opens it, One project changes the town, Small team brings it back.
   p = await open();

@@ -14,6 +14,7 @@ import type {
   WorldSource,
 } from "@crewhub/loops-client";
 import { emptyFacts, parseTs } from "./facts.ts";
+import { drawnStatus } from "./status.ts";
 import type { CardFact, Facts } from "./facts.ts";
 
 /** What the projection needs from a source: its clock and the refetch reads. */
@@ -580,7 +581,8 @@ export class Projection {
     const project = this.state.projects[slug];
     if (!project) return;
     const counts = Object.fromEntries(TICKET_STATUSES.map((s) => [s, 0])) as ProjectOut["counts"];
-    for (const fact of Object.values(this.state.cards)) if (fact.slug === slug) counts[fact.card.status] += 1;
+    // A status newer than this build counts with the backlog (round 48).
+    for (const fact of Object.values(this.state.cards)) if (fact.slug === slug) counts[drawnStatus(fact.card.status)] += 1;
     this.state.projects[slug] = { ...project, counts };
   }
 

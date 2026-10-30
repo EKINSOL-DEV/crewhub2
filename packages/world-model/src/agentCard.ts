@@ -7,6 +7,7 @@ import type { AgentOut, ProjectRef, TeamAgent } from "@crewhub/loops-client";
 import { linesOf, listAgents, projectByTicketKey, type AgentEntity } from "./agents.ts";
 import { agentStateWords } from "./describe.ts";
 import type { CardFact, Facts } from "./facts.ts";
+import { drawnStatus, newStatusWord } from "./status.ts";
 import type { AgentPlacement, Building, ProgressKind, TicketStatus, WorkObject, WorldModel } from "./model.ts";
 
 /** The latest progress line the agent wrote (a worker's line without its "<worker>: " prefix). */
@@ -103,7 +104,10 @@ export interface AgentChatFacts {
 export interface TicketBrief {
   key: string;
   title: string;
+  /** The status as drawn: a status newer than this build reads as the backlog here (`newStatus` keeps its word). */
   status: TicketStatus;
+  /** The status as loops sent it when this build does not know it (round 48); null for a known one. */
+  newStatus: string | null;
   project: { slug: string; key: string; name: string } | null;
   /** Whom it waits on (`waitingOn`: a person or an agent), by name; null when nobody. */
   waitsOn: { id: string; displayName: string; kind: string } | null;
@@ -270,7 +274,8 @@ function ticketBrief(fact: CardFact, facts: Readonly<Facts>): TicketBrief {
   return {
     key: card.key,
     title: card.title,
-    status: card.status,
+    status: drawnStatus(card.status),
+    newStatus: newStatusWord(card.status),
     project: project ? { slug: project.slug, key: project.key, name: project.name } : null,
     waitsOn: card.waitingOn ? { id: card.waitingOn.id, displayName: card.waitingOn.displayName, kind: card.waitingOn.kind } : null,
     waitingOnHuman: card.waitingOnHuman === true,

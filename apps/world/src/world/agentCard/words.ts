@@ -33,3 +33,8 @@ export function ticketHref(loopsUrl: string | null, ticketKey: string): string |
 }
 
 export const STATUS_WORDS = { backlog: "backlog", planned: "planned", in_progress: "in progress", review: "review", done: "done" } as const;
+
+/** A ticket's status in words: a status newer than this build as loops sent it, new to this world (round 48). */
+export function statusWords(t: { status: keyof typeof STATUS_WORDS; newStatus: string | null }): string {
+  return t.newStatus === null ? STATUS_WORDS[t.status] : `${t.newStatus} (new to this world)`;
+}

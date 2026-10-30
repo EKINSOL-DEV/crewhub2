@@ -14,6 +14,7 @@ import type { MoveFact } from "./facts.ts";
 import type { FlightMemory, LandedMemory, PersonCarry } from "./memory.ts";
 import type { BuiltObject } from "./objects.ts";
 import type { PersonVisit, RoomKind, TicketStatus, TransitPlace, WorkObject } from "./model.ts";
+import { drawnStatus } from "./status.ts";
 
 export const FLIGHT_MIN_MS = 2_000;
 export const FLIGHT_MAX_MS = 4_000;
@@ -80,7 +81,7 @@ export function flyObjects(
       // Whatever the visit said is history: the package moved again.
       delete memory.landed[id];
       const before = memory.places[id];
-      const fromRoom = before?.room ?? STATUS_ROOM[move.from];
+      const fromRoom = before?.room ?? STATUS_ROOM[drawnStatus(move.from)];
       const fromDeskOf = before ? before.deskOf : null;
       if (flight?.person) {
         // A new move while a person carries it: the visit ends where the package stood; the drone takes it from there.

@@ -28,6 +28,7 @@ export const object = (id: string, room: RoomKind, extra: Partial<WorkObject> = 
   kind: "task",
   look: "folder",
   status: room === "storage" ? "backlog" : room === "planning" ? "planned" : room === "review" ? "review" : room === "dispatch" ? "done" : "in_progress",
+  newStatus: null,
   room,
   deskOf: null,
   deskInferred: false,

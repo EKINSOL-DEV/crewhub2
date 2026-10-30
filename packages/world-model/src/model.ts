@@ -250,7 +250,10 @@ export interface WorkObject {
   title: string;
   kind: TicketKind;
   look: ObjectLook;
+  /** The status as drawn: a status newer than this build is drawn as the backlog (`newStatus` keeps its word). */
   status: TicketStatus;
+  /** The status as loops sent it when this build does not know it (round 48); null for a known one. */
+  newStatus: string | null;
   /** The room the object is in; `in_progress` objects are on a desk in a role room. */
   room: RoomKind;
   /** The agent whose desk holds it (in progress), or null for the lead's inbox tray. */
