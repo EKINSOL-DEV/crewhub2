@@ -24,7 +24,7 @@
            are named, the key is nowhere; the host closed and started again with the stored key and the same secret
            file is Live again without a new link; the panel's Forget this key hands the Connect screen back and the
            stored key is gone. Under half a minute. One host at a time against that loops (4 streams per key).
-     walk  36 checks along a visitor's walk through the demo (keyboard, the text view, the timeline, chat, build mode,
+     walk  37 checks along a visitor's walk through the demo (keyboard, the text view, the timeline, chat, build mode and the prop editor's focus,
            settings, the where form, reduced motion, a phone, both themes). About two minutes.
      demo  the jump list (/ opens it, a building's name, Enter lands inside; the postman's card in the town), the scenario picker (the Demo chip, One
            project, back to Small team) and the Studio scenario's Region level (district cards, a beacon, a pin, a
@@ -460,6 +460,19 @@ await group("walk", async () => {
   const stepsUndone = await steps();
   ok("undo takes the placement back", undone !== "" && /redo on/.test(stepsUndone) && !/redo on/.test(stepsPlaced), `${undone} (${stepsBefore} → ${stepsPlaced} → ${stepsUndone})`);
   await shot(p, "08-build-undo");
+  // Round 48 (r48-ui U7): the prop editor is a dialog: the focus goes into it when it opens and back to the button that
+  // opened it when it closes (it stayed on New prop behind the sheet, and fell to the page on close).
+  const newProp = build.getByRole("button", { name: "New prop", exact: true });
+  await newProp.focus();
+  await p.keyboard.press("Enter");
+  await p.waitForSelector(".editor-sheet", { timeout: 10000 }).catch(() => {});
+  await p.waitForTimeout(300);
+  const focusWhere = () => p.evaluate(() => { const a = document.activeElement; return !a || a === document.body ? "body" : a.closest(".editor-sheet") ? "editor" : (a.textContent ?? "").trim().slice(0, 30); }).catch(() => "?");
+  const inEditor = await focusWhere();
+  await p.locator(".editor-sheet").getByRole("button", { name: "Close the prop editor" }).click().catch(() => {});
+  await p.waitForSelector(".editor-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
+  const afterEditor = await focusWhere();
+  ok("the prop editor takes the focus when it opens and gives it back to New prop when it closes", inEditor === "editor" && afterEditor === "New prop", `open: ${inEditor}, closed: ${afterEditor}`);
   await p.keyboard.press("b");
 
   // 7. Settings: style, director, model calls, graphics, town export

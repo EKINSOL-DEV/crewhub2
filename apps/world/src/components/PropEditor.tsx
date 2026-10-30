@@ -70,6 +70,16 @@ export function PropEditor({ initial, takenIds, theme, onSave, onClose }: Props)
   const [errors, setErrors] = useState<PropIssue[]>([]);
   const [note, setNote] = useState("");
   const errorBox = useRef<HTMLDivElement>(null);
+  // A dialog: the focus goes to the name when it opens and back to the button that opened it when it closes (round 48:
+  // it stayed on New prop behind the sheet, and fell to the page on close).
+  const sheet = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
+    sheet.current?.querySelector<HTMLElement>("input")?.focus();
+    return () => {
+      if (opener?.isConnected) opener.focus();
+    };
+  }, []);
   useEffect(() => {
     if (errors.length) errorBox.current?.scrollIntoView({ block: "nearest" });
   }, [errors]);
@@ -128,7 +138,7 @@ export function PropEditor({ initial, takenIds, theme, onSave, onClose }: Props)
   };
 
   return (
-    <Card as="section" className="world-sheet editor-sheet" role="dialog" aria-labelledby="editor-title">
+    <Card as="section" ref={sheet} className="world-sheet editor-sheet" role="dialog" aria-labelledby="editor-title">
       <Card.Header
         title={keepId ? `Edit ${initial?.name}` : "New prop"}
         titleId="editor-title"
