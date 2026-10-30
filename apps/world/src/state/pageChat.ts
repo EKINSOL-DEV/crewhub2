@@ -239,8 +239,10 @@ export function createPageChatRunner(options: PageChatRunnerOptions): PageChatRu
       // The pending timer goes: one ask now, and the next is set after it (never two in flight, round 29 Low 5).
       cancel?.();
       cancel = null;
+      // A probe that never answered (offline when the page opened, round 48 r48-live) is asked here too: the page's
+      // wiring wakes the runner on the online event, it does not start it again.
       if (state.road === "page") void poll();
-      else if (state.probe !== "unknown") void probe();
+      else void probe();
     },
     state: () => state,
   };

@@ -360,3 +360,18 @@ test("round 29 (Low 9): the probe is not made while offline; once online, a star
   assert.equal(again.r.state().road, "page");
   again.r.stop();
 });
+
+test("round 48 (r48-live): offline when the page opens, the online event's wake() makes the probe the start could not (the page's wiring wakes, it does not restart)", async () => {
+  let online = false;
+  const l = loops();
+  const { r } = runner({ hostKeyReadsChat: false, fetchFn: l.fetchFn, online: () => online });
+  r.start();
+  await settle();
+  assert.deepEqual(l.calls, [], "offline: nothing asked");
+  online = true;
+  r.wake();
+  await settle();
+  assert.equal(l.calls[0], "/api/dm/threads", "online again: the probe asks");
+  assert.equal(r.state().road, "page");
+  r.stop();
+});
