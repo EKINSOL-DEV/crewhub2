@@ -7,13 +7,13 @@
      connect the connect flow (spec addendum "a smooth connection"), 25 checks in two halves, both behind your Vite
            (started with CREWHUB_WORLD_PORT=<host-port>; apps/world/dist is never looked at here, whatever the live
            group does with it). Against the stub host of lib/connectStub.mjs, on --host-port, always: one page meets
-           every screen in order (No crewhub-loops found, asked every 2.5 s and not back to back, Pair this browser naming `npm run world`, Connect with a
+           every screen in order (No crewhub-loops found, Pair this browser naming `npm run world`, Connect with a
            masked field, a key typed and Enter: the field empty again and the host checking, rejected with loops'
            reason, the focus back on the key field, and Forget this key, which brings Connect back, crewhub-loops not answering, then the town with the
            Live chip and no reload), the key in no DOM, storage or URL, the Connection panel's facts and Escape, the
            stub's `unpaired` state (a host that no longer knows the browser: Pair this browser over the live tab,
            and the town back by itself once paired again) and, on a second page, the Stream busy chip over the town
-           (loops' 429). Against the REAL development loops (the env file and the skip rules of `real`, plus
+           (loops' 429); every screen asks the host's health every 2.5 s, not back to back (round 48). Against the REAL development loops (the env file and the skip rules of `real`, plus
            --loops-app-data, default ~/crewhub-loops-dev, which must hold a settings.json): a keyless host the tool
            starts on --host-port with the discovery through that folder, a fresh config folder under --out (removed at
            the end), pairing on with the secret kept in <config>/pairing-secret as `npm run world` keeps it; the
