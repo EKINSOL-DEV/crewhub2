@@ -12,7 +12,11 @@ runtime validators, the event allowlist, the `WorldSource` seam, and the two sou
   timeoutMs?)` answers `GET /world-api/health` or `null`. The only file in the browser that may fetch
   (`scripts/scan-model-calls.ts`). `options.timings` shortens the clocks for tests.
 - `src/validate.ts`: unknown keys are dropped; a ticket `kind` or `status` and an event `type` the package does not
-  know warn once per value and pass through (so `grill`, CL-245, or the next addition never drops a snapshot).
+  know warn once per value and pass through (so `grill`, CL-245, or the next addition never drops a snapshot). Since
+  round 48 every other enum the live source reads does too: as itself where the world only compares it with known
+  values (a priority, a principal or actor kind, a stall, milestone or release state, the watchdog's mode), or as a
+  safe reading where the world looks it up (a project's or group's colour and icon: none; a label's colour: `mist`; a
+  progress kind: `update`). The chat's own shapes (DM messages, deliveries) stay strict.
 
 No React, no Three.js, no DOM. Tests: `node --test packages/loops-client/test/*.test.ts` (the host-source tests
 start their own server on `127.0.0.1` port 0).
