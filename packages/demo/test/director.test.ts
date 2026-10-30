@@ -161,6 +161,22 @@ test("time running backwards (a loop or a seek) starts every timer afresh", () =
   assert.deepEqual(models.slice(1, 11).flatMap((m) => feed.step(m)), []);
 });
 
+// Round 49 (r48-demo-fake D7): the test above stands for a loop by stepping back to the first model, which the demo
+// never does. Its next loop plays the script again one duration later, so the feed's reset sees a seek and never a
+// loop. Pinned as the code is now, whichever words D7's fix gives the director.
+test("a loop's end does not run the demo's time backwards: the next loop plays one duration later", () => {
+  const scheduler = createManualScheduler();
+  const source = createDemoSource({ scheduler, speed: 16 });
+  const seen: { now: number; type: string }[] = [];
+  source.start((message) => seen.push({ now: source.now(), type: message.type }));
+  scheduler.advance((SCRIPT_DURATION_MS + 60 * SECOND) / 16);
+  const snapshots = seen.filter((s) => s.type === "snapshot");
+  assert.equal(snapshots.length, 2, "one loop's end");
+  const back = seen.findIndex((s, i) => i > 0 && s.now < seen[i - 1]!.now);
+  assert.equal(back, -1, back < 0 ? "" : `a ${seen[back]!.type} at ${seen[back]!.now} after ${seen[back - 1]!.now}`);
+  assert.equal(snapshots[1]!.now - snapshots[0]!.now, SCRIPT_DURATION_MS);
+});
+
 test("live mode: the feed plans from the live facts, every accepted intent moves an idle real agent of that building", () => {
   const live = liveModels();
   const feed = feedOf(effectivePresence({ ...DEFAULT_PRESENCE, liveDirectorEnabled: true }, "live"));

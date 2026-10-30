@@ -8,11 +8,11 @@ import { test } from "node:test";
 import { toWorldEvent, validateEnvelope, validateLoopsSnapshot, validateTeamSnapshot } from "@crewhub/loops-client";
 import type { Result, SourceMessage } from "@crewhub/loops-client";
 import { Projection, describeWorld, emptyMemory, reduceWorld } from "@crewhub/world-model";
-import type { WorldModel } from "@crewhub/world-model";
+import type { ProjectionSource, WorldModel } from "@crewhub/world-model";
 import { createManualScheduler } from "../src/scheduler.ts";
 import { type ScenarioId, DEFAULT_SCENARIO, SCENARIO_IDS, demoScenario, demoScenarios, parseScenarioId } from "../src/scenarios.ts";
 import { STUDIO_ARCHIVED } from "../src/scenarios/studio.ts";
-import { createDemoSource } from "../src/source.ts";
+import { type DemoSource, createDemoSource } from "../src/source.ts";
 import { at } from "../src/time.ts";
 import { envelopes } from "./helpers.ts";
 
@@ -119,6 +119,64 @@ for (const id of SCENARIO_IDS) {
     const names = (e: (typeof events)[number]) => (e.envelope.ticket !== null && made.has(e.envelope.ticket.id)) || ((e.envelope.payload["ticketIds"] as string[] | undefined) ?? []).some((t) => made.has(t));
     const late = events.filter((e) => names(e) && loopEnd - e.wall < READ_AFTER_MS + ROOM_MS);
     assert.deepEqual(late.map((e) => `${e.envelope.type} on ${e.envelope.ticket?.key} ${loopEnd - e.wall} ms before the loop's end`), []);
+  });
+
+  // Round 49 (r48-demo-fake D1): the guard above counts ticket reads only. The projection reads more after an event: the
+  // project and its board (`project.created`, `project.updated`), the board (`project.restored`), the milestones
+  // (`milestone.*`), the releases (`release.*`). Of a project the loop made (Fresh install's `field-notes`), each is
+  // CL-88's 404 one level up. So the page's own projection plays the loop against the fake, every read it makes is
+  // recorded, and each read in the loop's last second (or after it: the page learns of the new loop late, so the
+  // snapshot is not applied) is asked of the store the next loop starts from. Every one must find what it reads there.
+  test(`${id}: at 16x, every read the page makes in the loop's last second finds what it reads in the next loop's store`, async () => {
+    const ROOM_MS = 1_000;
+    const STEP_MS = 25; // a read that follows a read (a project's board) is asked at the end of the step it came in
+    const scheduler = createManualScheduler(1_000);
+    const source = createDemoSource({ scheduler, speed: 16, scenario: id });
+    const reads: { wall: number; what: string; found: (next: DemoSource) => Promise<unknown> }[] = [];
+    const read = <T>(what: string, found: (next: DemoSource) => Promise<unknown>, answer: Promise<T>): Promise<T> => {
+      reads.push({ wall: scheduler.now(), what, found });
+      return answer;
+    };
+    const page: ProjectionSource = {
+      now: () => source.now(),
+      getTicket: (ref) => read(`ticket ${ref}`, (next) => next.getTicket(ref), source.getTicket(ref)),
+      getProject: (slug) => read(`project ${slug}`, (next) => next.getProject(slug), source.getProject(slug)),
+      getBoard: (slug) => read(`board of ${slug}`, (next) => next.getBoard(slug), source.getBoard(slug)),
+      getMilestones: (slug) => read(`milestones of ${slug}`, (next) => next.getProject(slug), source.getMilestones(slug)),
+      getReleases: (slug) => read(`releases of ${slug}`, (next) => next.getProject(slug), source.getReleases(slug)),
+    };
+    const projection = new Projection(page, {
+      scheduler: {
+        setTimeout: (fn, ms) => {
+          const handle = scheduler.setInterval(() => {
+            scheduler.clearInterval(handle);
+            fn();
+          }, ms);
+          return handle;
+        },
+        clearTimeout: (handle) => scheduler.clearInterval(handle),
+      },
+    });
+    let snapshots = 0;
+    let loopEnd: number | null = null;
+    source.start((message) => {
+      if (message.type === "snapshot" && ++snapshots === 2) loopEnd = scheduler.now();
+      if (loopEnd === null) projection.apply(message);
+    });
+    const until = 1_000 + (demoScenario(id).story.durationMs + 20_000) / 16;
+    while (scheduler.now() < until) {
+      scheduler.advance(STEP_MS);
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    projection.dispose();
+    assert.ok(loopEnd !== null, "the loop ended");
+    const end: number = loopEnd;
+    assert.ok(reads.some((r) => r.what.startsWith("ticket ")), "the page read tickets");
+    const next = createDemoSource({ scheduler: createManualScheduler(1_000), speed: 16, scenario: id });
+    next.start(() => {});
+    const late: string[] = [];
+    for (const r of reads) if (end - r.wall < ROOM_MS && !(await r.found(next))) late.push(`${r.what} ${end - r.wall} ms before the loop's end`);
+    assert.deepEqual(late, []);
   });
 }
 
