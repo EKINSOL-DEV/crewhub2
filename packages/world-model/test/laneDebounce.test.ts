@@ -66,3 +66,18 @@ test("round 49 (M4 keeps): a loops snapshot that lists the agent again keeps its
   teamUpdate(team(T0 + 40_000, [lane("cl-lead", "blocked")]));
   assert.equal(posture(T0 + 40_000), "raised-hand");
 });
+
+test("round 49: a status one team snapshot carries waits however often the world is reduced (the app reduces every frame)", () => {
+  const { posture, teamUpdate } = world("working");
+  assert.equal(posture(T0), "focused");
+  teamUpdate(team(T0 + 1_000, [lane("cl-lead", "idle")]));
+  // A frame every 16 ms for 44 s: one snapshot is one snapshot, and 45 s have not passed.
+  for (let now = T0 + 1_000; now < T0 + 45_000; now += 16) assert.equal(posture(now), "focused", `${now - T0} ms in`);
+  assert.equal(posture(T0 + 46_000), "relaxed", "45 s of the same status is enough");
+  // Back to working: the first snapshot waits through its frames, the second shows it at once.
+  teamUpdate(team(T0 + 50_000, [lane("cl-lead", "working")]));
+  assert.equal(posture(T0 + 50_000), "relaxed");
+  assert.equal(posture(T0 + 50_016), "relaxed");
+  teamUpdate(team(T0 + 60_000, [lane("cl-lead", "working")]));
+  assert.equal(posture(T0 + 60_000), "focused");
+});
