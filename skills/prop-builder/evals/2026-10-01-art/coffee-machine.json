@@ -1,0 +1,27 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "user:coffee-machine",
+  "name": "Coffee machine",
+  "description": "A chunky sage and chalk coffee machine on a moss plinth with a timber top, glass water tank, brass spout, glowing screen and a cup in the drip tray.",
+  "category": "gather",
+  "tags": ["coffee", "machine", "lobby", "break"],
+  "footprint": { "width": 1, "depth": 1 },
+  "blocksMovement": true,
+  "approaches": [{ "x": 0, "z": 1 }],
+  "parts": [
+    { "shape": "box", "size": [0.5, 0.04, 0.4], "position": [0, 0.02, 0], "material": "moss" },
+    { "shape": "box", "size": [0.46, 0.54, 0.36], "position": [0, 0.31, 0], "material": "sage" },
+    { "shape": "box", "size": [0.2, 0.02, 0.02], "position": [0, 0.4, 0.19], "material": "brass", "radius": 0.008 },
+    { "shape": "box", "size": [0.46, 0.35, 0.36], "position": [0, 0.755, 0], "material": "chalk" },
+    { "shape": "box", "size": [0.5, 0.04, 0.4], "position": [0, 0.93, 0], "material": "timber" },
+    { "shape": "box", "size": [0.3, 0.1, 0.02], "position": [0, 0.86, 0.185], "material": "graphite", "radius": 0.01 },
+    { "shape": "box", "size": [0.1, 0.03, 0.012], "position": [-0.04, 0.86, 0.2], "material": "glass", "emissive": true, "radius": 0.005 },
+    { "shape": "sphere", "size": [0.015, 0.015, 0.015], "position": [0.09, 0.86, 0.2], "material": "coral" },
+    { "shape": "box", "size": [0.3, 0.05, 0.1], "position": [0, 0.76, 0.2], "material": "slate" },
+    { "shape": "cylinder", "size": [0.02, 0.05, 0.02], "position": [0, 0.715, 0.2], "material": "brass" },
+    { "shape": "box", "size": [0.34, 0.03, 0.2], "position": [0, 0.6, 0.2], "material": "graphite", "radius": 0.01 },
+    { "shape": "cylinder", "size": [0.04, 0.08, 0.035], "position": [0, 0.655, 0.2], "material": "cream" },
+    { "shape": "cylinder", "size": [0.035, 0.06, 0.03], "position": [0.12, 0.645, 0.2], "material": "paper" },
+    { "shape": "box", "size": [0.3, 0.28, 0.1], "position": [0, 0.76, -0.2], "material": "glass", "radius": 0.03 }
+  ]
+}

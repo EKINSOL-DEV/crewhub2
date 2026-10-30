@@ -2,20 +2,31 @@
 
 ## Mission and scope
 
-Build CrewHub as a delightful browser world connected to existing agent runtimes
-through a reusable bridge. The user requested a clean start because the previous
-version's appearance and feel were unsatisfactory.
+CrewHub World is a delightful browser world that shows what happens in
+crewhub-loops: a thin 3D layer on top of it. Every project is a building, agents
+sit in rooms by role, and tickets are physical work objects that move through the
+rooms by status. The decision is [ADR 0005](docs/decisions/0005-crewhub-world-on-loops.md),
+the full plan is [docs/LOOPS_INTEGRATION_PLAN.md](docs/LOOPS_INTEGRATION_PLAN.md) and
+tonight's build is [the demo-mode spec](docs/superpowers/specs/2026-10-01-world-demo-mode-design.md).
 
-The first room is implemented as a local simulation. For its design and review
-status, start with [docs/ASTRA_HANDOFF.md](docs/ASTRA_HANDOFF.md). Implement the scope the
-user actually assigns; do not silently expand a room prototype into a platform.
-The user has now accepted the room's visual direction and requested a town plan:
-[docs/TOWN_PLAN.md](docs/TOWN_PLAN.md). M2 onward is proposed implementation work.
-The planning change does not implement those milestones. All 2D UI uses the
-crewhub-loops design system, described in [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md).
-Colours come only from `tokens.css` variables, with no hex outside it; reuse the
-primitives and add variants, not new components. Visual review of the migrated room
-is pending. Model/engine work can proceed with provisional controls when assigned.
+**The world runs in demo mode by default.** A scripted in-browser source
+produces data in exactly the shapes crewhub-loops serves. There is no network
+call, no account and no model call. Live mode is built: `apps/host` finds the Mac
+app's crewhub-loops by itself, reads it with an external bot key (over the app's Unix
+socket or loopback TCP) and never writes to it; `npm run world` starts it, pairs the
+browser and asks for the key once on a Connect screen; the runbook is
+[docs/LOOPS_SETUP.md](docs/LOOPS_SETUP.md). The chat is crewhub-loops' own, framed in the
+world's Chat panel, with the agents' answers as bubbles where the key may read the chat.
+Still planned, not built: the host's world database (in progress, round 20) and the real
+director. Implement the scope the user
+actually assigns; do not describe planned parts as implemented.
+
+Start with [docs/README.md](docs/README.md) for the document index and
+[docs/ROADMAP.md](docs/ROADMAP.md) for what is built and what is open. All 2D UI
+uses the crewhub-loops design system, described in
+[docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md). Colours come only from `tokens.css`
+variables, with no hex outside it; reuse the primitives and add variants, not new
+components.
 
 ## Language
 
@@ -37,27 +48,66 @@ proposals, and implemented behavior.
 
 ## Implementation boundaries
 
-- `apps/world` owns presentation. Keep Tauri APIs, filesystem access, process
-  execution, provider credentials, and runtime-specific control logic out of it.
-- `apps/bridge` is the future independent service. It must remain useful without
-  CrewHub's UI or a Tauri window. Rust is the intended starting point, not a reason
-  to port the old desktop application before a bridge is needed.
-- `packages/protocol` stays free of React, Three.js, Tauri, and runtime dependencies.
-  Its bootstrap types are provisional; add actual wire validation before live use.
+- `apps/world` owns presentation. Keep credentials, keys, and machine access out of
+  it. All data arrives through a `WorldSource`: the demo source in demo mode, the
+  host source (`createHostSource`) in live mode, never a runtime. The one exception
+  is the key a person pastes on the Connect screen, which goes straight to the host
+  and is kept nowhere in the page.
+- `apps/host` is CrewHub's only process: it finds crewhub-loops by itself (the Mac
+  app's socket or port from its data folder, read only; or the env's URL or socket),
+  reads it with one agent key (an external bot's, which could write; the host's
+  `GET`-only allow-list is what keeps the world read-only until crewhub-loops has a
+  viewer key) over the Unix socket or loopback TCP, takes that key from a file or
+  from the world's Connect screen (stored in its own folder, 0600, never logged),
+  assembles the snapshot under a read cap, keeps one upstream stream for every tab,
+  serves and pairs the browser (the pairing secret kept across restarts by
+  `npm run world`), reports its states in health, and never writes to crewhub-loops.
+  The world database is in progress (round 20). It never controls agents or holds
+  provider secrets.
+- `packages/loops-fake` is a fake crewhub-loops over HTTP for the host's tests and the
+  live browser checks: it serves the demo storyline the way crewhub-loops `4cdcd383`
+  serves it on the wire ([docs/LOOPS_REAL_VS_FAKE.md](docs/LOOPS_REAL_VS_FAKE.md)) and
+  never runs on the app's port 8091.
+- `packages/loops-client` holds the crewhub-loops types, hand-written runtime
+  validators for every response and event, and the `WorldSource` seam. It stays free
+  of React, Three.js, the DOM, the network, and runtime dependencies. It replaces
+  `packages/protocol`.
+- `packages/world-model` turns facts into the world: projection, reducer, text
+  description, town document, catalogue, director intents and `where`. It has the
+  same purity rules and never knows whether its source is the demo or a host.
+- `packages/demo` is the scripted in-memory crewhub-loops behind `WorldSource`. It is
+  pure TypeScript and deterministic.
+- `packages/world-style` is the `WorldStyle` contract; `packages/style-greenhouse` is the
+  Greenhouse style (models as parts-JSON where possible, the palette and lighting as data).
+  Only `apps/world/src/world/style.ts` imports a style package; renderers ask the resolved
+  style of a building for meshes by semantic key. A test enforces this. See
+  [docs/WORLD_STYLES.md](docs/WORLD_STYLES.md).
+- `packages/world-cast` is the cast contract and the generic figure runtime; `packages/cast-*` are the casts (the
+  figures that stand for agents), data first: `cast.json` and `figure.json`. Only `apps/world/src/world/cast.ts`
+  imports a cast package, a cast imports no other cast, and renderers ask the resolved cast for figures. Tests
+  enforce the boundary and the contract. See "Casts" in [docs/WORLD_STYLES.md](docs/WORLD_STYLES.md).
 - `packages/world-engine` owns grid coordinates, footprints, placement, movement,
-  and semantic world descriptions. Keep it free of rendering and provider code.
+  pathfinding, and semantic world descriptions. Keep it free of rendering and provider code.
   Register geometry separately from prop semantics; never infer collision from meshes.
-- Herdr comes first. Add direct runtime adapters only for a concrete missing need.
-- Keep mock activity explicitly labeled. Never imply that fixture data describes
-  a real running session or that an unimplemented control works.
+- crewhub-loops is the only source of facts. The world never talks to Herdr or to
+  an agent runtime. Identity is the loops principal id.
+- Keep demo and replay data explicitly labelled. Never imply that it describes a
+  real running session or that an unimplemented control works.
+- No model call exists in the codebase. `scripts/scan-model-calls.ts` runs in
+  `npm test` and fails on an AI SDK import or a model endpoint. Keep it green.
 - Normal rendering, motion, state changes, and attention signals require zero
   model calls. Optional AI features follow the cost policy.
 - Do not automatically start agents, run meetings, or resume sessions on app load.
+- New props are built with the `prop-builder` skill in
+  [skills/prop-builder/](skills/prop-builder/SKILL.md): a `crewhub-prop/1` JSON file
+  that `npm run prop:validate -- <file.json>` accepts.
 
 ## Visual work
 
 The Greenhouse establishes the art direction of the 3D scene: a botanical miniature
-studio, soft robots, orthographic overview, and optional free orbit. Preserve clear
+studio, soft robots, orthographic overview, and optional free orbit. The town, its
+buildings and every prop are made in that style; the room itself is gone. See
+"World styles" in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Preserve clear
 status and grid semantics while refining its look and feel. 2D UI around the scene
 follows the crewhub-loops design system, not the scene's materials. Review the actual room before
 growing the feature count. See [grid architecture](docs/GRID_ENGINE.md).
@@ -69,12 +119,35 @@ fallback for unsupported graphics. Do not make color the only status signal.
 
 ## Working and verification
 
-- Use Node.js 24, npm 11, and the committed npm lockfile. Run `npm ci`.
+- Use Node.js 24, npm 11, and the committed npm lockfile. Run `npm ci`. Tests run
+  with `node --test` directly on `.ts` files (type stripping): use `import type`,
+  no enums, no parameter properties (`constructor(readonly x: number)`), and
+  relative imports ending in `.ts`. The root `tsconfig.json` sets
+  `erasableSyntaxOnly`, so `npm run typecheck` refuses an enum or a parameter
+  property before `node --test` would fail to load the file.
 - Run `npm run check` before delivery. Add focused tests when introducing actual
-  protocol, state, identity, reconnect, or command behavior; do not add trivial
+  projection, state, identity, reconnect, or command behavior; do not add trivial
   tests that only restate static fixtures.
+- Writing tests, what the harness does that a first test does not expect:
+  - A test or tool that could start a host sets its own `CREWHUB_WORLD_PORT` and
+    `CREWHUB_WORLD_CONFIG_DIR` (a temp folder), never 5180 and never
+    `~/.config/crewhub-world`; `scripts/no-app-reach.mjs`, preloaded by `npm test`,
+    refuses the Mac app's ports (8091, 8000, 9443) and Nicky's folders before a
+    packet leaves or a file opens, so a test that forgets fails by name.
+  - The loops stub (`apps/host/test/loopsStub.ts`) writes its headers with
+    `writeHead` before `end(body)`, so its answers come chunked with no
+    `Content-Length`; its `/api/agents` lists the host's own `crewhub-world` only
+    with `keyReadsChat`, and its `/api/dm/threads` answers 403 without it.
+  - The listen backlog: above about 128 connections opened at once the stub host
+    answers `ECONNRESET` (macOS's backlog), so a fuzz spreads its openings
+    (`apps/host/test/chatFuzz.test.ts`).
+  - A host test that leaves the app data folder empty would probe 8091 through
+    discovery's default; give the folder a `settings.json` naming a free port, as
+    `apps/host/test/town.test.ts` does since round 35.
+  - The node guards that stand in for a soak, and the caps the scene's code keeps
+    on its own memory, are listed in `docs/COST_POLICY.md`, "What to soak and how".
 - Add dependencies when used. Do not preinstall a rendering engine, UI kit, agent
-  SDK, or Tauri tooling for a later milestone.
+  SDK, or tooling for a later milestone.
 - Do not introduce API keys or paid calls merely to build, preview, or verify UI.
 - Work within the assigned scope without repeated permission questions. Keep
   changes reviewable on the rebuild branch and report concrete blockers honestly.

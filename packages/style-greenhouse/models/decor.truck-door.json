@@ -1,0 +1,195 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-truck-door",
+  "name": "Loading door",
+  "description": "A half-open sage roller door for the truck bay, between timber posts, with a brass handle and a coral stripe.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "dispatch",
+    "door",
+    "wall"
+  ],
+  "footprint": {
+    "width": 3,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.92,
+        0.07
+      ],
+      "position": [
+        -0.6,
+        0.46,
+        -0.24
+      ],
+      "material": "timber",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.92,
+        0.07
+      ],
+      "position": [
+        0.6,
+        0.46,
+        -0.24
+      ],
+      "material": "timber",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.28,
+        0.1,
+        0.09
+      ],
+      "position": [
+        0,
+        0.95,
+        -0.24
+      ],
+      "material": "timber",
+      "radius": 0.015
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.07,
+        1.14,
+        0.07
+      ],
+      "position": [
+        0,
+        0.86,
+        -0.24
+      ],
+      "material": "sage",
+      "rotation": [
+        0,
+        0,
+        90
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.14,
+        0.11,
+        0.025
+      ],
+      "position": [
+        0,
+        0.5,
+        -0.24
+      ],
+      "material": "sage",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.14,
+        0.11,
+        0.025
+      ],
+      "position": [
+        0,
+        0.62,
+        -0.24
+      ],
+      "material": "sage",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.14,
+        0.11,
+        0.025
+      ],
+      "position": [
+        0,
+        0.74,
+        -0.24
+      ],
+      "material": "sage",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.14,
+        0.04,
+        0.03
+      ],
+      "position": [
+        0,
+        0.44,
+        -0.228
+      ],
+      "material": "coral",
+      "radius": 0.006
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.16,
+        0.03,
+        0.03
+      ],
+      "position": [
+        0,
+        0.48,
+        -0.215
+      ],
+      "material": "brass",
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.3,
+        0.08,
+        0.012
+      ],
+      "position": [
+        0.3,
+        0.86,
+        -0.188
+      ],
+      "material": "paper",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.06,
+        0.01
+      ],
+      "position": [
+        0.2,
+        0.86,
+        -0.18
+      ],
+      "material": "tangerine",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        45
+      ]
+    }
+  ]
+}

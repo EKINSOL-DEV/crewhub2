@@ -1,0 +1,75 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-rug-round",
+  "name": "Round rug",
+  "description": "A soft round rug in sage with a clay ring and a cream centre.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "rug"
+  ],
+  "footprint": {
+    "width": 3,
+    "depth": 3
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.8,
+        0.012,
+        0.8
+      ],
+      "position": [
+        0,
+        0.006,
+        0
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.68,
+        0.014,
+        0.68
+      ],
+      "position": [
+        0,
+        0.007,
+        0
+      ],
+      "material": "clay"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.6,
+        0.016,
+        0.6
+      ],
+      "position": [
+        0,
+        0.008,
+        0
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.28,
+        0.018,
+        0.28
+      ],
+      "position": [
+        0,
+        0.009,
+        0
+      ],
+      "material": "cream"
+    }
+  ]
+}

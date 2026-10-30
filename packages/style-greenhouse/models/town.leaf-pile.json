@@ -1,0 +1,195 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-town-leaf-pile",
+  "name": "Leaf pile",
+  "description": "A soft heap of fallen leaves in autumn colours.",
+  "category": "greenery",
+  "tags": [
+    "greenhouse",
+    "town"
+  ],
+  "footprint": {
+    "width": 3,
+    "depth": 2
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "sphere",
+      "size": [
+        0.42,
+        0.14,
+        0.357
+      ],
+      "position": [
+        0,
+        0.14,
+        0
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.3,
+        0.12,
+        0.255
+      ],
+      "position": [
+        0.2,
+        0.12,
+        0.12
+      ],
+      "material": "terracotta"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.28,
+        0.11,
+        0.238
+      ],
+      "position": [
+        -0.22,
+        0.11,
+        -0.08
+      ],
+      "material": "lamp-glow"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.24,
+        0.2,
+        0.204
+      ],
+      "position": [
+        0.05,
+        0.2,
+        -0.02
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.09,
+        0.012,
+        0.06
+      ],
+      "position": [
+        0.62,
+        0.01,
+        0.0
+      ],
+      "material": "tangerine",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.09,
+        0.012,
+        0.06
+      ],
+      "position": [
+        0.281,
+        0.01,
+        0.446
+      ],
+      "material": "terracotta",
+      "rotation": [
+        0,
+        40,
+        0
+      ],
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.09,
+        0.012,
+        0.06
+      ],
+      "position": [
+        -0.365,
+        0.01,
+        0.404
+      ],
+      "material": "lamp-glow",
+      "rotation": [
+        0,
+        80,
+        0
+      ],
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.09,
+        0.012,
+        0.06
+      ],
+      "position": [
+        -0.612,
+        0.01,
+        -0.079
+      ],
+      "material": "tangerine",
+      "rotation": [
+        0,
+        120,
+        0
+      ],
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.09,
+        0.012,
+        0.06
+      ],
+      "position": [
+        -0.191,
+        0.01,
+        -0.476
+      ],
+      "material": "terracotta",
+      "rotation": [
+        0,
+        160,
+        0
+      ],
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.09,
+        0.012,
+        0.06
+      ],
+      "position": [
+        0.439,
+        0.01,
+        -0.353
+      ],
+      "material": "lamp-glow",
+      "rotation": [
+        0,
+        200,
+        0
+      ],
+      "radius": 0.004
+    }
+  ]
+}

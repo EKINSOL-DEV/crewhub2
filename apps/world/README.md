@@ -1,22 +1,61 @@
 # Browser world
 
-This workspace contains The Greenhouse, a procedural botanical room. Start it
-from the repository root with `npm run dev`.
+This workspace renders CrewHub World: the crewhub-loops projects as a small town.
+Start it from the repository root with `npm run dev`.
 
-`src/world/data.ts` defines the room, prop registry, characters, and deterministic
-session scenarios. `src/App.tsx` owns the accessible UI. `src/world/Scene.ts` owns
-the Three.js renderer, camera, picking, and presentation loop. Procedural model
-factories and shader materials are separate from the headless world engine.
+The renderer reads only the `WorldModel` contract from `packages/world-model`.
+`src/state/world.ts` (`useWorld`) is the one seam between data and presentation; it
+runs the scripted demo source (`@crewhub/demo`) or, in live mode, the host source
+(`createHostSource` from `@crewhub/loops-client`, which reads the world's own host at
+`/world-api`) through the projection, `reduceWorld` and `describeWorld`. In demo mode
+nothing reaches the network and everything is labelled as demo; in live mode the
+Connect screens (`src/state/connect.ts`, `components/ConnectPage.tsx`) stand in for the
+town until the host has found crewhub-loops, this browser is paired and the key is accepted.
+`src/world/TownScene.ts` owns the Three.js town, camera, picking and on-demand frame
+loop, built from the Greenhouse models, materials and lighting (`models.ts`,
+`shaders.ts`, and the scene palette in `data.ts`). `src/world/townLayout.ts` holds the
+pure plot grid and label wording. `src/App.tsx` owns the minimal UI: navigation, the
+Demo chip, the playback bar, settings and the hidden text view.
 
-Select a character by clicking or pressing 1 / 2 / 3. F focuses, H returns to the
-isometric home, and G toggles the grid. Free orbit enables drag rotation; right-drag
-and two-finger gestures pan. The arrangement tool places or moves props, R rotates,
-and Escape exits. Focus the canvas, use arrow keys, and press Enter to place or route
-without a pointer. On narrow screens, the crew button opens the oversight panel.
+Keys: arrow keys move between buildings, Enter goes inside, Escape or Backspace returns
+to the town, `+`/`-` zoom, `[`/`]` rotate, H returns home, T opens the text view. Drag
+pans, right-drag rotates, two fingers zoom and rotate on touch.
 
-There are no live connections, model calls, telemetry, external assets, or agent
-commands. A 500 ms local timer refreshes cell labels only when they change. The
-render loop is capped at 30 fps, stops while hidden, and sleeps after static views
-settle. Layouts remain in memory; export JSON to retain them. Import UI is deferred.
+There are no model calls and no telemetry; the only network calls are the live source's
+reads of the world's own host on loopback. The render loop is capped at 30 fps, draws
+only after a change, and stops while the tab is hidden.
 
-See [grid semantics](../../docs/GRID_ENGINE.md) and [review status](../../docs/ROOM_REVIEW.md).
+Walks: `src/world/navigation.ts` builds the town's portal graph (the town grid and
+every building's rooms and doors), `movement.ts` turns model changes into walks
+(pure, tested) and `walks.ts` runs them on the engine's `NavSimulation`; each robot
+follows its walker. Settings has **Ambient** (on, reduced, off) for idle variety;
+reduced motion turns every walk into a jump.
+
+The Demo chip is a picker of demo scenarios (Fresh install, One project, Small team,
+Studio); `?scenario=fresh|one|small-team|studio` chooses one by URL, and each keeps
+its own town document. See `packages/demo/CONTENT.md`.
+
+The host behind the page: in dev (`npm run dev`) Vite proxies `/world-api` and `/pair` to the world's host on
+`CREWHUB_WORLD_PORT`, default 5180 (the host's own default, so `npm run host` beside it needs no setting). The dev
+server says so in one line when it starts, after asking that port once whose host it is: the host names its checkout in
+health (`checkout`, a short hash of its repository root, never the path; `apps/host/src/checkout.ts`), and a host from
+**another checkout** (another worktree or copy on the same machine) is refused with a line naming the port, both
+checkouts (this one by its path, the other by its id and key name) and the way out: your own host on a port of yours,
+`CREWHUB_WORLD_PORT=<port> npm run host` and the same variable on `npm run dev`. Nothing listening, something that is
+not a host, this checkout's host, or a host from before the id (it cannot tell, and says so) all go on as today. Once it
+listens, the dev server **tells the host its origin** (`POST /world-api/dev-origin`, loopback only, this checkout only,
+never a wildcard; `apps/host/src/devOrigin.ts`), so the page's writes (connect, sign-in, the town) pass the host's
+origin guard without `CREWHUB_WORLD_ALLOWED_ORIGINS`; a second line says so, or why not (an older host without the
+route, a refusal, no host yet: then it is told when one answers, since the proxy reads `x-world-dev-origins` on every
+health answer). `npm run
+preview` (the built world on 4173) proxies **only** to a port named in `CREWHUB_WORLD_PORT`: without it the preview
+says so once, answers `/world-api` as "no host" and the page runs the demo, so a preview never reaches a host that
+happens to listen on 5180. The decisions are pure functions in `hostPort.ts` (`hostPortPlan`, `devHostVerdict`, `devOriginsOf`, `devOriginLine`),
+tested. A value that is not a port stops either server.
+
+Dev flags: `?perf` logs frame work every two seconds; `?stress=1` (dev builds only)
+swaps in a synthetic town of 12 buildings and 100 agents and shows a frame-time
+overlay; `?stress=20` is the region of 20 buildings and 200 agents in four groups. The scene is on `window.__town` in dev builds for headless checks.
+
+See [grid semantics](../../docs/GRID_ENGINE.md) and the
+[integration plan](../../docs/LOOPS_INTEGRATION_PLAN.md).

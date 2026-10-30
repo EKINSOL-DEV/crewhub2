@@ -1,0 +1,71 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-letter",
+  "name": "Letter",
+  "description": "A delivery letter.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.24,
+        0.02,
+        0.16
+      ],
+      "position": [
+        0,
+        0.01,
+        0
+      ],
+      "material": "paper",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.15,
+        0.01,
+        0.01
+      ],
+      "position": [
+        -0.06,
+        0.021,
+        -0.035
+      ],
+      "material": "clay",
+      "rotation": [
+        0,
+        -30,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.15,
+        0.01,
+        0.01
+      ],
+      "position": [
+        0.06,
+        0.021,
+        -0.035
+      ],
+      "material": "clay",
+      "rotation": [
+        0,
+        30,
+        0
+      ]
+    }
+  ]
+}

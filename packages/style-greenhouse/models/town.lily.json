@@ -1,0 +1,103 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-town-lily",
+  "name": "Water lilies",
+  "description": "Lily pads and two flowers on the pond.",
+  "category": "greenery",
+  "tags": [
+    "greenhouse",
+    "town"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 2
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.26,
+        0.02,
+        0.26
+      ],
+      "position": [
+        0,
+        0.01,
+        0
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.2,
+        0.02,
+        0.2
+      ],
+      "position": [
+        0.42,
+        0.01,
+        0.18
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.18,
+        0.02,
+        0.18
+      ],
+      "position": [
+        -0.36,
+        0.01,
+        0.22
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.22,
+        0.02,
+        0.22
+      ],
+      "position": [
+        0.2,
+        0.01,
+        -0.36
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.05,
+        0.07
+      ],
+      "position": [
+        0.02,
+        0.05,
+        0.02
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.06,
+        0.045,
+        0.06
+      ],
+      "position": [
+        0.42,
+        0.05,
+        0.18
+      ],
+      "material": "coral"
+    }
+  ]
+}

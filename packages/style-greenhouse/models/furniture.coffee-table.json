@@ -1,0 +1,172 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-furniture-coffee-table",
+  "name": "Coffee table",
+  "description": "A round timber coffee table on a clay pedestal with a book, a cup and a little plant.",
+  "category": "gather",
+  "tags": [
+    "greenhouse",
+    "table",
+    "lounge"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.12,
+        0.2,
+        0.15
+      ],
+      "position": [
+        0,
+        0.1,
+        0
+      ],
+      "material": "clay"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.27,
+        0.04,
+        0.26
+      ],
+      "position": [
+        0,
+        0.22,
+        0
+      ],
+      "material": "timber-light"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.275,
+        0.012,
+        0.275
+      ],
+      "position": [
+        0,
+        0.2,
+        0
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.15,
+        0.02,
+        0.2
+      ],
+      "position": [
+        -0.08,
+        0.25,
+        0.03
+      ],
+      "material": "moss",
+      "radius": 0.006,
+      "rotation": [
+        0,
+        14,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.13,
+        0.018,
+        0.17
+      ],
+      "position": [
+        -0.08,
+        0.268,
+        0.03
+      ],
+      "material": "cream",
+      "radius": 0.006,
+      "rotation": [
+        0,
+        24,
+        0
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.03,
+        0.05,
+        0.026
+      ],
+      "position": [
+        0.11,
+        0.265,
+        -0.07
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.039,
+        0.055,
+        0.028
+      ],
+      "position": [
+        0.1,
+        0.268,
+        0.11
+      ],
+      "material": "terracotta"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.041,
+        0.039,
+        0.041
+      ],
+      "position": [
+        0.1,
+        0.323,
+        0.11
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.028,
+        0.033,
+        0.028
+      ],
+      "position": [
+        0.125,
+        0.35,
+        0.121
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.025,
+        0.028,
+        0.025
+      ],
+      "position": [
+        0.073,
+        0.345,
+        0.099
+      ],
+      "material": "leaf-dark"
+    }
+  ]
+}

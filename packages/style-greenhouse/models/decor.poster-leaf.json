@@ -1,0 +1,90 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-poster-leaf",
+  "name": "Leaf poster",
+  "description": "A framed print in a timber frame on a cream mount, the Greenhouse way.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "poster",
+    "picture",
+    "wall"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.32,
+        0.42,
+        0.035
+      ],
+      "position": [
+        0,
+        0.74,
+        -0.22
+      ],
+      "material": "timber",
+      "radius": 0.012
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.27,
+        0.37,
+        0.02
+      ],
+      "position": [
+        0,
+        0.74,
+        -0.208
+      ],
+      "material": "cream",
+      "radius": 0.006
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.09,
+        0.17,
+        0.01
+      ],
+      "position": [
+        0,
+        0.76,
+        -0.197
+      ],
+      "material": "leaf",
+      "rotation": [
+        0,
+        0,
+        -18
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.012,
+        0.26,
+        0.01
+      ],
+      "position": [
+        0.01,
+        0.74,
+        -0.193
+      ],
+      "material": "leaf-dark",
+      "radius": 0.003,
+      "rotation": [
+        0,
+        0,
+        -18
+      ]
+    }
+  ]
+}

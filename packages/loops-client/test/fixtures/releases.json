@@ -1,0 +1,20 @@
+{
+  "nextCursor": null,
+  "releases": [
+    {
+      "id": "rl_0001",
+      "number": 4,
+      "version": "2026.09.30",
+      "title": "End of September",
+      "state": "published",
+      "deletedAt": null,
+      "project": { "slug": "crewhub-loops", "key": "CL" },
+      "ticketCount": 9,
+      "createdAt": "2026-09-29T08:00:00Z",
+      "publishedAt": "2026-09-30T18:00:00Z",
+      "githubTagUrl": null,
+      "tagSha": null,
+      "appNote": { "state": "n/a", "url": null, "reason": null }
+    }
+  ]
+}

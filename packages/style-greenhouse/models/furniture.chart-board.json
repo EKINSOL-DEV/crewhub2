@@ -1,0 +1,336 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-furniture-chart-board",
+  "name": "Chart board",
+  "description": "A tall freestanding board on timber legs with a bar chart, a climbing coral line and a pie in three greens.",
+  "category": "work",
+  "tags": [
+    "greenhouse",
+    "analyst",
+    "chart",
+    "board"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.04,
+        1.15,
+        0.04
+      ],
+      "position": [
+        -0.52,
+        0.575,
+        -0.05
+      ],
+      "material": "timber",
+      "radius": 0.012
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.04,
+        1.15,
+        0.04
+      ],
+      "position": [
+        0.52,
+        0.575,
+        -0.05
+      ],
+      "material": "timber",
+      "radius": 0.012
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.03,
+        0.34
+      ],
+      "position": [
+        -0.52,
+        0.015,
+        -0.05
+      ],
+      "material": "timber",
+      "radius": 0.012
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.03,
+        0.34
+      ],
+      "position": [
+        0.52,
+        0.015,
+        -0.05
+      ],
+      "material": "timber",
+      "radius": 0.012
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.04,
+        0.7,
+        0.035
+      ],
+      "position": [
+        0,
+        0.82,
+        -0.05
+      ],
+      "material": "timber-light",
+      "radius": 0.015
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.99,
+        0.65,
+        0.02
+      ],
+      "position": [
+        0,
+        0.82,
+        -0.028
+      ],
+      "material": "paper",
+      "radius": 0.006
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.12,
+        0.012
+      ],
+      "position": [
+        -0.4,
+        0.62,
+        -0.014
+      ],
+      "material": "sage",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.2,
+        0.012
+      ],
+      "position": [
+        -0.32,
+        0.66,
+        -0.014
+      ],
+      "material": "moss",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.16,
+        0.012
+      ],
+      "position": [
+        -0.24,
+        0.64,
+        -0.014
+      ],
+      "material": "sage",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.28,
+        0.012
+      ],
+      "position": [
+        -0.16,
+        0.7,
+        -0.014
+      ],
+      "material": "tangerine",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.34,
+        0.012
+      ],
+      "position": [
+        -0.08,
+        0.73,
+        -0.014
+      ],
+      "material": "coral",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.4,
+        0.01,
+        0.01
+      ],
+      "position": [
+        -0.24,
+        0.555,
+        -0.012
+      ],
+      "material": "slate",
+      "radius": 0.003
+    },
+    {
+      "shape": "wedge",
+      "size": [
+        0.14,
+        0.012,
+        0.14
+      ],
+      "position": [
+        0.26,
+        0.98,
+        -0.014
+      ],
+      "rotation": [
+        90,
+        20,
+        0
+      ],
+      "sweep": 170,
+      "material": "sage"
+    },
+    {
+      "shape": "wedge",
+      "size": [
+        0.14,
+        0.012,
+        0.14
+      ],
+      "position": [
+        0.26,
+        0.98,
+        -0.014
+      ],
+      "rotation": [
+        90,
+        190,
+        0
+      ],
+      "sweep": 110,
+      "material": "moss"
+    },
+    {
+      "shape": "wedge",
+      "size": [
+        0.14,
+        0.012,
+        0.14
+      ],
+      "position": [
+        0.279,
+        0.974,
+        -0.012
+      ],
+      "rotation": [
+        90,
+        300,
+        0
+      ],
+      "sweep": 80,
+      "material": "leaf"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.16,
+        0.012,
+        0.01
+      ],
+      "position": [
+        0.14,
+        0.68,
+        -0.012
+      ],
+      "material": "coral",
+      "radius": 0.003,
+      "rotation": [
+        0,
+        0,
+        20
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.14,
+        0.012,
+        0.01
+      ],
+      "position": [
+        0.28,
+        0.72,
+        -0.012
+      ],
+      "material": "coral",
+      "radius": 0.003,
+      "rotation": [
+        0,
+        0,
+        6
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.14,
+        0.012,
+        0.01
+      ],
+      "position": [
+        0.41,
+        0.77,
+        -0.012
+      ],
+      "material": "coral",
+      "radius": 0.003,
+      "rotation": [
+        0,
+        0,
+        34
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.4,
+        0.03,
+        0.02
+      ],
+      "position": [
+        -0.2,
+        1.13,
+        -0.014
+      ],
+      "material": "slate",
+      "radius": 0.004
+    }
+  ]
+}

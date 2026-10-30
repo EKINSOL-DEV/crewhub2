@@ -1,0 +1,342 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-glass-ledge",
+  "name": "Plant ledge",
+  "description": "A timber ledge on brass brackets along the glass, crowded with potted herbs, succulents and a trailing ivy.",
+  "category": "greenery",
+  "tags": [
+    "greenhouse",
+    "plants",
+    "ledge",
+    "window"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        1.1,
+        0.03,
+        0.15
+      ],
+      "position": [
+        0,
+        0.31,
+        -0.2
+      ],
+      "material": "timber",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.06,
+        0.1
+      ],
+      "position": [
+        -0.4,
+        0.28,
+        -0.22
+      ],
+      "material": "brass",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.06,
+        0.1
+      ],
+      "position": [
+        0.4,
+        0.28,
+        -0.22
+      ],
+      "material": "brass",
+      "radius": 0.004
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.056,
+        0.08,
+        0.04
+      ],
+      "position": [
+        -0.42,
+        0.365,
+        -0.2
+      ],
+      "material": "terracotta"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.06,
+        0.056,
+        0.06
+      ],
+      "position": [
+        -0.42,
+        0.445,
+        -0.2
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.048,
+        0.04
+      ],
+      "position": [
+        -0.384,
+        0.485,
+        -0.184
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.036,
+        0.04,
+        0.036
+      ],
+      "position": [
+        -0.46,
+        0.477,
+        -0.216
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.046,
+        0.065,
+        0.033
+      ],
+      "position": [
+        -0.14,
+        0.358,
+        -0.2
+      ],
+      "material": "clay"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.049,
+        0.046,
+        0.049
+      ],
+      "position": [
+        -0.14,
+        0.423,
+        -0.2
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.033,
+        0.039,
+        0.033
+      ],
+      "position": [
+        -0.111,
+        0.455,
+        -0.187
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.029,
+        0.033,
+        0.029
+      ],
+      "position": [
+        -0.173,
+        0.449,
+        -0.213
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.063,
+        0.09,
+        0.045
+      ],
+      "position": [
+        0.14,
+        0.37,
+        -0.2
+      ],
+      "material": "terracotta"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.068,
+        0.063,
+        0.068
+      ],
+      "position": [
+        0.14,
+        0.46,
+        -0.2
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.045,
+        0.054,
+        0.045
+      ],
+      "position": [
+        0.181,
+        0.505,
+        -0.182
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.041,
+        0.045,
+        0.041
+      ],
+      "position": [
+        0.095,
+        0.496,
+        -0.218
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.049,
+        0.07,
+        0.035
+      ],
+      "position": [
+        0.42,
+        0.36,
+        -0.2
+      ],
+      "material": "clay"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.053,
+        0.049,
+        0.053
+      ],
+      "position": [
+        0.42,
+        0.43,
+        -0.2
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.035,
+        0.042,
+        0.035
+      ],
+      "position": [
+        0.452,
+        0.465,
+        -0.186
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.032,
+        0.035,
+        0.032
+      ],
+      "position": [
+        0.385,
+        0.458,
+        -0.214
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.035,
+        0.12,
+        0.03
+      ],
+      "position": [
+        0.16,
+        0.26,
+        -0.13
+      ],
+      "material": "leaf",
+      "rotation": [
+        0,
+        0,
+        6
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.03,
+        0.09,
+        0.025
+      ],
+      "position": [
+        -0.4,
+        0.27,
+        -0.13
+      ],
+      "material": "leaf-dark",
+      "rotation": [
+        0,
+        0,
+        -8
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.02,
+        0.02,
+        0.02
+      ],
+      "position": [
+        -0.15,
+        0.47,
+        -0.17
+      ],
+      "material": "tangerine"
+    }
+  ]
+}

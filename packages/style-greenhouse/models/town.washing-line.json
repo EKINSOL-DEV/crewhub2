@@ -1,0 +1,156 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-town-washing-line",
+  "name": "Washing line",
+  "description": "A washing line between two posts with a few cloths pegged out.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "town"
+  ],
+  "footprint": {
+    "width": 5,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.035,
+        1.5,
+        0.04
+      ],
+      "position": [
+        -1.3,
+        0.75,
+        0
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.035,
+        1.5,
+        0.04
+      ],
+      "position": [
+        1.3,
+        0.75,
+        0
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "box",
+      "size": [
+        2.6,
+        0.012,
+        0.012
+      ],
+      "position": [
+        0,
+        1.42,
+        0
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.36,
+        0.42,
+        0.015
+      ],
+      "position": [
+        -0.95,
+        1.21,
+        0
+      ],
+      "material": "coral",
+      "rotation": [
+        0,
+        0,
+        -1.5
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.3,
+        0.3,
+        0.015
+      ],
+      "position": [
+        -0.48,
+        1.27,
+        0
+      ],
+      "material": "cream",
+      "rotation": [
+        0,
+        0,
+        1.5
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.42,
+        0.5,
+        0.015
+      ],
+      "position": [
+        -0.01,
+        1.17,
+        0
+      ],
+      "material": "sage",
+      "rotation": [
+        0,
+        0,
+        -1.5
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.26,
+        0.34,
+        0.015
+      ],
+      "position": [
+        0.46,
+        1.25,
+        0
+      ],
+      "material": "paper",
+      "rotation": [
+        0,
+        0,
+        1.5
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.34,
+        0.4,
+        0.015
+      ],
+      "position": [
+        0.93,
+        1.22,
+        0
+      ],
+      "material": "tangerine",
+      "rotation": [
+        0,
+        0,
+        -1.5
+      ]
+    }
+  ]
+}

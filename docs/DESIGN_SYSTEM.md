@@ -21,6 +21,50 @@ truth is the artifact <https://claude.ai/artifact/V7CyK4BpweSzBfbXzgWDU3>
 Never edit the copies here. The current copies come from crewhub-loops commit
 `79ecfa0`.
 
+### The chat bubbles follow the same rule
+
+The chat dock and chat card are the loops chat itself (plan section 4.7, item 1).
+These files are verbatim copies of crewhub-loops at commit `a1bed0f`, each with one
+header line that names its source and the commit:
+
+| Copy | Source in crewhub-loops |
+| --- | --- |
+| [Bubbles.tsx](../apps/world/src/components/bubbles/Bubbles.tsx) | `apps/web/src/components/bubbles/Bubbles.tsx` |
+| [queries.ts](../apps/world/src/components/bubbles/queries.ts) | `apps/web/src/components/bubbles/queries.ts` |
+| [useMessageViewport.ts](../apps/world/src/components/bubbles/useMessageViewport.ts) | `apps/web/src/components/bubbles/useMessageViewport.ts` |
+| [bubbles.css](../apps/world/src/components/bubbles/bubbles.css) | `apps/web/src/components/bubbles/bubbles.css` |
+| [primitives/Menu.tsx](../apps/world/src/components/primitives/Menu.tsx) | `apps/web/src/components/primitives/Menu.tsx` |
+
+To change the chat, change crewhub-loops, then copy the file again with a new
+header line. `npm run check:copy`
+([check-bubbles-copy.ts](../scripts/check-bubbles-copy.ts)) fails when a copy
+differs from its source at the recorded commit. It needs a crewhub-loops checkout
+(`CREWHUB_LOOPS_DIR`, or the sibling directory `../crewhub-loops`); without one, or
+without the commit, it prints that it skipped and passes.
+
+The two loops tests next to the chat, `drafts.test.tsx` and `events.test.ts`, are
+**not** copied. They run on vitest and Testing Library and import loops'
+`state/events`, none of which this repository has. The behaviour they pin stays
+tested in crewhub-loops.
+
+Everything the copies import is provided at the same relative path by a small
+adapter in this repository, never by editing a copy:
+
+| Import in the copy | Adapter here |
+| --- | --- |
+| `../../api/client` | [api/client.ts](../apps/world/src/api/client.ts): `ApiError` and `shouldRetry` from loops; `api` answers from the in-browser demo API (`packages/demo` `createDemoApi`), never `fetch` |
+| `../../api/types` | [api/types.ts](../apps/world/src/api/types.ts): loops-client types, plus the web-only chat contracts copied from loops |
+| `../../i18n` | [i18n/](../apps/world/src/i18n/index.ts): `useT` over the English strings the chat uses, copied from loops |
+| `../../state/session` | [state/session.ts](../apps/world/src/state/session.ts): the demo person Nicky, an admin |
+| `../board/format` | [board/format.ts](../apps/world/src/components/board/format.ts): `timeAgo`, copied |
+| `../Avatar`, `../Icon` | [Avatar.tsx](../apps/world/src/components/Avatar.tsx), [Icon.tsx](../apps/world/src/components/Icon.tsx): ported; the sprite has only the icons the chat uses |
+| `../primitives` | `Chip.Person`, `Chip.Link` and `Chip.Delivery` added to the world's Chip; Menu copied |
+| `react-router-dom` | [shims/react-router-dom.ts](../apps/world/src/shims/react-router-dom.ts), through a Vite alias and a tsconfig path: `useNavigate` to `/settings/agents` opens the world's Settings card |
+
+One layout rule for the chat lives in `world.css`, outside the copies: the chat
+header's "…" menu opens leftwards, because the copy opens it off the right edge of
+the viewport (the same happens in crewhub-loops; fix it there, then drop the rule).
+
 ## Files
 
 | File | Responsibility |
@@ -82,11 +126,11 @@ Ported to [primitives/](../apps/world/src/components/primitives/index.ts):
 | --- | --- |
 | Button | No router `to` prop; `href` is kept |
 | Card | As in loops |
-| Chip | Base chip, `Chip.Status`, `Chip.Stalled`, `Chip.Attention` only |
+| Chip | Base chip, `Chip.Status`, `Chip.Stalled`, `Chip.Attention`, and for the chat `Chip.Person`, `Chip.Link` (no router `to`) and `Chip.Delivery` |
 | Field | As in loops |
+| Menu | Verbatim copy (see "The chat bubbles follow the same rule") |
 
-Menu is not ported because the app has no menu. Port it from loops when a need
-appears. Screens compose these primitives; a new need is a variant first.
+Screens compose these primitives; a new need is a variant first.
 
 ## Theme
 
@@ -157,4 +201,5 @@ the UI palette and unchanged. See [VISUAL_DIRECTION.md](VISUAL_DIRECTION.md).
   (still in Git history). The old v0.1 kit was replaced by the crewhub-loops design
   system.
 - No showcase page in the app. The artifact is the reference.
-- Not ported: Menu, the loops ticket chips, and the loops component tests.
+- Not ported: the loops ticket chips (Priority, Label, Waiting, Blocked, Progress)
+  and the loops component tests.

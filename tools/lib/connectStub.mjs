@@ -1,0 +1,289 @@
+/* A stub of the world's host for the Connect screens (spec addendum "a smooth connection"): answers `/world-api/health`
+   in a chosen state, takes `POST /world-api/connect` (a key starting with `chl_bad` is rejected, any other shaped key is
+   checked for a moment and then connected; the key itself is read and dropped, never logged) and `DELETE /world-api/connect`
+   (back to the connect state). In the `connected` state everything else under `/world-api` goes to a real host (apps/host,
+   pairing off) over the fake crewhub-loops (packages/loops-fake), both started here on 127.0.0.1, so the town is real.
+   The `unpaired` state is a host that no longer knows the browser's pairing (a restart without its secret): health says
+   `paired: false` with states only, and everything else under `/world-api` answers 401 `not_paired`. A state change ends
+   every stream the stub was proxying, so an open tab meets the new state at once, as it would after a host restart.
+
+   Tooling only, like everything in tools/: it listens on 127.0.0.1 and reaches nothing but the fake and the host it starts. */
+import { createServer, request as httpRequest } from "node:http";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { createLoopsWebStub } from "./loopsWebStub.mjs";
+
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+
+export const STUB_STATES = ["no-loops", "pair", "connect", "checking", "rejected", "loops-down", "connected", "busy", "older", "unpaired"];
+const BUSY_REASON = "stream budget exhausted (429): another host or tab uses this key; crewhub-loops admits four streams per key";
+// The discovery target the states quote (the Mac app's port, as text only): the loops web origin every state names is the
+// stub's own web (round 29): a live page probes the loops web origin the host names (road 2), and must never ask 8091.
+const APP_PORT_TARGET = "http://127.0.0.1:8091";
+const APP_SOCKET_TARGET = "~/Library/Application Support/be.ekinsol.crewhub/run/api.sock";
+const REJECT_REASON = "crewhub-loops answered 403 for GET /api/team: a Read only key cannot read the team. Make an external bot with Read only off.";
+
+/**
+ * Starts the stub on `port` (0 picks one). `origin` is the Vite origin the inner host must allow. `checkMs` is how long a
+ * pasted key is "checking" before it connects. Returns { url, port, state, setState, webUrl, close }; `webUrl` is the loops
+ * web page the connected states name (`loopsWebUrl`), a stub page of lib/loopsWebStub.mjs that the Chat panel frames.
+ */
+export async function createConnectStub({ port = 0, state = "no-loops", origin, checkMs = 1500, log = () => undefined } = {}) {
+  if (!STUB_STATES.includes(state)) throw new Error(`unknown stub state ${state}`);
+  let current = state;
+  let inner = null; // { fake, host, web } once the connected state needs them
+  let startedAt = Date.now();
+  let lastEventAt = null;
+  let reconnects = 2;
+  let pending = null;
+  /** The streams being proxied right now ({ res, upstream, answer }), ended on a state change. */
+  const streams = new Set();
+
+  async function ensureInner() {
+    if (inner) return inner;
+    const { createLoopsFake } = await import(pathToFileURL(path.join(REPO, "packages", "loops-fake", "src", "index.ts")).href);
+    const { createHost } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "host.ts")).href);
+    const fake = await createLoopsFake({ heartbeatMs: 1000, speed: 16 });
+    const web = await createLoopsWebStub();
+    const host = await createHost({ loopsUrl: fake.url, loopsWebUrl: web.url, key: fake.key, keyName: fake.keyName, pairing: "off", retryMs: { min: 100, max: 500 }, heartbeatMs: 1000, log, ...(origin ? { allowedOrigins: [origin] } : {}) });
+    inner = { fake, host, web };
+    lastEventAt = new Date().toISOString();
+    return inner;
+  }
+
+  /** GET a JSON answer from the inner host (node:http, like the proxy; tools/ never use fetch). Null when it does not answer. */
+  function getJson(target) {
+    return new Promise((resolve) => {
+      const url = new URL(target);
+      const req = httpRequest({ host: url.hostname, port: url.port, method: "GET", path: url.pathname, headers: { accept: "application/json" } }, (answer) => {
+        let text = "";
+        answer.on("data", (chunk) => (text += chunk.toString()));
+        answer.on("end", () => {
+          try {
+            resolve(JSON.parse(text));
+          } catch {
+            resolve(null);
+          }
+        });
+      });
+      req.on("error", () => resolve(null));
+      req.end();
+    });
+  }
+
+  /** The loops web origin the states name (round 29): the inner web once it runs, else this stub's own origin; never 8091. */
+  const webOrigin = () => inner?.web.url ?? `http://127.0.0.1:${server.address()?.port ?? port}`;
+
+  async function health() {
+    const base = { keyName: "", sharedKey: false, pairing: "on", transport: "tcp" };
+    switch (current) {
+      case "older": {
+        const { host, web } = await ensureInner();
+        const real = await getJson(`${host.url}/world-api/health`);
+        return { loops: real?.loops ?? "ok", keyName: "crewhub-world", sharedKey: false, pairing: "on", paired: true, transport: "tcp", loopsWebUrl: web.url, cursor: real?.cursor ?? 0 };
+      }
+      case "no-loops":
+        return { ...base, loops: "down", paired: false, connection: { discovery: { state: "searching" }, key: { state: "none" }, stream: { state: "idle", reconnects: 0 } } };
+      case "pair":
+        return { ...base, loops: "down", paired: false, connection: { discovery: { state: "found" }, key: { state: "none" }, stream: { state: "idle", reconnects: 0 } } };
+      case "unpaired":
+        return { ...base, loops: "ok", paired: false, transport: "unix", loopsWebUrl: webOrigin(), connection: { discovery: { state: "found" }, key: { state: "ok" }, stream: { state: "ok", reconnects: 0 } } };
+      case "connect":
+        return { ...base, loops: "unauthorized", paired: true, loopsWebUrl: webOrigin(), connection: { discovery: { state: "found", via: "app-port", target: APP_PORT_TARGET }, key: { state: "none" }, stream: { state: "idle", reconnects: 0 } } };
+      case "checking":
+        return { ...base, loops: "unauthorized", keyName: "crewhub-world", paired: true, loopsWebUrl: webOrigin(), connection: { discovery: { state: "found", via: "app-port", target: APP_PORT_TARGET }, key: { state: "checking", name: "crewhub-world", source: "stored" }, stream: { state: "idle", reconnects: 0 } } };
+      case "loops-down":
+        return { ...base, loops: "down", keyName: "crewhub-world", paired: true, loopsWebUrl: webOrigin(), cursor: 41, connection: { discovery: { state: "found", via: "app-port", target: APP_PORT_TARGET }, key: { state: "ok", name: "crewhub-world", source: "stored" }, stream: { state: "down", cursor: 41, lastEventAt: new Date(Date.now() - 400_000).toISOString(), reconnects: 3 } } };
+      case "rejected":
+        return { ...base, loops: "unauthorized", keyName: "crewhub-world", paired: true, loopsWebUrl: webOrigin(), connection: { discovery: { state: "found", via: "app-port", target: APP_PORT_TARGET }, key: { state: "rejected", name: "crewhub-world", source: "stored", reason: REJECT_REASON }, stream: { state: "unauthorized", reconnects: 0 } } };
+      case "busy":
+      case "connected": {
+        const { fake, host, web } = await ensureInner();
+        const real = await getJson(`${host.url}/world-api/health`);
+        const cursor = typeof real?.cursor === "number" ? real.cursor : fake.lastSeq();
+        if (typeof real?.cursor === "number" && real.cursor > 0) lastEventAt = lastEventAt ?? new Date().toISOString();
+        return {
+          loops: real?.loops ?? "ok",
+          keyName: "crewhub-world",
+          sharedKey: false,
+          pairing: "on",
+          paired: true,
+          transport: "unix",
+          loopsWebUrl: web.url,
+          loopsCommit: real?.loopsCommit,
+          cursor,
+          connection: {
+            discovery: { state: "found", via: "app-socket", target: APP_SOCKET_TARGET },
+            key: { state: "ok", name: "crewhub-world", source: "stored" },
+            archived: { source: "log", count: 1, at: new Date(Date.now() - 60_000).toISOString(), slugs: ["ops-tooling"] },
+            stream:
+              current === "busy"
+                ? { state: "busy", reason: BUSY_REASON, cursor, lastEventAt: new Date(Date.now() - 400_000).toISOString(), reconnects: 7 }
+                : { state: real?.loops ?? "ok", cursor, lastEventAt: new Date(Date.now() - 23_000).toISOString(), reconnects },
+          },
+        };
+      }
+      default:
+        throw new Error(`unknown stub state ${current}`);
+    }
+  }
+
+  function send(res, status, body) {
+    const text = body === undefined ? "" : JSON.stringify(body);
+    res.writeHead(status, { "content-type": "application/json", "cache-control": "no-store" });
+    res.end(text);
+  }
+
+  function readBody(req) {
+    return new Promise((resolve) => {
+      let text = "";
+      req.on("data", (chunk) => (text += chunk.toString()));
+      req.on("end", () => resolve(text));
+    });
+  }
+
+  async function connect(req, res) {
+    const text = await readBody(req);
+    let key = "";
+    try {
+      key = String(JSON.parse(text)?.key ?? "");
+    } catch {
+      return send(res, 400, { error: "bad_request", message: "the body is not JSON" });
+    }
+    if (!(await health()).paired) return send(res, 401, { error: "not_paired" });
+    if (!/^chl_[A-Za-z0-9_-]{20,}$/.test(key)) return send(res, 400, { error: "bad_request", message: "key missing or not a key" });
+    if (key.startsWith("chl_bad")) {
+      current = "rejected";
+      log(`connect: a key ending in …${key.slice(-4)} rejected`);
+      return send(res, 403, { error: "rejected", reason: REJECT_REASON });
+    }
+    log(`connect: a key ending in …${key.slice(-4)} accepted; checking for ${checkMs} ms`);
+    current = "checking";
+    clearTimeout(pending);
+    pending = setTimeout(() => {
+      current = "connected";
+      reconnects = 0;
+    }, checkMs);
+    send(res, 204);
+  }
+
+  /* The busy state's own stream: the status a host sends when loops answered its stream with 429, then heartbeats. */
+  function busyStream(res) {
+    res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store", connection: "keep-alive" });
+    const write = (message) => res.write(`data: ${JSON.stringify(message)}\n\n`);
+    write({ type: "status", loops: "down", stream: "busy", reason: BUSY_REASON, key: "ok" });
+    const beat = setInterval(() => write({ type: "heartbeat", seq: 0, ts: new Date().toISOString() }), 1000);
+    res.on("close", () => clearInterval(beat));
+  }
+
+  function proxy(req, res, target) {
+    const url = new URL(target);
+    const entry = { res, upstream: null, answer: null };
+    const upstream = httpRequest(
+      { host: url.hostname, port: url.port, method: req.method, path: req.url, headers: { ...req.headers, host: url.host, "accept-encoding": "identity" } },
+      (answer) => {
+        entry.answer = answer;
+        res.writeHead(answer.statusCode ?? 502, answer.headers);
+        answer.pipe(res);
+      },
+    );
+    entry.upstream = upstream;
+    upstream.on("error", () => {
+      if (!res.headersSent) send(res, 502, { error: "stub_proxy" });
+      else res.end();
+    });
+    req.pipe(upstream);
+    if (req.url?.startsWith("/world-api/stream")) streams.add(entry);
+    res.on("close", () => {
+      streams.delete(entry);
+      upstream.destroy();
+    });
+  }
+
+  /** Writes one host message into every proxied stream (an SSE frame), as the host's own status broadcast does. */
+  function tellStreams(message) {
+    for (const entry of streams) entry.res.write(`data: ${JSON.stringify(message)}\n\n`);
+  }
+
+  /** Ends every proxied stream cleanly (as loops' own 300 s end does), so the tab asks again and meets the new state. */
+  function endStreams() {
+    for (const entry of streams) {
+      streams.delete(entry);
+      entry.answer?.unpipe(entry.res);
+      entry.res.end();
+      entry.upstream?.destroy();
+    }
+  }
+
+  const server = createServer(async (req, res) => {
+    const url = new URL(req.url ?? "/", "http://127.0.0.1");
+    if (url.pathname === "/world-api/health" && req.method === "GET") return send(res, 200, await health());
+    if (url.pathname === "/world-api/connect" && req.method === "POST") return connect(req, res);
+    if (url.pathname === "/world-api/connect" && req.method === "DELETE") {
+      current = "connect";
+      log("connect: the stored key forgotten");
+      // As the real host (host.ts legacyState): the tabs' open streams hear "unauthorized", its legacy word for no key as
+      // for a rejected key; then the streams end here (a real host keeps them), so a reconnect meets the 503 no_key below.
+      tellStreams({ type: "status", loops: "unauthorized", key: "none" });
+      endStreams();
+      return send(res, 204);
+    }
+    if (url.pathname === "/__stub/state" && req.method === "POST") {
+      const text = await readBody(req);
+      const next = (() => {
+        try {
+          return JSON.parse(text)?.state;
+        } catch {
+          return undefined;
+        }
+      })();
+      if (!STUB_STATES.includes(next)) return send(res, 400, { error: "bad_state", known: STUB_STATES });
+      await setState(next);
+      return send(res, 200, { state: current });
+    }
+    if (url.pathname.startsWith("/world-api/")) {
+      if (current === "unpaired") return send(res, 401, { error: "not_paired" });
+      if (current !== "connected" && current !== "older" && current !== "busy") return send(res, 503, { error: current === "rejected" ? "unauthorized" : current === "no-loops" ? "no_loops" : current === "connect" || current === "pair" || current === "checking" ? "no_key" : "loops_down" });
+      const { host } = await ensureInner();
+      if (current === "busy" && url.pathname === "/world-api/stream") return busyStream(res);
+      return proxy(req, res, host.url);
+    }
+    send(res, 404, { error: "not_found" });
+  });
+  await new Promise((resolve) => server.listen(port, "127.0.0.1", resolve));
+  const actual = server.address().port;
+
+  async function setState(next) {
+    if (!STUB_STATES.includes(next)) throw new Error(`unknown stub state ${next}`);
+    clearTimeout(pending);
+    const changed = next !== current;
+    current = next;
+    startedAt = Date.now();
+    if (next === "connected" || next === "older" || next === "busy") await ensureInner();
+    if (changed) endStreams();
+  }
+
+  return {
+    url: `http://127.0.0.1:${actual}`,
+    port: actual,
+    get state() {
+      return current;
+    },
+    get startedAt() {
+      return startedAt;
+    },
+    setState,
+    /** The loops web page the connected states name; null until one was needed. */
+    webUrl: () => inner?.web.url ?? null,
+    async close() {
+      clearTimeout(pending);
+      endStreams();
+      await new Promise((resolve) => server.close(() => resolve()));
+      if (inner) {
+        await inner.host.close();
+        await inner.fake.close();
+        await inner.web.close();
+      }
+    },
+  };
+}

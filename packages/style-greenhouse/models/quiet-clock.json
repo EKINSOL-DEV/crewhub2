@@ -1,0 +1,99 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-quiet-clock",
+  "name": "Quiet clock",
+  "description": "A small clock by a stalled desk: how long it has been quiet.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.08,
+        0.04,
+        0.08
+      ],
+      "position": [
+        0,
+        0.1,
+        0
+      ],
+      "material": "cream",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "torus",
+      "size": [
+        0.08,
+        0.012,
+        0
+      ],
+      "position": [
+        0,
+        0.1,
+        0
+      ],
+      "material": "brass",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.012,
+        0.06,
+        0.01
+      ],
+      "position": [
+        0,
+        0.125,
+        0.024
+      ],
+      "material": "ink"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.045,
+        0.012,
+        0.01
+      ],
+      "position": [
+        0.02,
+        0.1,
+        0.024
+      ],
+      "material": "ink"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.08,
+        0.02,
+        0.05
+      ],
+      "position": [
+        0,
+        0.01,
+        0
+      ],
+      "material": "slate",
+      "radius": 0.006
+    }
+  ]
+}

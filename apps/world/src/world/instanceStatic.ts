@@ -1,0 +1,146 @@
+/* Static instancing: the town dressing repeats the same few parts hundreds of times (a lantern's post, a tree's leaf
+   blob, a fence post), and the style builds them from shared geometry and materials. Meshes under `root` that share
+   both become one InstancedMesh, so each kind of part is one draw call however many trees the town has; kinds with
+   few triangles in all are left for mergeStatic, which bakes them into their material's one merged mesh.
+   Style-agnostic, like mergeStatic: it works on whatever the style returned, the parts a model holds as data
+   (`StaticParts`, @crewhub/world-style) read as data. Run mergeStatic afterwards for the one-off pieces it leaves
+   (paving and lawns of one size each). */
+import * as THREE from "three";
+import { removeBaked, setCastShadow, staticPieces, type Piece } from "./mergeStatic.ts";
+import { useInstancedMaterials } from "./instancedMaterial.ts";
+
+/** World radius under which an instanced part casts no shadow. */
+const TINY = 0.09;
+
+const triangles = (g: THREE.BufferGeometry) => (g.index ? g.index.count : g.attributes.position!.count) / 3;
+
+/** Replaces repeated static meshes under `root` with instanced meshes; returns them (to dispose). */
+export function instanceStatic(root: THREE.Group, minimum = 3, budget = 2000): THREE.InstancedMesh[] {
+  const steps = instanceStaticSteps(root, minimum, budget);
+  for (;;) {
+    const next = steps.next();
+    if (next.done) return next.value;
+  }
+}
+
+/** Kinds of part a step of `instanceStaticSteps` takes on before it yields. */
+const INSTANCE_CHUNK = 12;
+
+/** `instanceStatic` in steps, for a build spread over frames: a yield every `INSTANCE_CHUNK` kinds; the result is the return value. */
+export function* instanceStaticSteps(root: THREE.Group, minimum = 3, budget = 2000): Generator<void, THREE.InstancedMesh[]> {
+  root.updateMatrixWorld(true);
+  const inverse = new THREE.Matrix4().copy(root.matrixWorld).invert();
+  const groups = new Map<string, Piece[]>();
+  // Every plain mesh, and the parts models hold as data (mergeStatic's staticPieces), by geometry and material.
+  for (const piece of staticPieces(root, true)) {
+    const key = `${piece.geometry.uuid}|${piece.material.uuid}`;
+    const list = groups.get(key);
+    if (list) list.push(piece);
+    else groups.set(key, [piece]);
+  }
+  const created: THREE.InstancedMesh[] = [];
+  const matrix = new THREE.Matrix4();
+  let kinds = 0;
+  for (const meshes of groups.values()) {
+    if (meshes.length < minimum) continue;
+    if (++kinds % INSTANCE_CHUNK === 0) yield;
+    const first = meshes[0]!;
+    // A kind with few triangles in all (a handful of signposts, a row of fence posts) costs a draw call of its own as an
+    // instanced mesh; left as meshes, mergeStatic folds it into its material's merged mesh instead.
+    if (meshes.length * triangles(first.geometry) < budget && first.mergeable) {
+      if (!first.geometry.boundingSphere) first.geometry.computeBoundingSphere();
+      for (const mesh of meshes) if ((first.geometry.boundingSphere?.radius ?? 1) * mesh.matrixWorld.getMaxScaleOnAxis() < TINY) setCastShadow(mesh, false);
+      continue;
+    }
+    const instanced = new THREE.InstancedMesh(first.geometry, first.material, meshes.length);
+    meshes.forEach((mesh, i) => instanced.setMatrixAt(i, matrix.multiplyMatrices(inverse, mesh.matrixWorld)));
+    removeBaked(root, meshes);
+    instanced.instanceMatrix.needsUpdate = true;
+    // Tiny parts (flower heads, berries, pebbles) cast no shadow: the shadow pass skips them.
+    if (!first.geometry.boundingSphere) first.geometry.computeBoundingSphere();
+    const scale = Math.max(...meshes.map((m) => m.matrixWorld.getMaxScaleOnAxis()));
+    instanced.castShadow = first.castShadow && (first.geometry.boundingSphere?.radius ?? 1) * scale >= TINY;
+    instanced.receiveShadow = first.receiveShadow;
+    instanced.renderOrder = first.renderOrder;
+    instanced.computeBoundingSphere();
+    // Its own twin of the material, so the material is never drawn both instanced and not (instancedMaterial.ts).
+    useInstancedMaterials(instanced);
+    root.add(instanced);
+    created.push(instanced);
+  }
+  return created;
+}
+
+/**
+ * Culls instanced dressing by area: the instances are sorted into square cells on the ground, and when the view
+ * changes only the instances in cells the camera can see are drawn (each mesh's instance list is compacted, so a
+ * close camera draws a corner of the town, not all of it). Cell boxes are padded so pieces just off screen still cast
+ * their shadows into view. Works on world-space instanced meshes under an unmoving root.
+ */
+export class InstanceCuller {
+  readonly #meshes: { mesh: THREE.InstancedMesh; all: Float32Array; byCell: Map<number, number[]> }[] = [];
+  readonly #cells = new Map<number, THREE.Box3>();
+  readonly #frustum = new THREE.Frustum();
+  readonly #view = new THREE.Matrix4();
+  readonly #last = new THREE.Matrix4();
+  readonly #shadow = new THREE.Vector3();
+  readonly #lastShadow = new THREE.Vector3();
+  #visible = new Set<number>();
+
+  constructor(meshes: readonly THREE.InstancedMesh[], cell = 12, pad = 4) {
+    const matrix = new THREE.Matrix4(),
+      sphere = new THREE.Sphere(),
+      box = new THREE.Box3();
+    for (const mesh of meshes) {
+      mesh.updateMatrixWorld(true);
+      if (!mesh.geometry.boundingSphere) mesh.geometry.computeBoundingSphere();
+      const byCell = new Map<number, number[]>();
+      for (let i = 0; i < mesh.count; i++) {
+        mesh.getMatrixAt(i, matrix);
+        sphere.copy(mesh.geometry.boundingSphere!).applyMatrix4(matrix.premultiply(mesh.matrixWorld));
+        const key = Math.floor(sphere.center.x / cell) * 4096 + Math.floor(sphere.center.z / cell);
+        const list = byCell.get(key);
+        if (list) list.push(i);
+        else byCell.set(key, [i]);
+        sphere.getBoundingBox(box).expandByScalar(pad);
+        const bounds = this.#cells.get(key);
+        if (bounds) bounds.union(box);
+        else this.#cells.set(key, box.clone());
+      }
+      this.#meshes.push({ mesh, all: (mesh.instanceMatrix.array as Float32Array).slice(), byCell });
+    }
+    this.#visible = new Set(this.#cells.keys());
+  }
+
+  /**
+   * Re-culls when the camera or the sun moved; true when the drawn set changed (the shadow map then needs a redraw).
+   * `sun` points towards the light: a cell also counts as seen when the shadows of its tallest pieces (`reach` high)
+   * fall into view, so a low evening sun does not lose the long shadows of trees just off screen.
+   */
+  update(camera: THREE.Camera, sun?: THREE.Vector3, reach = 6): boolean {
+    this.#view.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    const shadow = sun && sun.y > 0.05 ? this.#shadow.set((-sun.x / sun.y) * reach, 0, (-sun.z / sun.y) * reach) : this.#shadow.set(0, 0, 0);
+    if (this.#view.equals(this.#last) && shadow.equals(this.#lastShadow)) return false;
+    this.#last.copy(this.#view);
+    this.#lastShadow.copy(shadow);
+    this.#frustum.setFromProjectionMatrix(this.#view);
+    const visible = new Set<number>();
+    const cast = new THREE.Box3();
+    for (const [key, box] of this.#cells)
+      if (this.#frustum.intersectsBox(box) || (shadow.lengthSq() > 0 && this.#frustum.intersectsBox(cast.copy(box).translate(shadow)))) visible.add(key);
+    if (visible.size === this.#visible.size && [...visible].every((key) => this.#visible.has(key))) return false;
+    this.#visible = visible;
+    for (const { mesh, all, byCell } of this.#meshes) {
+      const array = mesh.instanceMatrix.array as Float32Array;
+      let n = 0;
+      for (const [key, list] of byCell) {
+        if (!visible.has(key)) continue;
+        for (const i of list) array.set(all.subarray(i * 16, i * 16 + 16), n++ * 16);
+      }
+      mesh.count = n;
+      mesh.visible = n > 0;
+      mesh.instanceMatrix.needsUpdate = true;
+    }
+    return true;
+  }
+}

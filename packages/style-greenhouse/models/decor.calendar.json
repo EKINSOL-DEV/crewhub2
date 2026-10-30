@@ -1,0 +1,340 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-calendar",
+  "name": "Wall calendar",
+  "description": "A paper wall calendar on a brass nail: a coral header, a grid of days and one date circled.",
+  "category": "work",
+  "tags": [
+    "greenhouse",
+    "partition",
+    "calendar",
+    "wall",
+    "planning"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "sphere",
+      "size": [
+        0.012,
+        0.012,
+        0.012
+      ],
+      "position": [
+        0,
+        0.535,
+        -0.21
+      ],
+      "material": "brass"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.24,
+        0.32,
+        0.012
+      ],
+      "position": [
+        0,
+        0.36,
+        -0.214
+      ],
+      "material": "paper",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.24,
+        0.07,
+        0.014
+      ],
+      "position": [
+        0,
+        0.485,
+        -0.212
+      ],
+      "material": "coral",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.1,
+        0.012,
+        0.01
+      ],
+      "position": [
+        0,
+        0.488,
+        -0.204
+      ],
+      "material": "cream",
+      "radius": 0.003
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.035,
+        0.03,
+        0.01
+      ],
+      "position": [
+        -0.075,
+        0.41,
+        -0.206
+      ],
+      "material": "sage",
+      "radius": 0.003
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.035,
+        0.03,
+        0.01
+      ],
+      "position": [
+        -0.025,
+        0.41,
+        -0.206
+      ],
+      "material": "cream",
+      "radius": 0.003
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.035,
+        0.03,
+        0.01
+      ],
+      "position": [
+        0.025,
+        0.41,
+        -0.206
+      ],
+      "material": "cream",
+      "radius": 0.003
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.035,
+        0.03,
+        0.01
+      ],
+      "position": [
+        0.075,
+        0.41,
+        -0.206
+      ],
+      "material": "cream",
+      "radius": 0.003
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.035,
+        0.03,
+        0.01
+      ],
+      "position": [
+        -0.075,
+        0.365,
+        -0.206
+      ],
+      "material": "cream",
+      "radius": 0.003
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.035,
+        0.03,
+        0.01
+      ],
+      "position": [
+        -0.025,
+        0.365,
+        -0.206
+      ],
+      "material": "sage",
+      "radius": 0.003
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.035,
+        0.03,
+        0.01
+      ],
+      "position": [
+        0.025,
+        0.365,
+        -0.206
+      ],
+      "material": "tangerine",
+      "radius": 0.003
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.035,
+        0.03,
+        0.01
+      ],
+      "position": [
+        0.075,
+        0.365,
+        -0.206
+      ],
+      "material": "cream",
+      "radius": 0.003
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.035,
+        0.03,
+        0.01
+      ],
+      "position": [
+        -0.075,
+        0.32,
+        -0.206
+      ],
+      "material": "cream",
+      "radius": 0.003
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.035,
+        0.03,
+        0.01
+      ],
+      "position": [
+        -0.025,
+        0.32,
+        -0.206
+      ],
+      "material": "cream",
+      "radius": 0.003
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.035,
+        0.03,
+        0.01
+      ],
+      "position": [
+        0.025,
+        0.32,
+        -0.206
+      ],
+      "material": "sage",
+      "radius": 0.003
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.035,
+        0.03,
+        0.01
+      ],
+      "position": [
+        0.075,
+        0.32,
+        -0.206
+      ],
+      "material": "cream",
+      "radius": 0.003
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.035,
+        0.03,
+        0.01
+      ],
+      "position": [
+        -0.075,
+        0.275,
+        -0.206
+      ],
+      "material": "cream",
+      "radius": 0.003
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.035,
+        0.03,
+        0.01
+      ],
+      "position": [
+        -0.025,
+        0.275,
+        -0.206
+      ],
+      "material": "cream",
+      "radius": 0.003
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.035,
+        0.03,
+        0.01
+      ],
+      "position": [
+        0.025,
+        0.275,
+        -0.206
+      ],
+      "material": "cream",
+      "radius": 0.003
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.035,
+        0.03,
+        0.01
+      ],
+      "position": [
+        0.075,
+        0.275,
+        -0.206
+      ],
+      "material": "sage",
+      "radius": 0.003
+    },
+    {
+      "shape": "torus",
+      "size": [
+        0.026,
+        0.01,
+        0
+      ],
+      "position": [
+        0.025,
+        0.365,
+        -0.2
+      ],
+      "material": "coral",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    }
+  ]
+}

@@ -1,0 +1,167 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-furniture-side-table",
+  "name": "Side table",
+  "description": "A small round timber side table with a stack of books, a mug and a tiny plant.",
+  "category": "gather",
+  "tags": [
+    "greenhouse",
+    "table",
+    "side"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.025,
+        0.3,
+        0.035
+      ],
+      "position": [
+        0,
+        0.15,
+        0
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.12,
+        0.02,
+        0.12
+      ],
+      "position": [
+        0,
+        0.01,
+        0
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.17,
+        0.03,
+        0.17
+      ],
+      "position": [
+        0,
+        0.315,
+        0
+      ],
+      "material": "timber-light"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.12,
+        0.025,
+        0.16
+      ],
+      "position": [
+        -0.04,
+        0.343,
+        0.02
+      ],
+      "material": "sage",
+      "radius": 0.006
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.11,
+        0.025,
+        0.15
+      ],
+      "position": [
+        -0.04,
+        0.368,
+        0.02
+      ],
+      "material": "terracotta",
+      "radius": 0.006,
+      "rotation": [
+        0,
+        12,
+        0
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.025,
+        0.05,
+        0.022
+      ],
+      "position": [
+        0.08,
+        0.355,
+        -0.06
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.032,
+        0.045,
+        0.023
+      ],
+      "position": [
+        0.07,
+        0.353,
+        0.08
+      ],
+      "material": "terracotta"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.034,
+        0.032,
+        0.034
+      ],
+      "position": [
+        0.07,
+        0.398,
+        0.08
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.023,
+        0.027,
+        0.023
+      ],
+      "position": [
+        0.09,
+        0.42,
+        0.089
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.02,
+        0.023,
+        0.02
+      ],
+      "position": [
+        0.048,
+        0.416,
+        0.071
+      ],
+      "material": "leaf-dark"
+    }
+  ]
+}

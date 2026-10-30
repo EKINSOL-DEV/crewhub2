@@ -1,0 +1,291 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-wall-plant-shelf",
+  "name": "Plant shelf",
+  "description": "A timber wall shelf on brass brackets with potted plants and trailing leaves.",
+  "category": "greenery",
+  "tags": [
+    "greenhouse",
+    "plants",
+    "shelf",
+    "wall"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.9,
+        0.03,
+        0.16
+      ],
+      "position": [
+        0,
+        0.8,
+        -0.18
+      ],
+      "material": "timber",
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.08,
+        0.12
+      ],
+      "position": [
+        -0.35,
+        0.75,
+        -0.2
+      ],
+      "material": "brass",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.08,
+        0.12
+      ],
+      "position": [
+        0.35,
+        0.75,
+        -0.2
+      ],
+      "material": "brass",
+      "radius": 0.004
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.053,
+        0.075,
+        0.038
+      ],
+      "position": [
+        -0.3,
+        0.852,
+        -0.18
+      ],
+      "material": "terracotta"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.056,
+        0.053,
+        0.056
+      ],
+      "position": [
+        -0.3,
+        0.928,
+        -0.18
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.038,
+        0.045,
+        0.038
+      ],
+      "position": [
+        -0.266,
+        0.965,
+        -0.165
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.034,
+        0.038,
+        0.034
+      ],
+      "position": [
+        -0.337,
+        0.958,
+        -0.195
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.063,
+        0.09,
+        0.045
+      ],
+      "position": [
+        0,
+        0.86,
+        -0.18
+      ],
+      "material": "clay"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.068,
+        0.063,
+        0.068
+      ],
+      "position": [
+        0,
+        0.95,
+        -0.18
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.045,
+        0.054,
+        0.045
+      ],
+      "position": [
+        0.041,
+        0.995,
+        -0.162
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.041,
+        0.045,
+        0.041
+      ],
+      "position": [
+        -0.045,
+        0.986,
+        -0.198
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.049,
+        0.07,
+        0.035
+      ],
+      "position": [
+        0.3,
+        0.85,
+        -0.18
+      ],
+      "material": "terracotta"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.053,
+        0.049,
+        0.053
+      ],
+      "position": [
+        0.3,
+        0.92,
+        -0.18
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.035,
+        0.042,
+        0.035
+      ],
+      "position": [
+        0.332,
+        0.955,
+        -0.166
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.032,
+        0.035,
+        0.032
+      ],
+      "position": [
+        0.265,
+        0.948,
+        -0.194
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.12,
+        0.03
+      ],
+      "position": [
+        -0.36,
+        0.72,
+        -0.1
+      ],
+      "material": "leaf",
+      "rotation": [
+        0,
+        0,
+        8
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.035,
+        0.1,
+        0.03
+      ],
+      "position": [
+        0.06,
+        0.73,
+        -0.1
+      ],
+      "material": "leaf-dark",
+      "rotation": [
+        0,
+        0,
+        -6
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.03,
+        0.09,
+        0.025
+      ],
+      "position": [
+        0.35,
+        0.74,
+        -0.1
+      ],
+      "material": "leaf",
+      "rotation": [
+        0,
+        0,
+        10
+      ]
+    }
+  ]
+}

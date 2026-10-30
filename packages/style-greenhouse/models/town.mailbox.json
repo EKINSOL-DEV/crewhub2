@@ -1,0 +1,98 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-town-mailbox",
+  "name": "Garden mailbox",
+  "description": "A sage mailbox on a timber post with a coral flag.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "town"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.07,
+        0.85,
+        0.07
+      ],
+      "position": [
+        0,
+        0.43,
+        0
+      ],
+      "material": "timber",
+      "radius": 0.015
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.26,
+        0.2,
+        0.4
+      ],
+      "position": [
+        0,
+        0.95,
+        0
+      ],
+      "material": "sage",
+      "radius": 0.04
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.13,
+        0.4,
+        0.13
+      ],
+      "position": [
+        0,
+        1.05,
+        0
+      ],
+      "material": "sage",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.18,
+        0.05
+      ],
+      "position": [
+        0.14,
+        1.05,
+        -0.1
+      ],
+      "material": "coral",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.12,
+        0.02,
+        0.01
+      ],
+      "position": [
+        0,
+        0.98,
+        0.205
+      ],
+      "material": "graphite",
+      "radius": 0.004
+    }
+  ]
+}

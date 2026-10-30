@@ -1,0 +1,184 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "user:potted-cactus",
+  "name": "Potted cactus",
+  "description": "A chunky green cactus with two arms and a small coral flower in a terracotta pot, topped with pebbles.",
+  "category": "greenery",
+  "tags": [
+    "cactus",
+    "plant",
+    "desk"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.17,
+        0.26,
+        0.12
+      ],
+      "position": [
+        0,
+        0.13,
+        0
+      ],
+      "material": "terracotta"
+    },
+    {
+      "shape": "torus",
+      "size": [
+        0.165,
+        0.02,
+        0
+      ],
+      "position": [
+        0,
+        0.255,
+        0
+      ],
+      "material": "terracotta"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.15,
+        0.03,
+        0.15
+      ],
+      "position": [
+        0,
+        0.26,
+        0
+      ],
+      "material": "soil"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.03,
+        0.02,
+        0.03
+      ],
+      "position": [
+        0.08,
+        0.285,
+        0.06
+      ],
+      "material": "mist"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.025,
+        0.018,
+        0.025
+      ],
+      "position": [
+        -0.09,
+        0.283,
+        0.07
+      ],
+      "material": "mist"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.1,
+        0.28,
+        0.1
+      ],
+      "position": [
+        0,
+        0.5,
+        0
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.04,
+        0.14,
+        0.04
+      ],
+      "position": [
+        -0.14,
+        0.5,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        90
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.045,
+        0.11,
+        0.045
+      ],
+      "position": [
+        -0.21,
+        0.6,
+        0
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.038,
+        0.12,
+        0.038
+      ],
+      "position": [
+        0.13,
+        0.42,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        90
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.09,
+        0.04
+      ],
+      "position": [
+        0.19,
+        0.51,
+        0
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.03,
+        0.03,
+        0.03
+      ],
+      "position": [
+        0,
+        0.8,
+        0
+      ],
+      "material": "coral"
+    }
+  ]
+}

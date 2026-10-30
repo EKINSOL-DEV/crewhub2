@@ -1,0 +1,98 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-frame-hill",
+  "name": "Small landscape",
+  "description": "A small framed landscape for a partition: a sage hill, a moss field and a tangerine sun.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "partition",
+    "picture",
+    "wall"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.36,
+        0.26,
+        0.03
+      ],
+      "position": [
+        0,
+        0.38,
+        -0.22
+      ],
+      "material": "timber-light",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.32,
+        0.22,
+        0.02
+      ],
+      "position": [
+        0,
+        0.38,
+        -0.21
+      ],
+      "material": "cream",
+      "radius": 0.005
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.14,
+        0.06,
+        0.01
+      ],
+      "position": [
+        -0.04,
+        0.33,
+        -0.197
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.1,
+        0.04,
+        0.01
+      ],
+      "position": [
+        0.09,
+        0.31,
+        -0.195
+      ],
+      "material": "moss"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.03,
+        0.01,
+        0.03
+      ],
+      "position": [
+        0.09,
+        0.43,
+        -0.197
+      ],
+      "material": "tangerine",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    }
+  ]
+}

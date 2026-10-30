@@ -1,0 +1,108 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-ticket-feature",
+  "name": "Cardboard box",
+  "description": "A feature ticket: a cardboard box, taped shut, with a paper label.",
+  "category": "storage",
+  "tags": [
+    "greenhouse"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.28,
+        0.2,
+        0.24
+      ],
+      "position": [
+        0,
+        0.1,
+        0
+      ],
+      "material": "terracotta",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.01,
+        0.245
+      ],
+      "position": [
+        0,
+        0.201,
+        0
+      ],
+      "material": "cream",
+      "radius": 0.003
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.285,
+        0.01,
+        0.01
+      ],
+      "position": [
+        0,
+        0.201,
+        0
+      ],
+      "material": "clay",
+      "radius": 0.002
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.1,
+        0.01
+      ],
+      "position": [
+        0,
+        0.15,
+        0.121
+      ],
+      "material": "cream",
+      "radius": 0.003
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.09,
+        0.06,
+        0.01
+      ],
+      "position": [
+        0.08,
+        0.075,
+        0.121
+      ],
+      "material": "paper",
+      "radius": 0.006
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.05,
+        0.012,
+        0.01
+      ],
+      "position": [
+        0.08,
+        0.085,
+        0.127
+      ],
+      "material": "sage",
+      "radius": 0.004
+    }
+  ]
+}

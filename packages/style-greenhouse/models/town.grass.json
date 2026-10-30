@@ -1,0 +1,114 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-town-grass",
+  "name": "Grass tuft",
+  "description": "A tuft of long grass.",
+  "category": "greenery",
+  "tags": [
+    "greenhouse",
+    "town"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cone",
+      "size": [
+        0.035,
+        0.32,
+        0
+      ],
+      "position": [
+        0,
+        0.172,
+        0
+      ],
+      "material": "leaf",
+      "rotation": [
+        0.0,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.035,
+        0.26,
+        0
+      ],
+      "position": [
+        0.08,
+        0.142,
+        0.05
+      ],
+      "material": "sage",
+      "rotation": [
+        9.0,
+        40,
+        18
+      ]
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.035,
+        0.28,
+        0
+      ],
+      "position": [
+        -0.08,
+        0.152,
+        0.03
+      ],
+      "material": "leaf",
+      "rotation": [
+        -8.0,
+        80,
+        -16
+      ]
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.035,
+        0.22,
+        0
+      ],
+      "position": [
+        0.03,
+        0.122,
+        -0.08
+      ],
+      "material": "leaf-dark",
+      "rotation": [
+        6.0,
+        120,
+        12
+      ]
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.035,
+        0.24,
+        0
+      ],
+      "position": [
+        -0.05,
+        0.132,
+        -0.06
+      ],
+      "material": "sage",
+      "rotation": [
+        -5.0,
+        160,
+        -10
+      ]
+    }
+  ]
+}

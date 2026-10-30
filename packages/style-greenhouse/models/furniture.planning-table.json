@@ -1,0 +1,104 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-furniture-planning-table",
+  "name": "Planning table",
+  "description": "The long planning table: tickets queue on it in board order, next up at the front.",
+  "category": "work",
+  "tags": [
+    "greenhouse"
+  ],
+  "footprint": {
+    "width": 4,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        2.3,
+        0.06,
+        0.5
+      ],
+      "position": [
+        0,
+        0.5,
+        0
+      ],
+      "material": "timber-light",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        2.2,
+        0.012,
+        0.14
+      ],
+      "position": [
+        0,
+        0.536,
+        0
+      ],
+      "material": "sage",
+      "radius": 0.004
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.03,
+        0.47,
+        0.025
+      ],
+      "position": [
+        -1.05,
+        0.235,
+        -0.2
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.03,
+        0.47,
+        0.025
+      ],
+      "position": [
+        -1.05,
+        0.235,
+        0.2
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.03,
+        0.47,
+        0.025
+      ],
+      "position": [
+        1.05,
+        0.235,
+        -0.2
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.03,
+        0.47,
+        0.025
+      ],
+      "position": [
+        1.05,
+        0.235,
+        0.2
+      ],
+      "material": "slate"
+    }
+  ]
+}

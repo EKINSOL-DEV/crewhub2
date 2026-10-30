@@ -1,0 +1,235 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-building-chair-stack",
+  "name": "Stacked chairs",
+  "description": "Chairs stacked four high for the move out.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "archived"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.42,
+        0.05,
+        0.4
+      ],
+      "position": [
+        0.0,
+        0.42,
+        0
+      ],
+      "material": "timber-light",
+      "rotation": [
+        0,
+        -2,
+        0
+      ],
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.4,
+        0.28,
+        0.04
+      ],
+      "position": [
+        0.0,
+        0.58,
+        -0.19
+      ],
+      "material": "timber",
+      "rotation": [
+        -8,
+        -2,
+        0
+      ],
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.42,
+        0.05,
+        0.4
+      ],
+      "position": [
+        0.01,
+        0.55,
+        0
+      ],
+      "material": "timber-light",
+      "rotation": [
+        0,
+        2,
+        0
+      ],
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.4,
+        0.28,
+        0.04
+      ],
+      "position": [
+        0.01,
+        0.71,
+        -0.19
+      ],
+      "material": "timber",
+      "rotation": [
+        -8,
+        2,
+        0
+      ],
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.42,
+        0.05,
+        0.4
+      ],
+      "position": [
+        0.02,
+        0.68,
+        0
+      ],
+      "material": "timber-light",
+      "rotation": [
+        0,
+        -2,
+        0
+      ],
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.4,
+        0.28,
+        0.04
+      ],
+      "position": [
+        0.02,
+        0.84,
+        -0.19
+      ],
+      "material": "timber",
+      "rotation": [
+        -8,
+        -2,
+        0
+      ],
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.42,
+        0.05,
+        0.4
+      ],
+      "position": [
+        0.03,
+        0.81,
+        0
+      ],
+      "material": "timber-light",
+      "rotation": [
+        0,
+        2,
+        0
+      ],
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.4,
+        0.28,
+        0.04
+      ],
+      "position": [
+        0.03,
+        0.97,
+        -0.19
+      ],
+      "material": "timber",
+      "rotation": [
+        -8,
+        2,
+        0
+      ],
+      "radius": 0.02
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.02,
+        0.42,
+        0.02
+      ],
+      "position": [
+        -0.18,
+        0.21,
+        -0.17
+      ],
+      "material": "graphite"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.02,
+        0.42,
+        0.02
+      ],
+      "position": [
+        0.18,
+        0.21,
+        -0.17
+      ],
+      "material": "graphite"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.02,
+        0.42,
+        0.02
+      ],
+      "position": [
+        -0.18,
+        0.21,
+        0.17
+      ],
+      "material": "graphite"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.02,
+        0.42,
+        0.02
+      ],
+      "position": [
+        0.18,
+        0.21,
+        0.17
+      ],
+      "material": "graphite"
+    }
+  ]
+}
