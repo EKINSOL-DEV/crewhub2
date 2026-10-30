@@ -352,7 +352,7 @@ function storyline(s: ScriptBuilder): void {
   s.add("7:10", { type: "lane", name: by("TM").workers[0] as string, status: "blocked", contextLine: "Allow write access to ./maps/cache? (y/n)" });
   s.add("9:15", { type: "lane", name: by("TM").workers[0] as string, status: "working", contextLine: "TM-4: tiles cached" });
   const where = s.post("2:40", { type: "dm", from: "nicky", agent: "g-man", text: "Where am I needed right now?" });
-  s.add("2:58", { type: "dmReply", agent: "g-man", replyToClientId: `demo-a${where}`, text: "Five reviews wait on you, and four tickets wait on an answer. Brand and Lab are the quiet ones." });
+  s.add("2:58", { type: "dmReply", agent: "g-man", replyToClientId: `demo-a${where}`, text: "Four reviews wait on you, and four tickets wait on an answer. Brand and Lab are the quiet ones." });
 }
 
 export const STUDIO_STORY: Story = { durationMs: DURATION_MS, storyline, probeSilence: null };

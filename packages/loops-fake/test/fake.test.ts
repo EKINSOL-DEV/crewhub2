@@ -24,7 +24,7 @@ import {
   validateWatchdogResponse,
 } from "@crewhub/loops-client";
 import type { Envelope, Result } from "@crewhub/loops-client";
-import { PERSON_DONE_AT } from "@crewhub/demo";
+import { PERSON_DONE_AT, demoScenario } from "@crewhub/demo";
 import {
   ADMIN_ONLY_EVENT_TYPES,
   BUILDER_KEY_MESSAGE,
@@ -319,6 +319,26 @@ test("the fifth open stream of the key is 429 too_many_streams with Retry-After:
   const again = await fetch(`${fake.url}/api/events/stream`, { headers: headers(fake) });
   assert.equal(again.status, 200, "the freed slot admits a new stream");
   for (const res of [...open.slice(1), again]) await res.body?.cancel();
+});
+
+test("a sealed cursor from before a storyline loop is expired as an after= is: the host re-snapshots (round 48)", async () => {
+  // The host resumes with a heartbeat's sealed cursor when no event followed it. At a loop the demo rebuilds its store,
+  // so a cursor from the loop before must not open: else the host reconnects without a 410, the tabs hear no reset and
+  // keep the old loop's world (seen with a 100 ms heartbeat between the loop's last event and its end).
+  const fake = await start({ speed: 16, startAt: demoScenario("small-team").story.durationMs - 8_000 });
+  const tail = await get(fake, "/api/events?from=tail");
+  const before = fake.lastSeq();
+  for (let i = 0; i < 60 && fake.lastSeq() < before + 1000; i++) await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.ok(fake.lastSeq() >= before + 1000, "the loop ended");
+  const stream = await fetch(`${fake.url}/api/events/stream?cursor=${encodeURIComponent(tail.body.cursor)}`, { headers: headers(fake) });
+  const streamBody = stream.status === 200 ? (await stream.body?.cancel(), null) : await stream.json();
+  assert.deepEqual([stream.status, streamBody?.error?.code], [410, "cursor_expired"], "the stream");
+  const list = await get(fake, `/api/events?cursor=${encodeURIComponent(tail.body.cursor)}`);
+  assert.deepEqual([list.status, list.body.error?.code], [410, "cursor_expired"], "the list");
+  const fresh = await get(fake, "/api/events?from=tail");
+  const open = await fetch(`${fake.url}/api/events/stream?cursor=${encodeURIComponent(fresh.body.cursor)}`, { headers: headers(fake) });
+  assert.equal(open.status, 200, "a cursor of the new loop opens");
+  await open.body?.cancel();
 });
 
 test("an after= older than the buffer answers 410 cursor_expired; a fresh fake continues or restarts the log", async () => {

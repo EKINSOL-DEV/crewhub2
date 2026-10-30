@@ -293,6 +293,9 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     const seen = Number(body.readBigUInt64BE(0));
     const checked = Number(body.readBigUInt64BE(8));
     if (seen > checked || checked > seq) throw expired(); // a watermark above the tail: a restored backup
+    // From before a storyline loop (or past the buffer): the log jumped and the store was rebuilt, so the reader must
+    // fetch again, as with an `after` below the floor (round 48: else the host resumed into the new loop silently).
+    if (seen < floor) throw expired();
     return { seen, checked };
   }
 

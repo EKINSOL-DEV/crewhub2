@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import type { TeamSnapshot } from "@crewhub/loops-client";
+import { createManualScheduler } from "../src/scheduler.ts";
+import { demoScenario } from "../src/scenarios.ts";
 import { SCRIPT_DURATION_MS } from "../src/script.ts";
+import { createDemoSource } from "../src/source.ts";
 import { at } from "../src/time.ts";
 import { envelopes, startDemo } from "./helpers.ts";
 
@@ -73,3 +77,39 @@ test("a request made near the loop end is cut at the loop end, never replayed in
   assert.equal(titles.filter((t) => t === "Prop: a late lamp").length, 1);
   assert.equal(run.source.playback.loop(), 1);
 });
+
+// Round 48: a visitor's "Request a prop" makes a ticket in the props project, so the storyline's own new tickets there
+// take later keys. A lane line that names one of those by its key would point at the visitor's prop instead (Fresh
+// install at 1:30: fn-lead's "FN-2: grouping notes by day" named "Prop: a bench"). Every lane line names the same
+// ticket, by title, with or without the request.
+for (const scenario of ["fresh", "small-team"] as const) {
+  test(`${scenario}: a visitor's prop request early in the loop leaves every lane line naming the ticket it named`, async () => {
+    const named = async (request: boolean) => {
+      const scheduler = createManualScheduler();
+      const source = createDemoSource({ scheduler, speed: 16, scenario });
+      let team: TeamSnapshot | null = null;
+      source.start((m) => {
+        if (m.type === "team") team = m.team;
+        if (m.type === "snapshot") team = m.snapshot.team;
+      });
+      scheduler.advance(20_000 / 16);
+      if (request) source.createPropRequest("a bench");
+      const seen = new Map<string, string>();
+      const end = demoScenario(scenario).story.durationMs - 30_000;
+      for (let t = 20_000; t < end; t += 2_000) {
+        scheduler.advance(2_000 / 16);
+        for (const agent of (team as TeamSnapshot | null)?.sessions.flatMap((s) => s.agents) ?? []) {
+          const key = /^([A-Z]+-\d+):/.exec(agent.contextLine ?? "")?.[1];
+          if (key === undefined) continue;
+          const line = `${agent.name} ${(agent.contextLine as string).replace(/^[A-Z]+-\d+/, "<key>")}`;
+          if (!seen.has(line)) seen.set(line, (await source.getTicket(key))?.title ?? "(none)");
+        }
+      }
+      return seen;
+    };
+    const plain = await named(false);
+    assert.ok(plain.size > 2, `lane lines seen: ${plain.size}`);
+    const withRequest = await named(true);
+    assert.deepEqual([...plain.keys()].map((line) => [line, withRequest.get(line)]), [...plain], "the same tickets, by title");
+  });
+}

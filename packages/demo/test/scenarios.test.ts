@@ -295,6 +295,33 @@ test("Studio: a person is needed in at least two groups for almost the whole loo
   assert.ok(events.filter((e) => e.type === "delivery.created").length > 40, "the postman keeps walking");
 });
 
+test("Studio: g-man's answer to \"Where am I needed\" counts what waits on Nicky when it is given (round 48)", async () => {
+  // The reply is a fact a visitor can check against the town at that moment: the reviews that wait on a person and the
+  // other tickets that do, read from the store as the reply's dm.created goes out.
+  const scheduler = createManualScheduler(1_000);
+  const source = createDemoSource({ scheduler, speed: 16, scenario: "studio" });
+  const content = demoScenario("studio").content;
+  let reply: { text: string; boards: Promise<unknown>[] } | null = null;
+  source.start((message) => {
+    if (reply !== null || message.type !== "event" || message.envelope.type !== "dm.created" || message.envelope.actor.id !== "g-man") return;
+    const id = (message.envelope.payload as { messageId?: string }).messageId;
+    reply = { text: id ?? "", boards: content.projects.map((p) => source.getBoard(p.slug)) };
+  });
+  scheduler.advance(at("3:10") / 16);
+  assert.ok(reply !== null, "g-man answered");
+  const { text: messageId, boards } = reply as { text: string; boards: Promise<unknown>[] };
+  const message = (await source.getDmMessages("g-man")).find((m) => m.id === messageId);
+  type Card = { status: string; waitingOn?: { kind?: string } | null };
+  const tickets = (await Promise.all(boards)).flatMap((b) => ((b as { columns: { tickets: Card[] }[] } | null)?.columns ?? []).flatMap((c) => c.tickets));
+  const onPerson = (t: Card) => t.waitingOn?.kind === "user";
+  const reviews = tickets.filter((t) => t.status === "review" && onPerson(t)).length;
+  const others = tickets.filter((t) => t.status !== "review" && onPerson(t)).length;
+  const words = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
+  const m = /^(\w+) reviews wait on you, and (\w+) tickets wait on an answer/.exec(message?.bodyText ?? "");
+  assert.ok(m, message?.bodyText);
+  assert.deepEqual([words.indexOf((m[1] as string).toLowerCase()), words.indexOf(m[2] as string)], [reviews, others], message?.bodyText);
+});
+
 test("no scenario but Studio has groups: the future field stays out of the stream", async () => {
   for (const id of ["fresh", "one", "small-team"] as const) {
     const { source, messages } = play(id, 90_000);

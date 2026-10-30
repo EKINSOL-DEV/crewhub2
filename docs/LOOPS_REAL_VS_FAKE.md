@@ -69,5 +69,5 @@ archived projects in the log, `emptyTeam`, `Last-Event-ID`, the labels reads, lo
 the key's stream and list, `owner-request.updated` kept from the key and served under `visibility: "all"`, a
 `version` option; a fake reopened on its port with another key or another version is, to the host above it, a key
 revoked or loops upgraded while Live (the `ops` regress group). Its one deliberate difference stays: at a demo
-storyline loop it jumps its log and expires every older `after` (loops has no buffer). Still not simulated: the 60 s
+storyline loop it jumps its log and expires every older `after` and sealed cursor (loops has no buffer; the cursor since round 48). Still not simulated: the 60 s
 credential re-check, the 64-stream total, `for=me`, `project` and `notify`.
