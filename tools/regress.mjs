@@ -728,9 +728,10 @@ await group("demo", async () => {
   {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
     await ctx.route(/\/src\/components\/AgentCard\.tsx(\?|$)/, async (route) => {
-      const response = await route.fetch();
-      const body = (await response.text()).replace("export function AgentCard(", 'export function AgentCard() {\n  throw new Error("regress: this card throws on purpose");\n}\nfunction AgentCardDrawn(');
-      await route.fulfill({ response, body });
+      // Read through the context's request client (the module as Vite serves it), then served rewritten.
+      const original = await ctx.request.get(route.request().url());
+      const body = (await original.text()).replace("export function AgentCard(", 'export function AgentCard() {\n  throw new Error("regress: this card throws on purpose");\n}\nfunction AgentCardDrawn(');
+      await route.fulfill({ status: original.status(), headers: original.headers(), body });
     });
     const pg = await ctx.newPage();
     watch(pg, origin, [], "card throws");
