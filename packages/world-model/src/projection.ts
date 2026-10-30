@@ -52,6 +52,12 @@ export class Projection {
   private readonly pending = new Map<string, unknown>();
   /** Bumped by a snapshot so refetches started before it are discarded. */
   private epoch = 0;
+  /** Counts applied events: a read keeps the count it started at. */
+  private events = 0;
+  /** Ticket and board reads on their way, by key: the event count each started at. */
+  private readonly reads = new Map<string, number[]>();
+  /** For a key with a read on its way: the count of the last event on what it reads (round 48: its answer is older). */
+  private readonly changedAt = new Map<string, number>();
 
   constructor(source: ProjectionSource, options: ProjectionOptions = {}) {
     this.source = source;
@@ -216,6 +222,13 @@ export class Projection {
     const facts = this.state;
     const ts = parseTs(event.ts, this.source.now());
     const slug = event.project?.slug ?? null;
+    this.events += 1;
+    if (event.ticket) {
+      this.touch(`ticket:${event.ticket.id}`);
+      const owner = facts.cards[event.ticket.id]?.slug;
+      if (owner) this.touch(`board:${owner}`);
+    }
+    if (slug) this.touch(`board:${slug}`);
     // A quiet stretch ends at the ticket's next change by a person or an agent: any ticket or comment event on it.
     // Not one by `system`: the quiet job's own fact, the watchdog's stall, and the change an automation makes in answer
     // to the quiet (on 8291 the label came 6 ms after the fact; the ticket is still quiet of people and agents).
@@ -586,19 +599,56 @@ export class Projection {
     this.pending.set(key, handle);
   }
 
+  /** Marks what a read on its way reads as changed by the event being applied. */
+  private touch(key: string): void {
+    if (this.reads.has(key)) this.changedAt.set(key, this.events);
+  }
+
+  /**
+   * Reads `key` and hands the answer on only when it is still the newest word on the object: an event on it that came
+   * while the read was out (a move, an archive, a new ticket on the board) is newer than the answer, so the answer is
+   * dropped and the object read again, unless a read started after that event is out already. Null after a snapshot
+   * or for a dropped answer.
+   */
+  private async readFresh<T>(key: string, read: () => Promise<T>, again: () => void): Promise<{ value: T } | null> {
+    const epoch = this.epoch;
+    const started = this.events;
+    const reads = this.reads.get(key) ?? [];
+    reads.push(started);
+    this.reads.set(key, reads);
+    let value: T;
+    let changed: number;
+    try {
+      value = await read();
+    } finally {
+      changed = this.changedAt.get(key) ?? -1;
+      reads.splice(reads.indexOf(started), 1);
+      if (reads.length === 0) {
+        this.reads.delete(key);
+        this.changedAt.delete(key);
+      }
+    }
+    if (epoch !== this.epoch) return null;
+    if (changed > started) {
+      if (!reads.some((mark) => mark >= changed)) again();
+      return null;
+    }
+    return { value };
+  }
+
   private refetchTicket(id: string): void {
     this.refetch(`ticket:${id}`, async () => {
-      const epoch = this.epoch;
-      const ticket = await this.source.getTicket(id);
-      if (epoch !== this.epoch) return;
-      this.applyTicket(id, ticket);
+      const read = await this.readFresh(`ticket:${id}`, () => this.source.getTicket(id), () => this.refetchTicket(id));
+      if (!read) return;
+      this.applyTicket(id, read.value);
       this.changed();
     });
   }
 
   private applyTicket(id: string, ticket: Ticket | null): void {
     const previous = this.state.cards[id];
-    if (!ticket || ticket.archivedAt) {
+    // A closed building holds no cards (`project.archived` took them): a read that answers after it puts none back.
+    if (!ticket || ticket.archivedAt || this.state.archivedOrder.includes(ticket.project.slug)) {
       if (previous) {
         delete this.state.cards[id];
         this.recount(previous.slug);
@@ -629,9 +679,10 @@ export class Projection {
   }
 
   private async refetchBoard(slug: string): Promise<void> {
-    const epoch = this.epoch;
-    const board = await this.source.getBoard(slug);
-    if (epoch !== this.epoch || !board) return;
+    const again = () => this.refetch(`board:${slug}`, () => this.refetchBoard(slug));
+    const read = await this.readFresh(`board:${slug}`, () => this.source.getBoard(slug), again);
+    const board = read?.value;
+    if (!board) return;
     for (const [id, fact] of Object.entries(this.state.cards)) if (fact.slug === slug) delete this.state.cards[id];
     for (const column of board.columns) {
       for (const card of column.tickets) this.state.cards[card.id] = { slug, card };

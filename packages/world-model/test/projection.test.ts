@@ -215,3 +215,126 @@ test("round 33: a ticket refetch answered after a snapshot replaced the facts ne
   assert.equal(projection.facts.version, version, "nothing changed, nobody was told");
   assert.equal(projection.facts.projects["crewhub-loops"]?.counts.planned, 0);
 });
+
+/** A source whose ticket and board reads wait until the test answers them, oldest first or by index. */
+function heldReads(source: FakeSource) {
+  const tickets: { ref: string; answer: (ticket: ReturnType<typeof ticketFrom> | null) => void }[] = [];
+  const boards: { slug: string; answer: (response: ReturnType<typeof board>) => void }[] = [];
+  source.getTicket = (ref: string) => {
+    source.calls.push(`ticket:${ref}`);
+    return new Promise((resolve) => tickets.push({ ref, answer: resolve }));
+  };
+  source.getBoard = (slug: string) => {
+    source.calls.push(`board:${slug}`);
+    return new Promise((resolve) => boards.push({ slug, answer: resolve }));
+  };
+  return { tickets, boards };
+}
+
+const settle = async () => {
+  for (let i = 0; i < 5; i += 1) await Promise.resolve();
+};
+const comment = (seq: number) => envelope("comment.created", { commentId: `cm_${seq}`, parentId: null }, { seq, ticket: ticketRef });
+const asTicket = (status: Parameters<typeof card>[2], extra: Parameters<typeof card>[3] = {}) =>
+  ticketFrom(card("tk_85", "CL-85", status, extra), "crewhub-loops", "CL");
+
+test("round 48: a move that lands while the ticket's read is out is not undone by the read's older answer", async () => {
+  const { projection, scheduler, source } = setup();
+  const held = heldReads(source);
+  projection.apply({ type: "event", envelope: comment(101) });
+  await scheduler.advance(250);
+  assert.deepEqual(source.calls, ["ticket:tk_85"], "the read is on its way");
+  projection.apply({ type: "event", envelope: moved(102, "review") });
+  held.tickets[0]!.answer(asTicket("planned"));
+  await settle();
+  assert.equal(projection.facts.cards.tk_85?.card.status, "review", "the move stands");
+  // The object changed while it was read, so it is read again; that answer is applied.
+  await scheduler.advance(250);
+  assert.deepEqual(source.calls, ["ticket:tk_85", "ticket:tk_85"]);
+  held.tickets[1]!.answer(asTicket("review", { title: "Docs v2" }));
+  await settle();
+  assert.equal(projection.facts.cards.tk_85?.card.title, "Docs v2");
+  assert.equal(projection.facts.cards.tk_85?.card.status, "review");
+});
+
+test("round 48: of two reads of one ticket, an older answer that lands last does not replace the newer one", async () => {
+  const { projection, scheduler, source } = setup();
+  const held = heldReads(source);
+  projection.apply({ type: "event", envelope: comment(101) });
+  await scheduler.advance(250);
+  projection.apply({ type: "event", envelope: envelope("ticket.updated", { changed: ["priority"] }, { seq: 102, ticket: ticketRef }) });
+  await scheduler.advance(250);
+  assert.equal(held.tickets.length, 2, "two reads of the ticket are out");
+  held.tickets[1]!.answer(asTicket("planned", { priority: "urgent", version: 3 }));
+  await settle();
+  held.tickets[0]!.answer(asTicket("planned", { priority: "normal", version: 2 }));
+  await settle();
+  assert.equal(projection.facts.cards.tk_85?.card.version, 3);
+  assert.equal(projection.facts.cards.tk_85?.card.priority, "urgent");
+});
+
+test("round 48: a ticket archived while its read is out does not come back with the read's answer", async () => {
+  const { projection, scheduler, source } = setup();
+  const held = heldReads(source);
+  projection.apply({ type: "event", envelope: comment(101) });
+  await scheduler.advance(250);
+  projection.apply({
+    type: "event",
+    envelope: envelope("ticket.archived", { batchId: null, batchSize: null, releaseId: null, reason: "manual" }, { seq: 102, ticket: ticketRef }),
+  });
+  assert.equal(projection.facts.cards.tk_85, undefined);
+  held.tickets[0]!.answer(asTicket("planned"));
+  await settle();
+  assert.equal(projection.facts.cards.tk_85, undefined, "the archived ticket stays off the board");
+  assert.equal(projection.facts.projects["crewhub-loops"]?.counts.planned, 0);
+});
+
+test("round 48: a ticket created while the board's read is out stays when the older board answers", async () => {
+  const { projection, scheduler, source } = setup();
+  const held = heldReads(source);
+  projection.apply({
+    type: "event",
+    envelope: envelope("project.restored", { changed: ["archivedAt"], old: {}, new: { archivedAt: null } }, { seq: 101 }),
+  });
+  await scheduler.advance(250);
+  assert.deepEqual(source.calls, ["board:crewhub-loops"]);
+  const created = { id: "tk_86", key: "CL-86", title: "New" };
+  projection.apply({ type: "event", envelope: envelope("ticket.created", { kind: "task", status: "backlog", assigneeId: null }, { seq: 102, ticket: created }) });
+  assert.equal(projection.facts.cards.tk_86?.card.status, "backlog");
+  held.boards[0]!.answer(board([card("tk_85", "CL-85", "planned")]));
+  await settle();
+  assert.equal(projection.facts.cards.tk_86?.card.status, "backlog", "the new ticket is still on the board");
+});
+
+test("round 48: after dispose, a read still out changes nothing and tells nobody", async () => {
+  const { projection, scheduler, source } = setup();
+  const held = heldReads(source);
+  let changes = 0;
+  projection.onChange(() => (changes += 1));
+  projection.apply({ type: "event", envelope: envelope("ticket.updated", { changed: ["title"] }, { seq: 101, ticket: ticketRef }) });
+  await scheduler.advance(250);
+  assert.equal(held.tickets.length, 1, "the read is on its way");
+  projection.dispose();
+  const version = projection.facts.version;
+  held.tickets[0]!.answer(asTicket("planned", { title: "Docs v2" }));
+  await settle();
+  assert.equal(projection.facts.cards.tk_85?.card.title, "Ticket CL-85");
+  assert.equal(projection.facts.version, version);
+  assert.equal(changes, 1, "only the event itself was told");
+});
+
+test("round 48: a ticket read that answers after its project was archived puts no card back and keeps the closed building's counts", async () => {
+  const { projection, scheduler, source } = setup();
+  source.tickets.set("tk_85", asTicket("planned"));
+  const counts = { ...projection.facts.projects["crewhub-loops"]!.counts };
+  projection.apply({ type: "event", envelope: comment(101) });
+  projection.apply({
+    type: "event",
+    envelope: envelope("project.archived", { changed: ["archivedAt"], old: {}, new: { archivedAt: "2026-10-01T20:00:00Z" } }, { seq: 102 }),
+  });
+  assert.deepEqual(projection.facts.cards, {});
+  await scheduler.advance(250);
+  assert.deepEqual(source.calls, ["ticket:tk_85"], "the read queued before the archive still goes");
+  assert.deepEqual(projection.facts.cards, {}, "an archived project holds no cards");
+  assert.deepEqual(projection.facts.projects["crewhub-loops"]?.counts, counts);
+});
