@@ -2,12 +2,15 @@
    and why. Changing the choice reloads the page without a `?source=` override, since the source is decided once before
    the app mounts (state/source.ts). */
 import { translate, useT } from "../i18n";
+import { useHostHealth } from "../state/health";
 import { hostUrl, hrefWithoutOverride, PROBE_TIMEOUT_MS, SOURCE_SETTINGS, writeSourceSetting, type SourceSetting } from "../state/source";
 import { SOURCE } from "../state/world";
 import { Field } from "./primitives";
 
 export function SourceSettings() {
   const { t } = useT();
+  // The host's health as last read, not the one the page started with: a key pasted while Live is another bot's (round 48).
+  const health = useHostHealth();
   const choose = (value: SourceSetting) => {
     writeSourceSetting(value);
     globalThis.location.assign(hrefWithoutOverride(globalThis.location));
@@ -42,8 +45,8 @@ export function SourceSettings() {
       </p>
       <p className="hint source-host">
         {t("world.source.hostUrl", { url: hostUrl(globalThis.location?.origin ?? "") })}
-        {SOURCE.health && ` ${t(SOURCE.source === "live" && SOURCE.health.keyName ? "world.source.observer" : "world.source.keyName", { name: SOURCE.health.keyName })}`}
-        {SOURCE.health?.sharedKey && ` ${t("world.source.sharedKey")}`}
+        {health && ` ${t(SOURCE.source === "live" && health.keyName ? "world.source.observer" : "world.source.keyName", { name: health.keyName })}`}
+        {health?.sharedKey && ` ${t("world.source.sharedKey")}`}
       </p>
     </fieldset>
   );

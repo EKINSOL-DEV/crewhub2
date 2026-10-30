@@ -42,13 +42,17 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
   const [forgetting, setForgetting] = useState<"busy" | "done" | string | null>(null);
   const [spoken, setSpoken] = useState("");
   const live = useRef(true);
+  // Read through a ref: the gate (main.tsx) hands a new `onHealth` on every render, and every answer is a render, so a
+  // poll that restarted with it asked the host back to back, thousands of times a second (round 48).
+  const latestOnHealth = useRef(onHealth);
+  latestOnHealth.current = onHealth;
 
   const ask = useCallback(async () => {
     const fresh = await probeHost("", 1500);
     if (!live.current) return;
     setAskedAt(Date.now());
-    if (fresh !== null) onHealth(fresh);
-  }, [onHealth]);
+    if (fresh !== null) latestOnHealth.current(fresh);
+  }, []);
 
   useEffect(() => {
     live.current = true;
@@ -274,6 +278,14 @@ function KeyForm({ busy, words, rejected, lead, onSubmit }: { busy: boolean; wor
   const { t } = useT();
   const [raw, setRaw] = useState("");
   const [touched, setTouched] = useState(false);
+  const field = useRef<HTMLInputElement>(null);
+  // The field is disabled while the key is sent and while the host checks it, which drops the focus to the page; once a
+  // key was sent from here, each answer gives it back if it is still lost (round 48).
+  const refocus = useRef(false);
+  useEffect(() => {
+    if (busy || !refocus.current) return;
+    if (document.activeElement === null || document.activeElement === document.body) field.current?.focus();
+  }, [busy]);
   const key = normaliseKey(raw);
   const valid = looksLikeKey(key);
   const submit = (e: FormEvent) => {
@@ -285,6 +297,7 @@ function KeyForm({ busy, words, rejected, lead, onSubmit }: { busy: boolean; wor
     }
     setRaw("");
     setTouched(false);
+    refocus.current = e.currentTarget.contains(document.activeElement);
     onSubmit(key);
   };
   return (
@@ -294,6 +307,7 @@ function KeyForm({ busy, words, rejected, lead, onSubmit }: { busy: boolean; wor
       </p>
       <div className="connect-row">
         <Field
+          ref={field}
           className="connect-key"
           label={t("world.connect.key.label")}
           type="password"

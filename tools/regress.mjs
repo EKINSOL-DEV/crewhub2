@@ -4,12 +4,12 @@
      node tools/regress.mjs --port <port> [--groups connect,walk,demo,tour,live,town,ops,chat,rooms,real] --host-port <port> [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]
 
    Groups (--groups, default all ten, in this order; connect first, the connection being the first priority):
-     connect the connect flow (spec addendum "a smooth connection"), 23 checks in two halves, both behind your Vite
+     connect the connect flow (spec addendum "a smooth connection"), 25 checks in two halves, both behind your Vite
            (started with CREWHUB_WORLD_PORT=<host-port>; apps/world/dist is never looked at here, whatever the live
            group does with it). Against the stub host of lib/connectStub.mjs, on --host-port, always: one page meets
-           every screen in order (No crewhub-loops found, Pair this browser naming `npm run world`, Connect with a
+           every screen in order (No crewhub-loops found, asked every 2.5 s and not back to back, Pair this browser naming `npm run world`, Connect with a
            masked field, a key typed and Enter: the field empty again and the host checking, rejected with loops'
-           reason and Forget this key, which brings Connect back, crewhub-loops not answering, then the town with the
+           reason, the focus back on the key field, and Forget this key, which brings Connect back, crewhub-loops not answering, then the town with the
            Live chip and no reload), the key in no DOM, storage or URL, the Connection panel's facts and Escape, the
            stub's `unpaired` state (a host that no longer knows the browser: Pair this browser over the live tab,
            and the town back by itself once paired again) and, on a second page, the Stream busy chip over the town
@@ -24,7 +24,7 @@
            are named, the key is nowhere; the host closed and started again with the stored key and the same secret
            file is Live again without a new link; the panel's Forget this key hands the Connect screen back and the
            stored key is gone. Under half a minute. One host at a time against that loops (4 streams per key).
-     walk  36 checks along a visitor's walk through the demo (keyboard, the text view, the timeline, chat, build mode,
+     walk  37 checks along a visitor's walk through the demo (keyboard, the text view, the timeline, chat, build mode and the prop editor's focus,
            settings, the where form, reduced motion, a phone, both themes). About two minutes.
      demo  the jump list (/ opens it, a building's name, Enter lands inside; the postman's card in the town), the scenario picker (the Demo chip, One
            project, back to Small team) and the Studio scenario's Region level (district cards, a beacon, a pin, a
@@ -53,7 +53,8 @@
            without a reload with the key still accepted and the cursor going on; (b) the fake reopened with another
            key (the host's key revoked while Live, a 401 from a loops whose health answers): the rejected screen over
            the live tab with loops' reason, the kept key and Forget, the host's key state rejected; the new key
-           pasted: the town back by itself without a reload, the new key stored, neither key anywhere; (c) the fake
+           pasted (another bot's): the town back by itself without a reload, the new key stored, neither key anywhere,
+           Settings naming the new key (round 48); (c) the fake
            reopened with another `/api/health` version (loops upgraded): Live, health's `loopsCommit` and
            `loopsCommitBefore`, the panel saying crewhub-loops was updated under the host. Needs nobody and never
            touches the development loops. About a minute.
@@ -459,6 +460,19 @@ await group("walk", async () => {
   const stepsUndone = await steps();
   ok("undo takes the placement back", undone !== "" && /redo on/.test(stepsUndone) && !/redo on/.test(stepsPlaced), `${undone} (${stepsBefore} → ${stepsPlaced} → ${stepsUndone})`);
   await shot(p, "08-build-undo");
+  // Round 48 (r48-ui U7): the prop editor is a dialog: the focus goes into it when it opens and back to the button that
+  // opened it when it closes (it stayed on New prop behind the sheet, and fell to the page on close).
+  const newProp = build.getByRole("button", { name: "New prop", exact: true });
+  await newProp.focus();
+  await p.keyboard.press("Enter");
+  await p.waitForSelector(".editor-sheet", { timeout: 10000 }).catch(() => {});
+  await p.waitForTimeout(300);
+  const focusWhere = () => p.evaluate(() => { const a = document.activeElement; return !a || a === document.body ? "body" : a.closest(".editor-sheet") ? "editor" : (a.textContent ?? "").trim().slice(0, 30); }).catch(() => "?");
+  const inEditor = await focusWhere();
+  await p.locator(".editor-sheet").getByRole("button", { name: "Close the prop editor" }).click().catch(() => {});
+  await p.waitForSelector(".editor-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
+  const afterEditor = await focusWhere();
+  ok("the prop editor takes the focus when it opens and gives it back to New prop when it closes", inEditor === "editor" && afterEditor === "New prop", `open: ${inEditor}, closed: ${afterEditor}`);
   await p.keyboard.press("b");
 
   // 7. Settings: style, director, model calls, graphics, town export
@@ -1859,7 +1873,9 @@ await group("ops", async () => {
     // from a loops whose health answers (a verdict), not a loops that is down.
     lastSeq = fake.lastSeq();
     await fake.close();
-    fake = noteLoops(await createLoopsFake({ ...fakeOptions, port, keyName, firstSeq: lastSeq }));
+    // The new key is another bot's (round 48): the page must name the key the host holds now.
+    const secondName = `${keyName}-2`;
+    fake = noteLoops(await createLoopsFake({ ...fakeOptions, port, keyName: secondName, firstSeq: lastSeq }));
     const rejected = await screen("rejected", 30000);
     // The screen asks the host at once for loops' reason; give that read a moment.
     let reason = "";
@@ -1883,11 +1899,18 @@ await group("ops", async () => {
     ok("ops (b): the new key pasted: the town is back by itself without a reload, the host stores the new key and streams with it, neither key is anywhere in the page", liveAgain === "live" && (await marked()) === "set" && storedKey === secondKey && healthNew?.connection?.key?.state === "ok" && !(await leaked(firstKey)) && !(await leaked(secondKey)), `${liveAgain}, marker ${await marked()}, stored ${storedKey === secondKey}, key ${healthNew?.connection?.key?.state}`);
     storedKey = "";
     await shot(pg, "50-ops-new-key");
+    // Round 48 (r48-ui U3): Settings > Source names the key the host holds now, not the one the page started with.
+    await pg.getByRole("button", { name: "Settings", exact: true }).click();
+    await pg.waitForSelector(".settings-sheet", { timeout: 5000 }).catch(() => {});
+    const sourceHost = (await pg.locator(".settings-sheet .source-host").innerText().catch(() => "")).replace(/\s+/g, " ");
+    ok("ops (b): Settings names the key the host holds now, not the one the page started with", sourceHost.includes(`Key: ${secondName}.`) && !sourceHost.includes(`Key: ${keyName}.`), sourceHost.slice(0, 160));
+    await pg.getByRole("button", { name: /close settings/i }).first().click().catch(() => pg.keyboard.press("Escape"));
+    await pg.waitForSelector(".settings-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
 
     // (c) loops upgraded: the fake comes back on its port with another health version.
     lastSeq = fake.lastSeq();
     await fake.close();
-    fake = noteLoops(await createLoopsFake({ ...fakeOptions, version: "0.2.0+fake.ops", port, key: secondKey, keyName, firstSeq: lastSeq }));
+    fake = noteLoops(await createLoopsFake({ ...fakeOptions, version: "0.2.0+fake.ops", port, key: secondKey, keyName: secondName, firstSeq: lastSeq }));
     const liveUpgraded = await until("live", 30000);
     const healthUpgraded = await healthUntil((h) => h.loopsCommit === "0.2.0+fake.ops", 15000);
     const factsUpgraded = await panelFacts((f) => /it was 0\.1\.0\+fake\.ops when this host started/.test(f));
@@ -1937,6 +1960,17 @@ await group("connect", async () => {
     const stored = await pg.evaluate(() => JSON.stringify(Object.entries(localStorage)) + JSON.stringify(Object.entries(sessionStorage))).catch(() => "");
     return html.includes(part) || stored.includes(part) || pg.url().includes(part);
   };
+  /** How many times the page asks the host's health in `ms`. */
+  const healthAsks = async (pg, ms) => {
+    let count = 0;
+    const seen = (request) => {
+      if (new URL(request.url()).pathname === "/world-api/health") count += 1;
+    };
+    pg.on("request", seen);
+    await pg.waitForTimeout(ms);
+    pg.off("request", seen);
+    return count;
+  };
   const reasonText = async (pg) => (await pg.locator(".connect-rejected").first().innerText().catch(() => "")).replace(/\s+/g, " ").trim();
   /** A mark set on the window: still there at the end means the page never reloaded in between. */
   const mark = (pg) => pg.evaluate(() => ((globalThis.__connectMarker = "set"), undefined));
@@ -1964,6 +1998,10 @@ await group("connect", async () => {
       await pg.goto(BASE);
       const noLoops = await screen(pg, "no-loops");
       ok("connect: No crewhub-loops found comes first", noLoops && /No crewhub-loops found/.test(await title(pg)), await title(pg));
+      // Round 48 (r48-ui U1): a Connect screen asks every 2.5 s (CONNECT_POLL_MS). The gate's onHealth was a new function on
+      // every answer, so the poll's effect started again with each one and asked back to back, thousands of times a second.
+      const asks = await healthAsks(pg, 6000);
+      ok("connect: a Connect screen asks the host's health every 2.5 s, not back to back", asks <= 5, `${asks} health request(s) in 6 s`);
       await shot(pg, "34-connect-no-loops");
       await stub.setState("pair");
       const pair = await screen(pg, "pair");
@@ -1983,6 +2021,10 @@ await group("connect", async () => {
       const reason = await reasonText(pg);
       const forgetButton = pg.getByRole("button", { name: "Forget this key" });
       ok("connect: the rejected screen gives loops' reason, keeps the key and offers Forget", rejected && /Read only/.test(reason) && (await forgetButton.count()) === 1, reason.slice(0, 100));
+      // Round 48 (r48-ui U2): the field is disabled while the key is checked, which drops the focus to the page; the answer
+      // gives it back, so a keyboard user is where they were and can paste another key.
+      const focused = await pg.evaluate(() => (document.activeElement ? `${document.activeElement.tagName.toLowerCase()} ${document.activeElement.getAttribute("type") ?? ""}`.trim() : "none")).catch(() => "?");
+      ok("connect: the refused key gives the focus back to the key field, not the page", focused === "input password", `focus on ${focused}`);
       await shot(pg, "36-connect-rejected");
       await forgetButton.click();
       const back = await screen(pg, "connect", 10000);

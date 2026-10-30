@@ -2,7 +2,8 @@ import { memo, useCallback, type ReactNode, useEffect, useLayoutEffect, useMemo,
 import { useMedia } from "../state/media";
 import { Archive, Check, CircleHelp, Clock, Flag, Hand, MessageCircle, MessageSquare, Play, RefreshCw, Sprout, TriangleAlert, Trophy, User, Zap } from "lucide-react";
 import { archivedWords, agentCardFacts, doneWord, pinnedCard, quietWords, roleWords, runWords, type AgentPlacement, type Building, type PersonVisit, type ProgressKind, type RoomWording, type WorkObject, type WorldModel } from "@crewhub/world-model";
-import { SOURCE, STRESS, worldRuntime } from "../state/world";
+import { STRESS, worldRuntime } from "../state/world";
+import { useHostHealth } from "../state/health";
 import { loopsWebUrl } from "../state/source";
 import { AgentCard } from "./AgentCard";
 import { cardAnswersEmpty } from "../state/chatRoad";
@@ -402,13 +403,15 @@ function useAgentCard(props: Props, inside: Building | null, compact: boolean, p
   const answers = useRecentAnswers();
   const road = useChatRoad();
   const answersEmpty = cardAnswersEmpty(demo ? "demo" : "live", road);
+  // The loops web app the ticket links open, from the host's health as last read (round 48), not the page's first.
+  const health = useHostHealth();
   const fetchedProgress = useDeskProgress(facts && facts.progress === null ? (facts.work?.key ?? null) : null);
   // The chat threads' facts (round 24), where the key reads the chat: this agent's, or null for none, or nothing known.
   const threads = useChatThreads();
   const thread = threads === null || !key ? undefined : (threads.get(key) ?? null);
   const sections = useMemo(
-    () => (facts ? renderAgentCard(facts, { now: model.now, freshness: model.freshness, loopsUrl: demo ? null : loopsWebUrl(SOURCE.health), rooms, answers, answersEmpty, ...(fetchedProgress ? { fetchedProgress } : {}), ...(thread === undefined ? {} : { thread }) }) : []),
-    [facts, model.now, model.freshness, demo, rooms, answers, answersEmpty, fetchedProgress, thread],
+    () => (facts ? renderAgentCard(facts, { now: model.now, freshness: model.freshness, loopsUrl: demo ? null : loopsWebUrl(health), rooms, answers, answersEmpty, ...(fetchedProgress ? { fetchedProgress } : {}), ...(thread === undefined ? {} : { thread }) }) : []),
+    [facts, model.now, model.freshness, demo, health, rooms, answers, answersEmpty, fetchedProgress, thread],
   );
   const here = inside ? inside.agents.some((a) => a.key === key) : [...model.townHall, ...model.postOffice].some((a) => a.key === key);
   if (!key || !facts || !here) return null;
