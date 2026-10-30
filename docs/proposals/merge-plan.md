@@ -2,7 +2,7 @@
 
 Seven answer branches wait on [the open questions](open-questions.md). This page says, for every set of answers Nicky
 can give, in which order the branches merge into `feat/world-demo` and what has to be done by hand. Every hand merge
-below was rehearsed on a throwaway checkout of the base (`e55ef42` in round 37, `a0750aa` in round 38, `c0ae5ec` in round 39, `e6c934d` in round 41, `d220f3a` in round 45, `b811561` in round 47, `f2495d2` in round 48) with `npm run check`
+below was rehearsed on a throwaway checkout of the base (`e55ef42` in round 37, `a0750aa` in round 38, `c0ae5ec` in round 39, `e6c934d` in round 41, `d220f3a` in round 45, `b811561` in round 47, `f2495d2` and `7c96628` in round 48) with `npm run check`
 green on the result, and
 is written so it can be redone without thinking. **Nicky needs §1 only**, and only the first three columns of its table
 to find the row; crewy and the Lead use the rest (§2 the evidence, §3 each hand merge exactly, §4 the check and the
@@ -178,6 +178,18 @@ order, then question 1's branch last; every hand merge then happens in that last
     The first pass alone, on `e4acaa7`, gave `683040d` (1133) and `830af8a` (1131).
   - **`tools/answers-replay.mjs`** now merges with plain two-sided markers whatever `merge.conflictStyle` a person's
     git sets, and refuses a diff3 base section.
+  - **Later that night,** fresh reviews of the demo and the fake, the world model, the live data path and the components
+    fixed, on the head only:
+    - races between a read and an event or a reset (the fake's sealed cursor, the projection's ticket and board reads,
+      the team reads);
+    - lenient enums on the snapshot's road;
+    - a ticket status newer than the build;
+    - a Connect screen that asked the host's health thousands of times a second.
+
+    `task/r27-tab-pairing` conflicted for a moment with a header line of `tools/regress.mjs`, moved clear on the head
+    (`fcbfba6`); no answer branch changed.
+  - **The replays on `7c96628`:** `tab q3 q8 q11 q14 q15` (D, F, E; C passes), result `08d3305`, 1195 / 1195; and
+    `cookie+expiry q3 q8 q11 q14 q15` (A, then B), result `8358182`, 1193 / 1193. No rule of the plan changed.
 - **The `cookie+expiry` and `cookie` rows, rehearsed in round 37** (detached checkouts; the five independent branches
   then the question-1 branch): the five alone on `e55ef42`, check 1070 of 1070; the five then `q1-cookie-expiry` (A,
   then B), check 1075 of 1075 on `e55ef42` and again on `761db9f` (`769434a`); the five then `r27-tab-pairing`, check
