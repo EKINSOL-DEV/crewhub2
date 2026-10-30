@@ -52,6 +52,8 @@ interface FakeHost {
   hang: boolean;
   /** Called at every snapshot ask (a test times the retries). */
   onSnapshot?: () => void;
+  /** The n-th team read's answer (1-based): its delay and its `ts`; the fixture at once without it. */
+  teamAnswer?: (n: number) => { delayMs: number; ts: string };
   /** Sends one message on every open stream. */
   push(message: unknown): void;
   /** Ends every open stream (the host restarted). */
@@ -123,7 +125,10 @@ async function startHost(): Promise<FakeHost> {
     }
     if (url.pathname === "/world-api/team") {
       host.teamReads += 1;
-      return json(res, 200, fixture("team-snapshot.json"));
+      const answer = host.teamAnswer?.(host.teamReads);
+      if (answer === undefined) return json(res, 200, fixture("team-snapshot.json"));
+      setTimeout(() => json(res, 200, { ...fixture("team-snapshot.json"), ts: answer.ts }), answer.delayMs);
+      return;
     }
     if (url.pathname === "/world-api/stream") {
       host.cursors.push(url.searchParams.get("cursor"));
@@ -442,6 +447,37 @@ test("team.updated → GET /world-api/team and a team message; the stop ends eve
   host.push({ type: "event", envelope: envelope(102) });
   await new Promise((resolve) => setTimeout(resolve, 30));
   assert.equal(run.messages.length, before);
+  await host.close();
+});
+
+test("round 48 (r48-live): two team reads that answer out of order: the older ask's answer is dropped, the newest team stands", async () => {
+  const host = await startHost();
+  host.teamAnswer = (n) => (n === 1 ? { delayMs: 120, ts: "2026-09-30T21:00:00Z" } : { delayMs: 0, ts: "2026-09-30T21:05:00Z" });
+  const run = observe(host.url);
+  await run.until(() => host.cursors.length === 1, "the stream");
+  host.push({ type: "event", envelope: { ...envelope(101, "team.updated"), ticket: null, payload: {} } });
+  await run.until(() => host.teamReads === 1, "the first team read");
+  host.push({ type: "event", envelope: { ...envelope(102, "team.updated"), ticket: null, payload: {} } });
+  await run.until(() => count(run.messages, "team") >= 1, "the newer answer");
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  const teams = run.messages.flatMap((m) => (m.type === "team" ? [m.team.ts] : []));
+  assert.deepEqual(teams, ["2026-09-30T21:05:00Z"], "the slow answer from the first ask came after the newer one");
+  run.stop();
+  await host.close();
+});
+
+test("round 48 (r48-live): a team read that was out when a fresh snapshot came is dropped: the snapshot's team stands", async () => {
+  const host = await startHost();
+  host.teamAnswer = () => ({ delayMs: 120, ts: "2026-09-30T20:00:00Z" });
+  const run = observe(host.url);
+  await run.until(() => host.cursors.length === 1, "the stream");
+  host.push({ type: "event", envelope: { ...envelope(101, "team.updated"), ticket: null, payload: {} } });
+  await run.until(() => host.teamReads === 1, "the team read");
+  host.push({ type: "reset", reason: "reconnected" });
+  await run.until(() => count(run.messages, "snapshot") === 2, "the fresh snapshot");
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  assert.equal(count(run.messages, "team"), 0, "the answer of a read made before the snapshot replaced its team");
+  run.stop();
   await host.close();
 });
 
