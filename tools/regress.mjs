@@ -4,10 +4,10 @@
      node tools/regress.mjs --port <port> [--groups connect,walk,demo,tour,live,town,ops,chat,rooms,real] --host-port <port> [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]
 
    Groups (--groups, default all ten, in this order; connect first, the connection being the first priority):
-     connect the connect flow (spec addendum "a smooth connection"), 23 checks in two halves, both behind your Vite
+     connect the connect flow (spec addendum "a smooth connection"), 24 checks in two halves, both behind your Vite
            (started with CREWHUB_WORLD_PORT=<host-port>; apps/world/dist is never looked at here, whatever the live
            group does with it). Against the stub host of lib/connectStub.mjs, on --host-port, always: one page meets
-           every screen in order (No crewhub-loops found, Pair this browser naming `npm run world`, Connect with a
+           every screen in order (No crewhub-loops found, asked every 2.5 s and not back to back, Pair this browser naming `npm run world`, Connect with a
            masked field, a key typed and Enter: the field empty again and the host checking, rejected with loops'
            reason and Forget this key, which brings Connect back, crewhub-loops not answering, then the town with the
            Live chip and no reload), the key in no DOM, storage or URL, the Connection panel's facts and Escape, the
@@ -1937,6 +1937,17 @@ await group("connect", async () => {
     const stored = await pg.evaluate(() => JSON.stringify(Object.entries(localStorage)) + JSON.stringify(Object.entries(sessionStorage))).catch(() => "");
     return html.includes(part) || stored.includes(part) || pg.url().includes(part);
   };
+  /** How many times the page asks the host's health in `ms`. */
+  const healthAsks = async (pg, ms) => {
+    let count = 0;
+    const seen = (request) => {
+      if (new URL(request.url()).pathname === "/world-api/health") count += 1;
+    };
+    pg.on("request", seen);
+    await pg.waitForTimeout(ms);
+    pg.off("request", seen);
+    return count;
+  };
   const reasonText = async (pg) => (await pg.locator(".connect-rejected").first().innerText().catch(() => "")).replace(/\s+/g, " ").trim();
   /** A mark set on the window: still there at the end means the page never reloaded in between. */
   const mark = (pg) => pg.evaluate(() => ((globalThis.__connectMarker = "set"), undefined));
@@ -1964,6 +1975,10 @@ await group("connect", async () => {
       await pg.goto(BASE);
       const noLoops = await screen(pg, "no-loops");
       ok("connect: No crewhub-loops found comes first", noLoops && /No crewhub-loops found/.test(await title(pg)), await title(pg));
+      // Round 48 (r48-ui U1): a Connect screen asks every 2.5 s (CONNECT_POLL_MS). The gate's onHealth was a new function on
+      // every answer, so the poll's effect started again with each one and asked back to back, thousands of times a second.
+      const asks = await healthAsks(pg, 6000);
+      ok("connect: a Connect screen asks the host's health every 2.5 s, not back to back", asks <= 5, `${asks} health request(s) in 6 s`);
       await shot(pg, "34-connect-no-loops");
       await stub.setState("pair");
       const pair = await screen(pg, "pair");

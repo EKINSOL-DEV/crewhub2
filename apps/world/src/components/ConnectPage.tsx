@@ -42,13 +42,17 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
   const [forgetting, setForgetting] = useState<"busy" | "done" | string | null>(null);
   const [spoken, setSpoken] = useState("");
   const live = useRef(true);
+  // Read through a ref: the gate (main.tsx) hands a new `onHealth` on every render, and every answer is a render, so a
+  // poll that restarted with it asked the host back to back, thousands of times a second (round 48).
+  const latestOnHealth = useRef(onHealth);
+  latestOnHealth.current = onHealth;
 
   const ask = useCallback(async () => {
     const fresh = await probeHost("", 1500);
     if (!live.current) return;
     setAskedAt(Date.now());
-    if (fresh !== null) onHealth(fresh);
-  }, [onHealth]);
+    if (fresh !== null) latestOnHealth.current(fresh);
+  }, []);
 
   useEffect(() => {
     live.current = true;
