@@ -12,6 +12,7 @@ import { useRecentAnswers } from "../state/said";
 import { useChatThreads } from "../state/threads";
 import type { FetchedProgress } from "../world/agentCard/types";
 import { renderAgentCard } from "../world/agentCard/registry";
+import { statusWords } from "../world/agentCard/words";
 import { useDark } from "../state/theme";
 import { useQuality } from "../state/quality";
 import { useCast } from "../state/cast";
@@ -1012,8 +1013,6 @@ function AgentLabel({
   );
 }
 
-const STATUS_WORDS = { backlog: "backlog", planned: "planned", in_progress: "in progress", review: "review", done: "done" } as const;
-
 /**
  * A person in the building (spec addendum "a person in the world"): a plain name pill over the figure's head while the
  * scene has a figure for the visit (the anchor is the figure's; without one the label stays hidden), and when picked a
@@ -1055,7 +1054,7 @@ function ObjectPlate({ object: o, building, model }: { object: WorkObject; build
       <span className="plate-name">
         <strong>{o.key}</strong>
         <span className="sign-muted">
-          {o.kind}, {o.rejected ? "turned down" : STATUS_WORDS[o.status]}
+          {o.kind}, {o.rejected ? "turned down" : statusWords(o)}
         </span>
       </span>
       <span className="plate-title">{o.title}</span>
