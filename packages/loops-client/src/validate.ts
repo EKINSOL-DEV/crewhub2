@@ -4,7 +4,11 @@
  * New values of `reason`, `state` and `resolution` in event payloads are tolerated; a `v` other
  * than 1 on an envelope, a team snapshot or a rich body fails loudly. A ticket `kind`, a ticket `status` and an
  * event `type` the package does not know warn once per value (`lenientOneOf`, `warnOnce`) and pass through, so the
- * next addition in crewhub-loops (as `grill` was, CL-245) never drops a snapshot.
+ * next addition in crewhub-loops (as `grill` was, CL-245) never drops a snapshot. Since round 48 (r48-enums) every other
+ * enum the live source reads (the snapshot, the events, the team, the object and detail reads) is lenient too: an unknown
+ * value passes with one warning, as itself where the world only compares it with known values, or as a safe reading
+ * where the world looks it up (`orNull`: a project's or a group's mark; `knownOr`: a label's colour, a progress kind).
+ * The chat's own shapes (DM messages, deliveries) are not on that road and stay strict.
  */
 import type { LoopsSnapshot } from "./source.ts";
 import {
@@ -156,6 +160,24 @@ export function lenientOneOf<const T extends string>(values: readonly T[], what:
   };
 }
 
+/**
+ * An enum the world looks up, where an unknown value has no look of its own: a known value is typed, an unknown string
+ * is warned about once per value and read as `fallback` (round 48, r48-enums).
+ */
+export function knownOr<const T extends string, const F extends T | null>(values: readonly T[], what: string, fallback: F): Validator<T | F> {
+  return (input, path) => {
+    if (typeof input !== "string") return fail(path, `expected one of ${values.join(", ")}, got ${describe(input)}`);
+    if ((values as readonly string[]).includes(input)) return ok(input as T);
+    warnOnce(`${what}:${input}`, `unknown ${what} ${JSON.stringify(input)} at ${path}: read as ${JSON.stringify(fallback)}; the world knows ${values.join(", ")}`);
+    return ok(fallback);
+  };
+}
+
+/** A mark the world draws only when it knows it (a project's or a group's colour and icon): an unknown one is none. */
+export function orNull<const T extends string>(values: readonly T[], what: string): Validator<T | null> {
+  return knownOr(values, what, null);
+}
+
 const warned = new Set<string>();
 /** Warns once per key for the life of the page (a validator runs on every event; a log line per value is enough). */
 export function warnOnce(key: string, message: string): void {
@@ -243,11 +265,19 @@ const run =
   (input: unknown): Result<T> =>
     validator(input, "$");
 
+/** A label colour this build does not know is drawn in the quietest one (round 48, r48-enums). */
+export const LABEL_FALLBACK_COLOR = "mist";
+/**
+ * A progress kind this build does not know is read as a plain update: the caption's icon is looked up by kind, and an
+ * update is the line that claims nothing (not a start, not done, not a question that keeps its bubble).
+ */
+export const PROGRESS_FALLBACK_KIND = "update";
+
 // Shared pieces
 
 const principalRef = object<PrincipalRef>({
   id: str,
-  kind: oneOf(PRINCIPAL_KINDS),
+  kind: lenientOneOf(PRINCIPAL_KINDS, "principal kind"),
   displayName: str,
 });
 
@@ -264,7 +294,7 @@ const statusCounts = object<StatusCounts>({
 const effectiveRoute = object<EffectiveRoute>({
   agent: str,
   session: optional(nullable(str)),
-  source: optional(nullable(oneOf(["agent", "project"] as const))),
+  source: optional(nullable(lenientOneOf(["agent", "project"] as const, "route source"))),
 });
 
 const projectOut = object<ProjectOut>({
@@ -276,14 +306,14 @@ const projectOut = object<ProjectOut>({
   herdrSession: optional(nullable(str)),
   counts: statusCounts,
   assigneeCounts: optional(recordOf(int)),
-  releaseScheme: optional(nullable(oneOf(RELEASE_SCHEMES))),
+  releaseScheme: optional(nullable(lenientOneOf(RELEASE_SCHEMES, "release scheme"))),
   releaseRepo: optional(nullable(str)),
-  appNote: optional(oneOf(["none", "crewhub", "own"] as const)),
+  appNote: optional(lenientOneOf(["none", "crewhub", "own"] as const, "app note")),
   rootFolder: optional(nullable(str)),
   extraFolders: optional(arrayOf(str)),
   revision: optional(int),
-  color: optional(nullable(oneOf(PROJECT_COLORS))),
-  icon: optional(nullable(oneOf(PROJECT_ICONS))),
+  color: optional(nullable(orNull(PROJECT_COLORS, "project colour"))),
+  icon: optional(nullable(orNull(PROJECT_ICONS, "project icon"))),
   description: optional(str),
   archivedAt: optional(nullable(str)),
   archivedBy: optional(nullable(principalRef)),
@@ -300,27 +330,27 @@ const projectGroup = object<ProjectGroup>({
   slug: str,
   name: str,
   order: int,
-  color: nullable(oneOf(PROJECT_COLORS)),
-  icon: nullable(oneOf(PROJECT_ICONS)),
+  color: nullable(orNull(PROJECT_COLORS, "group colour")),
+  icon: nullable(orNull(PROJECT_ICONS, "group icon")),
 });
 
 const labelOut = object<LabelOut>({
   id: str,
   projectId: optional(nullable(str)),
   name: str,
-  color: oneOf(PROJECT_COLORS),
+  color: knownOr(PROJECT_COLORS, "label colour", LABEL_FALLBACK_COLOR),
   revision: optional(int),
   usage: optional(nullable(int)),
 });
 
 const stallSummary = object<StallSummary>({
-  state: oneOf(STALL_STATES),
+  state: lenientOneOf(STALL_STATES, "stall state"),
   quietSince: str,
   nudges: optional(int),
 });
 
 const stallDetail = object<StallDetail>({
-  state: oneOf(STALL_STATES),
+  state: lenientOneOf(STALL_STATES, "stall state"),
   quietSince: str,
   detectedAt: str,
   quietMinutes: int,
@@ -328,7 +358,7 @@ const stallDetail = object<StallDetail>({
   lastNudgeAt: optional(nullable(str)),
   deliveryRecipientId: optional(nullable(str)),
   escalatedAt: optional(nullable(str)),
-  escalationOutcome: optional(nullable(oneOf(ESCALATION_OUTCOMES))),
+  escalationOutcome: optional(nullable(lenientOneOf(ESCALATION_OUTCOMES, "escalation outcome"))),
 });
 
 const milestoneRef = object<MilestoneRef>({
@@ -336,7 +366,7 @@ const milestoneRef = object<MilestoneRef>({
   key: str,
   number: int,
   title: str,
-  state: oneOf(MILESTONE_STATES),
+  state: lenientOneOf(MILESTONE_STATES, "milestone state"),
 });
 
 const linkChip = object<LinkChip>({
@@ -354,7 +384,7 @@ const cardShape: Shape<TicketCard> = {
   status: lenientOneOf(TICKET_STATUSES, "ticket status"),
   resolution: optional(nullable(str)),
   resolutionReason: optional(nullable(str)),
-  priority: oneOf(TICKET_PRIORITIES),
+  priority: lenientOneOf(TICKET_PRIORITIES, "ticket priority"),
   position: num,
   version: int,
   assignee: optional(nullable(principalRef)),
@@ -387,7 +417,7 @@ const releaseRef = object<ReleaseRef>({
   number: int,
   version: optional(nullable(str)),
   title: str,
-  state: oneOf(RELEASE_STATES),
+  state: lenientOneOf(RELEASE_STATES, "release state"),
   deletedAt: optional(nullable(str)),
 });
 
@@ -437,8 +467,8 @@ const commentOut = object<CommentOut>({
   parentId: optional(nullable(str)),
   rootId: str,
   author: principalRef,
-  kind: oneOf(COMMENT_KINDS),
-  systemCode: optional(nullable(oneOf(SYSTEM_COMMENT_CODES))),
+  kind: lenientOneOf(COMMENT_KINDS, "comment kind"),
+  systemCode: optional(nullable(lenientOneOf(SYSTEM_COMMENT_CODES, "system comment code"))),
   deliveryId: optional(nullable(str)),
   body: optional(nullable(union(systemCommentBody, richBody))),
   bodyMarkdown: optional(nullable(str)),
@@ -451,10 +481,10 @@ const commentOut = object<CommentOut>({
 const progressItem = object<ProgressItem>({
   id: int,
   agent: principalRef,
-  kind: oneOf(PROGRESS_KINDS),
+  kind: knownOr(PROGRESS_KINDS, "progress kind", PROGRESS_FALLBACK_KIND),
   text: str,
   worker: optional(nullable(str)),
-  source: oneOf(PROGRESS_SOURCES),
+  source: lenientOneOf(PROGRESS_SOURCES, "progress source"),
   createdAt: str,
 });
 
@@ -470,7 +500,7 @@ const milestoneSummary = object<MilestoneSummary>({
   key: str,
   number: int,
   title: str,
-  state: oneOf(MILESTONE_STATES),
+  state: lenientOneOf(MILESTONE_STATES, "milestone state"),
   project: projectRef,
   targetDate: optional(nullable(str)),
   position: num,
@@ -484,7 +514,7 @@ const milestoneSummary = object<MilestoneSummary>({
 });
 
 const releaseAppNote = object<ReleaseAppNote>({
-  state: oneOf(RELEASE_APP_NOTE_STATES),
+  state: lenientOneOf(RELEASE_APP_NOTE_STATES, "release app note state"),
   url: optional(nullable(str)),
   reason: optional(nullable(str)),
 });
@@ -494,7 +524,7 @@ const releaseSummary = object<ReleaseSummary>({
   number: int,
   version: optional(nullable(str)),
   title: str,
-  state: oneOf(RELEASE_STATES),
+  state: lenientOneOf(RELEASE_STATES, "release state"),
   deletedAt: optional(nullable(str)),
   project: projectRef,
   ticketCount: int,
@@ -512,7 +542,7 @@ const teamAgent = object<TeamAgent>({
   workspaceId: optional(nullable(str)),
   contextLine: optional(nullable(str)),
   lead: optional(nullable(str)),
-  unsentInput: optional(nullable(oneOf(["typed", "unknown"] as const))),
+  unsentInput: optional(nullable(lenientOneOf(["typed", "unknown"] as const, "unsent input"))),
 });
 
 /** `ComputerOut` (CL-459): a new kind passes with one warning. */
@@ -580,7 +610,7 @@ const watchdogTransport = object<WatchdogTransport>({
 const watchdogItem = object<WatchdogItem>({ ticket: ticketSummary, stall: stallDetail });
 
 const watchdogResponse = object<WatchdogResponse>({
-  mode: oneOf(WATCHDOG_MODES),
+  mode: lenientOneOf(WATCHDOG_MODES, "watchdog mode"),
   lastTickAt: optional(nullable(str)),
   stopped: optional(bool),
   lastError: optional(nullable(str)),
@@ -648,7 +678,7 @@ const agentOut = object<AgentOut>({
   revision: optional(int),
 });
 
-const principalOut = object<PrincipalOut>({ id: str, kind: oneOf(PRINCIPAL_KINDS), displayName: str });
+const principalOut = object<PrincipalOut>({ id: str, kind: lenientOneOf(PRINCIPAL_KINDS, "principal kind"), displayName: str });
 
 // Envelopes and payloads
 
@@ -659,7 +689,7 @@ const envelope = object<Envelope>({
   type: str,
   project: nullable(object<EventProjectRef>({ slug: str, key: str })),
   ticket: nullable(object<EventTicketRef>({ id: str, key: str, title: str })),
-  actor: object<ActorRef>({ id: str, kind: oneOf(PRINCIPAL_KINDS) }),
+  actor: object<ActorRef>({ id: str, kind: lenientOneOf(PRINCIPAL_KINDS, "principal kind") }),
   recipientIds: arrayOf(str),
   payload: recordOf(unknownValue),
 });
@@ -720,7 +750,7 @@ const payloadValidators: { [T in WorldEventType]: Validator<WorldEventPayloads[T
     reason: str,
   }),
   "ticket.unarchived": object({ batchId: nullable(str), releaseId: nullable(str) }),
-  "ticket.progress": object({ ticket: str, agent: str, kind: oneOf(PROGRESS_KINDS), text: str }),
+  "ticket.progress": object({ ticket: str, agent: str, kind: knownOr(PROGRESS_KINDS, "progress kind", PROGRESS_FALLBACK_KIND), text: str }),
   "ticket.stalled": object({
     ticket: str,
     agent: str,
