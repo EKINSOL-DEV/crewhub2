@@ -4,12 +4,12 @@
      node tools/regress.mjs --port <port> [--groups connect,walk,demo,tour,live,town,ops,chat,rooms,real] --host-port <port> [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]
 
    Groups (--groups, default all ten, in this order; connect first, the connection being the first priority):
-     connect the connect flow (spec addendum "a smooth connection"), 24 checks in two halves, both behind your Vite
+     connect the connect flow (spec addendum "a smooth connection"), 25 checks in two halves, both behind your Vite
            (started with CREWHUB_WORLD_PORT=<host-port>; apps/world/dist is never looked at here, whatever the live
            group does with it). Against the stub host of lib/connectStub.mjs, on --host-port, always: one page meets
            every screen in order (No crewhub-loops found, asked every 2.5 s and not back to back, Pair this browser naming `npm run world`, Connect with a
            masked field, a key typed and Enter: the field empty again and the host checking, rejected with loops'
-           reason and Forget this key, which brings Connect back, crewhub-loops not answering, then the town with the
+           reason, the focus back on the key field, and Forget this key, which brings Connect back, crewhub-loops not answering, then the town with the
            Live chip and no reload), the key in no DOM, storage or URL, the Connection panel's facts and Escape, the
            stub's `unpaired` state (a host that no longer knows the browser: Pair this browser over the live tab,
            and the town back by itself once paired again) and, on a second page, the Stream busy chip over the town
@@ -1998,6 +1998,10 @@ await group("connect", async () => {
       const reason = await reasonText(pg);
       const forgetButton = pg.getByRole("button", { name: "Forget this key" });
       ok("connect: the rejected screen gives loops' reason, keeps the key and offers Forget", rejected && /Read only/.test(reason) && (await forgetButton.count()) === 1, reason.slice(0, 100));
+      // Round 48 (r48-ui U2): the field is disabled while the key is checked, which drops the focus to the page; the answer
+      // gives it back, so a keyboard user is where they were and can paste another key.
+      const focused = await pg.evaluate(() => (document.activeElement ? `${document.activeElement.tagName.toLowerCase()} ${document.activeElement.getAttribute("type") ?? ""}`.trim() : "none")).catch(() => "?");
+      ok("connect: the refused key gives the focus back to the key field, not the page", focused === "input password", `focus on ${focused}`);
       await shot(pg, "36-connect-rejected");
       await forgetButton.click();
       const back = await screen(pg, "connect", 10000);

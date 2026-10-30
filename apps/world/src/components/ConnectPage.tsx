@@ -278,6 +278,14 @@ function KeyForm({ busy, words, rejected, lead, onSubmit }: { busy: boolean; wor
   const { t } = useT();
   const [raw, setRaw] = useState("");
   const [touched, setTouched] = useState(false);
+  const field = useRef<HTMLInputElement>(null);
+  // The field is disabled while the key is sent and while the host checks it, which drops the focus to the page; once a
+  // key was sent from here, each answer gives it back if it is still lost (round 48).
+  const refocus = useRef(false);
+  useEffect(() => {
+    if (busy || !refocus.current) return;
+    if (document.activeElement === null || document.activeElement === document.body) field.current?.focus();
+  }, [busy]);
   const key = normaliseKey(raw);
   const valid = looksLikeKey(key);
   const submit = (e: FormEvent) => {
@@ -289,6 +297,7 @@ function KeyForm({ busy, words, rejected, lead, onSubmit }: { busy: boolean; wor
     }
     setRaw("");
     setTouched(false);
+    refocus.current = e.currentTarget.contains(document.activeElement);
     onSubmit(key);
   };
   return (
@@ -298,6 +307,7 @@ function KeyForm({ busy, words, rejected, lead, onSubmit }: { busy: boolean; wor
       </p>
       <div className="connect-row">
         <Field
+          ref={field}
           className="connect-key"
           label={t("world.connect.key.label")}
           type="password"
