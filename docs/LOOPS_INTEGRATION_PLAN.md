@@ -232,7 +232,9 @@ model calls, no rendering and no movement simulation.
    page, its `lastSeq` is the last row, not the tail.
 2. **Live.** Each envelope patches the projection. Thin payloads (for example
    `ticket.updated` names fields but not values) trigger one coalesced re-read
-   per ticket within 250 ms. The host re-reads `/api/team` on `team.updated` and
+   per ticket within 250 ms. An event on the ticket (or on a board being read)
+   that lands while the read is out is newer than its answer: the answer is
+   dropped and the object read again (round 48). The host re-reads `/api/team` on `team.updated` and
    every 30 s (`loops:docs/team.md`). Each change goes to the browsers as a delta
    with a host seq.
 3. **Reconnect to loops.**
