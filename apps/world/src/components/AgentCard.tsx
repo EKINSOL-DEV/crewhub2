@@ -125,6 +125,29 @@ export function AgentCard({ facts, sections, freshness, demo, following, sheet, 
   );
 }
 
+/**
+ * In the card's place when it could not be drawn (round 48, the overlay boundary in WorldCanvas): the agent's name, one
+ * plain line and the close button; the town and the text view stay.
+ */
+export function AgentCardFailed({ name, sheet, onClose }: { name: string; sheet: boolean; onClose: () => void }) {
+  const id = useId();
+  return (
+    <Card className={`agent-card agent-card-failed${sheet ? " agent-card-sheet" : ""}`} role="dialog" aria-modal="false" aria-labelledby={`${id}-title`}>
+      <header className="agent-card-head">
+        <div className="agent-card-name">
+          <h2 className="card-title" id={`${id}-title`}>
+            {name}
+          </h2>
+        </div>
+        <Button variant="ghost" size="sm" iconOnly aria-label={`Close the card of ${name}`} icon={<X className="icon" aria-hidden="true" />} onClick={onClose} />
+      </header>
+      <Card.Body className="agent-card-body">
+        <p className="agent-row">This card could not be drawn. The text view still says where {name} is and what it is doing.</p>
+      </Card.Body>
+    </Card>
+  );
+}
+
 /* Loops' chat dock lists enabled agents of loops role lead only (round 13), so a card whose agent has no chat head there
    shows no "Chat with <name>" (it would pretend) and says why; when loops lists its lead, a button for the lead's chat. */
 function ChatNote({ facts, onChat }: { facts: AgentCardFacts; onChat: (key: string) => void }) {
