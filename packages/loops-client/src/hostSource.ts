@@ -344,6 +344,13 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
   let wake: (() => void) | null = null;
   /** The open stream read's own abort (review F3, round 27): a heal ends the read alone; `abort` is the run's. */
   let streamAbort: AbortController | null = null;
+  /**
+   * Team reads by the order they were asked (round 48, r48-live): `teamAsked` counts the asks, `teamShown` is the newest
+   * ask whose word the model has (a snapshot carries the team of its moment, so it counts as every ask before it). An
+   * answer of an older ask than that is dropped: the 30 s poll and a `team.updated` can answer out of order.
+   */
+  let teamAsked = 0;
+  let teamShown = 0;
 
   const changed = () => {
     for (const listener of [...changeListeners]) {
@@ -436,6 +443,7 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
     cursor = snapshot.cursor;
     haveSnapshot = true;
     retryMs = timings.retryMinMs;
+    teamShown = teamAsked;
     send({ type: "snapshot", snapshot });
     setState("live");
     touched();
@@ -630,6 +638,7 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
 
   async function readTeam(): Promise<void> {
     if (!running) return;
+    const ask = ++teamAsked;
     try {
       const response = await get("/team", abort?.signal);
       if (!response.ok) return;
@@ -638,7 +647,9 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
         warnOnce(`team:${result.path}`, `the team snapshot does not validate at ${result.path}: ${result.message}`);
         return;
       }
-      if (running) send({ type: "team", team: result.value });
+      if (!running || ask <= teamShown) return;
+      teamShown = ask;
+      send({ type: "team", team: result.value });
     } catch {
       // the host is away; the stream's state says so
     }
