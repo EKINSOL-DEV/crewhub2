@@ -81,15 +81,23 @@ function placeOf(
   return { room: "lead-office", deskOf: null, deskInferred: false };
 }
 
+/** The stall when its state is one the world draws (`stalled`, `attention`); else none. */
+function knownStall<S extends { state: string }>(stall: S | null | undefined): S | null {
+  return stall && (stall.state === "stalled" || stall.state === "attention") ? stall : null;
+}
+
 function toObject(
   card: TicketCard,
   place: { room: RoomKind; deskOf: AgentKey | null; deskInferred: boolean },
   ctx: ReduceContext,
 ): WorkObject {
   const { facts, now } = ctx;
-  const openStall = facts.stalls[card.key];
-  const stallState = openStall?.state ?? card.stall?.state ?? null;
-  const quietSince = openStall?.quietSince ?? card.stall?.quietSince ?? null;
+  // A stall state this build does not know (the validators let it through, round 48 r48-enums) is tolerated and not
+  // drawn, as `ticket.stalled` with a new reason is: no beacon, no dimmed lamp, no words.
+  const openStall = knownStall(facts.stalls[card.key]);
+  const summary = knownStall(card.stall);
+  const stallState = openStall?.state ?? summary?.state ?? null;
+  const quietSince = openStall?.quietSince ?? summary?.quietSince ?? null;
   let stall: WorkObject["stall"] = null;
   // An open state is shown only while the ticket is in progress (agents-and-states.md).
   if (card.status === "in_progress" && stallState && quietSince) {
@@ -97,7 +105,7 @@ function toObject(
     const quietMinutes = Number.isNaN(since)
       ? (openStall?.quietMinutes ?? null)
       : Math.max(0, Math.floor((now - since) / 60_000));
-    stall = { state: stallState, quietSince, quietMinutes, nudges: openStall?.nudges ?? card.stall?.nudges ?? 0 };
+    stall = { state: stallState, quietSince, quietMinutes, nudges: openStall?.nudges ?? summary?.nudges ?? 0 };
   }
 
   // A quiet stretch holds while the ticket is still where the quiet job saw it; a move since then makes it stale.

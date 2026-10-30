@@ -901,7 +901,8 @@ install changes only a URL and a key file. The runbook is [LOOPS_SETUP.md](LOOPS
   reconnect with backoff, the static bundle in production. `npm run host`, `npm run host:start`.
 - **The live source**, `createHostSource` in `packages/loops-client`: `WorldSource` with `mode: "live"`,
   snapshot then events by `seq`, a reset re-snapshots (a gap in `seq` is normal: loops filters per key), `connection` for the chip, `probeHost`.
-  The validators accept an unknown `kind`, `status` or event `type` with one warning. Fixtures checked
+  The validators accept an unknown `kind`, `status` or event `type` with one warning, and since round 48 every other
+  enum on the live road too, with a safe reading where the world looks one up (`packages/loops-client/README.md`). Fixtures checked
   against `053b5f47` (a `grill` ticket, a `PendingRequest`).
 - **The fake**, `packages/loops-fake`: an in-process crewhub-loops with the real routes, bearer auth, `seq`,
   heartbeats and a 410 past its buffer, replaying the demo storyline; the end-to-end test and `npm run loops:fake`.

@@ -33,7 +33,11 @@ export {
 export { groupOf, sortProjectGroups } from "./groups.ts";
 export type { Result, Shape, Validator } from "./validate.ts";
 export {
+  knownOr,
+  LABEL_FALLBACK_COLOR,
   lenientOneOf,
+  orNull,
+  PROGRESS_FALLBACK_KIND,
   resetWarnings,
   toWorldEvent,
   validateAgents,

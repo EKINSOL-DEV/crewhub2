@@ -10,8 +10,10 @@ import {
   validateDmMessagesResponse,
   validateDmThreadsResponse,
   validateEnvelope,
+  validateLoopsSnapshot,
   validateMilestonesResponse,
   validatePendingRequests,
+  validatePrincipals,
   validateProgressResponse,
   validateProjectGroupsResponse,
   validateProjectOut,
@@ -327,11 +329,12 @@ test("null where the schema does not allow it is rejected", () => {
 
 const groupFixture = { id: "pg_studio", slug: "studio", name: "Studio", order: 1, color: "mist", icon: null };
 
-test("project groups (proposal L22): the list validates, colour and icon may be null but not missing or unknown", () => {
+test("project groups (proposal L22): the list validates, colour and icon may be null (or unknown, read as null) but not missing", () => {
   const { groups } = value(validateProjectGroupsResponse({ groups: [groupFixture, { ...groupFixture, id: "pg_x", extra: 1 }] }));
   assert.deepEqual(groups[0], groupFixture);
   assert.equal("extra" in groups[1]!, false);
-  assert.equal(failure(validateProjectGroupsResponse({ groups: [{ ...groupFixture, color: "purple" }] })).path, "$.groups[0].color");
+  // An unknown colour is no colour since round 48 (r48-enums), not a failure: the group keeps its place.
+  assert.equal(value(validateProjectGroupsResponse({ groups: [{ ...groupFixture, color: "purple" }] })).groups[0]!.color, null);
   const { icon: _icon, ...withoutIcon } = groupFixture;
   assert.equal(failure(validateProjectGroupsResponse({ groups: [withoutIcon] })).path, "$.groups[0].icon");
   assert.equal(failure(validateProjectGroupsResponse({})).path, "$.groups");
@@ -358,4 +361,84 @@ test("project groups (proposal L22): sorted by order, then slug, whatever order 
   const list = [g("b", 1), g("c", 0), g("a", 1)];
   assert.deepEqual(sortProjectGroups(list).map((x) => x.slug), ["c", "a", "b"]);
   assert.deepEqual(sortProjectGroups([...list].reverse()).map((x) => x.slug), ["c", "a", "b"]);
+});
+
+/*
+ * Round 48 (r48-enums, r48-live's L1): every enum the live source reads is lenient. One case per field: an unknown value
+ * keeps the answer (the snapshot's part, the envelope, the read), as itself where the world only compares it with known
+ * values, or as the safe reading where the world looks it up. Each was a failure before.
+ */
+type Json = Record<string, any>;
+const clone = (name: string): Json => JSON.parse(JSON.stringify(fixture(name)));
+const groupJson: Json = { id: "pg_1", slug: "core", name: "Core", order: 1, color: "coral", icon: "home" };
+const ENUM_CASES: { field: string; read: (input: Json) => Result<unknown>; base: () => Json; set: (input: Json) => void; get: (value: any) => unknown; reading: unknown }[] = [
+  { field: "a project's colour", read: validateProjectsResponse, base: () => clone("projects.json"), set: (j) => (j.projects[0].color = "sage"), get: (v) => v.projects[0].color, reading: null },
+  { field: "a project's icon", read: validateProjectsResponse, base: () => clone("projects.json"), set: (j) => (j.projects[0].icon = "rocket"), get: (v) => v.projects[0].icon, reading: null },
+  { field: "a project's release scheme", read: validateProjectsResponse, base: () => clone("projects.json"), set: (j) => (j.projects[0].releaseScheme = "calver"), get: (v) => v.projects[0].releaseScheme, reading: "calver" },
+  { field: "a project's app note", read: validateProjectsResponse, base: () => clone("projects.json"), set: (j) => (j.projects[0].appNote = "shared"), get: (v) => v.projects[0].appNote, reading: "shared" },
+  { field: "a project's route source", read: validateProjectsResponse, base: () => clone("projects.json"), set: (j) => (j.projects[0].effectiveRoute.source = "group"), get: (v) => v.projects[0].effectiveRoute.source, reading: "group" },
+  { field: "a project lead's principal kind", read: validateProjectsResponse, base: () => clone("projects.json"), set: (j) => (j.projects[0].lead.kind = "service"), get: (v) => v.projects[0].lead.kind, reading: "service" },
+  { field: "a group's colour", read: validateProjectGroupsResponse, base: () => ({ groups: [{ ...groupJson }] }), set: (j) => (j.groups[0].color = "sage"), get: (v) => v.groups[0].color, reading: null },
+  { field: "a group's icon", read: validateProjectGroupsResponse, base: () => ({ groups: [{ ...groupJson }] }), set: (j) => (j.groups[0].icon = "rocket"), get: (v) => v.groups[0].icon, reading: null },
+  { field: "a label's colour", read: validateTicket, base: () => clone("ticket.json"), set: (j) => (j.labels = [{ id: "l1", name: "prop", color: "sage" }]), get: (v) => v.labels[0].color, reading: "mist" },
+  { field: "a ticket's priority", read: validateTicket, base: () => clone("ticket.json"), set: (j) => (j.priority = "critical"), get: (v) => v.priority, reading: "critical" },
+  { field: "a ticket's stall detail state", read: validateTicket, base: () => clone("ticket.json"), set: (j) => (j.stallDetail.state = "dormant"), get: (v) => v.stallDetail.state, reading: "dormant" },
+  { field: "a stall's escalation outcome", read: validateTicket, base: () => clone("ticket.json"), set: (j) => (j.stallDetail.escalationOutcome = "bounced"), get: (v) => v.stallDetail.escalationOutcome, reading: "bounced" },
+  { field: "a card's milestone state", read: validateBoardResponse, base: () => clone("board.json"), set: (j) => (j.columns.find((c: Json) => c.tickets.length).tickets[0].milestone.state = "paused"), get: (v) => v.columns.find((c: Json) => c.tickets.length).tickets[0].milestone.state, reading: "paused" },
+  { field: "a ticket's release state", read: validateTicket, base: () => clone("ticket.json"), set: (j) => (j.release = { id: "rl_1", number: 1, version: "0.9.0", title: "0.9.0", state: "yanked" }), get: (v) => v.release.state, reading: "yanked" },
+  { field: "a ticket creator's principal kind", read: validateTicket, base: () => clone("ticket.json"), set: (j) => (j.createdBy.kind = "service"), get: (v) => v.createdBy.kind, reading: "service" },
+  { field: "a board card's stall state", read: validateBoardResponse, base: () => clone("board.json"), set: (j) => (j.columns.find((c: Json) => c.tickets.length).tickets[0].stall = { state: "frozen", quietSince: "2026-09-30T20:00:00Z" }), get: (v) => v.columns.find((c: Json) => c.tickets.length).tickets[0].stall.state, reading: "frozen" },
+  { field: "the watchdog's mode", read: validateWatchdogResponse, base: () => clone("watchdog.json"), set: (j) => (j.mode = "escalate"), get: (v) => v.mode, reading: "escalate" },
+  { field: "a watchdog item's stall state", read: validateWatchdogResponse, base: () => clone("watchdog.json"), set: (j) => (j.open[0].stall.state = "dormant"), get: (v) => v.open[0].stall.state, reading: "dormant" },
+  { field: "a milestone's state", read: validateMilestonesResponse, base: () => clone("milestones.json"), set: (j) => (j.milestones[0].state = "paused"), get: (v) => v.milestones[0].state, reading: "paused" },
+  { field: "a release's state", read: validateReleasesResponse, base: () => clone("releases.json"), set: (j) => (j.releases[0].state = "yanked"), get: (v) => v.releases[0].state, reading: "yanked" },
+  { field: "a release's app note state", read: validateReleasesResponse, base: () => clone("releases.json"), set: (j) => (j.releases[0].appNote.state = "queued"), get: (v) => v.releases[0].appNote.state, reading: "queued" },
+  { field: "a team agent's unsent input", read: validateTeamSnapshot, base: () => clone("team-snapshot.json"), set: (j) => (j.sessions[0].agents[0].unsentInput = "pasted"), get: (v) => v.sessions[0].agents[0].unsentInput, reading: "pasted" },
+  { field: "a principal's kind", read: validatePrincipals, base: () => ({ principals: [{ id: "ci", kind: "agent", displayName: "CI" }] }), set: (j) => (j.principals[0].kind = "service"), get: (v) => v.principals[0].kind, reading: "service" },
+  { field: "a comment's kind", read: validateCommentsResponse, base: () => clone("comments-progress.json").comments, set: (j) => (j.comments[0].kind = "review"), get: (v) => v.comments[0].kind, reading: "review" },
+  { field: "a system comment's code", read: validateCommentsResponse, base: () => clone("comments-progress.json").comments, set: (j) => (j.comments[0].systemCode = "brand_new_code"), get: (v) => v.comments[0].systemCode, reading: "brand_new_code" },
+  { field: "a progress line's kind", read: validateProgressResponse, base: () => clone("comments-progress.json").progress, set: (j) => (j.progress[0].kind = "milestone"), get: (v) => v.progress[0].kind, reading: "update" },
+  { field: "a progress line's source", read: validateProgressResponse, base: () => clone("comments-progress.json").progress, set: (j) => (j.progress[0].source = "api"), get: (v) => v.progress[0].source, reading: "api" },
+  { field: "an envelope's actor kind", read: validateEnvelope, base: () => ({ ...clone("envelope-ticket-moved.json"), seq: 9 }), set: (j) => (j.actor.kind = "service"), get: (v) => v.actor.kind, reading: "service" },
+];
+for (const c of ENUM_CASES)
+  test(`round 48 (r48-enums): an unknown value in ${c.field} keeps the answer, read as ${JSON.stringify(c.reading)}`, () => {
+    value(c.read(c.base()));
+    const input = c.base();
+    c.set(input);
+    assert.equal(c.get(value(c.read(input))), c.reading);
+  });
+
+test("round 48 (r48-enums): a ticket.progress event of a kind this build does not know is a world event, read as an update", () => {
+  const env = value(validateEnvelope({ ...clone("envelope-ticket-moved.json"), seq: 9, type: "ticket.progress", payload: { ticket: "CL-85", agent: "cl-lead", kind: "milestone", text: "half way" } }));
+  const event = toWorldEvent(env);
+  assert.ok(event?.ok, "an allowlisted payload passes");
+  assert.equal((event.value.payload as { kind: string }).kind, "update");
+});
+
+test("round 48 (r48-enums): one unknown value in each part keeps the whole snapshot (r48-live L1's six cases)", () => {
+  const snapshot = (): Json => ({
+    cursor: 5,
+    projects: clone("projects.json").projects,
+    archivedProjects: [],
+    boards: { "crewhub-loops": clone("board.json") },
+    team: clone("team-snapshot.json"),
+    agents: clone("agents.json").agents,
+    principals: [{ id: "cl-lead", kind: "agent", displayName: "CL lead" }],
+    watchdog: clone("watchdog.json"),
+    milestones: { "crewhub-loops": clone("milestones.json").milestones },
+    releases: { "crewhub-loops": clone("releases.json").releases },
+  });
+  const s = snapshot();
+  s.projects[0].icon = "rocket";
+  s.projects[0].color = "sage";
+  s.boards["crewhub-loops"].columns.find((c: Json) => c.tickets.length).tickets[0].priority = "critical";
+  s.principals.push({ id: "ci", kind: "service", displayName: "CI" });
+  s.watchdog.mode = "escalate";
+  s.quiet = [{ ...clone("envelope-ticket-moved.json"), seq: 4, type: "ticket.quiet", actor: { id: "ci", kind: "service" } }];
+  const v = value(validateLoopsSnapshot(s));
+  assert.equal(v.projects[0]!.icon, null);
+  assert.equal(v.projects[0]!.color, null);
+  assert.equal(v.principals[1]!.kind, "service");
+  assert.equal(v.quiet![0]!.actor.kind, "service");
 });
