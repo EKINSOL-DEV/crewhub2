@@ -53,7 +53,8 @@
            without a reload with the key still accepted and the cursor going on; (b) the fake reopened with another
            key (the host's key revoked while Live, a 401 from a loops whose health answers): the rejected screen over
            the live tab with loops' reason, the kept key and Forget, the host's key state rejected; the new key
-           pasted: the town back by itself without a reload, the new key stored, neither key anywhere; (c) the fake
+           pasted (another bot's): the town back by itself without a reload, the new key stored, neither key anywhere,
+           Settings naming the new key (round 48); (c) the fake
            reopened with another `/api/health` version (loops upgraded): Live, health's `loopsCommit` and
            `loopsCommitBefore`, the panel saying crewhub-loops was updated under the host. Needs nobody and never
            touches the development loops. About a minute.
@@ -1859,7 +1860,9 @@ await group("ops", async () => {
     // from a loops whose health answers (a verdict), not a loops that is down.
     lastSeq = fake.lastSeq();
     await fake.close();
-    fake = noteLoops(await createLoopsFake({ ...fakeOptions, port, keyName, firstSeq: lastSeq }));
+    // The new key is another bot's (round 48): the page must name the key the host holds now.
+    const secondName = `${keyName}-2`;
+    fake = noteLoops(await createLoopsFake({ ...fakeOptions, port, keyName: secondName, firstSeq: lastSeq }));
     const rejected = await screen("rejected", 30000);
     // The screen asks the host at once for loops' reason; give that read a moment.
     let reason = "";
@@ -1883,11 +1886,18 @@ await group("ops", async () => {
     ok("ops (b): the new key pasted: the town is back by itself without a reload, the host stores the new key and streams with it, neither key is anywhere in the page", liveAgain === "live" && (await marked()) === "set" && storedKey === secondKey && healthNew?.connection?.key?.state === "ok" && !(await leaked(firstKey)) && !(await leaked(secondKey)), `${liveAgain}, marker ${await marked()}, stored ${storedKey === secondKey}, key ${healthNew?.connection?.key?.state}`);
     storedKey = "";
     await shot(pg, "50-ops-new-key");
+    // Round 48 (r48-ui U3): Settings > Source names the key the host holds now, not the one the page started with.
+    await pg.getByRole("button", { name: "Settings", exact: true }).click();
+    await pg.waitForSelector(".settings-sheet", { timeout: 5000 }).catch(() => {});
+    const sourceHost = (await pg.locator(".settings-sheet .source-host").innerText().catch(() => "")).replace(/\s+/g, " ");
+    ok("ops (b): Settings names the key the host holds now, not the one the page started with", sourceHost.includes(`Key: ${secondName}.`) && !sourceHost.includes(`Key: ${keyName}.`), sourceHost.slice(0, 160));
+    await pg.getByRole("button", { name: /close settings/i }).first().click().catch(() => pg.keyboard.press("Escape"));
+    await pg.waitForSelector(".settings-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
 
     // (c) loops upgraded: the fake comes back on its port with another health version.
     lastSeq = fake.lastSeq();
     await fake.close();
-    fake = noteLoops(await createLoopsFake({ ...fakeOptions, version: "0.2.0+fake.ops", port, key: secondKey, keyName, firstSeq: lastSeq }));
+    fake = noteLoops(await createLoopsFake({ ...fakeOptions, version: "0.2.0+fake.ops", port, key: secondKey, keyName: secondName, firstSeq: lastSeq }));
     const liveUpgraded = await until("live", 30000);
     const healthUpgraded = await healthUntil((h) => h.loopsCommit === "0.2.0+fake.ops", 15000);
     const factsUpgraded = await panelFacts((f) => /it was 0\.1\.0\+fake\.ops when this host started/.test(f));
