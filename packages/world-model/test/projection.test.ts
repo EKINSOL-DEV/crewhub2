@@ -322,3 +322,19 @@ test("round 48: after dispose, a read still out changes nothing and tells nobody
   assert.equal(projection.facts.version, version);
   assert.equal(changes, 1, "only the event itself was told");
 });
+
+test("round 48: a ticket read that answers after its project was archived puts no card back and keeps the closed building's counts", async () => {
+  const { projection, scheduler, source } = setup();
+  source.tickets.set("tk_85", asTicket("planned"));
+  const counts = { ...projection.facts.projects["crewhub-loops"]!.counts };
+  projection.apply({ type: "event", envelope: comment(101) });
+  projection.apply({
+    type: "event",
+    envelope: envelope("project.archived", { changed: ["archivedAt"], old: {}, new: { archivedAt: "2026-10-01T20:00:00Z" } }, { seq: 102 }),
+  });
+  assert.deepEqual(projection.facts.cards, {});
+  await scheduler.advance(250);
+  assert.deepEqual(source.calls, ["ticket:tk_85"], "the read queued before the archive still goes");
+  assert.deepEqual(projection.facts.cards, {}, "an archived project holds no cards");
+  assert.deepEqual(projection.facts.projects["crewhub-loops"]?.counts, counts);
+});

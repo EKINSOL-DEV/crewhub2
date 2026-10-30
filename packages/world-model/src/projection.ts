@@ -647,7 +647,8 @@ export class Projection {
 
   private applyTicket(id: string, ticket: Ticket | null): void {
     const previous = this.state.cards[id];
-    if (!ticket || ticket.archivedAt) {
+    // A closed building holds no cards (`project.archived` took them): a read that answers after it puts none back.
+    if (!ticket || ticket.archivedAt || this.state.archivedOrder.includes(ticket.project.slug)) {
       if (previous) {
         delete this.state.cards[id];
         this.recount(previous.slug);
