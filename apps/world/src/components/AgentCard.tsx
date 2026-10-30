@@ -47,7 +47,9 @@ export function AgentCard({ facts, sections, freshness, demo, following, sheet, 
     const draw = () => {
       const el = canvas.current;
       if (!el || document.hidden) return;
-      el.dataset.drawn = portrait(el) ? "" : undefined;
+      // Removed, not set to undefined: a dataset value of undefined is the string "undefined", which `[data-drawn]` matches.
+      if (portrait(el)) el.dataset.drawn = "";
+      else delete el.dataset.drawn;
     };
     draw();
     const timer = window.setInterval(draw, 1500);
