@@ -305,3 +305,20 @@ test("round 48: a ticket created while the board's read is out stays when the ol
   await settle();
   assert.equal(projection.facts.cards.tk_86?.card.status, "backlog", "the new ticket is still on the board");
 });
+
+test("round 48: after dispose, a read still out changes nothing and tells nobody", async () => {
+  const { projection, scheduler, source } = setup();
+  const held = heldReads(source);
+  let changes = 0;
+  projection.onChange(() => (changes += 1));
+  projection.apply({ type: "event", envelope: envelope("ticket.updated", { changed: ["title"] }, { seq: 101, ticket: ticketRef }) });
+  await scheduler.advance(250);
+  assert.equal(held.tickets.length, 1, "the read is on its way");
+  projection.dispose();
+  const version = projection.facts.version;
+  held.tickets[0]!.answer(asTicket("planned", { title: "Docs v2" }));
+  await settle();
+  assert.equal(projection.facts.cards.tk_85?.card.title, "Ticket CL-85");
+  assert.equal(projection.facts.version, version);
+  assert.equal(changes, 1, "only the event itself was told");
+});

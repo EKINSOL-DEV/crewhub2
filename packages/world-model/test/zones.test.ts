@@ -175,6 +175,20 @@ test("a source that only lists its groups (no groups in the snapshot) still reac
   assert.equal(changes, 2);
 });
 
+test("round 48: a groups read answered after the next snapshot is dropped; that snapshot's own groups stand", async () => {
+  let answer: (groups: ProjectGroup[]) => void = () => {};
+  const source = Object.assign(new FakeSource(), { listProjectGroups: () => new Promise<ProjectGroup[]>((resolve) => (answer = resolve)) });
+  const projection = new Projection(source, { scheduler: new ManualScheduler() });
+  projection.apply({ type: "snapshot", snapshot: snapshot({ projects: [project("cr", "CR", "cr-lead")] }) });
+  // A seek or a new loop: this snapshot carries its groups, so it asks for none.
+  projection.apply({ type: "snapshot", snapshot: { ...snapshot({ projects: [project("cr", "CR", "cr-lead")] }), groups: [group("clients", 0)] } });
+  const version = projection.facts.version;
+  answer([group("studio", 0)]);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(projection.facts.groups.map((g) => g.id), ["clients"]);
+  assert.equal(projection.facts.version, version, "nothing changed, nobody was told");
+});
+
 test("a town document from before zones gives an empty zoning; one with zones gives exactly those two keys", () => {
   assert.deepEqual(zoningOf({ format: "crewhub-town/1", plots: [] }), {});
   assert.deepEqual(zoningOf(null), {});
