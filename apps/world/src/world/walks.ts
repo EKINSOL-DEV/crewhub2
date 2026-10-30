@@ -114,6 +114,9 @@ export class Walks {
     for (const slug of sync.removed)
       for (const [key, state] of this.#agents) if (state.building === slug && !this.nav.sim.actor(key)) this.#agents.delete(key);
     this.#applyDetail(optionsChanged);
+    // A new snapshot (a seek, a new loop) starts the idle errands over, as it does the person walks' visits: the same
+    // bucket makes the same choice again (round 48, r48-scene).
+    if (this.#model && this.#model.snapshots !== model.snapshots) this.#idleDone.clear();
     const intents = planMovement(this.#model, model, options);
     this.#model = model;
     for (const intent of intents) this.#apply(intent);

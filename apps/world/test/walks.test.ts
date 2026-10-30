@@ -3,6 +3,7 @@ import test from "node:test";
 import type { WorldModel } from "@crewhub/world-model";
 import { roomId, TOWN_ROOM } from "../src/world/navigation.ts";
 import { Walks } from "../src/world/walks.ts";
+import { idleChoice, IDLE_BUCKET_MS } from "../src/world/movement.ts";
 import { agent, building, object, world } from "./fixtures.ts";
 
 const T = 5_000_000;
@@ -168,4 +169,32 @@ test("director intents only walk in the entered building and never under reduced
   assert.equal(walks.errand("cr/dev-1"), null);
   run(walks, 30, () => !walks.moving);
   assert.equal(walks.walker("cr/dev-1")!.seated, true);
+});
+
+test("round 48 (r48-scene): after a seek back (a new snapshot) the idle errands play again as they did the first time", () => {
+  // A bucket where cr/dev-1 has an idle errand, and the time it is due.
+  let due = 0;
+  for (let bucket = 100; !due; bucket++) {
+    const choice = idleChoice("cr/dev-1", bucket * IDLE_BUCKET_MS, "on");
+    if (choice) due = choice.at;
+  }
+  const options = { ...inside, ambient: "on" as const };
+  const play = (walks: Walks, from: number, seconds: number, until?: () => boolean) => {
+    for (let i = 0; i < seconds * 30; i++) {
+      walks.tick(1 / 30, from + i * 33);
+      if (until?.()) return true;
+    }
+    return false;
+  };
+  const walks = new Walks();
+  walks.update(idleModel(), options);
+  play(walks, due - 5_000, 1);
+  assert.equal(walks.errand("cr/dev-1"), null, "seated before it is due");
+  assert.ok(play(walks, due, 2, () => walks.errand("cr/dev-1")?.reason === "idle"), "the idle errand starts when it is due");
+  play(walks, due + 2_000, 40, () => walks.errand("cr/dev-1") === null && !walks.moving);
+  // The viewer seeks back: a new snapshot, and the source clock a minute earlier.
+  walks.update(world(idleModel().buildings, { postOffice: [postman], snapshots: 2 }), options);
+  play(walks, due - 60_000, 1);
+  assert.equal(walks.errand("cr/dev-1"), null, "seated again after the seek");
+  assert.ok(play(walks, due, 2, () => walks.errand("cr/dev-1")?.reason === "idle"), "played again: the same choice in the same bucket");
 });
