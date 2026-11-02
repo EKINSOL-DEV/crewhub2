@@ -8,7 +8,8 @@
    q3, q8, q11, q14 and q15 merged in that order, then question 1's branch last (`tab` is task/r27-tab-pairing,
    `cookie+expiry` is task/q1-cookie-expiry, `cookie` merges neither). A conflict the plan knows (its hand merges A to G,
    kept as data below, each a rule on the two sides' content) is resolved and committed; any other conflict stops the
-   run with the file named and the merge left open for a person. After `tab`, the two LOOPS_SETUP.md paragraphs that
+   run with the file named and the merge left open for a person, and a merge that fails without a conflict (a branch
+   git does not know, files it would overwrite) stops with git's own reason. After `tab`, the two LOOPS_SETUP.md paragraphs that
    branch once dropped must be there (C: the branch carries them since round 38; missing means it dropped them again,
    and the run stops); after `cookie+expiry`, q3's health-keys test gets the field q1 adds (B, folded into the merge
    commit). Prints every step and the result's sha last; with --check runs
@@ -170,15 +171,24 @@ function main(argv) {
   if (git("status", "--porcelain") !== "") fail("the tree is not clean");
   const merge = (key) => {
     const branch = BRANCHES[key];
+    let failure;
     try {
       // The plain two-sided markers the rules read, whatever merge.conflictStyle the person's git config sets.
       git("-c", "merge.conflictStyle=merge", "merge", "--no-ff", "--no-edit", branch);
       console.log(`merged ${key} (${branch}): clean -> ${short()}`);
       return;
-    } catch {
+    } catch (error) {
       // A conflict: resolve what the plan knows, file by file; anything else stops here with the merge left open.
+      failure = error;
     }
     const files = git("diff", "--name-only", "--diff-filter=U").split("\n").filter((f) => f !== "");
+    if (files.length === 0) {
+      // Not a conflict (a branch git does not know, files the merge would overwrite…): git's own reason, never a stack
+      // from the commit below (round 50, r48-review F11).
+      const reason = String(failure?.stderr ?? failure?.message ?? failure).trim().replace(/\s*\n\s*/g, " ");
+      console.error(`answers-replay: the merge of ${branch} failed without a conflict: ${reason}: a person must look`);
+      process.exit(1);
+    }
     for (const file of files) {
       const full = path.join(repo, file);
       let resolved;
