@@ -300,12 +300,13 @@ export function postureOf(status: LaneStatus): Posture {
 /**
  * Plan 7.1: a new lane status becomes the posture only after it held for two consecutive team
  * snapshots or 45 s. A stale or missing snapshot greys the agent at once: that is freshness, not flicker.
+ * So is the way back (round 50, M2): from unknown, the first known status shows at once.
  */
 export function debouncedStatus(key: AgentKey, status: LaneStatus, ctx: ReduceContext): LaneStatus {
   const { memory, now, facts } = ctx;
   const revision = facts.teamRevision;
   const lane = memory.lanes[key];
-  if (!lane || ctx.stale) {
+  if (!lane || ctx.stale || (lane.shown === "unknown" && status !== "unknown")) {
     memory.lanes[key] = { shown: status, pending: null, pendingSince: now, pendingSnapshots: 0, teamRevision: revision };
     return status;
   }
