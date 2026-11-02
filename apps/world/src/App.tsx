@@ -10,6 +10,7 @@ import { ConnectionChip, connectionLine, connectionWord } from "./components/Con
 import { ConnectionPanel } from "./components/ConnectionPanel";
 import { ChatPanel } from "./components/ChatPanel";
 import { Tour } from "./components/Tour";
+import { nextAnnouncement } from "./state/announce";
 import { sceneOwnsKey } from "./state/sceneKeys";
 import { INTRODUCTION_URL, readTourDone, tourShouldStart, writeTourDone } from "./state/tour";
 import { chatPlaceLine, recentEmptyWords } from "./state/chatRoad";
@@ -123,7 +124,9 @@ function World() {
   const tourAsked = useRef(false);
   /** Where the focus goes when the tour closes: the Settings button when Settings opened it (its own button is gone with the sheet). */
   const tourReturn = useRef<HTMLElement | null>(null);
-  const [announcement, setAnnouncement] = useState("");
+  const [announcement, setSpoken] = useState("");
+  // The same sentence twice is heard twice (state/announce.ts, round 50 N3); one function for the page's life.
+  const setAnnouncement = useCallback((text: string) => setSpoken((before) => nextAnnouncement(before, text)), []);
   const [action, setAction] = useState<{ id: number; type: CameraAction }>({ id: 0, type: "home" });
   const [room, setRoom] = useState<RoomKind | null>(null);
   const [zoomed, setZoomed] = useState<RoomKind | null>(null);
