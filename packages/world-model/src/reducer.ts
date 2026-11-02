@@ -17,7 +17,7 @@ import {
 } from "./agents.ts";
 import type { AgentEntity, ReduceContext } from "./agents.ts";
 import type { Facts } from "./facts.ts";
-import type { PresentationMemory } from "./memory.ts";
+import { forgetGone, type PresentationMemory } from "./memory.ts";
 import type {
   AgentKey,
   AgentPlacement,
@@ -91,6 +91,7 @@ export function reduceWorld(facts: Readonly<Facts>, memory: PresentationMemory, 
 
   startFlights(ctx);
   const entities = listAgents(facts);
+  forgetGone(ctx.memory, entities, facts.projects);
   const states = new Map<AgentKey, AgentState>();
   for (const entity of entities) {
     const laneStatus = laneStatusOf(entity, ctx.stale);
