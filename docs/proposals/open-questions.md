@@ -1,6 +1,6 @@
 # Open questions for Nicky (rounds 30 to 35, 2026-10-24)
 
-**The smaller product choices** (words on screen, the tour, the host's odd cases; thirty from round 48) are on their own page: [design-choices.md](design-choices.md).
+**The smaller product choices** (words on screen, the tour, the host's odd cases, the figures, accessibility; thirty-nine from rounds 48 and 50) are on their own page: [design-choices.md](design-choices.md).
 
 **How to answer:** one line per number, in the form shown after each question (for example `3: less`), to crewy or in
 a note; a number you skip keeps its default. **Nothing changes until you answer:** every question below names what the
