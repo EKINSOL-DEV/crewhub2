@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import * as THREE from "three";
 import {
   applyFigurePatch,
   createCast,
@@ -12,6 +13,7 @@ import {
   validatePerson,
   wave,
   type CastManifest,
+  type FigureExtension,
   type FigureSpec,
   type FigureState,
   type Perch,
@@ -438,4 +440,18 @@ test("the contract holds the person to the anchors and the budget, in every stat
   const problems = castProblems(createCast(roomy, figure(), kit, undefined, heavy));
   assert.ok(problems.some((p) => /^pegs person: 9 meshes near, over the budget of 8/.test(p)), problems.join("\n"));
   assert.ok(problems.every((p) => p.startsWith("pegs person")), "the roles are untouched by the person");
+});
+
+test("round 50 (C3): the contract measures a code hook's meshes in any material; only the kit's own shadow and halo are left out", () => {
+  const kit = referenceKit(manifest.colors);
+  const roomy: CastManifest = { ...manifest, budget: { nearTriangles: 2000, farTriangles: 1200, nearMeshes: 8, farMeshes: 6 } };
+  // The pegs alone fit, their shadow and halo (a plain and a see-through material of the kit) not counted.
+  assert.deepEqual(castProblems(createCast(roomy, figure(), kit)), []);
+  // A hook adds a dense ball in a material the far crowd cannot batch.
+  const ball: FigureExtension = ({ joints }) => {
+    joints.get("root")!.add(new THREE.Mesh(new THREE.SphereGeometry(0.1, 40, 40), new THREE.MeshBasicMaterial({ color: "#ff00ff" })));
+  };
+  const problems = castProblems(createCast(roomy, figure(), kit, ball));
+  assert.ok(problems.some((p) => /^pegs lead: \d+ triangles near, over the budget of 2000$/.test(p)), problems.join("\n"));
+  assert.ok(problems.some((p) => /^pegs lead idle: 1 far part\(s\) the crowd cannot batch/.test(p)), problems.join("\n"));
 });

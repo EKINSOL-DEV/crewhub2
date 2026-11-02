@@ -219,6 +219,8 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
   const body = new FigureJoint();
   const shadow = kit.contactShadow(spec.anchors.ground);
   const halo = kit.halo(spec.anchors.ground);
+  // The kit's own, on the ground: the contract leaves them out of the cast's budget (round 50, C3). Nothing else reads it.
+  shadow.userData.kitGround = halo.object.userData.kitGround = true;
   body.add(shadow, halo.object);
   root.add(body);
 
