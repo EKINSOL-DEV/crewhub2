@@ -569,6 +569,10 @@ export function createCast(manifest: CastManifest, spec: FigureSpec, kit: Figure
     figure: (options) => figure(spec, kit, options, extend, steps),
     person: ({ key }) => (person ? figure(person, kit, { key, role: "worker", accent: null }, undefined, steps) : figure(spec, kit, { key, role: "worker", accent: null }, extend, steps)),
     hasPerson: person !== null,
-    dispose() {},
+    dispose() {
+      // The steps this cast merged are its own (round 50, N3); a single-part step's geometry is the kit's, left alone.
+      for (const merged of steps.values()) for (const geometry of merged.values()) geometry?.dispose();
+      steps.clear();
+    },
   };
 }

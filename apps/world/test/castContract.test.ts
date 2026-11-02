@@ -25,6 +25,17 @@ test("every style gives a top for every work pose", () => {
   for (const style of styles) assert.deepEqual([...new Set(templateWorkPlaces(style.workSurfaces ?? {}, FIGURE_SCALE).map((p) => p.pose))], [...WORK_POSES], style.id);
 });
 
+// Round 50 (C1): a cast whose data does not validate is refused with a console warning and is then in no list; the
+// contract below iterates the registered casts only, so every cast package must be registered, or this says why not.
+test("every cast package is registered: none is refused, none is missing", () => {
+  const packages = readdirSync(PACKAGES)
+    .filter((name) => name.startsWith("cast-"))
+    .map((name) => (JSON.parse(readFileSync(path.join(PACKAGES, name, "cast.json"), "utf8")) as { id: string }).id);
+  assert.ok(packages.length > 0);
+  assert.deepEqual(castRegistry.refused(), []);
+  assert.deepEqual(castRegistry.listCasts().map((m) => m.id).sort(), [...packages].sort());
+});
+
 test("the fallback cast is registered", () => {
   assert.ok(castRegistry.has(FALLBACK_CAST_ID));
 });

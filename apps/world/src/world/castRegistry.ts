@@ -39,8 +39,13 @@ export interface CastChoice {
 
 export interface CastRegistry {
   readonly fallbackId: string;
-  /** Registers a cast; one whose data does not validate is refused with a warning. */
+  /**
+   * Registers a cast; one whose data does not validate, or whose id is already registered (round 50, C2: it replaced
+   * the first silently), is refused with a warning.
+   */
   registerCast(factory: CastFactory): boolean;
+  /** The casts refused so far, with their reasons (round 50, C1): a refused cast is otherwise gone without a trace. */
+  refused(): { id: string; errors: string[] }[];
   listCasts(): CastManifest[];
   has(id: string): boolean;
   /** The figure of a cast with its `extends` chain resolved, or null (unknown, code-only or a broken chain). */
@@ -79,6 +84,7 @@ function foldExtensions(links: readonly CastFactory[]): FigureExtension | undefi
 
 export function createCastRegistry(fallbackId: string, warn: (message: string) => void = (m) => console.warn(m)): CastRegistry {
   const factories = new Map<string, CastFactory>();
+  const refusals: { id: string; errors: string[] }[] = [];
   const instances = new WeakMap<CastStyle, Map<string, Cast>>();
   const warned = new Set<string>();
   const once = (message: string) => {
@@ -117,13 +123,16 @@ export function createCastRegistry(fallbackId: string, warn: (message: string) =
         if (manifest.ok && factory.person.format === "crewhub-figure-patch/1" && factory.manifest.extends === undefined)
           errors.push("cast: a person patch (crewhub-figure-patch/1) needs a cast to extend; a cast of its own ships a crewhub-figure/1 person");
       }
+      if (manifest.ok && factories.has(factory.manifest.id)) errors.push(`cast: "${factory.manifest.id}" is already registered; a cast's id must be its own`);
       if (errors.length) {
+        refusals.push({ id: String(factory.manifest?.id), errors });
         warn(`Cast "${String(factory.manifest?.id)}" is not registered:\n  ${errors.join("\n  ")}`);
         return false;
       }
       factories.set(factory.manifest.id, factory);
       return true;
     },
+    refused: () => refusals.map((r) => ({ id: r.id, errors: [...r.errors] })),
     listCasts: () => [...factories.values()].map((f) => f.manifest),
     has: (id) => factories.has(id),
     figureOf(id) {

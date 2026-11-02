@@ -455,3 +455,35 @@ test("round 50 (C3): the contract measures a code hook's meshes in any material;
   assert.ok(problems.some((p) => /^pegs lead: \d+ triangles near, over the budget of 2000$/.test(p)), problems.join("\n"));
   assert.ok(problems.some((p) => /^pegs lead idle: 1 far part\(s\) the crowd cannot batch/.test(p)), problems.join("\n"));
 });
+
+test("round 50 (N3): a cast's dispose frees the step geometries it merged, and leaves the kit's own", () => {
+  const books: Perch = {
+    kind: "step",
+    steps: [
+      {
+        id: "books",
+        height: 0.3,
+        parts: [
+          { shape: "box", size: [0.4, 0.15, 0.3], position: [0, 0.075, 0], color: "wood" },
+          { shape: "box", size: [0.35, 0.15, 0.3], position: [0, 0.225, 0], color: "wood" },
+          { shape: "box", size: [0.3, 0.1, 0.2], position: [0, 0.35, 0], color: "pale" },
+        ],
+      },
+    ],
+  };
+  const cast = createCast(manifest, { ...figure(), perch: { default: books } }, referenceKit(manifest.colors));
+  const handle = cast.figure({ key: "a:1", role: "worker", accent: null });
+  handle.setPerch(desk(), true);
+  const geometries: THREE.BufferGeometry[] = [];
+  handle.object.children.forEach((child) => child !== handle.body && child.traverse((o) => o instanceof THREE.Mesh && geometries.push(o.geometry)));
+  assert.equal(geometries.length, 2, "the two wood books merged, the pale one as the kit made it");
+  const disposed = new Set<THREE.BufferGeometry>();
+  for (const g of geometries) g.addEventListener("dispose", () => disposed.add(g));
+  handle.dispose();
+  assert.equal(disposed.size, 0, "a figure leaves the cast's shared steps");
+  cast.dispose();
+  // The merged one holds both wood books: twice the vertices of the kit's own box.
+  const [a, b] = geometries.map((g) => g.getAttribute("position").count);
+  const merged = geometries[a! > b! ? 0 : 1]!;
+  assert.deepEqual([...disposed], [merged], "the merged books are freed, the kit's own geometry is not");
+});

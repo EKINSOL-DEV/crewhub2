@@ -52,7 +52,9 @@ export function figureKit(kit: Kit, cast: Pick<CastManifest, "id" | "colors">): 
           material.uniforms.uColor!.value.set(kit.hex(swatch(color)));
         },
         update(seconds) {
-          material.uniforms.uTime!.value += seconds;
+          // The pulse is sin(uTime * 2), a period of π s: wrapped there, a halo shown for days keeps a smooth pulse in
+          // the float32 uniform (round 50, N1).
+          material.uniforms.uTime!.value = (material.uniforms.uTime!.value + seconds) % Math.PI;
         },
         dispose: () => material.dispose(),
       };

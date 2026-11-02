@@ -145,3 +145,22 @@ test("a person is inherited down the extends chain, re-dressed by a person patch
   assert.equal(r.registerCast({ manifest: manifest("proud"), figure, person: { ...person, halo: "accent" } }), false);
   assert.equal(r.registerCast({ manifest: manifest("patchy"), figure, person: { format: "crewhub-figure-patch/1" } }), false, "a person patch needs a cast to extend");
 });
+
+test("round 50 (C2): a second cast with an id already registered is refused with a warning; the first stays", () => {
+  const { r, warnings } = registry();
+  assert.equal(r.registerCast(pegs), true);
+  const copy: CastFactory = { manifest: manifest("pegs", { name: "Copied pegs" }), figure };
+  assert.equal(r.registerCast(copy), false);
+  assert.deepEqual(r.listCasts().map((m) => m.name), ["pegs"]);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0]!, /"pegs" is already registered/);
+});
+
+test("round 50 (C1): the registry keeps every refusal, with its reasons, for whoever must say it", () => {
+  const { r } = registry();
+  r.registerCast(pegs);
+  r.registerCast({ manifest: manifest("no-figure") });
+  r.registerCast({ manifest: manifest("pegs") , figure });
+  assert.deepEqual(r.refused().map((x) => x.id), ["no-figure", "pegs"]);
+  assert.ok(r.refused()[0]!.errors.some((e) => /needs a figure/.test(e)));
+});
