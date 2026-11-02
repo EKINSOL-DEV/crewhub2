@@ -3,8 +3,10 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import * as THREE from "three";
 import type { StyleManifest } from "@crewhub/world-style";
 import { cloneLight, compileLights, DAY_STOPS, driftLight, drifts, mixLights, sameLight, wrapPhase } from "../src/daylight.ts";
+import { environment } from "../src/environment.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const manifest = JSON.parse(readFileSync(path.join(ROOT, "style.json"), "utf8")) as StyleManifest;
@@ -87,4 +89,23 @@ test("the air follows the drift: the theme's own by day, warm at dawn, rosy at d
   assert.ok(dusk.air.equals(lights.dusk!.air) && dusk.airTint > 0 && dusk.airTint < lights.dusk!.airTint);
   assert.equal(dusk.keyIntensity, lights.lamplight.keyIntensity);
   assert.ok(air("lamplight", 0.93).air.equals(lights.dawn!.air));
+});
+
+test("round 50 (N2): a day phase that is not a finite number is ignored: no NaN light, no re-lighting", () => {
+  // The pure drift: a phase it cannot place gives the theme's own light, as no drift does.
+  for (const theme of ["day", "lamplight"] as const)
+    for (const phase of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) assert.ok(sameLight(driftLight(lights, theme, phase, out()), lights[theme]), `${theme} at ${phase}`);
+  // The environment keeps the light it shows and says nothing changed.
+  const renderer = { toneMapping: THREE.NoToneMapping, toneMappingExposure: 1 } as unknown as THREE.WebGLRenderer;
+  const lit: number[] = [];
+  const env = environment(new THREE.Scene(), renderer, manifest.lighting, "day", () => {}, () => {}, (light) => lit.push(light.evening));
+  assert.equal(env.setDayPhase(0.77), true);
+  const evening = env.evening;
+  const calls = lit.length;
+  assert.equal(env.setDayPhase(Number.NaN), false);
+  assert.equal(env.setDayPhase(Number.NaN), false);
+  assert.equal(env.evening, evening);
+  assert.equal(lit.length, calls);
+  assert.ok(Number.isFinite(renderer.toneMappingExposure));
+  env.dispose();
 });

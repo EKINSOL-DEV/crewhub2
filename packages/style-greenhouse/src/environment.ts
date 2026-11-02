@@ -116,7 +116,8 @@ export function environment(
     },
     setCloudShadows: setClouds,
     setDayPhase(at) {
-      if (at === phase) return false;
+      // A phase that is not a finite number is ignored (round 50): no NaN light, and no re-lighting on every call.
+      if (at === phase || (at !== null && !Number.isFinite(at))) return false;
       phase = at;
       return update(false);
     },
