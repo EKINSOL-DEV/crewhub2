@@ -148,7 +148,6 @@ export function connectOutcome(status: number, body: unknown): ConnectOutcome {
   return { kind: "failed", reason: words ?? (typeof record["error"] === "string" ? (record["error"] as string) : String(status)) };
 }
 
-/** "just now", "40 s ago", "3 min ago", "3 h ago", "3 d ago"; null for no time or one that does not parse. */
 /** "now", "in 40 s", "in 4 min", "in 2 h"; null for no time or one that does not parse. For the host's next re-check of a rejected key. */
 export function untilTime(iso: string | undefined, nowMs: number): string | null {
   if (iso === undefined) return null;
@@ -162,6 +161,7 @@ export function untilTime(iso: string | undefined, nowMs: number): string | null
   return `in ${Math.round(minutes / 60)} h`;
 }
 
+/** "just now", "40 s ago", "3 min ago", "3 h ago", "3 d ago"; null for no time or one that does not parse. */
 export function relativeTime(iso: string | undefined, nowMs: number): string | null {
   if (iso === undefined) return null;
   const then = Date.parse(iso);

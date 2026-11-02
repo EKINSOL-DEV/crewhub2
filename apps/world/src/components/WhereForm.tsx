@@ -6,12 +6,13 @@ import { useId, useMemo, useState } from "react";
 import { where, type AgentPlacement, type CivicWords, type RoomWording } from "@crewhub/world-model";
 import { Field } from "./primitives";
 import { useWorld } from "../state/world";
+import { goneWords, whereChoice, type WhereChosen } from "../state/whereChoice";
 
 /** `civic`: what the town hall and the post office are called at the town's size (the lodge, the mailbox). `rooms`: the
     words for places, the classic rooms or the three halls, as the building is drawn. */
 export function WhereForm({ civic, rooms = "classic" }: { civic?: CivicWords; rooms?: RoomWording }) {
   const { model } = useWorld();
-  const [chosen, setChosen] = useState("");
+  const [chosen, setChosen] = useState<WhereChosen | null>(null);
   const answerId = useId(),
     titleId = useId();
   const agents = useMemo(() => {
@@ -26,12 +27,17 @@ export function WhereForm({ civic, rooms = "classic" }: { civic?: CivicWords; ro
     for (const b of model.buildings) for (const v of b.visits) if (!byId.has(v.personId)) byId.set(v.personId, v.displayName);
     return [...byId].sort((a, b) => a[1].localeCompare(b[1]));
   }, [model]);
-  const known = agents.some((a) => a.key === chosen) || people.some(([id]) => id === chosen);
-  const selected = known ? chosen : (agents[0]?.key ?? people[0]?.[0] ?? "");
+  // A chosen name that leaves stays chosen and is said to be gone (state/whereChoice.ts, round 50 U6).
+  const { selected, gone, options } = whereChoice(agents, people, chosen);
+  const pick = (key: string) => {
+    // The gone option is the chosen one itself: it keeps its name.
+    const name = agents.find((a) => a.key === key)?.displayName ?? people.find(([id]) => id === key)?.[1] ?? chosen?.name ?? key;
+    setChosen({ key, name });
+  };
   return (
     <form className="where-form" onSubmit={(e) => e.preventDefault()} aria-labelledby={titleId}>
       <h3 id={titleId}>Where is …?</h3>
-      <Field control="select" size="sm" label="Agent" value={selected} aria-describedby={answerId} onChange={(e) => setChosen(e.currentTarget.value)}>
+      <Field control="select" size="sm" label="Agent" value={selected} aria-describedby={answerId} onChange={(e) => pick(e.currentTarget.value)}>
         {agents.map((a) => (
           <option key={a.key} value={a.key}>
             {a.displayName}
@@ -42,9 +48,14 @@ export function WhereForm({ civic, rooms = "classic" }: { civic?: CivicWords; ro
             {name} (person)
           </option>
         ))}
+        {options.map((o) => (
+          <option key={`gone:${o.key}`} value={o.key}>
+            {o.label}
+          </option>
+        ))}
       </Field>
       <p id={answerId} className="where-answer" aria-live="polite">
-        {selected ? where(model, selected, civic, rooms) : "No agents are in the world yet."}
+        {gone !== null ? goneWords(gone) : selected ? where(model, selected, civic, rooms) : "No agents are in the world yet."}
       </p>
     </form>
   );

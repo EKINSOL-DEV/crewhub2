@@ -341,3 +341,33 @@ test("actors join, leave and jump at runtime without breaking the others' reserv
   );
   assert.ok(sim.snapshot().doors.every((door) => door.holder === null && door.queue.length === 0));
 });
+
+test("round 50 (P2): a room removed and added again under the same id and size diffs its next update against itself, not the room it replaced", () => {
+  const walkThrough = (readd: boolean) => {
+    const graph = new NavGraph(stressDefinitions);
+    // Before: a block at 3,1 (when the room is rebuilt) or an open room.
+    graph.addRoom({ id: "a", layout: room(7, 3, readd ? [block(3, 1)] : []) });
+    const sim = new NavSimulation(graph, []);
+    sim.tick(1 / 30);
+    if (readd) {
+      // A building rebuilt: this room comes back with the same id and size, the block gone.
+      graph.removeRoom("a");
+      graph.addRoom({ id: "a", layout: room(7, 3) });
+    }
+    assert.ok(sim.addActor({ id: "w", location: at("a", 0, 1) }).ok);
+    assert.ok(sim.setDestination("w", at("a", 6, 1)).ok);
+    sim.tick(1 / 30);
+    // The block comes (back) on the walker's way, before it gets there.
+    assert.ok(sim.updateRoom("a", room(7, 3, [block(3, 1)])).ok);
+    const stood: string[] = [];
+    for (let i = 0; i < 120; i++) {
+      sim.tick(1 / 30);
+      const { cell } = sim.actor("w")!.location;
+      stood.push(`${cell.x},${cell.z}`);
+    }
+    assert.equal(sim.actor("w")!.status, "arrived");
+    return stood;
+  };
+  assert.ok(!walkThrough(false).includes("3,1"), "an update of a room never re-added");
+  assert.ok(!walkThrough(true).includes("3,1"), "the walker stood on the block at 3,1");
+});

@@ -3,6 +3,7 @@
    /world-api) when the page's source decision says so (state/source.ts, made in main.tsx before this module loads). */
 import { useSyncExternalStore } from "react";
 import { createHostSource, type ConnectionState, type ConnectionStatus, type WorldSource } from "@crewhub/loops-client";
+import { subscribeOf } from "./connectionSubscribe";
 import { rememberSaid } from "./said";
 import { rememberThreads } from "./threads";
 import { demoChatLine, isAgentDm } from "./demoSaid";
@@ -301,16 +302,14 @@ export function useWorld(): WorldState {
   return useSyncExternalStore(world.subscribe, () => world.state);
 }
 
-const NONE = () => () => {};
-
 /** The live source's connection state for the chip; null in demo mode. */
 export function useConnection(): ConnectionState | null {
   const connection = worldRuntime().connection;
-  return useSyncExternalStore(connection ? (listener) => connection.onChange(listener) : NONE, () => (connection ? connection.state() : null));
+  return useSyncExternalStore(subscribeOf(connection), () => (connection ? connection.state() : null));
 }
 
 /** The host's own word on its key from the stream's last status (none, checking, rejected, ok…); null in demo mode or from a host that does not say. */
 export function useConnectionKey(): ReturnType<ConnectionStatus["key"]> {
   const connection = worldRuntime().connection;
-  return useSyncExternalStore(connection ? (listener) => connection.onChange(listener) : NONE, () => (connection ? connection.key() : null));
+  return useSyncExternalStore(subscribeOf(connection), () => (connection ? connection.key() : null));
 }
