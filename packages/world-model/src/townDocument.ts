@@ -36,7 +36,10 @@ export const ROOM_KINDS: readonly RoomKind[] = [
 export const ATTACHMENT_KINDS = ["room", "agent", "ticket", "project"] as const;
 export type AttachmentKind = (typeof ATTACHMENT_KINDS)[number];
 
-/** Cells are room-grid (or town-grid) coordinates; the engine caps a grid at 128. */
+/**
+ * Cells are room-grid (or town-lot) coordinates from 0 to 127: the town's lot lattice is 128 lots a side (the centre
+ * lot at 64, 64). The engine's own cap on a grid is 256 (`validateLayout`).
+ */
 export const TOWN_LIMITS = { cellMax: 127, plotsMax: 256, placementsMax: 2000, userPropsMax: 200, zonesMax: 32, districtsMax: 64, slotMax: 8 } as const;
 export const ZONE_COLORS: readonly ProjectColor[] = ["coral", "tangerine", "circle", "mist", "ink"];
 export const ZONE_EMBLEMS: readonly ProjectIcon[] = ["home", "inbox", "bot", "spark", "users", "star", "folder"];
