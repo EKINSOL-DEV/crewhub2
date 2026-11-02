@@ -1077,11 +1077,13 @@
   color: var(--text-muted);
   border: 1px dashed var(--border-strong);
 }
+/* The word "rule" on the prop's label: a sunken pill at 7.7:1 light and 9.1:1 dark (round 50, r50-a11y A6: the raw
+   mist-text on mist was 2.38:1 in both themes). */
 .rule-word {
   padding: 0 var(--space-1);
   border-radius: var(--radius-pill);
-  background: var(--mist);
-  color: var(--mist-text);
+  background: var(--surface-sunken);
+  color: var(--text-muted);
   font-weight: var(--weight-semibold);
   text-transform: uppercase;
   letter-spacing: var(--tracking-meta);
