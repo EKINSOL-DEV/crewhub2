@@ -6,8 +6,8 @@
    Connect page (ConnectPage.tsx) shows for this state (a host from before the smooth connection lands there too). */
 import { Check, Copy, Link2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { createCopyFlash, type CopyFlash } from "../state/copyFlash";
 import { useT } from "../i18n";
-import { createCopyFlash, type CopyFlash, type CopyState } from "../state/copyFlash";
 import { hrefWithoutOverride, writeSourceSetting } from "../state/source";
 import { Button, Card } from "./primitives";
 
@@ -19,17 +19,20 @@ export function switchToDemo(): void {
 
 export function PairContent({ onRetry }: { onRetry: () => void }) {
   const { t } = useT();
-  const [copyState, setCopyState] = useState<CopyState>("idle");
+  const [copied, setCopied] = useState(false);
   const command = t("world.pair.command");
   // A failed copy says so, and the timer that turns "Copied" back goes with the screen (state/copyFlash.ts, round 50).
+  const [failed, setFailed] = useState(false);
   const flash = useRef<CopyFlash | null>(null);
   useEffect(() => {
-    const own = createCopyFlash(setCopyState);
+    const own = createCopyFlash((state) => {
+      setCopied(state === "copied");
+      setFailed(state === "failed");
+    });
     flash.current = own;
     return () => own.dispose();
   }, []);
   const copy = () => void flash.current?.copy(globalThis.navigator?.clipboard, command);
-  const copied = copyState === "copied";
   return (
     <>
       <Card.Body>
@@ -37,7 +40,7 @@ export function PairContent({ onRetry }: { onRetry: () => void }) {
         <div className="pair-command">
           <code className="pair-code">{command}</code>
           <Button size="sm" variant="ghost" onClick={copy} icon={copied ? <Check className="icon icon-sm" aria-hidden="true" /> : <Copy className="icon icon-sm" aria-hidden="true" />} aria-live="polite">
-            {copied ? t("world.pair.copied") : copyState === "failed" ? t("world.pair.copyFailed") : t("world.pair.copy")}
+            {copied ? t("world.pair.copied") : failed ? t("world.pair.copyFailed") : t("world.pair.copy")}
           </Button>
         </div>
         <p className="hint pair-note">{t("world.pair.note")}</p>
