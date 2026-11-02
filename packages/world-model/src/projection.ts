@@ -3,7 +3,7 @@
  * or a live host. Events are applied idempotently and in order (drop `seq <= cursor`); thin events
  * queue one coalesced refetch per object (plan 3.3: within 250 ms) through the source.
  */
-import { TICKET_STATUSES, toWorldEvent, validateEnvelope } from "@crewhub/loops-client";
+import { TICKET_STATUSES, toWorldEvent, validateEnvelope, warnOnce } from "@crewhub/loops-client";
 import type {
   Envelope,
   ProjectOut,
@@ -212,7 +212,15 @@ export class Projection {
       return true;
     }
     if (!event.ok) {
+      // Round 50 (M3): said once per type, and the ticket it names is read again, through the read path's own
+      // validator, so the fact this event carried is not lost until the next one.
       this.state.invalidEvents += 1;
+      warnOnce(`payload:${envelope.type}`, `${envelope.type} #${envelope.seq}: a payload this build cannot read at ${event.path} (${event.message}); counted as invalid${envelope.ticket ? ", its ticket read again" : ""}`);
+      if (envelope.ticket) {
+        this.events += 1;
+        this.touch(`ticket:${envelope.ticket.id}`);
+        this.refetchTicket(envelope.ticket.id);
+      }
       return true;
     }
     this.applyEvent(event.value);
