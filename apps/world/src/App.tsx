@@ -10,6 +10,7 @@ import { ConnectionChip, connectionLine, connectionWord } from "./components/Con
 import { ConnectionPanel } from "./components/ConnectionPanel";
 import { ChatPanel } from "./components/ChatPanel";
 import { Tour } from "./components/Tour";
+import { sceneOwnsKey } from "./state/sceneKeys";
 import { INTRODUCTION_URL, readTourDone, tourShouldStart, writeTourDone } from "./state/tour";
 import { chatPlaceLine, recentEmptyWords } from "./state/chatRoad";
 import { useChatRoad } from "./state/chatRoadStore";
@@ -689,6 +690,8 @@ function World() {
   // Arrow keys and Enter move the focus ring between plots while the scene has keyboard focus.
   const sceneKey = (e: ReactKeyboardEvent) => {
     if (typing(e.target) || e.altKey || e.ctrlKey || e.metaKey || walking) return;
+    // A key in the agent card (it sits in the stage) is the card's, not the scene's (state/sceneKeys.ts, round 50 A4).
+    if (!sceneOwnsKey(e.target instanceof Element ? e.target : null)) return;
     // Build mode moves the chosen or selected prop with the arrow keys (the window listener handles them).
     if (build.state.on && inside && (build.state.propId || build.state.selected)) return;
     if (inside) {
