@@ -1,19 +1,20 @@
-# Design choices for Nicky (rounds 41 to 48, 2026-10-30)
+# Design choices for Nicky (rounds 41 to 50, 2026-11-02)
 
 **How this relates to [open-questions.md](open-questions.md):** those are the fifteen merge decisions (pairing, health,
-the answer branches); these are smaller product choices the reviews of rounds 41 to 48 wrote down and left alone:
-words on screen, where a card sits, what the host does in an odd case. Rounds 41 to 47 left none; all thirty come from
-round 48. Every quote and line below was checked against the code at `d150cf4`.
+the answer branches); these are smaller product choices the reviews of rounds 41 to 50 wrote down and left alone:
+words on screen, where a card sits, what the host does in an odd case. Rounds 41 to 47 left none; thirty come from
+round 48 (checked against the code at `d150cf4`) and nine from round 50's reviews of the packages and of
+accessibility (K, X, W13 and W14, checked at `5126318`).
 
 **How to answer:** one line per id, in the same short form as the open questions, for example `T1: as recommended`,
 `W4: keep` or `S1: waits`. A whole block in one line works too: `wording block: as recommended`
-(the fourteen choices marked *wording*, gathered at the end), or `T: as recommended` for a group. **Nothing changes
+(the sixteen choices marked *wording*, gathered at the end), or `T: as recommended` for a group. **Nothing changes
 until you answer:** each choice names what stays if you say nothing, which is always the world as it is today.
 
 **The groups:** [first visit and tour](#first-visit-and-tour-t) (T, 9), [words on screen](#words-on-screen-w) (W, 12),
 [the live road](#the-live-road-l) (L, 2), [the host's behaviour](#the-hosts-behaviour-h) (H, 2),
-[the storyline](#the-storyline-s) (S, 4), and one area the five did not fit, [editing the town](#editing-the-town-e)
-(E, 1). **The cost** of a choice names the files, the tests and the pixel sets that would change. The demo pixel set
+[the storyline](#the-storyline-s) (S, 4), [editing the town](#editing-the-town-e) (E, 1), and from round 50
+[the figures](#the-figures-k) (K, 3) and [accessibility](#accessibility-x) (X, 4); words on screen gained W13 and W14. **The cost** of a choice names the files, the tests and the pixel sets that would change. The demo pixel set
 (`tools/pixcheck.mjs`) pictures the town, the town hall, a building and its rooms at 1440 and 375 px, light and dark,
 with the label layer hidden and the tour off; so plates, labels, sheets and the tour never move it.
 
@@ -276,6 +277,29 @@ is meant; with the text view open in a live world it talks often.
 **If you say nothing:** it keeps announcing.
 **Answer:** `W12: keep / on-choice`
 
+### W13. A name that left "Where is …?" (round 50, r48-ui U6) *wording*
+
+**Today (built in round 50).** When the name a person chose in "Where is …?" leaves the world (a person's visit ends, a
+worker's session goes), the form keeps it and says "Nicky is no longer in the world."; the select shows it as
+"Nicky (no longer in the world)" (`apps/world/src/state/whereChoice.ts:24,35`). Before round 50 the form switched to
+another agent by itself.
+**Options.** `as-built`. `<words>`.
+**Recommended:** `as-built`.
+**Cost:** for other words, `whereChoice.ts:24,35` and `apps/world/test/whereChoice.test.ts`. No pixel set.
+**If you say nothing:** as built.
+**Answer:** `W13: as-built / <words>`
+
+### W14. Copy that cannot copy on the Pair screen (round 50, r48-ui N1) *wording*
+
+**Today (built in round 50).** When the browser has no clipboard or refuses, the Pair screen's Copy button says
+"Select the command and copy it" (`apps/world/src/i18n/en.ts:117`, `world.pair.copyFailed`). Before round 50 nothing
+happened.
+**Options.** `as-built`. `<words>`.
+**Recommended:** `as-built`.
+**Cost:** for other words, `en.ts:117`; `apps/world/test/copyFlash.test.ts` reads the state, not the words. No pixel set.
+**If you say nothing:** as built.
+**Answer:** `W14: as-built / <words>`
+
 ## The live road (L)
 
 ### L1. "Loops down" for a host that is fine with loops (r48-live L4)
@@ -399,9 +423,107 @@ seek back. The demo pixel set seeks forward from the start to 2:00, so it should
 **If you say nothing:** leaving the field writes the draft.
 **Answer:** `E1: escape / keep`
 
+## The figures (K)
+
+From round 50's read-only review of the engine, the styles and the casts.
+
+### K1. A cast made for a newer world: refused whole, or drawn with what this world knows?
+
+**Today.** The cast validators refuse any key they do not know: an activity in `poses`, `motions` or `looks`, a role in
+`colorways.roles` or `parts[].roles`, a perch key (`packages/world-cast/src/validate.ts:101-103,126,198,221,255`). A
+cast written for a later world (a new activity, a new role) is not registered at all; its towns draw classic-bots, and
+the text view says "No cast named … is installed; … stands in." (`apps/world/src/world/castText.ts:46`).
+**Options.** `refuse`: as it is (the format number would change for such a cast). `lenient`: warn once and ignore the
+activities, roles and perch poses this world does not know, as round 48 made the live snapshot's enums lenient; unknown
+*fields* stay errors, as in the prop format.
+**Recommended:** `lenient`, for those three enums only.
+**Cost:** `validate.ts` (a warnings list beside the errors) and `apps/world/src/world/castRegistry.ts` (warn once);
+tests in `packages/world-cast`. No pixel set.
+**If you say nothing:** a cast from a newer world is refused, and classic-bots stands in.
+**Answer:** `K1: lenient / refuse`
+
+### K2. Walking at 8x and 16x: at story speed, or calmer?
+
+**Today.** The engine takes at most 0.1 s of simulation per tick (`packages/world-engine/src/navSim.ts:320`), and the
+walks tick once per frame with the frame's time times the speed (`apps/world/src/world/walks.ts:145`). At 60 fps the
+figures walk at about 75 % of story speed at 8x and 37 % at 16x, and slower on a slow device; at 16x a figure may still
+be walking when the story has moved on. The scene's comment means them to keep up ("faster with it").
+**Options.** `story`: story speed at every playback speed (sub-steps of 0.1 s at the caller; the figures dash at 16x).
+`even`: keep a slowdown, the same on every device (a cap per wall second instead of per frame). `keep`.
+**Recommended:** `story`.
+**Cost:** `walks.ts` (at most 8 sub-steps a frame at 16x) and a test that N frames at 16x walk as far as 16N frames at
+1x. The demo pixel set at speed and the regress `walk` group run at night.
+**If you say nothing:** today's frame-rate-dependent slowdown stays.
+**Answer:** `K2: story / even / keep`
+
+### K3. A cast that could not be loaded, on screen (round 50, r50-packages C1)
+
+**Today.** A cast package that fails validation is refused with a console warning; since round 50 the registry keeps
+the reasons and a contract test fails on it. On screen, a town that asks for it says the same as for a cast that is not
+there: "No cast named … is installed; … stands in." (`castText.ts:46`).
+**Options.** `say`: the text view says "Cast sprouts could not be loaded: <first reason>; classic-bots stands in."
+`keep`.
+**Recommended:** `say` (this page's; the review named the gap).
+**Cost:** `castText.ts` and the registry's `refused()`; a test in `apps/world/test`. No pixel set. Held with round 50's
+cast branch (`task/r50-casts-held`).
+**If you say nothing:** "No cast named … is installed".
+**Answer:** `K3: say / keep`
+
+## Accessibility (X)
+
+From round 50's read-only review of the CSS and the accessibility paths. The certain fixes of that review (the tour
+spoken, the forced-colours focus, arrow keys inside a card, the rule label's contrast) are not choices and are not here.
+
+### X1. Which agent answers are spoken
+
+**Today.** Nothing is spoken when an agent answers: the bubble, the chat mark and the Recent answers row are seen only
+(the page's one live region is `apps/world/src/App.tsx:839-841`).
+**Options.** `own`: a reply to the person's own message is spoken once, cut to about 120 characters. `all`: every new
+agent line. `none`.
+**Recommended:** `own` (`all` talks over everything in a busy town).
+**Cost:** a pure function in `apps/world/src/state/` and its node test, one effect in `App.tsx`, a regress `chat` check.
+No pixel set.
+**If you say nothing:** nothing is spoken.
+**Answer:** `X1: own / all / none`
+
+### X2. The text view and the Chat panel over the toolbar on a desktop
+
+**Today.** Both sheets start at the top right and cover the right toolbar, the chat chip and the camera toolbar
+(`apps/world/src/styles/world.css:396-401,2302-2308`), whose buttons stay in the Tab order under them.
+**Options.** `inert`: the covered corners are `inert` while a sheet is open; the picture is unchanged. `below`: the
+sheets start under the header, so the toolbar stays usable. `keep`.
+**Recommended:** `inert`.
+**Cost:** `inert` is `App.tsx` only. `below` changes `world.css` and the pictures with a sheet open (in no set).
+**If you say nothing:** the covered buttons stay tabbable.
+**Answer:** `X2: inert / below / keep`
+
+### X3. The faded labels
+
+**Today.** A label pushed far from its anchor, or a room sign over a figure, is at `opacity: 0.32` until the pointer or
+the focus is on it (`world.css:168-180`): its text is then 1.96:1 (light) and 2.67:1 (dark) on its plate. `D` shows
+every label at full strength, and the text view lists everything.
+**Options.** `keep`: quiet by design, and the README's accessibility lines say that `D` shows every label. `0.7`: the
+text 5.76:1 and 6.98:1. `0.75`: the muted text too passes 4.5:1.
+**Recommended:** `keep`, with the README line.
+**Cost:** `0.7` or `0.75` is one value, and every labelled picture with faded labels moves (`pixcheck --labels`).
+**If you say nothing:** 0.32, and no README line.
+**Answer:** `X3: keep / 0.7 / 0.75`
+
+### X4. The header at 320 px (with T6)
+
+**Today.** At 320 px the brand row needs about 130 to 138 px of its corner's 84 px, so it runs into the right toolbar
+(`world.css:121-131,903-906`; by reading, no picture taken).
+**Options.** `drop-word`: under 360 px the brand keeps its mark and loses "CrewHub World". `wrap-tools`: the right
+corner wraps to two rows. `keep`.
+**Recommended:** `drop-word`; with T6 `word`, the "Demo" word fits beside the mark.
+**Cost:** one `world.css` rule, and a 320 px picture to confirm (in no set).
+**If you say nothing:** the overlap stays.
+**Answer:** `X4: drop-word / wrap-tools / keep`
+
 ## The wording block
 
-Fourteen choices change words only, nothing else: **T3, W1, W2, W3, W4, W5, W6, W7, W8, W9, W10, S1, S2, S3.**
+Sixteen choices change words only, nothing else: **T3, W1, W2, W3, W4, W5, W6, W7, W8, W9, W10, W13, W14, S1, S2,
+S3.**
 `wording block: as recommended` takes the recommended answer for each; name one to keep it out
 (`wording block: as recommended, but W2: keep`).
 
