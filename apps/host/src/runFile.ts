@@ -4,7 +4,7 @@
  * the secret from it to mint a pairing link (`open`) or to tell the host a dev origin (`npm run dev`, round 26): the
  * file's mode is what makes "can read it" mean "the same user".
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -31,4 +31,26 @@ export function readRunFile(port: number): RunFile | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Writes the run file (mode 0600) and removes it at any exit of the process: the signal handlers' `process.exit(0)`,
+ * `npm run world`'s failed build (`process.exit(1)`) and an uncaught error alike (round 50, r48-review F16: only the
+ * signal handlers removed it). The removal leaves a file another process wrote since. Returns the removal, for a caller
+ * that stops the host and goes on running.
+ */
+export function writeRunFile(port: number, file: RunFile): () => void {
+  const where = runFilePath(port);
+  writeFileSync(where, JSON.stringify(file) + "\n", { mode: 0o600 });
+  const remove = () => {
+    process.off("exit", remove);
+    if (readRunFile(port)?.pid !== file.pid) return;
+    try {
+      unlinkSync(where);
+    } catch {
+      // Already gone.
+    }
+  };
+  process.on("exit", remove);
+  return remove;
 }
