@@ -4,6 +4,7 @@
    (on its perch, when it brings one). Measured with any `FigureKit`; the test suite uses the reference kit. */
 import * as THREE from "three";
 import { figureEyes } from "./figure.ts";
+import { isKitGround } from "./runtime.ts";
 import type { Cast, FigureHandle, FigureState, WorkPlace } from "./index.ts";
 import { CAST_ROLES, FIGURE_ACTIVITIES } from "./names.ts";
 
@@ -28,9 +29,9 @@ export function measureFigure(handle: FigureHandle): FigureMeasure {
   handle.materialise();
   handle.object.traverse((o) => {
     if (!(o instanceof THREE.Mesh) || !shown(o, handle.object)) return;
-    // The contact shadow and the halo are the kit's, on the ground (the runtime marks them): not the cast's to budget.
+    // The contact shadow and the halo are the kit's, on the ground (the runtime knows them): not the cast's to budget.
     // Every other mesh counts, in whatever material (round 50, C3: a code hook's mesh in another material escaped).
-    if (o.userData.decal || o.userData.kitGround) return;
+    if (o.userData.decal || isKitGround(o)) return;
     const geometry = o.geometry as THREE.BufferGeometry;
     measure.triangles += (geometry.index ? geometry.index.count : (geometry.getAttribute("position")?.count ?? 0)) / 3;
     measure.meshes++;

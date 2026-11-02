@@ -107,6 +107,13 @@ function releaseFaded(source: THREE.Material, mode: FadedMode): void {
   copy.material.dispose();
   fadedAlive--;
 }
+/**
+ * The kit's own objects on a figure's ground, its contact shadow and its halo (round 50, C3): the contract leaves them
+ * out of the cast's budget and measures every other mesh. Kept here, not in `userData`, so the figure's tree is as it was.
+ */
+const kitGround = new WeakSet<THREE.Object3D>();
+/** Whether an object is a figure's contact shadow or halo, the kit's own. */
+export const isKitGround = (object: THREE.Object3D): boolean => kitGround.has(object);
 /** A seeded glance's beat stretches by up to this share of its period. */
 const BEAT_STRETCH = 0.6;
 /** Getting on or off a perch: seconds per figure unit of the way (at least `HOP_MIN`), and how high the hop arcs. */
@@ -219,8 +226,7 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
   const body = new FigureJoint();
   const shadow = kit.contactShadow(spec.anchors.ground);
   const halo = kit.halo(spec.anchors.ground);
-  // The kit's own, on the ground: the contract leaves them out of the cast's budget (round 50, C3). Nothing else reads it.
-  shadow.userData.kitGround = halo.object.userData.kitGround = true;
+  kitGround.add(shadow).add(halo.object);
   body.add(shadow, halo.object);
   root.add(body);
 
