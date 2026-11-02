@@ -174,10 +174,10 @@ export function wrapPhase(phase: number): number {
 
 /**
  * The light of `theme` at `phase` (a fraction of one day, wrapped), written into `out`. A style without the drift
- * lights gives the theme's own light at every phase.
+ * lights gives the theme's own light at every phase, and so does a phase that is not a finite number (round 50).
  */
 export function driftLight(lights: Lights, theme: StyleTheme, phase: number, out: Light): Light {
-  if (!drifts(lights, theme)) return mixLights(lights[theme], lights[theme], 0, out);
+  if (!Number.isFinite(phase) || !drifts(lights, theme)) return mixLights(lights[theme], lights[theme], 0, out);
   const stops = DAY_STOPS[theme];
   const u = wrapPhase(phase);
   let i = 0;
