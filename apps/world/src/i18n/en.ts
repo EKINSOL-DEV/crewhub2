@@ -114,6 +114,7 @@ export const EN: Record<string, string> = {
   "world.pair.demo": "Use the demo",
   "world.pair.retry": "I opened the link",
   "world.pair.label": "Pairing with the world's host",
+  "world.pair.copyFailed": "Select the command and copy it",
   "world.chat.signInHint": "The agents' chats are in the crewhub-loops web app; this opens it in a new tab. For the agents' answers as speech bubbles over their figures, sign in to crewhub-loops as yourself in the Connection panel (the chip).",
   "world.tour.help": "Help",
   "world.tour.show": "Show the introduction",
