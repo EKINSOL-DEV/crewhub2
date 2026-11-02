@@ -1077,11 +1077,13 @@
   color: var(--text-muted);
   border: 1px dashed var(--border-strong);
 }
+/* The word "rule" on the prop's label: a sunken pill at 7.7:1 light and 9.1:1 dark (round 50, r50-a11y A6: the raw
+   mist-text on mist was 2.38:1 in both themes). */
 .rule-word {
   padding: 0 var(--space-1);
   border-radius: var(--radius-pill);
-  background: var(--mist);
-  color: var(--mist-text);
+  background: var(--surface-sunken);
+  color: var(--text-muted);
   font-weight: var(--weight-semibold);
   text-transform: uppercase;
   letter-spacing: var(--tracking-meta);
@@ -2843,4 +2845,15 @@ a.agent-ticket-link:focus-visible {
   gap: var(--space-2);
   align-items: flex-end;
   margin-top: var(--space-2);
+}
+
+/* ── Forced colours (Windows contrast themes) ────────────────────────────────
+   They drop every box-shadow, and with it the focus ring that kit.css and this file draw after `outline: 0`: here a
+   real outline marks the focus (round 50, r50-a11y A3). No colour is named: the outline is currentColor, which forced
+   colours map to a system colour. Only this media query sets it, so the normal themes keep their rings as they are. */
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 2px solid !important;
+    outline-offset: 2px !important;
+  }
 }

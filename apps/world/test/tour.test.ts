@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { boxOf, INTRODUCTION_URL, placeStep, readTourDone, tourShouldStart, tourSteps, TOUR_KEY, writeTourDone } from "../src/state/tour.ts";
+import { boxOf, INTRODUCTION_URL, placeStep, readTourDone, tourAnnouncement, tourShouldStart, tourSteps, TOUR_KEY, writeTourDone } from "../src/state/tour.ts";
 
 const INTRODUCTION = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "docs", "INTRODUCTION.md"), "utf8");
 
@@ -132,4 +132,21 @@ test("the ring's box: the element's own, else the box round its children's (a 0 
   assert.deepEqual(boxOf(corner, [{ left: 1251, top: 758, width: 177, height: 24 }, { left: 1240, top: 700, width: 40, height: 40 }, { left: 0, top: 0, width: 0, height: 0 }]), { left: 1240, top: 700, width: 188, height: 82 }, "the union, empty children left out");
   assert.equal(boxOf(corner, []), null);
   assert.equal(boxOf(corner, [{ left: 5, top: 5, width: 0, height: 0 }]), null, "nothing shown, no ring");
+});
+
+test("round 50 (r50-a11y A1): a step reached by Next or Back is spoken whole; the first is not, the dialog's own name and description say it", () => {
+  const steps = tourSteps("demo");
+  const highlighted = "Highlighted on the screen: the jump list button.";
+  assert.equal(tourAnnouncement(steps, 0, false, "Highlighted on the screen: the town."), "", "step 1: the focus entering the dialog reads it");
+  const second = tourAnnouncement(steps, 1, true, highlighted);
+  assert.equal(second, `Step 2 of 6. ${steps[1]!.title}. ${steps[1]!.text} ${highlighted}`);
+  assert.equal(tourAnnouncement(steps, 0, true, "Highlighted on the screen: the town."), `Step 1 of 6. ${steps[0]!.title}. ${steps[0]!.text} Highlighted on the screen: the town.`, "Back to step 1 is spoken too");
+  assert.match(tourAnnouncement(steps, 5, true, "x."), /^Step 6 of 6\. /);
+});
+
+test("round 50 (r50-a11y A1, N2): the tour card speaks its steps in a polite region and is a modal dialog (it keeps Tab inside)", () => {
+  const source = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "components", "Tour.tsx"), "utf8");
+  const card = source.slice(source.indexOf('className="tour-card"'), source.indexOf("</div>", source.indexOf('className="tour-card"')));
+  assert.match(card, /role="dialog"\s+aria-modal="true"/, "the card is aria-modal");
+  assert.match(card, /className="sr-only" aria-live="polite"[^>]*>\s*\{announcement\}/, "a polite region holds the step's words");
 });

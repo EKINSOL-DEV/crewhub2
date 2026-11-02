@@ -4,7 +4,7 @@
    dimmed and the camera never moves (reduced motion or not). Tab cycles among the card's buttons (Escape leaves). The
    steps, the placement and the flag are state/tour.ts. */
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
-import { boxOf, placeStep, tourSteps, type Placement, type Rect, type TourStep } from "../state/tour";
+import { boxOf, placeStep, tourAnnouncement, tourSteps, type Placement, type Rect, type TourStep } from "../state/tour";
 import { Button } from "./primitives";
 
 interface TourProps {
@@ -40,6 +40,8 @@ const nameOf = (el: Element | null): string | null => {
 export function Tour({ mode, onClose, reducedMotion, returnTo = null, fallback = ".help-menu button" }: TourProps) {
   const steps = tourSteps(mode);
   const [index, setIndex] = useState(0);
+  // Whether Next or Back has been used: from then on the polite region says each step (round 50, A1).
+  const [moved, setMoved] = useState(false);
   const [target, setTarget] = useState<{ rect: Rect | null; name: string | null }>({ rect: null, name: null });
   // A first placement at once (centred), so the card is never hidden: the focus must land in it the moment it mounts;
   // the layout effect below corrects it before the paint.
@@ -107,6 +109,8 @@ export function Tour({ mode, onClose, reducedMotion, returnTo = null, fallback =
     }
   };
   const highlighted = step.target ? `Highlighted on the screen: ${target.name ?? step.targetName}.` : `Nothing is highlighted: ${step.targetName}.`;
+  // The focus stays on Next (Enter, Enter, Enter walks the tour), so a new step is said here, not by the dialog's name.
+  const announcement = tourAnnouncement(steps, index, moved, highlighted);
 
   return (
     <div className="tour" data-step={step.id} data-reduced-motion={reducedMotion ? "" : undefined} onKeyDown={onKey}>
@@ -117,6 +121,7 @@ export function Tour({ mode, onClose, reducedMotion, returnTo = null, fallback =
         ref={card}
         className="tour-card"
         role="dialog"
+        aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={textId}
         data-side={placement.side}
@@ -132,15 +137,34 @@ export function Tour({ mode, onClose, reducedMotion, returnTo = null, fallback =
           {step.text}
           <span className="sr-only"> {highlighted}</span>
         </p>
+        <p className="sr-only" aria-live="polite">
+          {announcement}
+        </p>
         <div className="tour-actions">
           <Button size="sm" variant="ghost" onClick={() => close("skip")}>
             Skip
           </Button>
           <span className="tour-actions-main">
-            <Button size="sm" disabled={index === 0} onClick={() => setIndex((i) => Math.max(0, i - 1))}>
+            <Button
+              size="sm"
+              disabled={index === 0}
+              onClick={() => {
+                setMoved(true);
+                setIndex((i) => Math.max(0, i - 1));
+              }}
+            >
               Back
             </Button>
-            <Button ref={next} size="sm" variant="primary" onClick={() => (last ? close("done") : setIndex((i) => i + 1))}>
+            <Button
+              ref={next}
+              size="sm"
+              variant="primary"
+              onClick={() => {
+                if (last) return close("done");
+                setMoved(true);
+                setIndex((i) => i + 1);
+              }}
+            >
               {last ? "Done" : "Next"}
             </Button>
           </span>

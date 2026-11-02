@@ -185,3 +185,15 @@ export function placeStep(target: Rect | null, viewport: { width: number; height
   // A target as tall as the screen (the town itself): the card sits over its lower part, which it does not describe as such.
   return { left: centred, top: Math.max(GUTTER, viewport.height - card.height - GUTTER), side: "centre" };
 }
+
+/**
+ * What the card's polite region says when the step changes (round 50, r50-a11y A1). The focus stays on Next, so the
+ * dialog's name and description, read when the focus entered it, are not read again: the region says the new step whole,
+ * "Step n of 6. <title>. <text> <highlighted>". Empty before the first Next or Back: step 1 is read by the focus entering
+ * the dialog.
+ */
+export function tourAnnouncement(steps: readonly TourStep[], index: number, moved: boolean, highlighted: string): string {
+  const step = steps[index];
+  if (!moved || !step) return "";
+  return `Step ${index + 1} of ${steps.length}. ${step.title}. ${step.text} ${highlighted}`;
+}
