@@ -5,8 +5,9 @@
    link" asks the host again. Copy from the i18n file; the kit's Card and Button. `PairContent` is the body and footer the
    Connect page (ConnectPage.tsx) shows for this state (a host from before the smooth connection lands there too). */
 import { Check, Copy, Link2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useT } from "../i18n";
+import { createCopyFlash, type CopyFlash, type CopyState } from "../state/copyFlash";
 import { hrefWithoutOverride, writeSourceSetting } from "../state/source";
 import { Button, Card } from "./primitives";
 
@@ -18,19 +19,17 @@ export function switchToDemo(): void {
 
 export function PairContent({ onRetry }: { onRetry: () => void }) {
   const { t } = useT();
-  const [copied, setCopied] = useState(false);
+  const [copyState, setCopyState] = useState<CopyState>("idle");
   const command = t("world.pair.command");
-  const copy = () => {
-    const clipboard = globalThis.navigator?.clipboard;
-    if (!clipboard) return;
-    clipboard.writeText(command).then(
-      () => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      },
-      () => setCopied(false),
-    );
-  };
+  // A failed copy says so, and the timer that turns "Copied" back goes with the screen (state/copyFlash.ts, round 50).
+  const flash = useRef<CopyFlash | null>(null);
+  useEffect(() => {
+    const own = createCopyFlash(setCopyState);
+    flash.current = own;
+    return () => own.dispose();
+  }, []);
+  const copy = () => void flash.current?.copy(globalThis.navigator?.clipboard, command);
+  const copied = copyState === "copied";
   return (
     <>
       <Card.Body>
@@ -38,7 +37,7 @@ export function PairContent({ onRetry }: { onRetry: () => void }) {
         <div className="pair-command">
           <code className="pair-code">{command}</code>
           <Button size="sm" variant="ghost" onClick={copy} icon={copied ? <Check className="icon icon-sm" aria-hidden="true" /> : <Copy className="icon icon-sm" aria-hidden="true" />} aria-live="polite">
-            {copied ? t("world.pair.copied") : t("world.pair.copy")}
+            {copied ? t("world.pair.copied") : copyState === "failed" ? t("world.pair.copyFailed") : t("world.pair.copy")}
           </Button>
         </div>
         <p className="hint pair-note">{t("world.pair.note")}</p>

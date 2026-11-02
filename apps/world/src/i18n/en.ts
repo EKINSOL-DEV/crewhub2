@@ -110,6 +110,7 @@ export const EN: Record<string, string> = {
   "world.pair.command": "npm run world",
   "world.pair.copy": "Copy",
   "world.pair.copied": "Copied",
+  "world.pair.copyFailed": "Select the command and copy it",
   "world.pair.note": "The link works once, for 10 minutes. For another browser, npm run world -- --no-open prints the link. A paired browser stays paired across host restarts.",
   "world.pair.demo": "Use the demo",
   "world.pair.retry": "I opened the link",
