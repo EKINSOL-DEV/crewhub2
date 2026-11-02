@@ -12,7 +12,7 @@ import {
   type Placement,
   type WorldLayout,
 } from "./index.ts";
-import type { Door, Location, NavGraph, NavStats, RouteLeg } from "./nav.ts";
+import type { Door, Location, NavGraph, NavStats, RoomState, RouteLeg } from "./nav.ts";
 
 export type Detail = "full" | "offscreen";
 export type NavActorStatus =
@@ -111,7 +111,8 @@ export class NavSimulation {
   #groups: DoorGroup[] = [];
   #groupOf = new Map<string, number>();
   #topology = -1;
-  #known = new Map<string, { revision: number; blocked: Int32Array }>();
+  /** Per room id: the room object, revision and cells the last diff saw (round 50, P2: a re-added room is another object). */
+  #known = new Map<string, { room: RoomState; revision: number; blocked: Int32Array }>();
   #pending = new Map<number, Replan>();
 
   constructor(graph: NavGraph, actors: readonly NavActorInput[]) {
@@ -420,11 +421,13 @@ export class NavSimulation {
         id,
         new Int32Array(room.layout.grid.width * room.layout.grid.depth).fill(-1),
       );
-      // A room re-added under the same ID (rebuilt with another size) starts a fresh diff.
+      // A room re-added under the same ID starts a fresh diff, whatever its size: the cells of the room it replaced
+      // say nothing about this one (round 50, P2).
       const known = this.#known.get(id);
-      if (!known || known.blocked.length !== room.blocked.length)
-        this.#known.set(id, { revision: room.revision, blocked: room.blocked });
+      if (!known || known.room !== room)
+        this.#known.set(id, { room, revision: room.revision, blocked: room.blocked });
     }
+    for (const id of this.#known.keys()) if (!this.graph.room(id)) this.#known.delete(id);
     for (const a of this.#actors) {
       a.queuedOn = -1;
       this.#setHolder(a.room, a.cell, a.index);
@@ -448,7 +451,7 @@ export class NavSimulation {
         for (let i = 0; i < room.blocked.length; i++)
           if ((room.blocked[i] === -1) !== (known.blocked[i] === -1))
             changed.add(i);
-      this.#known.set(id, { revision: room.revision, blocked: room.blocked });
+      this.#known.set(id, { room, revision: room.revision, blocked: room.blocked });
       if (!changed.size) continue;
       const width = room.layout.grid.width;
       for (const a of this.#actors) {
