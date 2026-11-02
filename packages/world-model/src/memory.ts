@@ -96,3 +96,15 @@ export function emptyMemory(): PresentationMemory {
     landed: {},
   };
 }
+
+/**
+ * Round 50 (M4): forgets what the facts no longer hold: the lane and the place of an agent no longer listed, the role
+ * rooms of a building no longer there. What is still there is kept as it was: a listed agent keeps its debounce, and
+ * a building that stayed keeps its role rooms, after a seek too.
+ */
+export function forgetGone(memory: PresentationMemory, agents: readonly { key: AgentKey }[], projects: Readonly<Record<string, unknown>>): void {
+  const listed = new Set(agents.map((a) => a.key));
+  for (const key of Object.keys(memory.lanes)) if (!listed.has(key)) delete memory.lanes[key];
+  for (const key of Object.keys(memory.locations)) if (!listed.has(key)) delete memory.locations[key];
+  for (const slug of Object.keys(memory.roleRooms)) if (!(slug in projects)) delete memory.roleRooms[slug];
+}

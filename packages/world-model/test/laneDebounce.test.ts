@@ -81,3 +81,15 @@ test("round 49: a status one team snapshot carries waits however often the world
   teamUpdate(team(T0 + 60_000, [lane("cl-lead", "working")]));
   assert.equal(posture(T0 + 60_000), "focused");
 });
+
+test("round 50 (M2): after a stale stretch, the first fresh team snapshot shows a known status at once", () => {
+  const { posture, teamUpdate } = world("working");
+  assert.equal(posture(T0), "focused");
+  assert.equal(posture(T0 + 301_000), "greyed");
+  // Unknown to known is coming back, not flicker: no 45 s of grey figures under a fresh snapshot.
+  teamUpdate(team(T0 + 310_000, [lane("cl-lead", "working")]));
+  assert.equal(posture(T0 + 310_000), "focused");
+  // And the next change between two known statuses waits again.
+  teamUpdate(team(T0 + 320_000, [lane("cl-lead", "idle")]));
+  assert.equal(posture(T0 + 320_000), "focused");
+});
