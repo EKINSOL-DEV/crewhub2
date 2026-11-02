@@ -9,7 +9,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from "node:net";
 import { after, test } from "node:test";
 import { createHostSource, prefetchSnapshot, probeHost } from "../src/hostSource.ts";
-import type { ConnectionState, LoopsSnapshot, SourceMessage } from "../src/source.ts";
+import type { ConnectionState, HostSourceOptions, LoopsSnapshot, SourceMessage } from "../src/source.ts";
 
 const fixture = (name: string): Record<string, unknown> =>
   JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8")) as Record<string, unknown>;
@@ -153,7 +153,8 @@ async function startHost(): Promise<FakeHost> {
 }
 
 /** Runs a source and collects what it sends; resolves helpers wait for a condition with a short deadline. */
-function observe(url: string, extra: Record<string, unknown> = {}) {
+// Typed (round 50, r48-live N2): an option the public type does not name fails `npm run typecheck`, as for a caller.
+function observe(url: string, extra: HostSourceOptions = {}) {
   const messages: SourceMessage[] = [];
   const states: ConnectionState[] = [];
   const source = createHostSource({ baseUrl: url, timings: TIMINGS, ...extra });
