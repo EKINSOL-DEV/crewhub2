@@ -74,7 +74,8 @@ export class Closing {
   /** True while the building should look closed inside (no silhouette): a closing once the boards come, an opening until they are off. */
   interiorClosed(): boolean {
     if (this.#phase === "done") return this.kind === "closing";
-    return this.kind === "closing" ? this.#phase === "boards" : this.#phase === "boards";
+    // Both kinds look closed while the boards are up (round 50: the two branches of a ternary said the same).
+    return this.#phase === "boards";
   }
 
   /** Advances by `seconds` (real time); false once the shell stands in its final, merged form. */
