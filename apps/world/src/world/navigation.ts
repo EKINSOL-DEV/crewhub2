@@ -393,9 +393,11 @@ export class NavWorld {
       const structure = structureKey(template);
       let entry = this.#entries.get(slug);
       if (!entry || entry.structure !== structure) {
+        // A walker standing where the building goes kept its district from updating: wait for the next sync. Asked
+        // before the old building comes out, so a rebuild that waits keeps it and the walkers in it (round 50,
+        // r48-scene S2: they were taken out and never put back, and the entry named rooms the graph no longer had).
+        if (!this.#entranceOpen(slug, cell)) continue;
         const evacuees = entry ? this.#removeBuilding(entry) : [];
-        // A walker standing where the building goes kept its district from updating: wait for the next sync.
-        if (!this.#walkable(townRoomId(slotOfLot(cell)), entranceCell(cell))) continue;
         entry = { slug, cell, template, structure, props: new Map(), desks: new Map(), building };
         this.#addBuilding(entry);
         this.#entries.set(slug, entry);
@@ -631,6 +633,18 @@ export class NavWorld {
       if (x >= 0 && z >= 0 && x < room.layout.grid.width && z < room.layout.grid.depth) return { room: roomId(entry.slug, room.kind), cell: { x, z } };
     }
     return null;
+  }
+
+  /** The street cell in front of a building's door is open: walkable, or a door cell only of the building's own entrance. */
+  #entranceOpen(slug: string, lot: GridCell): boolean {
+    const at = { room: townRoomId(slotOfLot(lot)), cell: entranceCell(lot) };
+    const state = this.graph.room(at.room);
+    if (!state) return false;
+    const { width, depth } = state.layout.grid;
+    if (at.cell.x < 0 || at.cell.z < 0 || at.cell.x >= width || at.cell.z >= depth) return false;
+    if (state.blocked[at.cell.z * width + at.cell.x] !== -1) return false;
+    const own = `${slug}/entrance`;
+    return !this.graph.doors().some((d) => d.id !== own && [d.a, d.b].some((end) => end.room === at.room && end.cell.x === at.cell.x && end.cell.z === at.cell.z));
   }
 
   #walkable(room: string, cell: Cell): boolean {
