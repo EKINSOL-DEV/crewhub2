@@ -164,7 +164,8 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
       current = "connected";
       reconnects = 0;
     }, checkMs);
-    send(res, 204);
+    // As the host answers (host.ts connect): 200 with `ok: true` and the connection; the page takes nothing less as done.
+    send(res, 200, { ok: true, connection: (await health()).connection });
   }
 
   /* The busy state's own stream: the status a host sends when loops answered its stream with 429, then heartbeats. One of
@@ -232,7 +233,7 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
       // for a rejected key; then the streams end here (a real host keeps them), so a reconnect meets the 503 no_key below.
       tellStreams({ type: "status", loops: "unauthorized", key: "none" });
       endStreams();
-      return send(res, 204);
+      return send(res, 200, { ok: true, connection: (await health()).connection });
     }
     if (url.pathname === "/__stub/state" && req.method === "POST") {
       const text = await readBody(req);

@@ -167,8 +167,13 @@ test("key: the shape loops makes (chl_ and 43 base64url characters) is a key; fr
 });
 
 test("connect outcome: the host's answer in words, never the key", () => {
-  assert.deepEqual(connectOutcome(204, null), { kind: "ok" });
   assert.deepEqual(connectOutcome(200, { ok: true }), { kind: "ok" });
+  assert.deepEqual(connectOutcome(200, { ok: true, connection: { key: { state: "checking" } } }), { kind: "ok" });
+  // The dev server answers 204 for any /world-api request while the host is down (vite.config.ts): no host took the key
+  // or forgot it, so it reads as no answer, not as done (round 53, r53-review S2). Only the host's own `ok: true` is done.
+  assert.deepEqual(connectOutcome(204, null), { kind: "failed", reason: null });
+  assert.deepEqual(connectOutcome(200, null), { kind: "failed", reason: null });
+  assert.deepEqual(connectOutcome(200, { ok: false }), { kind: "failed", reason: null });
   assert.deepEqual(connectOutcome(401, { error: "not_paired" }), { kind: "not-paired" });
   assert.deepEqual(connectOutcome(401, { error: "rejected", reason: "crewhub-loops does not know this key" }), { kind: "rejected", reason: "crewhub-loops does not know this key" });
   assert.deepEqual(connectOutcome(403, { error: "rejected", message: "a read-only key cannot read the team" }), { kind: "rejected", reason: "a read-only key cannot read the team" });
