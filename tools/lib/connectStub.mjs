@@ -167,13 +167,19 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
     send(res, 204);
   }
 
-  /* The busy state's own stream: the status a host sends when loops answered its stream with 429, then heartbeats. */
+  /* The busy state's own stream: the status a host sends when loops answered its stream with 429, then heartbeats. One of
+     the streams a state change ends (round 52, r51-review T2), like a proxied one. */
   function busyStream(res) {
     res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store", connection: "keep-alive" });
-    const write = (message) => res.write(`data: ${JSON.stringify(message)}\n\n`);
+    const write = (message) => res.writableEnded || res.write(`data: ${JSON.stringify(message)}\n\n`);
     write({ type: "status", loops: "down", stream: "busy", reason: BUSY_REASON, key: "ok" });
     const beat = setInterval(() => write({ type: "heartbeat", seq: 0, ts: new Date().toISOString() }), 1000);
-    res.on("close", () => clearInterval(beat));
+    const entry = { res, upstream: null, answer: null };
+    streams.add(entry);
+    res.on("close", () => {
+      clearInterval(beat);
+      streams.delete(entry);
+    });
   }
 
   function proxy(req, res, target) {
