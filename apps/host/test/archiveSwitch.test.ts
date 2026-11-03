@@ -55,12 +55,18 @@ describe("the archive memory across a switch of the loops found (round 44)", () 
     // The switch: A goes away, the folder names B, discovery looks again and finds B. From the moment discovery names B
     // until B's stream is up, a sampler reads the health and the file (round 45): nothing of A's may show under B, and
     // B's file may not be written before B taught its own set.
+    // Every read of the health while discovery names B is a sample, the sampler's and the switch's own waits' (round
+    // 52): B's stream is up about 1 ms after discovery finds B, so under a full check's load the switch could pass
+    // between two of the sampler's reads and leave it with none, while the waits had read the health inside it.
     const samples: { archived: { source: string; slugs: string[] }; file: { slugs: string[]; target?: string } }[] = [];
+    const seen = (h: Record<string, any> | null) => {
+      if (h?.connection?.discovery?.target === b.url) samples.push({ archived: h.connection.archived, file: file() });
+      return h;
+    };
     let sampling = true;
     const sampler = (async () => {
       while (sampling) {
-        const h = await health().catch(() => null);
-        if (h?.connection?.discovery?.target === b.url) samples.push({ archived: h.connection.archived, file: file() });
+        seen(await health().catch(() => null));
         await new Promise((resolve) => setTimeout(resolve, 5));
       }
     })();
@@ -70,10 +76,10 @@ describe("the archive memory across a switch of the loops found (round 44)", () 
     writeFileSync(settings, `{"port": ${b.port}}\n`);
     await a.close();
     try {
-      await waitFor("discovery to find B", async () => (await health()).connection.discovery?.target === b.url, 20_000);
-      const atSwitch = await health();
+      await waitFor("discovery to find B", async () => seen(await health())?.connection.discovery?.target === b.url, 20_000);
+      const atSwitch = seen(await health())!;
       assert.deepEqual(atSwitch.connection.archived.slugs, [], "right after discovery finds B: no slug of A's under B");
-      await waitFor("B's stream", async () => (await health()).connection.stream.state === "ok");
+      await waitFor("B's stream", async () => seen(await health())?.connection.stream.state === "ok");
     } finally {
       sampling = false;
       await sampler;
