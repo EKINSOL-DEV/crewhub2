@@ -279,7 +279,11 @@ function World() {
     [build],
   );
 
-  const describe = useCallback(
+  // describe, startWalk, stopWalk, summary and follow are useStable, not useCallback (round 53, r53-review2 W1): a
+  // useCallback kept from an older render holds that render's whole scope, and with it the older scopes its fellows
+  // hold, so every switch between the town, a building and a room kept a render of World alive. Each is only called
+  // from a handler, never during a render, so its identity carries nothing.
+  const describe = useStable(
     (index: number) => {
       const b = buildings[index];
       if (!b) return "";
@@ -287,7 +291,6 @@ function World() {
       const lead = b.agents.find((a) => a.key === b.lead.id && a.presence === "real");
       return `${b.name} (${b.key}). ${countsLine(b.counts)}. Lead ${b.lead.displayName}, ${lead ? laneWords(lead.laneStatus, model.freshness) : "not in the building"}. Enter to go inside.`;
     },
-    [buildings, model.freshness, model.now],
   );
   const enter = useCallback(
     (slug: string) => {
@@ -317,7 +320,7 @@ function World() {
     // In a region a building steps out to its district; Escape once more shows the region.
     setAnnouncement(here ? `${describeDistrict(here)} Escape shows the region.` : `The town. ${describe(focused)}`);
   }, [describe, describeDistrict, focused, here]);
-  const startWalk = useCallback(() => {
+  const startWalk = useStable(() => {
     walkBack.current = { entered, room, zoomed, district };
     // A walk takes the camera: a follow ends and the agent card closes.
     setFollowing(null);
@@ -326,9 +329,9 @@ function World() {
     setRingVisible(false);
     setWalking(true);
     setAnnouncement("Walking. W A S D or the arrow keys move you, Shift hurries, drag to look around. Walk through a door to go in or out. Escape stops.");
-  }, [district, entered, room, zoomed]);
+  });
   /* Escape: back to the level the walk began on. */
-  const stopWalk = useCallback(() => {
+  const stopWalk = useStable(() => {
     const was = walkBack.current;
     walkBack.current = null;
     setWalking(false);
@@ -339,7 +342,7 @@ function World() {
       setDistrict(was.district);
     }
     setAnnouncement("Walking stopped.");
-  }, [buildings]);
+  });
   /* Goes to a place of any level (the breadcrumb, the jump list, a district's label, the text view). */
   const go = useCallback(
     (place: Place, agent?: string) => {
@@ -396,10 +399,7 @@ function World() {
   useEffect(() => {
     if (district && !here) setDistrict(null);
   }, [district, here]);
-  const summary = useCallback(
-    (kind: RoomKind) => (inside ? roomSummary(inside, kind, (a: AgentPlacement) => laneWords(a.laneStatus, model.freshness), rooms) : ""),
-    [inside, model.freshness, rooms],
-  );
+  const summary = useStable((kind: RoomKind) => (inside ? roomSummary(inside, kind, (a: AgentPlacement) => laneWords(a.laneStatus, model.freshness), rooms) : ""));
   const focusRoom = useCallback(
     (kind: RoomKind, zoom: boolean) => {
       setRoom(kind);
@@ -435,13 +435,10 @@ function World() {
     (key: string) => [...model.buildings.flatMap((b) => b.agents), ...model.townHall, ...model.postOffice].find((a) => a.key === key)?.displayName ?? key,
     [model],
   );
-  const follow = useCallback(
-    (key: string | null) => {
-      setFollowing(key);
-      setAnnouncement(key ? `Following ${agentName(key)}. Escape, Shift+F or a drag stops following.` : "Stopped following.");
-    },
-    [agentName],
-  );
+  const follow = useStable((key: string | null) => {
+    setFollowing(key);
+    setAnnouncement(key ? `Following ${agentName(key)}. Escape, Shift+F or a drag stops following.` : "Stopped following.");
+  });
   // The Chat panel opens from the chip (no agent) or from a card (that agent); Escape and its close button return the
   // focus to the opener. Never in the demo, whose chat is its own scripted dock.
   const openChat = useStable((key: string | null) => {
