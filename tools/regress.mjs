@@ -1205,7 +1205,8 @@ await group("live", async () => {
     await web.close().catch(() => {});
     // The Chat panel's frame is the one request that leaves the page's origin, by design: it is the loops web app
     // (the stub here). Only those requests are expected; anything else leaving the page still fails the closing check.
-    const framed = problems.filter((x) => x.kind === "external" && x.text.includes(web.url));
+    // At the stub's own origin, not any text that contains it (round 52, r51-review T4).
+    const framed = problems.filter((x) => x.kind === "external" && (x.url ?? "").startsWith(`${web.url}/`));
     for (const x of framed) problems.splice(problems.indexOf(x), 1);
     info(`live: ${framed.length} request(s) left the page for the loops web stub, the Chat panel's frame, as designed`);
   }
@@ -1396,7 +1397,7 @@ await group("chat", async () => {
     } finally {
       await phoneCtx.close().catch(() => {});
     }
-    problems.push(...own2.filter((x) => !(x.kind === "external" && x.text.includes(web2.url))));
+    problems.push(...own2.filter((x) => !(x.kind === "external" && (x.url ?? "").startsWith(`${web2.url}/`))));
   } finally {
     await ctx2.close().catch(() => {});
     await host2.close().catch(() => {});
@@ -1463,7 +1464,7 @@ await group("chat", async () => {
     await shot(pg3, "70-chat-none-text-view");
     await pg3.keyboard.press("Escape");
     ok("chat (no chat road, round 19): an agent's answer on loops shows no mark and no bubble (the key's stream never carries it), and the text view's Chat line and Recent answers say why", marks3 === 0 && bubbles3 === 0 && /Chat: crewhub-loops' own chat.*No bubbles: this crewhub-loops does not let the world's key read the chat/.test(tv3) && /No answers can arrive: this crewhub-loops does not let the world's key read the chat/.test(tv3), `marks ${marks3}, bubbles ${bubbles3}; ${tv3.slice(0, 160)}`);
-    problems.push(...own3.filter((x) => !(x.kind === "external" && x.text.includes(web3.url))));
+    problems.push(...own3.filter((x) => !(x.kind === "external" && (x.url ?? "").startsWith(`${web3.url}/`))));
   } finally {
     await ctx3.close().catch(() => {});
     await host3.close().catch(() => {});
