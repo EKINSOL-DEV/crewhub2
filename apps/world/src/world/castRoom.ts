@@ -654,6 +654,9 @@ export class CastRoomScene {
     this.controls.dispose();
     this.#environment.dispose();
     this.renderer.dispose();
+    // dispose() frees three's GPU objects but keeps the WebGL context, which the browser caps at about 16: let it go with
+    // the canvas (round 54, r53-review2 W2; StrictMode's rehearsal mount left one alive on every load).
+    this.renderer.forceContextLoss();
     this.renderer.domElement.remove();
     delete this.#host.dataset.ready;
   }
