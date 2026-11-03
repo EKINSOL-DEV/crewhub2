@@ -813,6 +813,11 @@
 .world-corner-left:has(.demo-chip[aria-expanded="true"]) {
   z-index: var(--z-menu);
 }
+/* The same for the "?" menu: the right corner is its own stacking context (its backdrop filter), so with Settings open
+   the menu opened under the sheet, its rows hidden (round 53, r50-a11y A5). */
+.world-corner-right:has(.menu:not([hidden])) {
+  z-index: var(--z-menu);
+}
 /* The connection chip of live mode stands where the Demo chip stands; one word, never wrapped. */
 .connection-chip {
   white-space: nowrap;
