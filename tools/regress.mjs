@@ -1796,6 +1796,60 @@ await group("town", async () => {
       afterRestore?.rev === current.rev + 1 && (afterRestore?.document?.zones ?? []).some((z) => z.name === "Harbour") && afterRestore?.canUndo === true && /Restored from harbour\.json/.test(restoreNote) && secondSees.some((l) => l.startsWith("Harbour (")),
       `rev ${current.rev} → ${afterRestore?.rev}; canUndo ${afterRestore?.canUndo}; second sees ${secondSees.map((l) => l.slice(0, 9)).join(", ")}`,
     );
+
+    // Round 54 (r53-review S3): a prop request whose ticket read failed is tried again after PROP_RETRY_MS (30 s), not
+    // never. A fake of its own starts 20 s before the reading nook's Done (CR-37, the storyline's first person's Done);
+    // the page's first read of the ticket answers 503, as the host does while loops restarts; the prop then reaches the
+    // host's town on the retry, about 30 s later. The expected 503 line is the one console error this step admits.
+    for (const ctx of contexts.splice(0)) await ctx.close().catch(() => {});
+    await host.close();
+    const { FIRST_PERSON_DONE_MS } = await import(pathToFileURL(path.join(REPO, "packages", "demo", "src", "script.ts")).href);
+    const propFake = noteLoops(await createLoopsFake({ heartbeatMs: 1000, startAt: FIRST_PERSON_DONE_MS - 20_000 }));
+    const propDir = path.join(OUT, `${tag}-town-c`);
+    rmSync(propDir, { recursive: true, force: true });
+    dbDirs.push(propDir);
+    const propDb = openWorldDb(propDir);
+    dbs.push(propDb);
+    try {
+      const propBase = { ...base, loopsUrl: propFake.url, key: propFake.key, keyName: propFake.keyName, worldDb: propDb };
+      host = await createHost(served ? { ...propBase, staticDir: dist, port } : { ...propBase, port: hostPort, allowedOrigins: [origin] });
+      const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
+      contexts.push(ctx);
+      const pg = await ctx.newPage();
+      const own = [];
+      watch(pg, liveOrigin, own, "town");
+      const reads = [];
+      await pg.route("**/world-api/tickets/CR-37", async (route) => {
+        reads.push(Date.now());
+        if (reads.length === 1) await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "loops_down" }) });
+        else await route.continue();
+      });
+      if (typeof host.mintPairLink === "function") {
+        await pg.goto(host.mintPairLink(served ? undefined : origin));
+        await pg.waitForTimeout(300);
+      }
+      await pg.goto(liveBase);
+      const propOnHost = async () => {
+        const body = await pg.request.get(`${liveOrigin}/world-api/town`).then((r) => r.json()).catch(() => null);
+        return (body?.document?.userProps ?? []).some((prop) => prop.provenance?.kind === "ticket" && prop.provenance.ticketKey === "CR-37");
+      };
+      const until = async (test, ms) => {
+        for (const end = Date.now() + ms; Date.now() < end; await pg.waitForTimeout(500)) if (await test()) return true;
+        return false;
+      };
+      await until(async () => reads.length >= 1, 45_000);
+      const failedAt = reads[0] ?? null;
+      const arrived = failedAt !== null && (await until(propOnHost, 50_000));
+      const gap = arrived ? Math.round((Date.now() - failedAt) / 1000) : null;
+      ok(
+        "town (round 54): a prop request whose ticket read answered 503 is tried again after about 30 s, and the prop reaches the host's town",
+        failedAt !== null && reads.length >= 2 && arrived && gap >= 25,
+        `ticket reads ${reads.length} (the first answered 503${reads.length >= 2 ? `, the second ${Math.round((reads[1] - reads[0]) / 1000)} s later` : ""}); CR-37's prop on the host: ${arrived ? `yes, ${gap} s after the 503` : "no"}`,
+      );
+      problems.push(...own.filter((x) => !(x.kind === "console" && /status of 503/.test(x.text) && /\/world-api\/tickets\/CR-37$/.test(x.url ?? ""))));
+    } finally {
+      await propFake.close().catch(() => {});
+    }
   } finally {
     for (const ctx of contexts) await ctx.close().catch(() => {});
     await host.close().catch(() => {});
