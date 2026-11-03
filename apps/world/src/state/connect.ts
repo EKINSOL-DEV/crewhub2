@@ -136,12 +136,14 @@ export type ConnectOutcome = { kind: "ok" } | { kind: "not-paired" } | { kind: "
 /**
  * The host's answer to `POST /world-api/connect`: 2xx is a connected host; 401 `not_paired` asks to pair; 401, 403 and 422
  * are loops refusing the key (the host says why in `reason` or `message`); anything else is a failure to say in words.
- * A status of 0 is no answer at all.
+ * A status of 0 is no answer at all, and so is a 2xx without the host's own `ok: true`: the dev server answers 204 for
+ * every /world-api request while the host is down (vite.config.ts), so nothing took the key or forgot it (round 53,
+ * r53-review S2).
  */
 export function connectOutcome(status: number, body: unknown): ConnectOutcome {
   const record = body !== null && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const words = typeof record["reason"] === "string" ? (record["reason"] as string) : typeof record["message"] === "string" ? (record["message"] as string) : null;
-  if (status >= 200 && status < 300) return { kind: "ok" };
+  if (status >= 200 && status < 300) return record["ok"] === true ? { kind: "ok" } : { kind: "failed", reason: null };
   if (status === 401 && record["error"] === "not_paired") return { kind: "not-paired" };
   if (status === 401 || status === 403 || status === 422) return { kind: "rejected", reason: words };
   if (status === 0) return { kind: "failed", reason: null };
