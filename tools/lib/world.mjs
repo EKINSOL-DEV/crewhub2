@@ -83,11 +83,14 @@ export const castChoice = (cast) => ({ "crewhub-world.cast": cast });
  */
 export function watch(page, origin, problems, tag = "") {
   const push = (kind, text, more = {}) => problems.push({ kind, text: tag ? `[${tag}] ${text}` : text, pageOrigin: origin, ...more });
+  // The same origin, not the same first characters (round 52, r51-review T1): `http://127.0.0.1:5389` is no prefix
+  // licence for :53891 (a fake's free port) or for `http://127.0.0.1:5389@another.host/`.
+  const own = (url) => URL.canParse(url) && new URL(url).origin === origin;
   page.on("pageerror", (e) => push("pageerror", e.message));
   page.on("console", (m) => m.type() === "error" && push("console", m.text(), { url: m.location()?.url ?? "" }));
   page.on("request", (r) => {
     const url = r.url();
-    if (!url.startsWith(origin) && !url.startsWith("data:") && !url.startsWith("blob:")) push("external", url, { url, method: r.method() });
+    if (!own(url) && !url.startsWith("data:") && !url.startsWith("blob:")) push("external", url, { url, method: r.method() });
   });
 }
 
