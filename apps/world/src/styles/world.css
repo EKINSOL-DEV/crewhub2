@@ -88,10 +88,13 @@
   height: 16px;
 }
 
+/* 7, above the scene's top overlays at 6 (the frame rate, the dev overlay, the Agent chats row): the corners come before
+   the scene in the page for the Tab order (round 52, r50-a11y A9), so a tie would now go to the scene. An agent's card
+   (`.anchor.card-anchor`, 7, later in the page) still covers them. */
 .world-corner {
   position: absolute;
   top: var(--space-4);
-  z-index: 6;
+  z-index: 7;
   display: flex;
   gap: var(--space-2);
 }

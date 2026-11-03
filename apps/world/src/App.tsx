@@ -846,6 +846,12 @@ function World() {
         {announcement}
       </p>
 
+      {/* The corners come before the scene, so Tab reaches the header before the scene's labels, as it is seen (round 52,
+          r50-a11y A9); they still paint over the scene's top overlays by their z-index (world.css `.world-corner`). */}
+      <Corner demo={demo} connection={connection} connectionOpen={connectionOpen} onOpenConnection={openConnection} graphicsFailed={graphicsFailed} trail={trail} onGo={onGo} onJump={openJump} jumpOpen={jumpOpen} following={following ? agentName(following) : null} onStopFollow={() => follow(null)} />
+
+      <CornerTools theme={theme} cycle={cycle} details={details} buildOn={build.state.on} toggleBuild={build.toggle} settingsOpen={settingsOpen} openSettings={openSettings} closeSettings={closeSettings} graphicsFailed={graphicsFailed} openTour={openTour} />
+
       <main className="world-stage" onKeyDown={sceneKey} aria-label="CrewHub World">
         {graphicsFailed ? null : (
           <SceneBoundary onError={() => setGraphicsFailed(true)}>
@@ -892,15 +898,11 @@ function World() {
         {!demo && connection === "connecting" && <FirstSnapshot />}
       </main>
 
-      <Corner demo={demo} connection={connection} connectionOpen={connectionOpen} onOpenConnection={openConnection} graphicsFailed={graphicsFailed} trail={trail} onGo={onGo} onJump={openJump} jumpOpen={jumpOpen} following={following ? agentName(following) : null} onStopFollow={() => follow(null)} />
-
       {connectionOpen && connection && <ConnectionPanel state={connection} initial={SOURCE.health} onClose={closeConnection} />}
 
       {chat && !demo && <ChatPanel agent={chat.agent} health={hostHealth} road={chatRoad} full={narrow} answers={answers} recentEmpty={recentEmptyWords("live", chatRoad)} targetOf={answerTargetOf} onAnswer={openAnswer} onClose={closeChat} />}
 
       {jumpOpen && <JumpList entries={jumps} onJump={jump} onClose={closeJump} onActive={jumpActive} />}
-
-      <CornerTools theme={theme} cycle={cycle} details={details} buildOn={build.state.on} toggleBuild={build.toggle} settingsOpen={settingsOpen} openSettings={openSettings} closeSettings={closeSettings} graphicsFailed={graphicsFailed} openTour={openTour} />
 
       {tourOpen && <Tour mode={demo ? "demo" : "live"} reducedMotion={reducedMotion} returnTo={tourReturn.current} onClose={closeTour} />}
 
