@@ -1,11 +1,12 @@
-# Design choices for Nicky (rounds 41 to 52, 2026-11-03)
+# Design choices for Nicky (rounds 41 to 53, 2026-11-03)
 
 **How this relates to [open-questions.md](open-questions.md):** those are the fifteen merge decisions (pairing, health,
 the answer branches); these are smaller product choices the reviews of rounds 41 to 51 wrote down and left alone:
 words on screen, where a card sits, what the host does in an odd case. Rounds 41 to 47 left none; thirty come from
 round 48 (checked against the code at `d150cf4`) and nine from round 50's reviews of the packages and of
 accessibility (K, X, W13 and W14, checked at `5126318`), two from round 51's review of the host and the tools
-(H3 and P1, checked at `86bfbf6`), and X5, the last of round 50's accessibility review, written up in round 52.
+(H3 and P1, checked at `86bfbf6`), X5, the last of round 50's accessibility review, written up in round 52, and E2
+from round 53's review of the page's state (checked at `402b618`).
 
 **How to answer:** one line per id, in the same short form as the open questions, for example `T1: as recommended`,
 `W4: keep` or `S1: waits`. A whole block in one line works too: `wording block: as recommended`
@@ -14,9 +15,9 @@ until you answer:** each choice names what stays if you say nothing, which is al
 
 **The groups:** [first visit and tour](#first-visit-and-tour-t) (T, 9), [words on screen](#words-on-screen-w) (W, 12),
 [the live road](#the-live-road-l) (L, 2), [the host's behaviour](#the-hosts-behaviour-h) (H, 3),
-[the storyline](#the-storyline-s) (S, 4), [editing the town](#editing-the-town-e) (E, 1), and from round 50
+[the storyline](#the-storyline-s) (S, 4), [editing the town](#editing-the-town-e) (E, 2), and from round 50
 [the figures](#the-figures-k) (K, 3) and [accessibility](#accessibility-x) (X, 5); words on screen gained W13 and W14;
-from round 51 the host gained H3, and [the tools](#the-tools-p) (P, 1) is new. **The cost** of a choice names the files, the tests and the pixel sets that would change. The demo pixel set
+from round 51 the host gained H3, and [the tools](#the-tools-p) (P, 1) is new; round 53 added E2. **The cost** of a choice names the files, the tests and the pixel sets that would change. The demo pixel set
 (`tools/pixcheck.mjs`) pictures the town, the town hall, a building and its rooms at 1440 and 375 px, light and dark,
 with the label layer hidden and the tour off; so plates, labels, sheets and the tour never move it.
 
@@ -444,6 +445,23 @@ seek back. The demo pixel set seeks forward from the start to 2:00, so it should
 **If you say nothing:** leaving the field writes the draft.
 **Answer:** `E1: escape / keep`
 
+### E2. The demo town in two tabs (round 53, r53-review S1)
+
+**Today.** In the demo (no host), the town is kept in this browser's IndexedDB, and each tab keeps its own history and
+numbers its own revisions (`apps/world/src/state/townStore.ts:134-297`). Tabs never hear each other. With build mode
+used in two tabs of the same demo town, the later write wins: tab A saves revision 6, tab B (still at 5) saves its own
+6 over it, and A's edit is gone after a reload, with nothing said. A tab left open on an older revision can do it
+without a person, when a new project gets its lot. Live mode is not affected: the host keeps the town and refuses a
+stale write (409).
+**Options.** `say`: one line where the Settings card already says where the town is kept ("Build in one tab at a
+time; another tab's edits are not seen here"). `sync`: tabs keep in step (a `BroadcastChannel` per town that tells the
+other tabs to reload the history after a write). `keep`.
+**Recommended:** `say` (the review's: the demo town is a demo; `sync` is the fix if people build in two tabs).
+**Cost:** `say`: one line in the Settings card and its copy test; no pixel set (sheets are not in it). `sync`:
+`townStore.ts` and a node test with two stores; no pixel set.
+**If you say nothing:** the later write wins, unsaid.
+**Answer:** `E2: say / sync / keep`
+
 ## The figures (K)
 
 From round 50's read-only review of the engine, the styles and the casts.
@@ -587,8 +605,8 @@ S3.**
   #4, #11): fixed in round 48 (`ce980c1`).
 - **Labels touching** (r48-polish #8, #15): noted by the pass as label layout, not a choice.
 - **"Where is …?" switching agent by itself** (r48-ui U6): a bug with a suggested fix, for a later round.
-- **The rest of F16** (r48-review, README wording) and **F11** (`answers-replay`): docs and tool work for a later
-  round, not product choices.
+- **The rest of F16** (r48-review, README wording): fixed in round 52 (`6d9bb4e`). **F11** (`answers-replay`): tool
+  work for a later round, not a product choice.
 - **The soak rule's readings** (rounds 45 and 47n): the measuring tool's rule; the Lead's report says it needs no
   decision from Nicky.
 - **The tour's 1.5 s beat** (open question 5) and the other fifteen merge decisions: they are in
