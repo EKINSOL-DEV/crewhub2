@@ -1,10 +1,11 @@
-# Design choices for Nicky (rounds 41 to 50, 2026-11-02)
+# Design choices for Nicky (rounds 41 to 52, 2026-11-03)
 
 **How this relates to [open-questions.md](open-questions.md):** those are the fifteen merge decisions (pairing, health,
-the answer branches); these are smaller product choices the reviews of rounds 41 to 50 wrote down and left alone:
+the answer branches); these are smaller product choices the reviews of rounds 41 to 51 wrote down and left alone:
 words on screen, where a card sits, what the host does in an odd case. Rounds 41 to 47 left none; thirty come from
 round 48 (checked against the code at `d150cf4`) and nine from round 50's reviews of the packages and of
-accessibility (K, X, W13 and W14, checked at `5126318`).
+accessibility (K, X, W13 and W14, checked at `5126318`), and two from round 51's review of the host and the tools
+(H3 and P1, checked at `86bfbf6`).
 
 **How to answer:** one line per id, in the same short form as the open questions, for example `T1: as recommended`,
 `W4: keep` or `S1: waits`. A whole block in one line works too: `wording block: as recommended`
@@ -12,9 +13,10 @@ accessibility (K, X, W13 and W14, checked at `5126318`).
 until you answer:** each choice names what stays if you say nothing, which is always the world as it is today.
 
 **The groups:** [first visit and tour](#first-visit-and-tour-t) (T, 9), [words on screen](#words-on-screen-w) (W, 12),
-[the live road](#the-live-road-l) (L, 2), [the host's behaviour](#the-hosts-behaviour-h) (H, 2),
+[the live road](#the-live-road-l) (L, 2), [the host's behaviour](#the-hosts-behaviour-h) (H, 3),
 [the storyline](#the-storyline-s) (S, 4), [editing the town](#editing-the-town-e) (E, 1), and from round 50
-[the figures](#the-figures-k) (K, 3) and [accessibility](#accessibility-x) (X, 4); words on screen gained W13 and W14. **The cost** of a choice names the files, the tests and the pixel sets that would change. The demo pixel set
+[the figures](#the-figures-k) (K, 3) and [accessibility](#accessibility-x) (X, 4); words on screen gained W13 and W14;
+from round 51 the host gained H3, and [the tools](#the-tools-p) (P, 1) is new. **The cost** of a choice names the files, the tests and the pixel sets that would change. The demo pixel set
 (`tools/pixcheck.mjs`) pictures the town, the town hall, a building and its rooms at 1440 and 375 px, light and dark,
 with the label layer hidden and the tour off; so plates, labels, sheets and the tour never move it.
 
@@ -360,6 +362,25 @@ run file's new field. No pixel set.
 **If you say nothing:** the JSON error page.
 **Answer:** `H2: refuse / take-over / keep`
 
+### H3. "Forget this key" on a key from the old default key file (round 51, r51-review H2)
+
+**Today.** When the host's key is rejected, the Connection panel offers Forget for every key but one set by
+`CREWHUB_WORLD_KEY_FILE` (`apps/world/src/components/ConnectionPanel.tsx:135`), so also for a key read from the old
+default file `~/.config/crewhub-loops/secrets/agent-crewhub-world.key` (`apps/host/src/config.ts:24`). It asks "Forget
+the stored key? The host drops it and the world asks for a key again." (`apps/world/src/i18n/en.ts:237`) and the host
+drops only its own stored copy (`apps/host/src/host.ts:961-968`): it never deletes a file outside its folder. The page
+then shows the Connect screen, but at the next `npm run world` the same rejected key is read from the default file
+again (`config.ts:94-108`), with the same rejected screen.
+**Options.** `stored-only`: the panel offers Forget for a stored key only, as the Connect page already does
+(`ConnectPage.tsx:210`), and for a default-file key says where it comes from: "This key comes from <file>. Remove that
+file, or paste a new key." `host-says`: Forget stays, and the host answers the forget of a default-file key with that
+same reason, which the panel shows. `keep`.
+**Recommended:** `stored-only` (one condition; the panel already words the `CREWHUB_WORLD_KEY_FILE` case this way).
+**Cost:** `ConnectionPanel.tsx:135` and one new line in `en.ts`; a component test of the three sources. No pixel set
+(the panel is in no set).
+**If you say nothing:** Forget on a default-file key comes back at the next start.
+**Answer:** `H3: stored-only / host-says / keep`
+
 ## The storyline (S)
 
 ### S1. cl-lead's status line at 15:36 (r48-cl88 C1) *wording*
@@ -519,6 +540,22 @@ corner wraps to two rows. `keep`.
 **Cost:** one `world.css` rule, and a 320 px picture to confirm (in no set).
 **If you say nothing:** the overlap stays.
 **Answer:** `X4: drop-word / wrap-tools / keep`
+
+## The tools (P)
+
+### P1. `tools/perf.mjs`'s exit code after a failed scenario (round 51, r51-review T3)
+
+**Today.** `perf.mjs` measures one scenario after another. A scenario that fails prints `<name> FAILED: <reason>` and
+the run goes on (`tools/perf.mjs:320-325`), and the run ends with exit 0 whatever failed. The page a
+failed scenario leaves running is a separate fix (the cleanup half of r51-review's T3), not a choice; only the exit
+code is.
+**Options.** `fail`: a run with a FAILED line exits 1, so a script or CI that runs it sees the failure. `keep`: exit
+0, as a measurement and not a check; the FAILED line is the signal.
+**Recommended:** `fail` (the tools that print `n/n` already exit 1 below full marks).
+**Cost:** one line (`process.exitCode = 1` in the catch) and a line in `tools/README.md`. No test can reach it
+without a browser. No pixel set.
+**If you say nothing:** exit 0.
+**Answer:** `P1: fail / keep`
 
 ## The wording block
 
