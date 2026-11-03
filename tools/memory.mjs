@@ -1,7 +1,7 @@
 /* memory.mjs: memory growth over a long run.
 
    Usage:
-     node tools/memory.mjs --port <port> [demo|stress|live] [--minutes <n>] [--every <s>] [--cast <id>] [--stress <n>]
+     node tools/memory.mjs --port <port> [demo|stress|live|switches] [--minutes <n>] [--every <s>] [--cast <id>] [--stress <n>]
                            [--scenario <id>] [--snapshots <min,min,...>] [--save-snapshots <dir>] [--count-names <a,b,...>]
                            [--preview] [--loops-url <url> --key-file <file>] [--fake-scenario <id>] [--fake-speed 0|1|4|16]
                            [--host-port <port>] [--paired-tab] [--chat-panel] [--dm-every <s>] [--burst <n> --burst-at <min>]
@@ -12,6 +12,10 @@
            on --port yourself (`npx vite preview --port <port>` in apps/world, without CREWHUB_WORLD_PORT: the preview
            then answers /world-api as "no host" and the page runs the demo).
    stress  the stress fixture (?stress=<n>, default 1; dev builds only) at 16x (default 5 minutes)
+   switches the demo town paused, and between two samples one switch of views instead of a wait (round 53,
+           r53-review2 W1): the next of the demo's four buildings, its next room, Escape three times (default 4
+           minutes, about 35 switches; --every is not used). The town at 16x never switches, so a leak that only a
+           switch makes (a render of World kept per switch) shows here and not in `demo`.
    live    live mode (?source=live) against a crewhub-loops behind a host the tool starts (lib/live.mjs): an in-process
            fake playing --fake-scenario (default small-team) at --fake-speed (default 16), or the loops --loops-url
            names with --key-file (the fake on its own port, or the development loops on 8291; loopback only). In a dev
@@ -80,12 +84,12 @@ import { castChoice, cli, launch, speed, store, worldUrl } from "./lib/world.mjs
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const opts = cli(
-  `node tools/memory.mjs --port <port> [demo|stress|live] [--minutes <n>] [--every <s>] [--cast <id>] [--stress <n>] [--scenario <id>] [--snapshots <min,min,...>] [--save-snapshots <dir>] [--count-names <a,b,...>] [--preview] ${LIVE_USAGE} ${CHAT_USAGE} [--json <file>] [--out <dir>] [--swiftshader]`,
+  `node tools/memory.mjs --port <port> [demo|stress|live|switches] [--minutes <n>] [--every <s>] [--cast <id>] [--stress <n>] [--scenario <id>] [--snapshots <min,min,...>] [--save-snapshots <dir>] [--count-names <a,b,...>] [--preview] ${LIVE_USAGE} ${CHAT_USAGE} [--json <file>] [--out <dir>] [--swiftshader]`,
   { options: { minutes: null, every: "30", json: null, cast: null, stress: "1", scenario: null, snapshots: "", "save-snapshots": "", "count-names": "", ...LIVE_OPTIONS, ...CHAT_OPTIONS }, flags: ["preview", ...CHAT_FLAGS] },
 );
 const scenario = opts.rest[0] ?? "demo";
-if (!["demo", "stress", "live"].includes(scenario)) opts.fail(`unknown scenario "${scenario}"; known: demo, stress, live`);
-const minutes = Number(opts.minutes ?? (scenario === "stress" ? "5" : scenario === "live" ? "30" : "10"));
+if (!["demo", "stress", "live", "switches"].includes(scenario)) opts.fail(`unknown scenario "${scenario}"; known: demo, stress, live, switches`);
+const minutes = Number(opts.minutes ?? (scenario === "stress" ? "5" : scenario === "live" ? "30" : scenario === "switches" ? "4" : "10"));
 const every = Number(opts.every);
 const snapshotMinutes = opts.snapshots === "" ? [] : opts.snapshots.split(",").map(Number);
 if (snapshotMinutes.some((m) => !Number.isFinite(m) || m < 0)) opts.fail("--snapshots takes minutes, e.g. 0,10,30");
@@ -131,7 +135,8 @@ if (live) {
   // The chip says Live: the snapshot is in and the stream open (20 s, else the run goes on and says so).
   const ok = await page.waitForSelector('.connection-chip[data-connection="live"]', { timeout: 20000 }).then(() => true).catch(() => false);
   if (!ok) console.log("  live: the connection chip does not say Live after 20 s; measuring anyway");
-} else await speed(page, "16x");
+} else if (scenario === "switches") await page.getByRole("button", { name: "Pause", exact: true }).click({ timeout: 5000 });
+else await speed(page, "16x");
 if (threeNames) console.log(`  three's classes in ${threeNames.chunk}: InstancedMesh ${threeNames.InstancedMesh ?? "?"}, MeshStandardMaterial ${threeNames.MeshStandardMaterial ?? "?"}, Mesh ${threeNames.Mesh ?? "?"}`);
 
 // The paired tab (round 39): a second tab of the same context, opened without a link once the first tab is Live and
@@ -223,9 +228,33 @@ async function snapshotAt(minute) {
 let nextSnapshot = 0;
 // The last sample's DOM (round 29): the node count and the inventory the diff reads when the count moves.
 let lastDom = null;
-for (let t = 0; t <= minutes * 60; t += every) {
-  const wait = started + t * 1000 - Date.now();
-  if (wait > 0) await page.waitForTimeout(wait);
+/** One switch of the `switches` scenario: building `i` of the demo's four, its next room, then Escape back to the town. */
+let switched = 0;
+async function switchOnce(i) {
+  const canvas = page.locator("canvas").first();
+  await canvas.focus();
+  for (let k = 0; k < i % 4; k++) await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(2500);
+  await canvas.focus();
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(1500);
+  for (let k = 0; k < 3; k++) {
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(400);
+  }
+  await page.waitForTimeout(1500);
+}
+for (let t = 0; t <= minutes * 60; t = scenario === "switches" ? Math.round((Date.now() - started) / 1000) : t + every) {
+  if (scenario === "switches") {
+    // The sample's time is after its switch, so the minutes' snapshots and the run's end fall where they say.
+    if (points.length > 0) await switchOnce(switched++);
+    t = Math.round((Date.now() - started) / 1000);
+  } else {
+    const wait = started + t * 1000 - Date.now();
+    if (wait > 0) await page.waitForTimeout(wait);
+  }
   // React's development build records every render as a performance measure (its DevTools tracks) and the browser
   // keeps them all: about 2 MB per 5 minutes at 16x. A production build records none. Cleared, so a dev-server run
   // measures the app only.
@@ -264,6 +293,7 @@ for (let t = 0; t <= minutes * 60; t += every) {
     frameP95: perf?.frameP95 ?? null,
     workMean: perf?.workMean ?? null,
     faded: stores?.faded ?? null,
+    ...(scenario === "switches" ? { switches: switched } : {}),
     ...(live ? { connection: chip, upstream: upstream ? { state: upstream.state, reconnects: upstream.reconnects } : null, stores } : {}),
     ...(pairedPoint ? { paired: pairedPoint } : {}),
     ...(chatNow ? { chat: chatNow } : {}),
@@ -281,7 +311,7 @@ for (let t = 0; t <= minutes * 60; t += every) {
   }
   lastDom = { nodes: dom.nodes, documents: dom.documents, inventory };
   points.push(point);
-  const frame = `${perf ? `  frame ${perf.frameMean.toFixed(1)}/${perf.frameP95.toFixed(1)} ms work ${perf.workMean.toFixed(1)}` : ""}  faded ${point.faded ?? "?"}`;
+  const frame = `${perf ? `  frame ${perf.frameMean.toFixed(1)}/${perf.frameP95.toFixed(1)} ms work ${perf.workMean.toFixed(1)}` : ""}  faded ${point.faded ?? "?"}${scenario === "switches" ? `  switches ${switched}` : ""}`;
   const soak = live ? `  ${chip ?? "no chip"}  upstream ${upstream ? `${upstream.state} r${upstream.reconnects}` : "?"}${stores ? `  said ${stores.said} answers ${stores.answers} threads ${stores.threads ?? "-"} rev ${stores.docRevision}/${stores.hostRev ?? "-"}` : ""}` : "";
   const pairedLine = pairedPoint ? `  paired ${pairedPoint.connection ?? "no chip"} heap ${mb(pairedPoint.heap)} MB dom ${pairedPoint.nodes} listeners ${pairedPoint.listeners}` : "";
   const chatLine = chatNow ? `  ${formatChat(chatNow)}` : "";
