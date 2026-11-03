@@ -93,7 +93,8 @@ smooth connection" below):
   `loopsWebUrl` is the origin of the loops URL, for the world's Chat panel (which frames that web app) and the card's ticket links; `transport` is `tcp`
   (the URL) or `unix` (the socket); `paired` is whether this request carries a valid pairing cookie; `pairing` is `on`
   or `off`. Health carries no data and needs no cookie.
-- **Pairing** (plan 3.5, `src/pairing.ts`): every other `/world-api` route answers `401 {"error":"not_paired"}`
+- **Pairing** (plan 3.5, `src/pairing.ts`): every other `/world-api` route but `/dev-origin` (a program's request, below)
+  answers `401 {"error":"not_paired"}`
   unless the request carries the cookie `crewhub_world_pair` (`HttpOnly; SameSite=Strict; Path=/`, plus `Secure`
   when `CREWHUB_WORLD_PUBLIC_URL` is https). `GET /pair/<token>` sets it and answers `303 Location: /`; a used,
   expired or unknown token gets a plain HTML 403 page. See "Pairing" below.
@@ -108,7 +109,9 @@ smooth connection" below):
   `CREWHUB_WORLD_ALLOWED_ORIGINS`. Accepted only from a program on this machine (loopback, no `Origin` header, JSON:
   a page cannot send it), only for `http://127.0.0.1:<port>` or `http://localhost:<port>` (never another
   host, https or a wildcard), and only from this checkout (the body's `checkout` must be the host's
-  own id, `src/checkout.ts`); at most 8 a run. The host logs one line per accepted origin; health lists them
+  own id, `src/checkout.ts`), and only from the same user: the request carries the mint secret of the host's run file
+  (`$TMPDIR/crewhub-world-host-<port>.json`, 0600) in `x-crewhub-world-mint` (else 403 `not_same_user`; a host
+  without a run file answers 404 `no_run_file`); at most 8 a run (then 429 `too_many_origins`). The host logs one line per accepted origin; health lists them
   (`devOrigins`, and the `x-world-dev-origins` header the dev proxy reads, to tell again after a host restart).
   Pairing is untouched: the page still needs its cookie. The preview and a build never tell.
 - **Reconnect**: loops ends every stream after 300 s (and at a credential re-check or a stop); the host waits 1.5 to
@@ -260,8 +263,8 @@ All from the repository root; the env of the table above applies to each.
 | Command | What it does |
 | --- | --- |
 | `npm run world` | The morning: starts the host in production mode with pairing on, opens the default browser on a one-time pairing link, builds `apps/world/dist` beside it when it is missing or stale, prints the step list. `-- --no-open` prints the link instead. A second run finds the running host and only mints a new link. The pairing secret is kept in `<config dir>/pairing-secret`. |
-| `npm run host -- doctor` | The preflight: one line per check (loops found, its health, the key file, what loops says about the key, the projects, agents and team reads, the event log, the remembered archive, the host's port, pairing), `ok` or the fix; exit 0 only when all pass. Reads only, never the stream. |
-| `npm run host -- open` | Prints a one-time pairing link: asks a host already running on the port (a loopback-only `GET /pair-mint` guarded by a per-run mint secret in a 0600 run file), else starts one. The run file is the host's while it runs: the host removes it when it stops on Ctrl-C or SIGTERM, and one that ends otherwise (a failed `world` build, a crash) leaves it behind, so the next `open` gets no answer from that port and starts a host. `--origin <url>` mints the link on another origin (the Vite dev server, which proxies `/pair`). It prints and never opens a browser; the whole usage is `node apps/host/src/main.ts [--loops-socket <path>] [open [--origin <url>] \| world [--no-open] \| doctor]`. |
+| `npm run host -- doctor` | The preflight: one line per check (the Node version, the config folder, loops found, its health, the key file, what loops says about the key, the projects, agents and team reads, the event log, the remembered archive, the host's port, pairing), `ok` or the fix; exit 0 only when all pass. Reads only, never the stream. |
+| `npm run host -- open` | Prints a one-time pairing link: asks a host already running on the port (a loopback-only `GET /pair-mint` guarded by a per-run mint secret in a 0600 run file), else starts one. The run file is the host's while it runs: it goes at any exit of the host process (Ctrl-C, SIGTERM, a failed `world` build, an uncaught error; `src/runFile.ts`); only a hard kill (SIGKILL, a power loss) leaves it behind, and then the next `open` gets no answer from that port and starts a host. `--origin <url>` mints the link on another origin (the Vite dev server, which proxies `/pair`). It prints and never opens a browser; the whole usage is `node apps/host/src/main.ts [--loops-socket <path>] [open [--origin <url>] \| world [--no-open] \| doctor]`. |
 | `npm run host` | Serve mode for development: the data from the host, the world from Vite (`npm run dev`, opened with `?source=live`); the pairing secret is per run. `-- --loops-socket <path>` reads loops over that Unix socket. |
 | `npm run host:start` | Production serve mode: builds the world, then serves `apps/world/dist` on `127.0.0.1:5180` with pairing on. `-- open` also prints the link. |
 
@@ -276,7 +279,7 @@ npm run dev                              # Vite proxies /world-api and /pair to 
 Against the Mac app (the runbook is [docs/LOOPS_SETUP.md](../../docs/LOOPS_SETUP.md)): `npm run world`, then
 `curl -s http://127.0.0.1:5180/world-api/health` to look at the states.
 
-Tests: `node --test apps/host/test/*.test.ts` (part of `npm test`). They start a tiny loops stub on `127.0.0.1`
+Tests: `npm test --workspace @crewhub/host`, or `node --import ./scripts/no-app-reach.mjs --test apps/host/test/*.test.ts` (part of `npm test`). They start a tiny loops stub on `127.0.0.1`
 port 0 and talk to it over loopback only. **No test may reach the Mac app** (round 35): `npm test` preloads
 `scripts/no-app-reach.mjs` into every test process and every Node a test spawns; it refuses a connection to 8091 (or
 8000, 9443) and a read under the app's data folder, `~/.config/crewhub-world` or `~/.config/crewhub-loops` before it
