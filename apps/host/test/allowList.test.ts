@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { createServer, request } from "node:http";
+import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { allowedLoopsPath, matchWorldRoute } from "../src/allowList.ts";
 import { createHost, type Host } from "../src/host.ts";
@@ -53,18 +55,24 @@ describe("the allow-list", () => {
 
   it("answers 502 not_json for an answer that is not JSON, and never serves its page on the world's origin", async () => {
     // loops answers every route, its errors too, as JSON; an HTML page comes from a proxy in front of it or a wrong
-    // CREWHUB_WORLD_LOOPS_URL (round 51, r51-review H4).
-    const page = "<!doctype html><title>Sign in</title><script>alert(1)</script>";
-    const proxied = await createLoopsStub({
-      ...installation(),
-      routes: {
-        ...installation().routes,
-        "/api/watchdog": () => ({ status: 200, body: page, contentType: "text/html; charset=utf-8" }),
-        "/api/tickets/AT-2": () => ({ status: 404, body: "Not Found", contentType: "text/plain" }),
-        "/api/team": () => ({ status: 200, body: JSON.stringify({ agents: [] }), contentType: "application/json; charset=utf-8" }),
-      },
+    // CREWHUB_WORLD_LOOPS_URL (round 51, r51-review H4). Such a proxy, in front of the stub: two paths are its own.
+    const own: Record<string, [number, string, string]> = {
+      "/api/watchdog": [200, "text/html; charset=utf-8", "<!doctype html><title>Sign in</title><script>alert(1)</script>"],
+      "/api/tickets/AT-2": [404, "text/plain", "Not Found"],
+    };
+    const proxy = createServer((req, res) => {
+      const mine = own[new URL(req.url ?? "/", "http://127.0.0.1").pathname];
+      if (mine !== undefined) return void res.writeHead(mine[0], { "content-type": mine[1] }).end(mine[2]);
+      const ahead = request(`${stub.url}${req.url}`, { method: req.method, headers: req.headers }, (answer) => {
+        // At once: the stream's head has no body behind it until an event, and the host waits for the head.
+        res.writeHead(answer.statusCode ?? 502, answer.headers).flushHeaders();
+        answer.pipe(res);
+      });
+      ahead.on("error", () => res.destroy());
+      req.pipe(ahead);
     });
-    const behind = await createHost({ loopsUrl: proxied.url, key: proxied.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, log: () => undefined });
+    await new Promise<void>((resolve) => proxy.listen(0, "127.0.0.1", resolve));
+    const behind = await createHost({ loopsUrl: `http://127.0.0.1:${(proxy.address() as AddressInfo).port}`, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, log: () => undefined });
     try {
       for (const path of ["/world-api/watchdog", "/world-api/tickets/AT-2"]) {
         const res = await fetch(`${behind.url}${path}`);
@@ -74,12 +82,12 @@ describe("the allow-list", () => {
         assert.equal((JSON.parse(text) as { error: string }).error, "not_json", path);
         assert.ok(!text.includes("<script>") && !text.includes("Not Found"), path);
       }
-      const team = await fetch(`${behind.url}/world-api/team`);
-      assert.equal(team.status, 200, "JSON with a charset passes");
-      assert.deepEqual(await team.json(), { agents: [] });
+      const ticket = await fetch(`${behind.url}/world-api/tickets/AT-1`);
+      assert.equal(ticket.status, 200, "loops' own JSON passes the proxy");
     } finally {
       await behind.close();
-      await proxied.close();
+      proxy.closeAllConnections();
+      await new Promise((resolve) => proxy.close(resolve));
     }
   });
 

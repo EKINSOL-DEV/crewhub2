@@ -36,19 +36,12 @@ export interface Envelope {
   payload: Record<string, unknown>;
 }
 
-/** A route function's answer: `body` as JSON, or as text when `contentType` is given (a proxy's HTML page). */
-export interface StubAnswer {
-  status: number;
-  body: unknown;
-  contentType?: string;
-}
-
 export interface StubOptions {
   key?: string;
   /** Pages for a paged list route, keyed by path: each entry is one page body in order. */
   pages?: Record<string, unknown[]>;
-  /** Plain bodies by path (`/api/team` …); a function answers per request, as JSON unless it names a content type. */
-  routes?: Record<string, unknown | ((url: URL) => StubAnswer)>;
+  /** Plain bodies by path (`/api/team` …); a function answers per request. */
+  routes?: Record<string, unknown | ((url: URL) => { status: number; body: unknown })>;
   /** Events already in the log. */
   events?: Envelope[];
   /** `after` below this answers 410 cursor_expired. */
@@ -165,9 +158,9 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
   };
   const withCursor = (body: Record<string, unknown>, seen: number, checked: number) => (older ? body : { ...body, cursor: seal(seen, checked) });
 
-  function send(res: ServerResponse, status: number, body: unknown, contentType?: string): void {
-    res.writeHead(status, { "content-type": contentType ?? "application/json" });
-    res.end(contentType === undefined ? JSON.stringify(body) : String(body));
+  function send(res: ServerResponse, status: number, body: unknown): void {
+    res.writeHead(status, { "content-type": "application/json" });
+    res.end(JSON.stringify(body));
   }
 
   function handle(req: IncomingMessage, res: ServerResponse): void {
@@ -278,8 +271,8 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
     const route = options.routes?.[p];
     if (route === undefined) return send(res, 404, error("not_found", `Not found${detail}`));
     if (typeof route === "function") {
-      const answer = (route as (url: URL) => StubAnswer)(url);
-      return send(res, answer.status, answer.body, answer.contentType);
+      const answer = (route as (url: URL) => { status: number; body: unknown })(url);
+      return send(res, answer.status, answer.body);
     }
     return send(res, 200, route);
   }
