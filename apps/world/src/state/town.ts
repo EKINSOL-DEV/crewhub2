@@ -24,6 +24,7 @@ import { styleRegistry } from "../world/style";
 import { readHostTown, writeHostTown } from "@crewhub/loops-client";
 import { createHostTownStore, townStoreFor } from "./hostTown";
 import { onHostConnected, onHostTown } from "./townBus";
+import { createPropQueue } from "./propQueue";
 import { createTownStore, seededTown, type TownStore } from "./townStore";
 import { LIVE, SCENARIO, STRESS, TOWN_COPY_FROM, TOWN_KEY, worldRuntime } from "./world";
 
@@ -52,9 +53,9 @@ class TownRuntime {
   readonly fresh = new Set<string>();
   #state: TownState;
   #listeners = new Set<() => void>();
-  #tried = new Set<string>();
   #invalid = new Map<string, InvalidRequest>();
-  #queue: Promise<void> = Promise.resolve();
+  /** Done prop requests, imported one at a time; a failed read is tried again after a wait (round 53, review S3). */
+  readonly #props = createPropQueue({ run: (ticketKey) => this.#import(ticketKey), again: () => this.#checkRequests() });
   #announce: (text: string) => void = () => {};
 
   constructor() {
@@ -203,12 +204,7 @@ class TownRuntime {
     const requests = propRequestsFromFacts(world.projection.facts, this.store.state.doc);
     const visible = this.#visibleInvalid();
     if (visible.length !== this.#state.invalid.length || visible.some((r, i) => r !== this.#state.invalid[i])) this.#refresh();
-    for (const request of requests) {
-      if (this.#tried.has(request.ticketKey)) continue;
-      this.#tried.add(request.ticketKey);
-      // One at a time, each on the latest document.
-      this.#queue = this.#queue.then(() => this.#import(request.ticketKey)).catch((e: unknown) => console.warn("Prop request failed", e));
-    }
+    this.#props.offer(requests.map((r) => r.ticketKey));
   }
 
   async #import(ticketKey: string) {
