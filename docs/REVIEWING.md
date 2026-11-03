@@ -53,7 +53,8 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
   environment, one table), `host.ts` (1,290 lines: every route, the Host and Origin guards, the pairing gate, the
   write gate, the host's word on its key and on the chat), `pairing.ts`, `devOrigin.ts` with `checkout.ts` and
   `runFile.ts`, `doctor.ts`, `build.ts`. The README beside them is the reference (308 lines).
-- **What it does.** A Node 24 program with no dependency beyond Node, on `127.0.0.1:5180`. It holds the one
+- **What it does.** A Node 24 program with no third-party dependency (beside Node only the workspace's
+  `loops-client` and `world-model`), on `127.0.0.1:5180`. It holds the one
   crewhub-loops key, answers the browser under `/world-api`, and in production serves the built page.
 - **The risky parts.** *Pairing:* the cookie `crewhub_world_pair` is `HttpOnly; SameSite=Strict; Path=/` on
   `127.0.0.1`, host-only, so every loopback port the paired browser visits receives it (the security review of

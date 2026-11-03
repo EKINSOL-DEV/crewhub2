@@ -1,6 +1,6 @@
 # `@crewhub/host`: the world's relay to crewhub-loops
 
-A small Node program (Node 24, as the repository requires; no dependencies beyond Node itself) that stands between the browser and
+A small Node program (Node 24, as the repository requires; no third-party dependency: beside Node it imports only the workspace's own `@crewhub/loops-client` and `@crewhub/world-model`) that stands between the browser and
 crewhub-loops: integrator "Option A" of loops' `docs/integrators/identity-and-access.md`, section 3.5 of
 [docs/LOOPS_INTEGRATION_PLAN.md](../../docs/LOOPS_INTEGRATION_PLAN.md). It holds the one agent key (an external
 bot's, which could write: the host is what keeps it read-only), reads crewhub-loops with safe methods only (over

@@ -76,7 +76,8 @@ Phase status (plan section 10; the dates and details are in [the roadmap](ROADMA
 
 ## The host (`apps/host`)
 
-One Node process, no dependency beyond Node, loopback only. Its parts, each a file in
+One Node process, no third-party dependency (beside Node only the workspace's `loops-client` and
+`world-model`), loopback only. Its parts, each a file in
 `apps/host/src` with its tests in `apps/host/test` against a loops stub on port 0:
 
 - **Discovery** (`discovery.ts`): the env's URL or socket is taken as given; else the Mac
