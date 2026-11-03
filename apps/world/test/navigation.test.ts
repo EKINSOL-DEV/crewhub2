@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isTownRoom, NavWorld, POST_OFFICE_CELL, standalonePlan, TOWN_GRID, TOWN_ROOM, TOWN_HALL_CELL, townLocationAt, townRoomId, townRoomSlot, parseRoomId, roomId } from "../src/world/navigation.ts";
+import { entranceCell, isTownRoom, NavWorld, POST_OFFICE_CELL, standalonePlan, TOWN_GRID, TOWN_ROOM, TOWN_HALL_CELL, townLocationAt, townRoomId, townRoomSlot, parseRoomId, roomId } from "../src/world/navigation.ts";
 import { districtLots, lotCentre } from "../src/world/settlement.ts";
 import { agent, building } from "./fixtures.ts";
 
@@ -90,6 +90,35 @@ test("a grown room rebuilds its building and keeps the actors inside; an unchang
   nav.sync([{ ...grown, archived: true }], undefined, undefined, "classic");
   assert.equal(nav.graph.room(roomId("cr", "lobby")), undefined);
   assert.equal(nav.sim.actor("cr/dev-1"), undefined);
+});
+
+test("round 50 (r48-scene S2): a rebuild that must wait for its entrance keeps the old building and the walkers in it", () => {
+  const nav = new NavWorld();
+  const small = building("cr", [agent("cr/dev-1", "workers")]);
+  const plan = standalonePlan([small]);
+  nav.sync([small], plan, undefined, "classic");
+  const seat = nav.home("cr", "cr/dev-1", "workers")!;
+  assert.ok(nav.sim.addActor({ id: "cr/dev-1", location: seat }).ok);
+  // The street cell in front of the door closed, as a town room update that failed (a walker in the way) leaves it.
+  const lot = plan.lots.find((l) => l.slug === "cr")!.cell;
+  const town = nav.graph.room(nav.front("cr")!.room)!;
+  const at = entranceCell(lot);
+  const index = at.z * town.layout.grid.width + at.x;
+  assert.equal(town.blocked[index], -1, "the entrance was open");
+  town.blocked[index] = 0;
+
+  // Five workers need a bigger workers room: a rebuild, which waits for the entrance.
+  const grown = building("cr", Array.from({ length: 5 }, (_, i) => agent(`cr/dev-${i + 1}`, "workers")));
+  assert.deepEqual(nav.sync([grown], plan, undefined, "classic"), { rebuilt: [], removed: [] });
+  assert.ok(nav.graph.room(roomId("cr", "lobby")) && nav.graph.room(roomId("cr", "workers")), "the old building's rooms stand");
+  assert.equal(nav.graph.room(roomId("cr", "workers"))!.layout.grid.width, nav.entry("cr")!.template.rooms.find((r) => r.kind === "workers")!.layout.grid.width, "the entry is the building in the graph");
+  assert.deepEqual(nav.sim.actor("cr/dev-1")?.location, seat, "the walker inside stays where it stood");
+
+  // The entrance opens again: the next sync rebuilds, and the walker is put back.
+  town.blocked[index] = -1;
+  assert.deepEqual(nav.sync([grown], plan, undefined, "classic").rebuilt, ["cr"]);
+  assert.equal(nav.graph.room(roomId("cr", "workers"))!.layout.grid.width, 12);
+  assert.deepEqual(nav.sim.actor("cr/dev-1")?.location, seat);
 });
 
 test("director reachability: a room's visitable tags have reachable approach cells, other rooms have none", () => {
