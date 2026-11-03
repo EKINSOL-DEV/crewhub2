@@ -9,6 +9,14 @@ const CONTEXT: TownContext = { knownStyles: ["greenhouse"], builtinIds: [] };
 class FakeIndexedDB {
   readonly data = new Map<string, Map<IDBValidKey, unknown>>();
   failOpen = false;
+  /** The next open waits on another tab's connection first: `onblocked` fires, then the open goes on. */
+  blockNext = false;
+  /** Every connection opened, by database name, as a browser keeps them until `close`. */
+  readonly connections = new Map<string, { closed: boolean; onversionchange: (() => void) | null }[]>();
+  /** A newer page opening `name` at a higher version: every open connection hears `versionchange`. */
+  versionChange(name: string): void {
+    for (const c of this.connections.get(name) ?? []) if (!c.closed) c.onversionchange?.();
+  }
   /** `indexedDB.databases()`, as Chromium and WebKit answer it; `listable = false` is a browser without it. */
   listable = true;
   databases(): Promise<{ name: string }[]> {
@@ -27,12 +35,23 @@ class FakeIndexedDB {
       const records = this.data.get(name) ?? new Map<IDBValidKey, unknown>();
       this.data.set(name, records);
       const stores = new Set<string>(fresh ? [] : [TOWN_STORE_NAME]);
-      req.result = {
+      const connection = {
+        closed: false,
+        onversionchange: null as (() => void) | null,
         objectStoreNames: { contains: (n: string) => stores.has(n) },
         createObjectStore: (n: string) => stores.add(n),
-        close: () => {},
-        transaction: () => fakeTransaction(records),
+        close: () => void (connection.closed = true),
+        transaction: () => {
+          if (connection.closed) throw new Error("The database connection is closing.");
+          return fakeTransaction(records);
+        },
       };
+      this.connections.set(name, [...(this.connections.get(name) ?? []), connection]);
+      req.result = connection;
+      if (this.blockNext) {
+        this.blockNext = false;
+        (req["onblocked"] as (() => void) | undefined)?.();
+      }
       if (fresh) (req["onupgradeneeded"] as () => void)();
       (req["onsuccess"] as () => void)();
     });
@@ -246,4 +265,30 @@ test("the copy never overwrites a new town that exists, never happens without a 
   const same = createTownStore({ context: CONTEXT, indexedDB: factory, name: OLD, copyFrom: OLD });
   await same.load();
   assert.equal(same.state.storageNote, null);
+});
+
+test("a newer page's open closes this tab's database (versionchange), and the next write keeps the town in memory, said (round 54, r53-review S1)", async () => {
+  const idb = new FakeIndexedDB();
+  const store = createTownStore({ context: CONTEXT, indexedDB: idb as unknown as IDBFactory });
+  await store.load();
+  await commitPlot(store, 1);
+  // A tab still open on this build would otherwise hold the database and block the new build's open forever.
+  idb.versionChange(TOWN_DB_NAME);
+  assert.deepEqual(idb.connections.get(TOWN_DB_NAME)?.map((c) => c.closed), [true], "the open database closed on versionchange");
+  await commitPlot(store, 2);
+  assert.equal(store.state.doc.revision, 2, "the edit is kept in memory");
+  assert.equal(store.state.storage, "memory");
+  assert.match(store.state.storageNote ?? "", /^Storage failed \(.+\); the town is kept in memory only\.$/);
+});
+
+test("an open that another tab blocks says so in the console, and no words on screen (round 54, r53-review S1)", async () => {
+  const idb = new FakeIndexedDB();
+  idb.blockNext = true;
+  const warned: string[] = [];
+  const store = createTownStore({ context: CONTEXT, indexedDB: idb as unknown as IDBFactory, warn: (m) => warned.push(m) });
+  await store.load();
+  assert.equal(warned.length, 1);
+  assert.match(warned[0] ?? "", /blocked/);
+  assert.equal(store.state.storageNote, null);
+  assert.equal(store.state.storage, "indexeddb");
 });
