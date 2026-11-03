@@ -43,7 +43,7 @@ export interface LoopsFakeOptions {
   /**
    * The key behaves like loops' builder key (CL-120): it reads a ticket, its comments and `GET /api/auth/me`, and
    * every other route (health included) answers 403 `forbidden` "This key reads tickets, comments and attachments
-   * only". Default false: the key is a probe agent's and reads everything the host reads.
+   * only". Default false: the key is an external bot's (role lead, CL-314) and reads everything the host reads.
    */
   builderKey?: boolean;
   /** How many envelopes the fake keeps for `after=`; an older `after` answers 410. Default 2000. */
@@ -594,7 +594,9 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     const ref = parts[2] ?? "";
     // `principal_out`: an agent's `role` is its agent role and its `theme` is null; `themeDefault` is the install's.
     // The world's key is an external bot's (CL-314): loops forces its role to `lead` (the `probe` road is dead, CL-295).
-    if (at("auth", "me")) return { principal: { ...caller, role: "lead", theme: null, themeDefault: "system" } };
+    // A signed-in person gets their own role, as `principal_out` gives a user's (round 54): the demo's person is an admin,
+    // as the login says.
+    if (at("auth", "me")) return { principal: { ...caller, role: caller.kind === "user" ? "admin" : "lead", theme: null, themeDefault: "system" } };
     if (at("projects")) {
       if (url.searchParams.get("includeArchived") === "true") throw new ApiError(403, "forbidden", INCLUDE_ARCHIVED_MESSAGE);
       const snapshot = await snapshotOf();

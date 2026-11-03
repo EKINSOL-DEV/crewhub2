@@ -60,7 +60,7 @@ export interface Freshness {
 export interface WorldModel {
   /** The source's clock (demo time for the demo), ms since the epoch. */
   now: number;
-  /** "demo" labels every surface as demo; "live" is for the future host. */
+  /** "demo" labels every surface as demo; "live" is the world's host over crewhub-loops (apps/host). */
   mode: "demo" | "live";
   /** The last applied event seq; for the text view and debugging. */
   cursor: number;
