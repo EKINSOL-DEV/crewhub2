@@ -67,7 +67,7 @@ a model is one node holding its parts as data, which halved the objects made bef
 ([COST_POLICY.md](COST_POLICY.md)). The same rule was kept for every cut after it: the phone's first paint (rounds 21
 and 22), the figures as data (round 23) and the inside layers of the likely next building built ahead in idle time
 (round 24, the worst enter frame on a phone at 4x from 90 to 57 ms); since round 24 anyone reruns the proof with
-`tools/pixcheck.mjs` on two commits (74 label-free demo pairs and 324 cast pairs, a diff image per pair).
+`tools/pixcheck.mjs` on two commits (74 label-free demo pairs and 320 cast pairs, a diff image per pair).
 
 ![Inside the CR building in the demo: the outer walls washed with the project's coral, the awning and flag outside, the lead at its desk in the office, the workers and the designer on the floor, the racks of Administration at the front, the truck at the dock.](images/building.jpg)
 
