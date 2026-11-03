@@ -4,12 +4,15 @@ import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const ignored = new Set([".git", "node_modules", "dist", "target"]);
+// The tools' output (git-ignored): screenshots, logs and whole copies of older trees, none of it the repository's docs.
+const ignoredPaths = new Set([path.join(root, "tools", "out")]);
 
 async function markdownFiles(directory) {
   const files = [];
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     if (ignored.has(entry.name) || entry.isSymbolicLink()) continue;
     const fullPath = path.join(directory, entry.name);
+    if (ignoredPaths.has(fullPath)) continue;
     if (entry.isDirectory()) files.push(...await markdownFiles(fullPath));
     else if (entry.name.endsWith(".md")) files.push(fullPath);
   }
