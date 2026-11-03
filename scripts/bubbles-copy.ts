@@ -62,14 +62,15 @@ function git(loopsDir: string, args: string[]): string | null {
 }
 
 /**
- * Checks every copy against its source at the commit its header records. Skips (never fails) when `loopsDir` is not a
- * git checkout or does not have that commit. Notes, without failing, when the source has moved on since that commit.
+ * Checks every copy against its source at the commit its header records. The copies' own half (each listed copy is
+ * there, with the header, naming its source) needs no checkout and fails anywhere, CI included (round 53, review CI5).
+ * The comparison with the source skips (never fails) when `loopsDir` is not a git checkout or does not have that
+ * commit. Notes, without failing, when the source has moved on since that commit.
  */
 export function checkCopies(repoDir: string, loopsDir: string, copies: readonly { copy: string; source: string }[] = COPIES): CheckResult {
-  if (!existsSync(loopsDir) || git(loopsDir, ["rev-parse", "--git-dir"]) === null)
-    return { status: "skipped", messages: [`bubbles copy: skipped, no crewhub-loops checkout at ${loopsDir}`] };
   const failures: string[] = [];
   const notes: string[] = [];
+  const whole: { copy: string; source: string; text: string; commit: string }[] = [];
   for (const { copy, source } of copies) {
     const file = path.join(repoDir, copy);
     if (!existsSync(file)) {
@@ -78,20 +79,26 @@ export function checkCopies(repoDir: string, loopsDir: string, copies: readonly 
     }
     const text = readFileSync(file, "utf8");
     const parsed = parseCopy(text);
-    if (parsed === null) {
+    if (parsed === null || parsed.sourcePath !== source) {
       failures.push(...compareCopy(copy, text, source, ""));
       continue;
     }
-    if (git(loopsDir, ["cat-file", "-e", `${parsed.commit}^{commit}`]) === null)
-      return { status: "skipped", messages: [`bubbles copy: skipped, the crewhub-loops checkout at ${loopsDir} does not have commit ${parsed.commit}`] };
-    const sourceText = git(loopsDir, ["show", `${parsed.commit}:${source}`]);
+    whole.push({ copy, source, text, commit: parsed.commit });
+  }
+  if (failures.length) return { status: "failed", messages: failures };
+  if (!existsSync(loopsDir) || git(loopsDir, ["rev-parse", "--git-dir"]) === null)
+    return { status: "skipped", messages: [`bubbles copy: skipped, no crewhub-loops checkout at ${loopsDir}`] };
+  for (const { copy, source, text, commit } of whole) {
+    if (git(loopsDir, ["cat-file", "-e", `${commit}^{commit}`]) === null)
+      return { status: "skipped", messages: [`bubbles copy: skipped, the crewhub-loops checkout at ${loopsDir} does not have commit ${commit}`] };
+    const sourceText = git(loopsDir, ["show", `${commit}:${source}`]);
     if (sourceText === null) {
-      failures.push(`${copy}: ${source} does not exist in crewhub-loops @ ${parsed.commit}`);
+      failures.push(`${copy}: ${source} does not exist in crewhub-loops @ ${commit}`);
       continue;
     }
     failures.push(...compareCopy(copy, text, source, sourceText));
     const head = git(loopsDir, ["show", `HEAD:${source}`]);
-    if (head !== null && head !== sourceText) notes.push(`bubbles copy: note, ${source} changed in crewhub-loops after ${parsed.commit}; re-copy it`);
+    if (head !== null && head !== sourceText) notes.push(`bubbles copy: note, ${source} changed in crewhub-loops after ${commit}; re-copy it`);
   }
   if (failures.length) return { status: "failed", messages: [...failures, ...notes] };
   return { status: "ok", messages: [`bubbles copy: ok (${copies.length} files identical to crewhub-loops)`, ...notes] };
