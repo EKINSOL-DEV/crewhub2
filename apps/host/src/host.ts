@@ -862,8 +862,9 @@ export async function createHost(options: HostOptions): Promise<Host> {
 
   function stream(req: IncomingMessage, res: ServerResponse, query: URLSearchParams): void {
     const raw = query.get("cursor");
-    const cursor = raw === null ? null : Number(raw);
-    if (cursor !== null && (!Number.isInteger(cursor) || cursor < 0)) {
+    // Digits only: Number() read "" as 0, "0x10" as 16 and "1e3" as 1000 (round 53, r51-review H4).
+    const cursor = raw === null ? null : /^\d+$/.test(raw) ? Number(raw) : Number.NaN;
+    if (cursor !== null && !Number.isSafeInteger(cursor)) {
       sendJson(res, 400, { error: "validation_error", message: "cursor must be a non-negative integer" });
       return;
     }
@@ -908,6 +909,12 @@ export async function createHost(options: HostOptions): Promise<Host> {
       const upstreamResponse = await link.client.get(loopsPath, Object.fromEntries(query));
       if (isUnauthorized(upstreamResponse.status)) {
         sendJson(res, 503, { error: "unauthorized" });
+        return;
+      }
+      // loops answers every route, its errors too, as JSON: anything else (a proxy's sign-in page, a wrong loops URL)
+      // is not served as it came on the world's own origin (round 53, r51-review H4).
+      if (!/^application\/([\w.-]+\+)?json\s*(;|$)/i.test(upstreamResponse.contentType)) {
+        sendJson(res, 502, { error: "not_json", message: "crewhub-loops did not answer with JSON" });
         return;
       }
       res.writeHead(upstreamResponse.status, { "content-type": upstreamResponse.contentType, "cache-control": "no-store" });

@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { createServer, request } from "node:http";
+import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { allowedLoopsPath, matchWorldRoute } from "../src/allowList.ts";
 import { createHost, type Host } from "../src/host.ts";
@@ -49,6 +51,44 @@ describe("the allow-list", () => {
     const missing = await get("/world-api/tickets/AT-999");
     assert.equal(missing.status, 404);
     assert.equal(((await missing.json()) as { error: { code: string } }).error.code, "not_found");
+  });
+
+  it("answers 502 not_json for an answer that is not JSON, and never serves its page on the world's origin", async () => {
+    // loops answers every route, its errors too, as JSON; an HTML page comes from a proxy in front of it or a wrong
+    // CREWHUB_WORLD_LOOPS_URL (round 51, r51-review H4). Such a proxy, in front of the stub: two paths are its own.
+    const own: Record<string, [number, string, string]> = {
+      "/api/watchdog": [200, "text/html; charset=utf-8", "<!doctype html><title>Sign in</title><script>alert(1)</script>"],
+      "/api/tickets/AT-2": [404, "text/plain", "Not Found"],
+    };
+    const proxy = createServer((req, res) => {
+      const mine = own[new URL(req.url ?? "/", "http://127.0.0.1").pathname];
+      if (mine !== undefined) return void res.writeHead(mine[0], { "content-type": mine[1] }).end(mine[2]);
+      const ahead = request(`${stub.url}${req.url}`, { method: req.method, headers: req.headers }, (answer) => {
+        // At once: the stream's head has no body behind it until an event, and the host waits for the head.
+        res.writeHead(answer.statusCode ?? 502, answer.headers).flushHeaders();
+        answer.pipe(res);
+      });
+      ahead.on("error", () => res.destroy());
+      req.pipe(ahead);
+    });
+    await new Promise<void>((resolve) => proxy.listen(0, "127.0.0.1", resolve));
+    const behind = await createHost({ loopsUrl: `http://127.0.0.1:${(proxy.address() as AddressInfo).port}`, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, log: () => undefined });
+    try {
+      for (const path of ["/world-api/watchdog", "/world-api/tickets/AT-2"]) {
+        const res = await fetch(`${behind.url}${path}`);
+        assert.equal(res.status, 502, path);
+        assert.match(res.headers.get("content-type") ?? "", /^application\/json/, path);
+        const text = await res.text();
+        assert.equal((JSON.parse(text) as { error: string }).error, "not_json", path);
+        assert.ok(!text.includes("<script>") && !text.includes("Not Found"), path);
+      }
+      const ticket = await fetch(`${behind.url}/world-api/tickets/AT-1`);
+      assert.equal(ticket.status, 200, "loops' own JSON passes the proxy");
+    } finally {
+      await behind.close();
+      proxy.closeAllConnections();
+      await new Promise((resolve) => proxy.close(resolve));
+    }
   });
 
   it("answers project-groups locally", async () => {

@@ -96,6 +96,19 @@ describe("the shared stream", () => {
     assert.equal((await fetch(`${host.url}/world-api/stream?cursor=-1`)).status, 400);
   });
 
+  it("takes only digits as a cursor: an empty one, hex, an exponent, a sign, a space or a fraction is the 400 of any other bad cursor", async () => {
+    const { host } = await start();
+    // Number() read "" as 0, "0x10" as 16 and "1e3" as 1000 (round 51, r51-review H4); a stream that opens is cancelled.
+    const statusOf = async (raw: string) => {
+      const res = await fetch(`${host.url}/world-api/stream?cursor=${encodeURIComponent(raw)}`);
+      await res.body?.cancel();
+      return res.status;
+    };
+    for (const raw of ["", "0x10", "1e3", "+5", " 5", "5 ", "1.0", "abc", "-1", "99999999999999999999"]) assert.equal(await statusOf(raw), 400, JSON.stringify(raw));
+    assert.equal(await statusOf("0"), 200);
+    assert.equal(await statusOf("007"), 200);
+  });
+
   it("sends the sealed cursor back only while no event followed the heartbeat that carried it, else after=<seq>", async () => {
     const { stub, host } = await start({ events: [envelope(1, "ticket.created")] });
     const a = await openSse(`${host.url}/world-api/stream?cursor=1`);
