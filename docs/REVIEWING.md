@@ -209,7 +209,7 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
 ### 2.7 Tools and regress
 
 - **Entry files.** `.github/workflows/ci.yml` (one job: `npm ci`, `npm run check`), `package.json` (the chain: the
-  Node guard, typecheck, the tests, doc links, the design and copy guards, the build), `scripts/scan-model-calls.ts`
+  Node guard, typecheck, the tests, doc links, the design and copy guards, the build, then the built bundle's key grep), `scripts/scan-model-calls.ts`
   (the no-model-call guard), `scripts/check-node.mjs`, [tools/README.md](../tools/README.md), `tools/regress.mjs`
   (2,663 lines, the ten groups), `tools/loops-dev.sh`.
 - **What it does.** CI runs the check; the browser passes, the measurements, the pixel proof and the development

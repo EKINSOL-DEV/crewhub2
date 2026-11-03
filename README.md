@@ -60,7 +60,7 @@ one-time pairing link and shows a Connect screen that asks for the bot's key onc
 ([three steps](docs/LOOPS_SETUP.md)). `npm run host -- doctor` checks the connection.
 
 ```bash
-npm run check       # typecheck, tests, doc links, design and copy guards, build
+npm run check       # typecheck, tests, doc links, design and copy guards, build, the bundle's key grep
 npm test            # all package and app tests (offline)
 ```
 

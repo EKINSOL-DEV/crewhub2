@@ -362,7 +362,8 @@ pairing should expire, and what an unpaired health read may say are questions fo
 prepared on a branch (round 27, `task/r27-tab-pairing`) for that decision.
 Tailscale or another TLS proxy is only an option (`CREWHUB_WORLD_PUBLIC_URL` makes the
 cookie `Secure`); nothing hands a link to a remote person yet. Demo mode needs none of
-it, and no credential is ever bundled (a test greps the browser code and the built bundle).
+it, and no credential is ever bundled (a test greps the browser code and, in `check`'s last step after the build, the
+built bundle).
 
 ## Primary references
 

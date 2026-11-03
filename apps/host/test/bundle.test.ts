@@ -2,6 +2,9 @@
  * The key never reaches the browser: the browser code (the world and the loops client) names no key file, no
  * `Authorization` and no `Bearer`, and neither does the built bundle when it exists. A test can only prove the
  * absence of what it can name, so it greps for the names around the key, not for a key.
+ * `npm test` runs before `npm run build` in `check`, so there the bundle half finds no dist on a fresh checkout and on
+ * CI; `npm run check:bundle`, the last step of `check`, runs this file again after the build with
+ * CREWHUB_WORLD_BUNDLE_CHECK=required, which makes a missing dist a failure instead of a skip (round 54, r54-review).
  */
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
@@ -15,6 +18,7 @@ const BROWSER_ROOTS = ["apps/world/src", "packages/loops-client/src"];
 const DIST = "apps/world/dist";
 const FORBIDDEN = ["CREWHUB_WORLD_KEY_FILE", "agent-crewhub-world.key", "agent-builder.key", "Authorization", "Bearer "];
 const SOURCE = /\.(ts|tsx|js|mjs|html|css|json|map)$/;
+const REQUIRED = process.env["CREWHUB_WORLD_BUNDLE_CHECK"] === "required";
 
 async function* walk(directory: string): AsyncGenerator<string> {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -48,6 +52,7 @@ describe("the key stays out of the browser", () => {
   it("the built bundle (apps/world/dist) holds none of them either", async (t) => {
     const dist = path.join(root, DIST);
     if (!existsSync(dist)) {
+      assert.ok(!REQUIRED, `${DIST} is absent, and CREWHUB_WORLD_BUNDLE_CHECK=required (npm run check:bundle runs after npm run build)`);
       t.diagnostic(`${DIST} is absent (run npm run build); the bundle check was skipped`);
       return;
     }
