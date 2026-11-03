@@ -636,6 +636,11 @@ export async function createHost(options: HostOptions): Promise<Host> {
           return;
         }
         if (link?.upstream !== upstream) return;
+        // A reset of the upstream (loops' log expired or restored): a snapshot begun before it is not shared after it.
+        if (message.type === "reset") {
+          resets += 1;
+          return;
+        }
         if (message.type === "status") {
           if (message.loops === "unauthorized") {
             if (mine.state !== "rejected") {
@@ -810,6 +815,16 @@ export async function createHost(options: HostOptions): Promise<Host> {
     return holder.state === "rejected" ? "unauthorized" : "loops_down";
   }
 
+  /**
+   * The assembly on its way (round 53, r51-review H3). After a reset every open tab asks for a snapshot at once, and each
+   * used to read the whole studio again. A `/snapshot` that comes while one runs on the same upstream, with no reset
+   * since it began, takes its answer: the snapshot of the moment that assembly started, at its cursor. The tab's stream
+   * then replays the events after that cursor from the buffer, or says `reset: cursor` and the tab asks again.
+   */
+  let shared: { upstream: Upstream; resets: number; result: Promise<AssembledSnapshot> } | null = null;
+  /** The upstream's resets the host's own ear heard (relink): what a shared assembly is judged against. */
+  let resets = 0;
+
   /** One assembly, with its progress in `snapshotState` as it goes (health shows it to the page). */
   async function assemble(client: LoopsClient, upstream: Upstream): Promise<AssembledSnapshot> {
     snapshotState = { state: "reading", reads: 0 };
@@ -844,18 +859,28 @@ export async function createHost(options: HostOptions): Promise<Host> {
       sendJson(res, 503, { error: upstream.state() === "unauthorized" ? "unauthorized" : "loops_down" });
       return;
     }
+    // The key's own principal rides along as the observer: the world never shows it as a figure. One assembly for
+    // the tabs that ask while it runs; only the request that started it says the step.
+    const current = shared !== null && shared.upstream === upstream && shared.resets === resets ? shared : null;
+    const mine = current ?? { upstream, resets, result: assemble(client, upstream) };
+    if (current === null) {
+      shared = mine;
+      const done = () => {
+        if (shared === mine) shared = null;
+      };
+      mine.result.then(done, done);
+    }
     try {
-      // The key's own principal rides along as the observer: the world never shows it as a figure.
-      const { snapshot: body, stats } = await assemble(client, upstream);
+      const { snapshot: body, stats } = await mine.result;
       sendJson(res, 200, body);
-      step("snapshot", true, snapshotText(stats), stats.ms);
+      if (current === null) step("snapshot", true, snapshotText(stats), stats.ms);
     } catch (error) {
       // loops' own failures keep their reason; anything else (a read the allow-list refused, a bug) is the host's
       // own and says so (review F8), never "loops down" while loops answers.
       const reason = error instanceof SnapshotError ? error.reason : "snapshot_failed";
       const detail = error instanceof SnapshotError ? "" : `: ${scrub(error instanceof Error ? error.message : String(error))}`;
       snapshotState = { state: "failed", reason };
-      step("snapshot", false, `snapshot failed: ${reason}${detail}`);
+      if (current === null) step("snapshot", false, `snapshot failed: ${reason}${detail}`);
       sendJson(res, 503, { error: reason, ...(detail === "" ? {} : { message: `The host could not assemble the snapshot${detail}` }) });
     }
   }
