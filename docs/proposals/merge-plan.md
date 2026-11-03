@@ -214,6 +214,16 @@ order, then question 1's branch last; every hand merge then happens in that last
   - **The replays on `8c6162e`:** `tab q3 q8 q11 q14 q15` (D, F, E; C passes), result `6cc0391`, 1263 / 1263; and
     `cookie+expiry q3 q8 q11 q14 q15` (A, then B), result `14a960c`, 1261 / 1261. Both were green on each head of the night
     that changed the host or the page too. No rule of the plan changed.
+- **Round 54, a night round, on the head only.** No host source changed. The town database closes on a newer build's
+  version change; a dev scene lets go of its WebGL context; tests only for `loops-client`, `world-model`, `loops-fake`
+  and `demo`; `loops-fake` refuses an unknown scenario and answers a person's `auth/me` as loops does; `check` ends by
+  grepping the built bundle; CI cancels a superseded PR run; the docs fixed against the code. No answer branch changed.
+  - **The merges:** all seven merge cleanly onto every head of the night, last `79e805b`; `task/r54-docs` leaves the
+    host README's pairing-gate and dev-origin lines for after `task/r27-tab-pairing`, `task/q1-cookie-expiry` and
+    `task/q3-health-less`, which rewrite them.
+  - **The replays on `79e805b`:** `tab q3 q8 q11 q14 q15` (D, F, E; C passes), result `07286b0`, 1274 / 1274; and
+    `cookie+expiry q3 q8 q11 q14 q15` (A, then B), result `fe9cdf1`, 1272 / 1272. Both were also green on the night's
+    `8da28c8`, `c5abf49`, `44fad2f` and `5ab5fad`. No rule of the plan changed.
 - **The `cookie+expiry` and `cookie` rows, rehearsed in round 37** (detached checkouts; the five independent branches
   then the question-1 branch): the five alone on `e55ef42`, check 1070 of 1070; the five then `q1-cookie-expiry` (A,
   then B), check 1075 of 1075 on `e55ef42` and again on `761db9f` (`769434a`); the five then `r27-tab-pairing`, check
