@@ -1,12 +1,12 @@
-# Design choices for Nicky (rounds 41 to 53, 2026-11-03)
+# Design choices for Nicky (rounds 41 to 54, 2026-11-04)
 
 **How this relates to [open-questions.md](open-questions.md):** those are the fifteen merge decisions (pairing, health,
 the answer branches); these are smaller product choices the reviews of rounds 41 to 51 wrote down and left alone:
 words on screen, where a card sits, what the host does in an odd case. Rounds 41 to 47 left none; thirty come from
 round 48 (checked against the code at `d150cf4`) and nine from round 50's reviews of the packages and of
 accessibility (K, X, W13 and W14, checked at `5126318`), two from round 51's review of the host and the tools
-(H3 and P1, checked at `86bfbf6`), X5, the last of round 50's accessibility review, written up in round 52, and E2
-from round 53's review of the page's state (checked at `402b618`).
+(H3 and P1, checked at `86bfbf6`), X5, the last of round 50's accessibility review, written up in round 52, E2
+from round 53's review of the page's state (checked at `402b618`), and P2 from round 54 (checked at `35a3ebf`).
 
 **How to answer:** one line per id, in the same short form as the open questions, for example `T1: as recommended`,
 `W4: keep` or `S1: waits`. A whole block in one line works too: `wording block: as recommended`
@@ -17,7 +17,7 @@ until you answer:** each choice names what stays if you say nothing, which is al
 [the live road](#the-live-road-l) (L, 2), [the host's behaviour](#the-hosts-behaviour-h) (H, 3),
 [the storyline](#the-storyline-s) (S, 4), [editing the town](#editing-the-town-e) (E, 2), and from round 50
 [the figures](#the-figures-k) (K, 3) and [accessibility](#accessibility-x) (X, 5); words on screen gained W13 and W14;
-from round 51 the host gained H3, and [the tools](#the-tools-p) (P, 1) is new; round 53 added E2. **The cost** of a choice names the files, the tests and the pixel sets that would change. The demo pixel set
+from round 51 the host gained H3, and [the tools](#the-tools-p) (P, 2) is new; round 53 added E2, and round 54 P2. **The cost** of a choice names the files, the tests and the pixel sets that would change. The demo pixel set
 (`tools/pixcheck.mjs`) pictures the town, the town hall, a building and its rooms at 1440 and 375 px, light and dark,
 with the label layer hidden and the tour off; so plates, labels, sheets and the tour never move it.
 
@@ -588,6 +588,24 @@ code is.
 without a browser. No pixel set.
 **If you say nothing:** exit 0.
 **Answer:** `P1: fail / keep`
+
+### P2. The copied loops files: catch an edit to a copy's body on CI too (round 54, r54-ci; r53-review CI5)
+
+**Today.** Five chat files are verbatim copies of crewhub-loops files. `npm run check:copy` checks each copy's own half
+everywhere, CI included: it is there, with its header line, naming its source (round 53). The comparison of a copy's
+body with its source runs only where a crewhub-loops checkout sits beside this repository, so on CI an edit to a copy's
+body passes as "skipped". A re-copy is done by hand ([DESIGN_SYSTEM.md](../DESIGN_SYSTEM.md), its source and sync
+rule). Four of the five copies (`Bubbles.tsx`, `queries.ts`, `bubbles.css`, `primitives/Menu.tsx`, all of `a1bed0f`)
+are behind crewhub-loops by 7 to 21 commits; `useMessageViewport.ts` is current.
+**Options.** `sync`: one command (`npm run copy:sync -- <crewhub-loops commit>`) copies the five files from a
+crewhub-loops checkout at a commit, writes their header lines and a hash of each body beside its entry, and the check
+compares the hashes everywhere. `hash`: the hashes and the check only; whoever re-copies by hand updates the hashes too
+(CI turns red until they do). `keep`.
+**Recommended:** `sync` (nothing to remember, and the copies are due for a re-copy anyway).
+**Cost:** `sync`: about 80 lines in `scripts/bubbles-copy.ts` with tests, two sentences in `DESIGN_SYSTEM.md`. `hash`:
+about 20 lines and a test. Neither touches `apps/`; no pixel set.
+**If you say nothing:** a copy's body is checked only where a crewhub-loops checkout is.
+**Answer:** `P2: sync / hash / keep`
 
 ## The wording block
 
