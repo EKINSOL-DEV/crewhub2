@@ -85,6 +85,8 @@ export interface TownStoreOptions {
    * revision in place; returning `to` itself changes nothing. The town runtime passes `carryAllocations`.
    */
   carry?: (from: TownDocument, to: TownDocument) => TownDocument;
+  /** Where an open that another tab blocks is said: the console, never the screen. Default `console.warn`. */
+  warn?: (message: string) => void;
 }
 
 const request = <T>(r: IDBRequest<T>): Promise<T> =>
@@ -100,12 +102,20 @@ const done = (tx: IDBTransaction): Promise<void> =>
     tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));
   });
 
-function openDatabase(factory: IDBFactory, name: string): Promise<IDBDatabase> {
+/**
+ * Opens a town database (round 54, r53-review S1's latent half). The day TOWN_DB_VERSION goes up, a tab still open on
+ * the older build would block the new build's open for good: every database opened here closes on `versionchange`, so
+ * that tab's next write fails into the memory fallback, said in Settings. A blocked open is said in the console only.
+ */
+async function openDatabase(factory: IDBFactory, name: string, warn: (message: string) => void): Promise<IDBDatabase> {
   const open = factory.open(name, TOWN_DB_VERSION);
   open.onupgradeneeded = () => {
     if (!open.result.objectStoreNames.contains(TOWN_STORE_NAME)) open.result.createObjectStore(TOWN_STORE_NAME);
   };
-  return request(open);
+  open.onblocked = () => warn(`CrewHub World: the town database "${name}" is blocked by another tab that has it open; the town loads when that tab closes or reloads.`);
+  const database = await request(open);
+  database.onversionchange = () => database.close();
+  return database;
 }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -133,6 +143,7 @@ async function readRaw(database: IDBDatabase): Promise<[IDBValidKey, unknown][]>
 
 export function createTownStore(options: TownStoreOptions): TownStore {
   const factory = options.indexedDB === undefined ? (globalThis.indexedDB ?? null) : options.indexedDB;
+  const warn = options.warn ?? ((m: string) => console.warn(m));
   let history: TownHistory = createHistory(options.initial ?? emptyTownDocument());
   let db: IDBDatabase | null = null;
   let loading: Promise<TownDocument> | null = null;
@@ -220,12 +231,12 @@ export function createTownStore(options: TownStoreOptions): TownStore {
         if (factory) {
           try {
             const name = options.name ?? TOWN_DB_NAME;
-            db = await openDatabase(factory, name);
+            db = await openDatabase(factory, name, warn);
             let { docs, head, skipped } = await readStored(db);
             let copied: string | null = null;
             // A town kept under an earlier key, found once: copied into this one, which holds nothing yet.
             if (options.copyFrom && options.copyFrom !== name && docs.length === 0 && head === null && (await databaseExists(factory, options.copyFrom))) {
-              const earlier = await openDatabase(factory, options.copyFrom);
+              const earlier = await openDatabase(factory, options.copyFrom, warn);
               const records = await readRaw(earlier);
               earlier.close();
               if (records.length) {
