@@ -127,7 +127,8 @@ import { createLoopsWebStub } from "./lib/loopsWebStub.mjs";
 import { isProbeRefusal } from "./lib/probeRefusal.ts";
 import { appDataPort, ownAppData, ownLoopsUrl, ownPort } from "./lib/toolGuard.ts";
 
-// The connect group first: the connection is the first priority, so a default pass fails on it first.
+// The known groups, in --groups' default order. The groups run in the order they stand in this file (walk, demo, tour,
+// live, chat, town, ops, connect, rooms, real), whatever --groups lists (round 54, r54-review).
 const GROUPS = ["connect", "walk", "demo", "tour", "live", "town", "ops", "chat", "rooms", "real"];
 const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,tour,live,town,ops,chat,connect,rooms,real] --host-port <port> [--loops dev|main] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]";
 const opts = cli(USAGE, { options: { tag: "pass", groups: GROUPS.join(","), "host-port": "", loops: "", "loops-env": "", "loops-socket": "", "loops-app-data": "", "cpu-throttle": "1" } });
