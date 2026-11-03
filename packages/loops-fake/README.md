@@ -32,7 +32,7 @@ CREWHUB_WORLD_KEY_FILE=<repo>/tools/out/loops-fake.key
 ```
 
 Switching to the real install changes only those two values. `--scenario` takes a demo scenario id (`fresh`, `one`,
-`small-team`, `studio`); `--speed` is `0`, `1`, `4` or `16` times real time.
+`small-team`, `studio`; another is refused with exit 2); `--speed` is `0`, `1`, `4` or `16` times real time.
 
 ## In tests
 
