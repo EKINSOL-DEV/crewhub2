@@ -11,6 +11,9 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # A run takes about 1.5 minutes; a hang outside a test's own timeout (a file's top level, npm ci, the build) ends here,
+    # not at GitHub's default of 360 minutes (round 53, review CI1).
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
