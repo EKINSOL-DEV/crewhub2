@@ -5,19 +5,20 @@ These are the active documents for the browser-world rebuild. All are in English
 | Document | Purpose |
 | --- | --- |
 | [INTRODUCTION.md](INTRODUCTION.md) | Start here: an extensive introduction for a reader who knows crewhub-loops and has never seen the world; the town and its parts, one table of loops object or event to world thing, demo and live mode, how it connects, the chat as built, the loops-side proposals, where to read next (with pictures) |
-| [proposals/open-questions.md](proposals/open-questions.md) | The open questions for Nicky after rounds 26 to 35 (pairing, health before pairing, the dev-origin route, the tour's beat, build mode and the host's town, the screens over the scene, offline in two tabs, the chat's second road, the Connection panel's Chat section, the switch branch, a cap on the host's reads of agent messages, a size cap on an upstream body): each with its options, the team's recommendation, the default and a one-word answer form |
-| [proposals/merge-plan.md](proposals/merge-plan.md) | How Nicky's answers land (rounds 37 and 38): for every set of answers the order the answer branches merge in, the hand merges that remain (rehearsed, at most one merge of three files), each one's exact resolution, and how to check the result |
+| [proposals/open-questions.md](proposals/open-questions.md) | The open questions for Nicky after rounds 30 to 35 (pairing, health before pairing, the dev-origin route, the tour's beat, build mode and the host's town, the screens over the scene, offline in two tabs, the chat's second road, the Connection panel's Chat section, the switch branch, a cap on the host's reads of agent messages, a size cap on an upstream body): each with its options, the team's recommendation, the default and a one-word answer form |
+| [proposals/design-choices.md](proposals/design-choices.md) | The smaller product choices for Nicky (rounds 41 to 53): words on screen, the tour, the host's odd cases, the figures, accessibility and the tools, each with its options and a recommendation; the fifteen merge decisions stay in open-questions.md |
+| [proposals/merge-plan.md](proposals/merge-plan.md) | How Nicky's answers land (rounds 37 to 48): for every set of answers the order the answer branches merge in, the hand merges that remain (rehearsed, at most one merge of three files), each one's exact resolution, and how to check the result |
 | [REVIEWING.md](REVIEWING.md) | A reader's guide to pull request #28 (`feat/world-demo` into `main`): what a reviewer can skip, with counts from git; a reading order by area (the host, the relay, the chat roads, the world state and the town store, the scene, the UI kit, tools, docs) with the entry files, the risky parts, the tests and regress groups that pin them and an honest time; how to run it in five minutes; what is deliberately not in the PR |
 | [VISION.md](VISION.md) | User goals, product principles, and success criteria |
 | [VISUAL_DIRECTION.md](VISUAL_DIRECTION.md) | Art direction, interactions, and visual quality bar |
 | [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | The crewhub-loops design system: tokens, primitives, theme, status mapping and checks |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | The architecture as built: the packages, the host's parts, the world's gate and screens, boundaries; and what the target diagram still lacks (world database, chat, director) |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | The architecture as built: the packages, the host's parts, the world's gate and screens, boundaries; and what the target diagram still lacks (the director lane; the world database beyond the town) |
 | [GRID_ENGINE.md](GRID_ENGINE.md) | Coordinates, footprints, placement, navigation, and semantic world contract |
 | [WORLD_STYLES.md](WORLD_STYLES.md) | The world style seam: manifest, semantic model keys, per-building resolution, Greenhouse; and casts, the swappable figures that stand for agents |
 | [AGENT_CARD.md](AGENT_CARD.md) | The agent card (what an agent does now, sections from a registry, the lane facts, the portrait) and the follow camera |
 | [ROOM_REVIEW.md](ROOM_REVIEW.md) | Historical: the first room's design and verification notes |
 | [COST_POLICY.md](COST_POLICY.md) | Zero-model-cost presentation and optional AI controls; the measured heap and frame numbers of demo and live mode, and the first paint's numbers across the cuts of rounds 4 to 6 |
-| [ROADMAP.md](ROADMAP.md) | Milestones, the loops phases and their status in demo and live mode, the host as built round by round through round 19, what is open and what waits on crewhub-loops |
+| [ROADMAP.md](ROADMAP.md) | Milestones, the loops phases and their status in demo and live mode, the host as built round by round through round 28, what is open and what waits on crewhub-loops |
 | [TOWN_PLAN.md](TOWN_PLAN.md) | Town model and room growth; runtime-binding parts superseded |
 | [ASTRA_HANDOFF.md](ASTRA_HANDOFF.md) | Current handoff: where to start, the packages, how to run and verify |
 | [ARCHIVE.md](ARCHIVE.md) | Preserved desktop version and recovery procedure |
@@ -43,7 +44,7 @@ the viewer-key switch, the town kept by the host, the tour, the keyboard and pho
 as data and the pixel proof, the host's security review, per-tab pairing prepared, the chat's two narrow roads and loops main), its verification, and the challenges met in the
 crewhub-loops integrator docs.
 
-Outside this folder, each workspace has its own README: [apps/host](../apps/host/README.md) (the relay: routes,
+Outside this folder, most workspaces have their own README: [apps/host](../apps/host/README.md) (the relay: routes,
 env, commands, pairing), [apps/world](../apps/world/README.md), [packages/loops-client](../packages/loops-client/README.md),
 [packages/loops-fake](../packages/loops-fake/README.md), [packages/demo](../packages/demo/README.md) with its
 [storyline](../packages/demo/CONTENT.md), [packages/world-model](../packages/world-model/README.md),
