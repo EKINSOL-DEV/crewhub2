@@ -159,7 +159,7 @@ node tools/regress.mjs --port 5173 --groups ops --host-port 5181         # the o
 node tools/a11y.mjs --port 5173 --stub-port 5181 --demo                  # what a screen reader is given; Vite started with CREWHUB_WORLD_PORT=5181
 node tools/profile.mjs --port 5173 --runs 2 --stacks 120                 # after (cd apps/world && npx vite build --sourcemap)
 node tools/profile.mjs --port 5173 --enter --throttle 4 --viewport 375x812 --stacks 1 --runs 2   # the enter at 4x on the phone, its tasks' stacks
-node tools/timeworld.mjs --port 5185 --cold --runs 2 --json tools/out/timeworld.json   # the host on 5185 against the development loops
+node tools/timeworld.mjs --port 5185 --cold --runs 2 --json timeworld.json   # the host on 5185 against the development loops
 node tools/perf.mjs --port 5173 stress-town stress-inside --cast potlings --json perf-potlings.json
 node tools/memory.mjs --port 5173 stress --minutes 5
 node tools/perf.mjs --port 5173 --source live --preview --fake-scenario studio --host-port 0   # production, the fake's studio at 16x
