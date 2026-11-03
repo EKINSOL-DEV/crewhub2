@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import type { MilestoneSummary, ReleaseSummary } from "@crewhub/loops-client";
 import { Projection } from "../src/projection.ts";
 import {
   FakeSource,
   ManualScheduler,
+  T0,
   board,
   card,
   envelope,
+  iso,
   project,
   snapshot,
   ticketFrom,
@@ -337,4 +340,30 @@ test("round 48: a ticket read that answers after its project was archived puts n
   assert.deepEqual(source.calls, ["ticket:tk_85"], "the read queued before the archive still goes");
   assert.deepEqual(projection.facts.cards, {}, "an archived project holds no cards");
   assert.deepEqual(projection.facts.projects["crewhub-loops"]?.counts, counts);
+});
+
+// Round 54 (r54-tests, T2): what a mutation run found no test for. A list read again is stored, and a ticket read
+// carries waitingOnHuman onto its card.
+test("round 54: a milestone event the list does not know, and a new release, read their lists again, and the answers are stored", async () => {
+  const { projection, scheduler, source } = setup();
+  const CL = { slug: "crewhub-loops", key: "CL" };
+  const milestone: MilestoneSummary = { id: "ms_9", key: "CL-M9", number: 9, title: "Launch", state: "active", project: CL, position: 9, createdAt: iso(T0), updatedAt: iso(T0), revision: 1 };
+  const release: ReleaseSummary = { id: "rl_3", number: 3, version: "0.3.0", title: "0.3", state: "draft", project: CL, ticketCount: 2, createdAt: iso(T0), appNote: { state: "n/a" } };
+  source.milestones.set("crewhub-loops", [milestone]);
+  source.releases.set("crewhub-loops", [release]);
+  projection.apply({ type: "event", envelope: envelope("milestone.completed", { milestoneId: "ms_9", key: "CL-M9", title: "Launch" }, { seq: 101, project: CL }) });
+  projection.apply({ type: "event", envelope: envelope("release.created", { releaseId: "rl_3", number: 3, count: 2 }, { seq: 102, project: CL }) });
+  await scheduler.advance(250);
+  assert.deepEqual([...source.calls].sort(), ["milestones:crewhub-loops", "releases:crewhub-loops"], "both lists are read again");
+  assert.deepEqual(projection.facts.milestones["crewhub-loops"]?.map((m) => m.key), ["CL-M9"], "the milestone list read again is stored");
+  assert.deepEqual(projection.facts.releases["crewhub-loops"]?.map((r) => r.id), ["rl_3"], "the release list read again is stored");
+});
+
+test("round 54: a ticket read carries waitingOnHuman onto its card", async () => {
+  const { projection, scheduler, source } = setup();
+  assert.equal(projection.facts.cards.tk_85?.card.waitingOnHuman, undefined);
+  source.tickets.set("tk_85", ticketFrom(card("tk_85", "CL-85", "planned", { waitingOnHuman: true }), "crewhub-loops", "CL"));
+  projection.apply({ type: "event", envelope: envelope("ticket.updated", { changed: ["waiting_on"] }, { seq: 101, ticket: ticketRef }) });
+  await scheduler.advance(250);
+  assert.equal(projection.facts.cards.tk_85?.card.waitingOnHuman, true);
 });

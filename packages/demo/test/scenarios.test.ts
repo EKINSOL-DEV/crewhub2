@@ -12,6 +12,7 @@ import type { ProjectionSource, WorldModel } from "@crewhub/world-model";
 import { createManualScheduler } from "../src/scheduler.ts";
 import { type ScenarioId, DEFAULT_SCENARIO, SCENARIO_IDS, demoScenario, demoScenarios, parseScenarioId } from "../src/scenarios.ts";
 import { STUDIO_ARCHIVED } from "../src/scenarios/studio.ts";
+import { demoReply } from "../src/script.ts";
 import { type DemoSource, createDemoSource } from "../src/source.ts";
 import { at } from "../src/time.ts";
 import { envelopes } from "./helpers.ts";
@@ -396,4 +397,15 @@ test("small team: the world's key is hidden as the observer and the text view sa
   assert.ok(model.townHall.some((a) => a.name === "ci-bot"), `the CI bot stands in the town hall: ${model.townHall.map((a) => a.name).join(", ")}`);
   const text = describeWorld(model).map((line) => line.text);
   assert.ok(text.includes("crewhub-world (this world's key) is not shown: it is the observer, not a worker."), text.filter((l) => /observer|ci-bot|CI bot/i.test(l)).join("\n"));
+});
+
+test("the demo chat: two messages sent before the first reply get the first and the second reply, in turn (round 54, r54-tests T2)", async () => {
+  const { source, scheduler } = play(DEFAULT_SCENARIO, 1_000);
+  const byAgent = async () => (await source.getDmMessages("g-man")).filter((m) => m.author.id === "g-man").map((m) => m.bodyText);
+  const said = (await source.getDmMessages("g-man")).filter((m) => m.author.id !== "g-man").length;
+  const before = await byAgent();
+  source.sendDm("g-man", "First", "client-a");
+  source.sendDm("g-man", "Second", "client-b");
+  scheduler.advance(Math.ceil(20_000 / 16));
+  assert.deepEqual((await byAgent()).slice(before.length), [demoReply("g-man", said), demoReply("g-man", said + 1)]);
 });

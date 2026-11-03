@@ -7,7 +7,7 @@
  */
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { WORLD_EVENTS_LIMIT, type LoopsFake, createLoopsFake } from "../src/index.ts";
+import { WORLD_EVENTS_LIMIT, WORLD_EVENT_TYPES, type LoopsFake, createLoopsFake } from "../src/index.ts";
 
 const fakes: LoopsFake[] = [];
 after(async () => {
@@ -76,4 +76,21 @@ test("the world origin: the events poll's limit is clamped to 50 and the types f
   f.setWorldOrigin("http://127.0.0.1:6001");
   const other = await fetch(`${f.url}/api/dm/threads`, { headers: { origin: "http://127.0.0.1:6001", cookie } });
   assert.equal(other.headers.get("access-control-allow-origin"), "http://127.0.0.1:6001");
+});
+
+test("the world origin: an events poll without types is answered with the forced chat types only (round 54, r54-tests T2)", async () => {
+  const f = await fake({ worldOrigin: WORLD, startAt: 200_000 });
+  const cookie = await signIn(f);
+  f.sendDm("g-man", "Is the reading nook done?");
+  const types = async (headers: Record<string, string>) => {
+    const answer = await fetch(`${f.url}/api/events`, { headers });
+    assert.equal(answer.status, 200);
+    const body = (await answer.json()) as { events: { type: string }[] };
+    return [...new Set(body.events.map((e) => e.type))];
+  };
+  const world = await types({ origin: WORLD, cookie });
+  f.setWorldOrigin(null);
+  const plain = await types({ cookie });
+  assert.ok(plain.some((type) => !WORLD_EVENT_TYPES.includes(type)), `the log holds other types too: ${plain.join(", ")}`);
+  assert.ok(world.includes("dm.created") && world.every((type) => WORLD_EVENT_TYPES.includes(type)), `the world origin's poll: ${world.join(", ")}`);
 });
