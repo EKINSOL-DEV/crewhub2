@@ -9,8 +9,9 @@ runtime validators, the event allowlist, the `WorldSource` seam, and the two sou
   snapshot, then SSE events by `seq`; a `reset` re-snapshots (`catching-up`; a `seq` gap too with
   `resnapshotOnGap`, off by default since loops filters the stream per key); heartbeats keep it
   `live`; 40 s of silence is `stale`; the host's `status` says `loops-down` or `unauthorized`. `probeHost(baseUrl?,
-  timeoutMs?)` answers `GET /world-api/health` or `null`. The only file in the browser that may fetch
-  (`scripts/scan-model-calls.ts`). `options.timings` shortens the clocks for tests.
+  timeoutMs?)` answers `GET /world-api/health` or `null`. One of the two files in the browser that may fetch
+  (`scripts/scan-model-calls.ts`); the other is `src/pageChat.ts`, chat road 2: the page's own GETs of the person's chat
+  at the loops web origin the host names. `options.timings` shortens the clocks for tests.
 - `src/validate.ts`: unknown keys are dropped; a ticket `kind` or `status` and an event `type` the package does not
   know warn once per value and pass through (so `grill`, CL-245, or the next addition never drops a snapshot). Since
   round 48 every other enum the live source reads does too: as itself where the world only compares it with known

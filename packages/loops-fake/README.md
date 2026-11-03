@@ -14,7 +14,7 @@ Nothing in it talks to a real crewhub-loops. It has no runtime dependency beyond
 ## By hand
 
 ```sh
-npm run loops:fake -- --port 8391 [--scenario small-team] [--speed 1] [--builder-key]   # never 8091, the Mac app's port
+npm run loops:fake -- --port 8391 [--scenario small-team] [--speed 1] [--builder-key]   # default 8391; 8091, 8000, 9443 and 5180 are refused
 ```
 
 `npm run loops:fake -- --builder-key` plays the same storyline but the key behaves like loops' builder key (CL-120):
@@ -52,7 +52,10 @@ storyline position to start at, ms), `heartbeatMs` (15000), `streamMaxMs` (30000
 loops' 300 s; tests use 1–2 s), `bufferSize` (2000 envelopes kept for `after=`), `firstSeq` (0), `builderKey`
 (false), `visibility` (`principal`: what a lead agent's key sees, with gaps; `all`: every row), `emptyTeam` (false:
 `GET /api/team` answers the demo's snapshot; true: `{"v":1,"ts":"","sessions":[]}`, as an instance where no team
-probe has reported). `streamsOpened()` counts the streams opened since the start, so a test can see a reconnect. A
+probe has reported), `version` (what `/api/health` says; another value after a restart on one port is a loops upgraded
+under a running host), `person` (who can sign in), `keyReadsChat` (default false; true: the key reads the chat, as a viewer key,
+sees the `dm.*` rows, and `/agents` says `viewer: true`) and `worldOrigin` (loops' `CHL_WORLD_ORIGIN`;
+`setWorldOrigin()` changes it on a running fake). `streamsOpened()` counts the streams opened since the start, so a test can see a reconnect. A
 fake made with `firstSeq` set to an old fake's `lastSeq()` continues the log like a restart that kept its database
 (and writes no history again); a lower `firstSeq` plays a fresh install, so the host sees a lower tail and must reset.
 
@@ -85,14 +88,20 @@ as the host does.
 | `GET /api/events` | `after` or `cursor` (both: 400) or a `Last-Event-ID` header (an integer is `after`, anything else a sealed cursor; the `after` query wins), `limit` (max 500), `types` (an unknown type is 400), `from=tail`. Every answer carries `lastSeq` and a sealed `cursor` (CL-406). `from=tail` answers no events, the newest seq the key may see and the cursor of "now" (its watermark the real tail). `lastSeq` is the last row returned, else the `after` sent (CL-390), so the old tail trick `types=attachment.added` answers 0, as on the real loops. Only rows the key may see are served (below). |
 | `GET /api/events/stream` | NDJSON. `after=N` replays `seq > N` from the buffer then goes live; `cursor=<token>` (from a heartbeat or `GET /api/events`) or a `Last-Event-ID` header replays from the token's watermark; without either, live from the visible tail. A heartbeat line every `heartbeatMs` of silence with the last sent seq and a fresh sealed `cursor`, `ts` last. The fifth open stream of the key is 429 `too_many_streams` with `Retry-After: 5`. The stream ends after `streamMaxMs` (300 s, as loops' `Timing.max_age`) without a closing line; the host reconnects after a short jittered pause from its cursor and loses nothing (`test/streamEnd.test.ts` proves it through `createHost` and `createHostSource`). |
 
-Everything else is 404 `not_found`; any method but GET or HEAD on a known route is 405 `method_not_allowed`. Auth:
-401 `unauthenticated` without a key, 401 `invalid_api_key` with a wrong one, 400 `ambiguous_auth` with a key and a
-`chl_session` cookie.
+Also served, for the chat roads (rounds 12 and 28): `POST /api/auth/login` (the fake's `person`; 401 `bad_credentials`;
+sets `chl_session`, and that session reads as an admin: every event, the chat) and `POST /api/auth/logout` (204); the
+chat reads `GET /api/dm/threads`, `/api/dm/threads/{agent}/messages` and `/api/dm/messages/{id}` (403 to a key
+unless `keyReadsChat`); with `worldOrigin` set, a request from that origin passes only as a GET on loops' four world
+routes, with the CORS headers, and any other `Origin` is 403 `origin_forbidden`.
+
+Everything else is 404 `not_found`; on a known route any method but GET or HEAD is 405 `method_not_allowed`, except
+login and logout (POST only) and the stream (GET only). Auth: 401 `unauthenticated` without a key, 401
+`invalid_api_key` with a wrong one, 400 `ambiguous_auth` with a key and any cookie.
 
 ## Differences from crewhub-loops you should know
 
-- The log is the demo's envelopes renumbered from `firstSeq`. When the demo storyline loops (every 16 minutes at
-  speed 1), the state is rebuilt: the fake jumps its seq by 1000, empties its buffer and ends every open stream, so
+- The log is the demo's envelopes renumbered from `firstSeq`. When the demo storyline loops (at speed 1 every 16
+  minutes in `small-team` and `studio`, 10 in `fresh` and `one`), the state is rebuilt: the fake jumps its seq by 1000, empties its buffer and ends every open stream, so
   every cursor from before answers 410 and a client re-snapshots, as it would after a restore. Loops itself keeps
   every event and answers 410 only for a sealed cursor that does not open; an `after` below the fake's buffer is the
   fake's own 410.
