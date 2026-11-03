@@ -42,6 +42,8 @@ interface FakeHost {
   cursors: (string | null)[];
   snapshots: number;
   teamReads: number;
+  /** Team answers the stub has written, slow ones included (round 54, r54-tests: what the order tests wait for). */
+  teamAnswered: number;
   cursor: number;
   snapshotStatus: number;
   /** Not 200: the stream request is refused with that status (the host is not well); a reconnect back-off grows on it. */
@@ -89,6 +91,7 @@ async function startHost(): Promise<FakeHost> {
     cursors: [],
     snapshots: 0,
     teamReads: 0,
+    teamAnswered: 0,
     cursor: 100,
     snapshotStatus: 200,
     streamStatus: 200,
@@ -126,8 +129,15 @@ async function startHost(): Promise<FakeHost> {
     if (url.pathname === "/world-api/team") {
       host.teamReads += 1;
       const answer = host.teamAnswer?.(host.teamReads);
-      if (answer === undefined) return json(res, 200, fixture("team-snapshot.json"));
-      setTimeout(() => json(res, 200, { ...fixture("team-snapshot.json"), ts: answer.ts }), answer.delayMs);
+      if (answer === undefined) {
+        json(res, 200, fixture("team-snapshot.json"));
+        host.teamAnswered += 1;
+        return;
+      }
+      setTimeout(() => {
+        json(res, 200, { ...fixture("team-snapshot.json"), ts: answer.ts });
+        host.teamAnswered += 1;
+      }, answer.delayMs);
       return;
     }
     if (url.pathname === "/world-api/stream") {
@@ -460,7 +470,9 @@ test("round 48 (r48-live): two team reads that answer out of order: the older as
   await run.until(() => host.teamReads === 1, "the first team read");
   host.push({ type: "event", envelope: { ...envelope(102, "team.updated"), ticket: null, payload: {} } });
   await run.until(() => count(run.messages, "team") >= 1, "the newer answer");
-  await new Promise((resolve) => setTimeout(resolve, 200));
+  // The slow answer written, not a guess at when it lands (round 54, r54-tests): then one beat for the page to read it.
+  await run.until(() => host.teamAnswered === 2, "the slow answer written too");
+  await new Promise((resolve) => setTimeout(resolve, 20));
   const teams = run.messages.flatMap((m) => (m.type === "team" ? [m.team.ts] : []));
   assert.deepEqual(teams, ["2026-09-30T21:05:00Z"], "the slow answer from the first ask came after the newer one");
   run.stop();
@@ -476,7 +488,8 @@ test("round 48 (r48-live): a team read that was out when a fresh snapshot came i
   await run.until(() => host.teamReads === 1, "the team read");
   host.push({ type: "reset", reason: "reconnected" });
   await run.until(() => count(run.messages, "snapshot") === 2, "the fresh snapshot");
-  await new Promise((resolve) => setTimeout(resolve, 200));
+  await run.until(() => host.teamAnswered === 1, "the read's answer written");
+  await new Promise((resolve) => setTimeout(resolve, 20));
   assert.equal(count(run.messages, "team"), 0, "the answer of a read made before the snapshot replaced its team");
   run.stop();
   await host.close();
