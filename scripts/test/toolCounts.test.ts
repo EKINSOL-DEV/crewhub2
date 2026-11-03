@@ -8,7 +8,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const TOOLS = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "tools");
-const COUNTING = ["a11y.mjs", "connectshots.mjs"];
+const COUNTING = ["a11y.mjs", "connectshots.mjs", "road2proof.mjs", "tourshots.mjs"];
 
 /** Each `catch (…) {` with the lines up to its closing brace at the same indentation. */
 function catches(text: string): { line: number; body: string }[] {
