@@ -36,7 +36,8 @@ smooth connection" below):
   `GET /api/events?from=tail` before every connection (an older loops without it gets the old filter trick), opens
   the stream with the sealed `cursor` loops gave while no event followed it and with `after=<seq>` otherwise, never
   both, and keeps the sealed cursor to itself.
-- **Refetch routes** passed through with loops' status and body: `/world-api/tickets/{ref}`,
+- **Refetch routes** passed through with loops' status and JSON body (a 401 or 403 from loops is 503 `unauthorized`,
+  an answer that is not JSON 502 `not_json`, no link to loops 503 with why): `/world-api/tickets/{ref}`,
   `/tickets/{ref}/comments|progress`, `/projects/{slug}`, `/projects/{slug}/milestones|releases`, `/board/{slug}`,
   `/watchdog`, `/team`. Only `limit` and `cursor` of a query string are passed. `/world-api/project-groups`
   answers `{ "groups": [] }` locally.
