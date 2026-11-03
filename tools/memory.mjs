@@ -1,7 +1,7 @@
 /* memory.mjs: memory growth over a long run.
 
    Usage:
-     node tools/memory.mjs --port <port> [demo|stress|live|switches] [--minutes <n>] [--every <s>] [--cast <id>] [--stress <n>]
+     node tools/memory.mjs --port <port> [demo|stress|live|switches|build|chat] [--minutes <n>] [--every <s>] [--cast <id>] [--stress <n>]
                            [--scenario <id>] [--snapshots <min,min,...>] [--save-snapshots <dir>] [--count-names <a,b,...>]
                            [--preview] [--loops-url <url> --key-file <file>] [--fake-scenario <id>] [--fake-speed 0|1|4|16]
                            [--host-port <port>] [--paired-tab] [--chat-panel] [--dm-every <s>] [--burst <n> --burst-at <min>]
@@ -16,6 +16,14 @@
            r53-review2 W1): the next of the demo's four buildings, its next room, Escape three times (default 4
            minutes, about 35 switches; --every is not used). The town at 16x never switches, so a leak that only a
            switch makes (a render of World kept per switch) shows here and not in `demo`.
+   build   the same way (round 54), inside the demo's first building with build mode on; a step is a prop placed,
+           turned, moved and deleted (the palette's first prop, by keyboard), then a zone made, the building moved into
+           it, renamed and removed (Settings): eight town commits. Default 4 minutes.
+   chat    the same way (round 54), the demo's scripted chat dock: a step opens an agent's chat, sends a message and
+           closes it. Default 4 minutes. The thread keeps what was sent, and react-query keeps each finished send for
+           its gcTime (5 minutes), so a run shorter than that grows by those and a longer one levels off.
+   In these three the sample line says the steps taken and those that did not take (a refused place, a chat that
+   did not open), so a quiet heap is not a road that did nothing.
    live    live mode (?source=live) against a crewhub-loops behind a host the tool starts (lib/live.mjs): an in-process
            fake playing --fake-scenario (default small-team) at --fake-speed (default 16), or the loops --loops-url
            names with --key-file (the fake on its own port, or the development loops on 8291; loopback only). In a dev
@@ -84,12 +92,14 @@ import { castChoice, cli, launch, speed, store, worldUrl } from "./lib/world.mjs
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const opts = cli(
-  `node tools/memory.mjs --port <port> [demo|stress|live|switches] [--minutes <n>] [--every <s>] [--cast <id>] [--stress <n>] [--scenario <id>] [--snapshots <min,min,...>] [--save-snapshots <dir>] [--count-names <a,b,...>] [--preview] ${LIVE_USAGE} ${CHAT_USAGE} [--json <file>] [--out <dir>] [--swiftshader]`,
+  `node tools/memory.mjs --port <port> [demo|stress|live|switches|build|chat] [--minutes <n>] [--every <s>] [--cast <id>] [--stress <n>] [--scenario <id>] [--snapshots <min,min,...>] [--save-snapshots <dir>] [--count-names <a,b,...>] [--preview] ${LIVE_USAGE} ${CHAT_USAGE} [--json <file>] [--out <dir>] [--swiftshader]`,
   { options: { minutes: null, every: "30", json: null, cast: null, stress: "1", scenario: null, snapshots: "", "save-snapshots": "", "count-names": "", ...LIVE_OPTIONS, ...CHAT_OPTIONS }, flags: ["preview", ...CHAT_FLAGS] },
 );
 const scenario = opts.rest[0] ?? "demo";
-if (!["demo", "stress", "live", "switches"].includes(scenario)) opts.fail(`unknown scenario "${scenario}"; known: demo, stress, live, switches`);
-const minutes = Number(opts.minutes ?? (scenario === "stress" ? "5" : scenario === "live" ? "30" : scenario === "switches" ? "4" : "10"));
+if (!["demo", "stress", "live", "switches", "build", "chat"].includes(scenario)) opts.fail(`unknown scenario "${scenario}"; known: demo, stress, live, switches, build, chat`);
+// The paused demo with one step between samples instead of a wait (rounds 53 and 54).
+const stepped = ["switches", "build", "chat"].includes(scenario);
+const minutes = Number(opts.minutes ?? (scenario === "stress" ? "5" : scenario === "live" ? "30" : stepped ? "4" : "10"));
 const every = Number(opts.every);
 const snapshotMinutes = opts.snapshots === "" ? [] : opts.snapshots.split(",").map(Number);
 if (snapshotMinutes.some((m) => !Number.isFinite(m) || m < 0)) opts.fail("--snapshots takes minutes, e.g. 0,10,30");
@@ -118,7 +128,8 @@ function resolveFromDist() {
 
 const browser = await launch({ swiftshader: opts.swiftshader, extra: ["--enable-precise-memory-info"] });
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, colorScheme: "light" });
-await store(context, { "crewhub-world.quality": "pretty", "crewhub-world.fps": "on", ...castChoice(opts.cast) });
+// The stepped scenarios click and type in the page: the introduction is marked seen so its card stands over nothing.
+await store(context, { "crewhub-world.quality": "pretty", "crewhub-world.fps": "on", ...castChoice(opts.cast), ...(stepped ? { "crewhub-world.tour": "done" } : {}) });
 const page = await context.newPage();
 page.on("pageerror", (e) => console.error(`  page error: ${e.message}`));
 const cdp = await context.newCDPSession(page);
@@ -135,8 +146,10 @@ if (live) {
   // The chip says Live: the snapshot is in and the stream open (20 s, else the run goes on and says so).
   const ok = await page.waitForSelector('.connection-chip[data-connection="live"]', { timeout: 20000 }).then(() => true).catch(() => false);
   if (!ok) console.log("  live: the connection chip does not say Live after 20 s; measuring anyway");
-} else if (scenario === "switches") await page.getByRole("button", { name: "Pause", exact: true }).click({ timeout: 5000 });
-else await speed(page, "16x");
+} else if (stepped) {
+  await page.getByRole("button", { name: "Pause", exact: true }).click({ timeout: 5000 });
+  await setUp();
+} else await speed(page, "16x");
 if (threeNames) console.log(`  three's classes in ${threeNames.chunk}: InstancedMesh ${threeNames.InstancedMesh ?? "?"}, MeshStandardMaterial ${threeNames.MeshStandardMaterial ?? "?"}, Mesh ${threeNames.Mesh ?? "?"}`);
 
 // The paired tab (round 39): a second tab of the same context, opened without a link once the first tab is Live and
@@ -228,8 +241,21 @@ async function snapshotAt(minute) {
 let nextSnapshot = 0;
 // The last sample's DOM (round 29): the node count and the inventory the diff reads when the count moves.
 let lastDom = null;
+/** Where `build` and `chat` stand before their first step: inside the first building with build mode on; the dock. */
+async function setUp() {
+  if (scenario === "build") {
+    await page.locator("canvas").first().focus();
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(2500);
+    await page.locator("canvas").first().focus();
+    await page.keyboard.press("b");
+    await page.waitForSelector(".build-palette [data-prop-id]", { timeout: 10000 });
+  }
+  if (scenario === "chat") await page.waitForSelector(".dock .dock-bubble button", { timeout: 15000 });
+}
+let steps = 0;
+let missed = 0;
 /** One switch of the `switches` scenario: building `i` of the demo's four, its next room, then Escape back to the town. */
-let switched = 0;
 async function switchOnce(i) {
   const canvas = page.locator("canvas").first();
   await canvas.focus();
@@ -245,11 +271,58 @@ async function switchOnce(i) {
     await page.waitForTimeout(400);
   }
   await page.waitForTimeout(1500);
+  return true;
 }
-for (let t = 0; t <= minutes * 60; t = scenario === "switches" ? Math.round((Date.now() - started) / 1000) : t + every) {
-  if (scenario === "switches") {
-    // The sample's time is after its switch, so the minutes' snapshots and the run's end fall where they say.
-    if (points.length > 0) await switchOnce(switched++);
+/** One step of `build`: the palette's first prop placed, turned, moved and deleted; a zone made, the building moved into
+    it, renamed and removed. True when the build status and the zone list say each took. */
+async function buildOnce(i) {
+  const said = async (words) => (await page.locator(".build-status").innerText().catch(() => "")).includes(words);
+  await page.locator(".build-palette [data-prop-id]").first().click();
+  await page.waitForTimeout(300);
+  const took = [];
+  for (const [key, words] of [["Enter", "Placed "], ["r", "Turned "], [i % 2 ? "ArrowLeft" : "ArrowRight", "Moved "], ["Delete", "Removed "]]) {
+    await page.keyboard.press(key);
+    await page.waitForTimeout(350);
+    took.push(await said(words));
+  }
+  await page.locator(".build-sheet").getByRole("button", { name: "Add a zone" }).click();
+  await page.waitForTimeout(400);
+  const select = page.locator(".build-sheet .zone-assign select").first();
+  const id = await select.evaluate((el) => [...el.options].map((o) => o.value).filter((v) => /^zone-\d+$/.test(v)).sort((a, b) => Number(b.slice(5)) - Number(a.slice(5)))[0] ?? "");
+  if (id) await select.selectOption(id);
+  await page.waitForTimeout(400);
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const item = page.locator(`.settings-sheet .zone-item[data-zone-id="${id}"]`);
+  await item.waitFor({ timeout: 5000 }).catch(() => {});
+  await item.getByLabel("Name", { exact: true }).fill(`Step ${i}`).catch(() => {});
+  await item.getByLabel("Name", { exact: true }).press("Enter").catch(() => {});
+  await page.waitForTimeout(300);
+  took.push((await item.innerText().catch(() => "")).includes(`Step ${i}`));
+  await item.getByRole("button", { name: "Remove this zone" }).click().catch(() => {});
+  await page.waitForTimeout(400);
+  took.push(id !== "" && (await item.count()) === 0);
+  await page.getByRole("button", { name: "Close settings" }).click().catch(() => {});
+  await page.waitForTimeout(400);
+  return took.every(Boolean);
+}
+/** One step of `chat`: agent `i` of the dock's chat opened, a message sent, the chat closed. */
+async function chatOnce(i) {
+  const avatars = page.locator(".dock .dock-bubble button");
+  await avatars.nth(i % Math.max(1, await avatars.count())).click();
+  const card = page.locator(".bubble-chat");
+  const opened = await card.waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
+  await card.locator("textarea").fill(`Hello ${i}`).catch(() => {});
+  await card.getByRole("button", { name: "Send" }).click().catch(() => {});
+  await page.waitForTimeout(800);
+  await card.getByRole("button", { name: "Close chat" }).click().catch(() => {});
+  await page.waitForTimeout(600);
+  return opened && (await card.count()) === 0;
+}
+const step = { switches: switchOnce, build: buildOnce, chat: chatOnce }[scenario];
+for (let t = 0; t <= minutes * 60; t = stepped ? Math.round((Date.now() - started) / 1000) : t + every) {
+  if (stepped) {
+    // The sample's time is after its step, so the minutes' snapshots and the run's end fall where they say.
+    if (points.length > 0 && !(await step(steps++))) missed += 1;
     t = Math.round((Date.now() - started) / 1000);
   } else {
     const wait = started + t * 1000 - Date.now();
@@ -293,7 +366,7 @@ for (let t = 0; t <= minutes * 60; t = scenario === "switches" ? Math.round((Dat
     frameP95: perf?.frameP95 ?? null,
     workMean: perf?.workMean ?? null,
     faded: stores?.faded ?? null,
-    ...(scenario === "switches" ? { switches: switched } : {}),
+    ...(stepped ? { steps, missed } : {}),
     ...(live ? { connection: chip, upstream: upstream ? { state: upstream.state, reconnects: upstream.reconnects } : null, stores } : {}),
     ...(pairedPoint ? { paired: pairedPoint } : {}),
     ...(chatNow ? { chat: chatNow } : {}),
@@ -311,7 +384,7 @@ for (let t = 0; t <= minutes * 60; t = scenario === "switches" ? Math.round((Dat
   }
   lastDom = { nodes: dom.nodes, documents: dom.documents, inventory };
   points.push(point);
-  const frame = `${perf ? `  frame ${perf.frameMean.toFixed(1)}/${perf.frameP95.toFixed(1)} ms work ${perf.workMean.toFixed(1)}` : ""}  faded ${point.faded ?? "?"}${scenario === "switches" ? `  switches ${switched}` : ""}`;
+  const frame = `${perf ? `  frame ${perf.frameMean.toFixed(1)}/${perf.frameP95.toFixed(1)} ms work ${perf.workMean.toFixed(1)}` : ""}  faded ${point.faded ?? "?"}${stepped ? `  steps ${steps}${missed ? ` (${missed} did not take)` : ""}` : ""}`;
   const soak = live ? `  ${chip ?? "no chip"}  upstream ${upstream ? `${upstream.state} r${upstream.reconnects}` : "?"}${stores ? `  said ${stores.said} answers ${stores.answers} threads ${stores.threads ?? "-"} rev ${stores.docRevision}/${stores.hostRev ?? "-"}` : ""}` : "";
   const pairedLine = pairedPoint ? `  paired ${pairedPoint.connection ?? "no chip"} heap ${mb(pairedPoint.heap)} MB dom ${pairedPoint.nodes} listeners ${pairedPoint.listeners}` : "";
   const chatLine = chatNow ? `  ${formatChat(chatNow)}` : "";
