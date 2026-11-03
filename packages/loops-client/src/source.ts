@@ -183,6 +183,8 @@ export interface HostSourceOptions {
     teamPollMs?: number;
     retryMinMs?: number;
     retryMaxMs?: number;
+    /** The retry's cap before the first snapshot and while unpaired (round 50: it was read but not in this type). */
+    firstRetryMaxMs?: number;
   };
   /**
    * Re-snapshot when an event's `seq` skips past `cursor + 1`. Default false: loops filters the stream per

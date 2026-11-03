@@ -254,7 +254,6 @@ export function readConnection(value: unknown): HostConnection | null {
   return out;
 }
 
-/** The `snapshot` of a connection, or null when it is missing or malformed. */
 /** The host's `connection.session`, strictly: `key` only; anything else (a host from before with a sign-in state) is dropped. */
 export function readSessionState(value: unknown): HostSessionState | null {
   const raw = value as { state?: unknown } | null | undefined;
@@ -262,6 +261,7 @@ export function readSessionState(value: unknown): HostSessionState | null {
   return state === undefined ? null : { state };
 }
 
+/** The `snapshot` of a connection, or null when it is missing or malformed. */
 export function readSnapshotState(value: unknown): HostSnapshotState | null {
   if (value === null || typeof value !== "object") return null;
   const raw = value as { state?: unknown; reads?: unknown; projects?: unknown; ms?: unknown; reason?: unknown };

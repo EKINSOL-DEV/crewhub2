@@ -37,7 +37,7 @@
  */
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { chmodSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync } from "node:fs";
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -51,7 +51,7 @@ import { nodeWarningLine, runningNodeVersion } from "./nodeVersion.ts";
 import { type HostStep, MINT_HEADER, MINT_PATH, createHost } from "./host.ts";
 import { createStepPrinter, instructionLine, seconds, stepLine as formatStep } from "./steps.ts";
 import { createKeyStore } from "./keyStore.ts";
-import { runFilePath } from "./runFile.ts";
+import { runFilePath, writeRunFile } from "./runFile.ts";
 import { explainSqliteWarning, openWorldDb, type WorldDb } from "./worldDb.ts";
 import { loadPairingSecret } from "./pairing.ts";
 
@@ -247,13 +247,11 @@ const host = await createHost({
   return process.exit(1);
 });
 // The stop comes before the run file (review F16): a SIGINT or SIGTERM between the file and the handlers, or during the
-// build below, met the default action and left the file behind.
+// build below, met the default action and left the file behind. The file itself goes at any exit (writeRunFile: the
+// failed build's exit too, round 50).
+let removeRunFile = () => {};
 const shutdown = () => {
-  try {
-    unlinkSync(runFile(host.port));
-  } catch {
-    // Already gone.
-  }
+  removeRunFile();
   void host.close().then(() => {
     worldDb?.close();
     process.exit(0);
@@ -263,7 +261,7 @@ process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 if (build !== null && !build.fresh) host.setBuilding(true);
 try {
-  writeFileSync(runFile(host.port), JSON.stringify({ pid: process.pid, url: host.url, mintSecret }) + "\n", { mode: 0o600 });
+  removeRunFile = writeRunFile(host.port, { pid: process.pid, url: host.url, mintSecret });
 } catch {
   log(`cannot write the run file ${runFile(host.port)}: "open" cannot reach this host while it runs`);
 }
