@@ -38,8 +38,9 @@ smooth connection" below):
   both, and keeps the sealed cursor to itself.
 - **Refetch routes** passed through with loops' status and body: `/world-api/tickets/{ref}`,
   `/tickets/{ref}/comments|progress`, `/projects/{slug}`, `/projects/{slug}/milestones|releases`, `/board/{slug}`,
-  `/watchdog`, `/team`. Only `limit` and `cursor` of a query string are passed. `/world-api/project-groups`
-  answers `{ "groups": [] }` locally.
+  `/watchdog`, `/team`. Only `limit` and `cursor` of a query string are passed. An answer that is not JSON (a
+  proxy's page, a wrong loops URL; loops itself answers everything as JSON) is 502 `not_json`, never served as it
+  came. `/world-api/project-groups` answers `{ "groups": [] }` locally.
 - **The chat over the key** (round 12; road 1 of the two roads since round 28): on a crewhub-loops whose viewer key may read the chat (L1,
   crewhub-loops main since #959: the key's own entry in `GET /api/agents` says `viewer: true` and `GET /api/dm/threads` answers 200), the host
   reads an agent's `dm.created` on its own stream by id with the key (`src/chatLine.ts`: the first line, at most 140 characters) and hands the

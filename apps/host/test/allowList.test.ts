@@ -51,6 +51,38 @@ describe("the allow-list", () => {
     assert.equal(((await missing.json()) as { error: { code: string } }).error.code, "not_found");
   });
 
+  it("answers 502 not_json for an answer that is not JSON, and never serves its page on the world's origin", async () => {
+    // loops answers every route, its errors too, as JSON; an HTML page comes from a proxy in front of it or a wrong
+    // CREWHUB_WORLD_LOOPS_URL (round 51, r51-review H4).
+    const page = "<!doctype html><title>Sign in</title><script>alert(1)</script>";
+    const proxied = await createLoopsStub({
+      ...installation(),
+      routes: {
+        ...installation().routes,
+        "/api/watchdog": () => ({ status: 200, body: page, contentType: "text/html; charset=utf-8" }),
+        "/api/tickets/AT-2": () => ({ status: 404, body: "Not Found", contentType: "text/plain" }),
+        "/api/team": () => ({ status: 200, body: JSON.stringify({ agents: [] }), contentType: "application/json; charset=utf-8" }),
+      },
+    });
+    const behind = await createHost({ loopsUrl: proxied.url, key: proxied.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, log: () => undefined });
+    try {
+      for (const path of ["/world-api/watchdog", "/world-api/tickets/AT-2"]) {
+        const res = await fetch(`${behind.url}${path}`);
+        assert.equal(res.status, 502, path);
+        assert.match(res.headers.get("content-type") ?? "", /^application\/json/, path);
+        const text = await res.text();
+        assert.equal((JSON.parse(text) as { error: string }).error, "not_json", path);
+        assert.ok(!text.includes("<script>") && !text.includes("Not Found"), path);
+      }
+      const team = await fetch(`${behind.url}/world-api/team`);
+      assert.equal(team.status, 200, "JSON with a charset passes");
+      assert.deepEqual(await team.json(), { agents: [] });
+    } finally {
+      await behind.close();
+      await proxied.close();
+    }
+  });
+
   it("answers project-groups locally", async () => {
     const res = await get("/world-api/project-groups");
     assert.deepEqual(await res.json(), { groups: [] });
