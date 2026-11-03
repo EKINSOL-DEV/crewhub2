@@ -6,18 +6,20 @@ words on screen, where a card sits, what the host does in an odd case. Rounds 41
 round 48 (checked against the code at `d150cf4`) and nine from round 50's reviews of the packages and of
 accessibility (K, X, W13 and W14, checked at `5126318`), two from round 51's review of the host and the tools
 (H3 and P1, checked at `86bfbf6`), X5, the last of round 50's accessibility review, written up in round 52, E2
-from round 53's review of the page's state (checked at `402b618`), and P2 from round 54 (checked at `35a3ebf`).
+from round 53's review of the page's state (checked at `402b618`), and P2, W15 and W16 from round 54 (checked at
+`35a3ebf`).
 
 **How to answer:** one line per id, in the same short form as the open questions, for example `T1: as recommended`,
 `W4: keep` or `S1: waits`. A whole block in one line works too: `wording block: as recommended`
-(the sixteen choices marked *wording*, gathered at the end), or `T: as recommended` for a group. **Nothing changes
+(the eighteen choices marked *wording*, gathered at the end), or `T: as recommended` for a group. **Nothing changes
 until you answer:** each choice names what stays if you say nothing, which is always the world as it is today.
 
 **The groups:** [first visit and tour](#first-visit-and-tour-t) (T, 9), [words on screen](#words-on-screen-w) (W, 12),
 [the live road](#the-live-road-l) (L, 2), [the host's behaviour](#the-hosts-behaviour-h) (H, 3),
 [the storyline](#the-storyline-s) (S, 4), [editing the town](#editing-the-town-e) (E, 2), and from round 50
 [the figures](#the-figures-k) (K, 3) and [accessibility](#accessibility-x) (X, 5); words on screen gained W13 and W14;
-from round 51 the host gained H3, and [the tools](#the-tools-p) (P, 2) is new; round 53 added E2, and round 54 P2. **The cost** of a choice names the files, the tests and the pixel sets that would change. The demo pixel set
+from round 51 the host gained H3, and [the tools](#the-tools-p) (P, 2) is new; round 53 added E2, and round 54 P2,
+W15 and W16. **The cost** of a choice names the files, the tests and the pixel sets that would change. The demo pixel set
 (`tools/pixcheck.mjs`) pictures the town, the town hall, a building and its rooms at 1440 and 375 px, light and dark,
 with the label layer hidden and the tour off; so plates, labels, sheets and the tour never move it.
 
@@ -302,6 +304,33 @@ happened.
 **Cost:** for other words, `en.ts:117`; `apps/world/test/copyFlash.test.ts` reads the state, not the words. No pixel set.
 **If you say nothing:** as built.
 **Answer:** `W14: as-built / <words>`
+
+### W15. Which bot the host's own words send people to make (round 54, r54-review) *wording*
+
+**Today.** The README and the Connect screen lead with the viewer key: crewhub-loops' **Settings › Agents › Connect
+CrewHub World**, the bot that also shows the chat bubbles. But the host's own words name only the older road, "Settings
+> Agents > New external bot", whose key shows no bubbles: the reason a rejected key gives in the panel and in health
+(`apps/host/src/keyCheck.ts:18`, `MAKE_A_BOT`, used by four reasons) and the doctor's "no key yet" fix
+(`apps/host/src/doctor.ts:179`).
+**Options.** `viewer-first`: those words name the viewer card first, and "on an older crewhub-loops, Settings > Agents >
+New external bot" second. `keep`.
+**Recommended:** `viewer-first` (the reviewer's: the host should send people where the README does).
+**Cost:** `keyCheck.ts` and `doctor.ts`; their tests (`keyCheck.test.ts`, `doctor.test.ts`) match some of these words
+and change with them. Touches `apps/host/src`, so the replays run. No pixel set.
+**If you say nothing:** the host's words send people to "New external bot".
+**Answer:** `W15: viewer-first / keep`
+
+### W16. "Not a control" and loops' own chat (round 54, r54-review) *wording*
+
+**Today.** The introduction says "Not a control. Nothing in the world starts, stops, wakes or steers an agent."
+(`docs/INTRODUCTION.md:21`). In the Chat panel, loops' own chat is framed, and a signed-in person can type to an agent
+there; the frame is loops, not the world.
+**Options.** `say-the-frame`: add "except loops' own chat, framed in the Chat panel, where you type as yourself".
+`keep`: the frame is loops, so the sentence stands.
+**Recommended:** `say-the-frame` (a reader who types in the panel should not find the sentence wrong).
+**Cost:** one sentence in `INTRODUCTION.md`. No test, no pixel set.
+**If you say nothing:** as it is.
+**Answer:** `W16: say-the-frame / keep`
 
 ## The live road (L)
 
@@ -609,7 +638,7 @@ about 20 lines and a test. Neither touches `apps/`; no pixel set.
 
 ## The wording block
 
-Sixteen choices change words only, nothing else: **T3, W1, W2, W3, W4, W5, W6, W7, W8, W9, W10, W13, W14, S1, S2,
+Eighteen choices change words only, nothing else: **T3, W1, W2, W3, W4, W5, W6, W7, W8, W9, W10, W13, W14, W15, W16, S1, S2,
 S3.**
 `wording block: as recommended` takes the recommended answer for each; name one to keep it out
 (`wording block: as recommended, but W2: keep`).
