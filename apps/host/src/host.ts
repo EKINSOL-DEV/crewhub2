@@ -15,11 +15,11 @@
  * learnt (`archiveStore.ts`), so a loops that will not read its log from the start still shows them on the next start.
  */
 import { timingSafeEqual } from "node:crypto";
-import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
+import { open, stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
+import { pipeline } from "node:stream/promises";
 import type { HostArchiveState, HostConnection, HostKeyState, HostSnapshotState, ChatThreadFact } from "@crewhub/loops-client";
 import { WORLD_API_PREFIX, fillPattern, matchWorldRoute } from "./allowList.ts";
 import { DEV_ORIGINS_HEADER, devOriginAcceptedLine, devOriginVerdict } from "./devOrigin.ts";
@@ -1176,6 +1176,10 @@ export async function createHost(options: HostOptions): Promise<Host> {
         return;
       }
     }
+    // Opened before the answer starts (round 51, review H1): a file that cannot be read now (a build that removed it
+    // after the stat, a mode that refuses the host) throws here, into this request's 500, never into an `error` event
+    // nobody listens to, which ended the host.
+    const opened = await open(file, "r");
     const type = MIME[path.extname(file).toLowerCase()] ?? "application/octet-stream";
     const immutable = /[-.][A-Za-z0-9_-]{8,}\.\w+$/.test(path.basename(file)) && path.dirname(file) !== staticDir;
     res.writeHead(200, {
@@ -1184,7 +1188,8 @@ export async function createHost(options: HostOptions): Promise<Host> {
       "cache-control": immutable ? "public, max-age=31536000, immutable" : "no-cache",
       ...(type.startsWith("text/html") ? HTML_HEADERS : {}),
     });
-    createReadStream(file).pipe(res);
+    // A read that fails later, or a tab that goes away mid-file, ends this answer and closes the file: nothing more.
+    await pipeline(opened.createReadStream(), res).catch(() => undefined);
   }
 
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
