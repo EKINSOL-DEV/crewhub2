@@ -93,8 +93,7 @@ smooth connection" below):
   `loopsWebUrl` is the origin of the loops URL, for the world's Chat panel (which frames that web app) and the card's ticket links; `transport` is `tcp`
   (the URL) or `unix` (the socket); `paired` is whether this request carries a valid pairing cookie; `pairing` is `on`
   or `off`. Health carries no data and needs no cookie.
-- **Pairing** (plan 3.5, `src/pairing.ts`): every other `/world-api` route but `/dev-origin` (a program's request, below)
-  answers `401 {"error":"not_paired"}`
+- **Pairing** (plan 3.5, `src/pairing.ts`): every other `/world-api` route answers `401 {"error":"not_paired"}`
   unless the request carries the cookie `crewhub_world_pair` (`HttpOnly; SameSite=Strict; Path=/`, plus `Secure`
   when `CREWHUB_WORLD_PUBLIC_URL` is https). `GET /pair/<token>` sets it and answers `303 Location: /`; a used,
   expired or unknown token gets a plain HTML 403 page. See "Pairing" below.
@@ -109,9 +108,7 @@ smooth connection" below):
   `CREWHUB_WORLD_ALLOWED_ORIGINS`. Accepted only from a program on this machine (loopback, no `Origin` header, JSON:
   a page cannot send it), only for `http://127.0.0.1:<port>` or `http://localhost:<port>` (never another
   host, https or a wildcard), and only from this checkout (the body's `checkout` must be the host's
-  own id, `src/checkout.ts`), and only from the same user: the request carries the mint secret of the host's run file
-  (`$TMPDIR/crewhub-world-host-<port>.json`, 0600) in `x-crewhub-world-mint` (else 403 `not_same_user`; a host
-  without a run file answers 404 `no_run_file`); at most 8 a run (then 429 `too_many_origins`). The host logs one line per accepted origin; health lists them
+  own id, `src/checkout.ts`); at most 8 a run. The host logs one line per accepted origin; health lists them
   (`devOrigins`, and the `x-world-dev-origins` header the dev proxy reads, to tell again after a host restart).
   Pairing is untouched: the page still needs its cookie. The preview and a build never tell.
 - **Reconnect**: loops ends every stream after 300 s (and at a credential re-check or a stop); the host waits 1.5 to
