@@ -197,6 +197,12 @@ order, then question 1's branch last; every hand merge then happens in that last
   - **The replays on `64efeb1`, round 51's night:** `tab q3 q8 q11 q14 q15` (D, F, E; C passes), result `77382ec`,
     1231 / 1231; and `cookie+expiry q3 q8 q11 q14 q15` (A, then B), result `87aa93e`, 1229 / 1229. No rule of the plan
     changed.
+- **Round 52, a day round, on the head only.** The host's run file at any exit (F16, `main.ts`, `runFile.ts`), a
+  `loops-client` timing field, the host README's last F16 lines, and two host tests that flaked under load (the
+  allow-list fuzz's oversized request line, the archive switch's sampler), fixed in the tests. No answer branch changed.
+  - **The merges:** all seven merge cleanly onto `e15cd1d`; the README hunks stay clear of rule D's.
+  - **The replays on `e15cd1d`:** `tab q3 q8 q11 q14 q15` (D, F, E; C passes), result `fe083a9`, 1247 / 1247; and
+    `cookie+expiry q3 q8 q11 q14 q15` (A, then B), result `cf5def4`, 1245 / 1245. No rule of the plan changed.
 - **The `cookie+expiry` and `cookie` rows, rehearsed in round 37** (detached checkouts; the five independent branches
   then the question-1 branch): the five alone on `e55ef42`, check 1070 of 1070; the five then `q1-cookie-expiry` (A,
   then B), check 1075 of 1075 on `e55ef42` and again on `761db9f` (`769434a`); the five then `r27-tab-pairing`, check
