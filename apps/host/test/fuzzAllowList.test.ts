@@ -6,7 +6,7 @@
  * a documented status (never 500) and crewhub-loops sees only GETs of allow-listed paths.
  */
 import assert from "node:assert/strict";
-import { request } from "node:http";
+import { maxHeaderSize, request } from "node:http";
 import { after, before, describe, it } from "node:test";
 import { LOOPS_READS, WORLD_API_PREFIX, WORLD_ROUTES, allowedLoopsPath, fillPattern, isSegment, matchWorldRoute } from "../src/allowList.ts";
 import { createHost, type Host } from "../src/host.ts";
@@ -35,6 +35,15 @@ function oddPath(rng: Rng): string {
   if (kind === 7) return `${WORLD_API_PREFIX}${rng.pick(["", "/", "//", "/health/", "/health/x", "/stream?cursor=1", "/town/backups/", "/town/backups/../export", "/tickets/CL-85/comments/", "/tickets//comments"])}`;
   return oddString(rng, 5);
 }
+/**
+ * A request Node refuses before the host sees it: a request line its own client cannot write, or one past Node's header
+ * limit (16 KB). The host's parser answers that one 431 and destroys the socket; when part of the line is still unread
+ * then, the close is a reset, and the client may meet the reset before the 431 (round 52, seed 34010 #154). A reset
+ * is Node's refusal only for such a line.
+ */
+const refusedByNode = (error: unknown, method: string, path: string): boolean =>
+  /ERR_UNESCAPED_CHARACTERS|ERR_INVALID_CHAR|ERR_INVALID_ARG_VALUE|ERR_HTTP_INVALID_HEADER_VALUE/.test(String(error)) ||
+  (Buffer.byteLength(`${method} ${path} HTTP/1.1\r\n`) > maxHeaderSize && /\b(ECONNRESET|EPIPE)\b/.test(String(error)));
 function oddSearch(rng: Rng): URLSearchParams {
   const search = new URLSearchParams();
   for (let i = rng.int(0, 4); i > 0; i -= 1) search.append(rng.chance(0.7) ? rng.pick(QUERY_KEYS) : oddString(rng, 2), rng.chance(0.5) ? rng.pick(["5", "0", "-1", "1e999", "abc", "500", "501", "", "NaN"]) : oddString(rng, 3));
@@ -153,8 +162,8 @@ describe("fuzz: the allow-list through a host", () => {
       try {
         status = (await raw(method, path)).status;
       } catch (error) {
-        // Node's own client refuses a request line it cannot write: not the host's answer.
-        assert.match(String(error), /ERR_UNESCAPED_CHARACTERS|ERR_INVALID_CHAR|ERR_INVALID_ARG_VALUE|ERR_HTTP_INVALID_HEADER_VALUE/, replay(seed, i, [method, path]));
+        // Node refused it, not the host: see `refusedByNode`.
+        assert.ok(refusedByNode(error, method, path), `${replay(seed, i, [method, path])}: ${String(error)}`);
         continue;
       }
       statuses.set(status, (statuses.get(status) ?? 0) + 1);
@@ -169,5 +178,16 @@ describe("fuzz: the allow-list through a host", () => {
     }
     assert.ok((statuses.get(404) ?? 0) > 50 && (statuses.get(405) ?? 0) > 50 && (statuses.get(200) ?? 0) > 8, `the statuses seen: ${JSON.stringify([...statuses])}`);
     assertPrototypeClean(seed);
+  });
+
+  // Seed 34010 #154 (round 52): a 40,067-byte GET was refused with a reset in about 6 % of runs, 431 otherwise. A line
+  // twice as long leaves more unread than Node's parser reads at once, so it meets the reset every time.
+  it("a request line past Node's header limit is Node's refusal, a 431 or a reset, and the host serves on", async () => {
+    const path = `${WORLD_API_PREFIX}/principals?constructor${"0".repeat(80_000)}`;
+    assert.ok(Buffer.byteLength(path) > maxHeaderSize);
+    const outcome = await raw("GET", path).then(({ status }) => status, (error: unknown) => error);
+    if (typeof outcome === "number") assert.equal(outcome, 431);
+    else assert.ok(refusedByNode(outcome, "GET", path), String(outcome));
+    assert.equal((await raw("GET", `${WORLD_API_PREFIX}/health`)).status, 200, "the host still answers");
   });
 });
