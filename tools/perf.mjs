@@ -90,6 +90,9 @@ const SETTLE_MS = 3000,
 
 const browser = await launch({ swiftshader: opts.swiftshader, extra: ["--enable-precise-memory-info"] });
 
+/** The contexts a scenario opened (round 52, r51-review T3): one a failed scenario left open is closed before the next samples. */
+const openContexts = new Set();
+
 async function open({ phone = false, stress = phone && phoneStress, fast = false, pretty = false, fps = true, dpr = 1 } = {}) {
   const context = await browser.newContext({
     viewport: phone ? { width: 375, height: 812 } : { width: 1440, height: 900 },
@@ -97,6 +100,8 @@ async function open({ phone = false, stress = phone && phoneStress, fast = false
     ...(dpr > 1 ? { isMobile: true, hasTouch: true } : {}),
     colorScheme: theme === "dark" ? "dark" : "light",
   });
+  openContexts.add(context);
+  context.on("close", () => openContexts.delete(context));
   await store(context, { "crewhub-world.quality": fast ? "fast" : pretty ? "pretty" : quality, "crewhub-world.fps": fps ? "on" : "off", ...castChoice(castId) });
   // Long tasks (> 50 ms) for the view-change scenarios.
   await context.addInitScript(() => {
@@ -321,6 +326,8 @@ for (const name of scenarios) {
     await run[name]();
   } catch (e) {
     console.log(`${name.padEnd(14)} FAILED: ${e.message.split("\n")[0]}`);
+  } finally {
+    for (const context of openContexts) await context.close().catch(() => undefined);
   }
 }
 await browser.close();
