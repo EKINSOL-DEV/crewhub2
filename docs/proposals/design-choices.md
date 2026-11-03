@@ -4,8 +4,8 @@
 the answer branches); these are smaller product choices the reviews of rounds 41 to 51 wrote down and left alone:
 words on screen, where a card sits, what the host does in an odd case. Rounds 41 to 47 left none; thirty come from
 round 48 (checked against the code at `d150cf4`) and nine from round 50's reviews of the packages and of
-accessibility (K, X, W13 and W14, checked at `5126318`), and two from round 51's review of the host and the tools
-(H3 and P1, checked at `86bfbf6`).
+accessibility (K, X, W13 and W14, checked at `5126318`), two from round 51's review of the host and the tools
+(H3 and P1, checked at `86bfbf6`), and X5, the last of round 50's accessibility review, written up in round 52.
 
 **How to answer:** one line per id, in the same short form as the open questions, for example `T1: as recommended`,
 `W4: keep` or `S1: waits`. A whole block in one line works too: `wording block: as recommended`
@@ -15,7 +15,7 @@ until you answer:** each choice names what stays if you say nothing, which is al
 **The groups:** [first visit and tour](#first-visit-and-tour-t) (T, 9), [words on screen](#words-on-screen-w) (W, 12),
 [the live road](#the-live-road-l) (L, 2), [the host's behaviour](#the-hosts-behaviour-h) (H, 3),
 [the storyline](#the-storyline-s) (S, 4), [editing the town](#editing-the-town-e) (E, 1), and from round 50
-[the figures](#the-figures-k) (K, 3) and [accessibility](#accessibility-x) (X, 4); words on screen gained W13 and W14;
+[the figures](#the-figures-k) (K, 3) and [accessibility](#accessibility-x) (X, 5); words on screen gained W13 and W14;
 from round 51 the host gained H3, and [the tools](#the-tools-p) (P, 1) is new. **The cost** of a choice names the files, the tests and the pixel sets that would change. The demo pixel set
 (`tools/pixcheck.mjs`) pictures the town, the town hall, a building and its rooms at 1440 and 375 px, light and dark,
 with the label layer hidden and the tour off; so plates, labels, sheets and the tour never move it.
@@ -540,6 +540,20 @@ corner wraps to two rows. `keep`.
 **Cost:** one `world.css` rule, and a 320 px picture to confirm (in no set).
 **If you say nothing:** the overlap stays.
 **Answer:** `X4: drop-word / wrap-tools / keep`
+
+### X5. The canvas's name: the whole key guide on every focus (round 50, r50-a11y N4)
+
+**Today.** The town's canvas is named by its key guide, about 60 words, read in full each time the focus lands on it:
+"The town. Arrow keys move between buildings, Enter goes inside. … Slash opens the jump list."
+(`apps/world/src/world/TownScene.ts:512-515`). The stage around it has its own name, which is T3.
+**Options.** `short`: the name is "The town", and the guide moves, unchanged, into a visually hidden paragraph that
+the canvas points to with `aria-describedby`. Screen readers then say "The town, application" on focus, and the
+guide after a pause or on request (NVDA+Tab, VoiceOver's hint). `keep`.
+**Recommended:** `short`, with the name fixed (not following the place, which would rename the canvas on every move).
+**Cost:** `TownScene.ts` (the scene, so a night round with the `walk` and `rooms` regress groups); one node test that
+reads the short name and the `aria-describedby`; a screen-reader check by hand. No pixel set.
+**If you say nothing:** the 60 words on every focus.
+**Answer:** `X5: short / keep`
 
 ## The tools (P)
 
