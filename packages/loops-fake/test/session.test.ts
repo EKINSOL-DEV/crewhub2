@@ -144,3 +144,14 @@ test("sendDm: the person's message to an agent in a building brings that agent's
   assert.equal(byId.message.author.id, "cr-lead");
   assert.match(byId.message.bodyText, /^\(demo reply\) /, "the demo's own labelled reply");
 });
+
+test("auth/me says a signed-in person's own role (admin), as loops' principal_out does; the key's stays lead (round 54)", async () => {
+  const fake = await createLoopsFake({ speed: 0 });
+  fakes.push(fake);
+  const ok = await fetch(`${fake.url}/api/auth/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: fake.person.id, password: fake.person.password }) });
+  const cookie = (ok.headers.getSetCookie()[0] as string).split(";")[0] as string;
+  const asPerson = (await (await fetch(`${fake.url}/api/auth/me`, { headers: { cookie } })).json()) as { principal: { kind: string; role: string } };
+  assert.deepEqual({ kind: asPerson.principal.kind, role: asPerson.principal.role }, { kind: "user", role: "admin" });
+  const asKey = (await (await fetch(`${fake.url}/api/auth/me`, { headers: { authorization: `Bearer ${fake.key}` } })).json()) as { principal: { kind: string; role: string } };
+  assert.equal(asKey.principal.role, "lead");
+});

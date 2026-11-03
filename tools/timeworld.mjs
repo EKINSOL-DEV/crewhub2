@@ -17,7 +17,7 @@
                        `--loops-env` (`LOOPS_DEV_KEY_FILE`; default: the first tools/out/loops-dev.env found, as regress.mjs).
      --app-data <dir>  the folder the host's discovery reads (`CREWHUB_WORLD_LOOPS_APP_DATA`); never the Mac app's.
      --config-dir <dir> the host's own folder (`CREWHUB_WORLD_CONFIG_DIR`); default <out>/timeworld-config.
-     --json <file>     every number, per run.
+     --json <file>     every number, per run; a bare name goes into --out, as perf.mjs and memory.mjs put it.
    The port (`--port`) is the host's, must be free and yours; the browser opens the host directly. The host is stopped by its own process group at the end of every run, whatever the run did (SIGINT, SIGKILL after 5 s), never by a pattern; a Ctrl-C of the tool takes it too.
    Loopback only. The key is never printed. */
 import { spawn, execFileSync } from "node:child_process";
@@ -243,7 +243,9 @@ try {
   const stale = path.join(tmpdir(), `crewhub-world-host-${hostPort}.json`);
   if (running.size === 0 && existsSync(stale)) rmSync(stale, { force: true });
 }
-if (opts.json) writeFileSync(opts.json, JSON.stringify({ what, hostPort, results }, null, 2) + "\n");
+// A bare name goes into --out (round 54), as perf.mjs and memory.mjs do; a path is used as given.
+const jsonOut = opts.json && (path.isAbsolute(opts.json) || opts.json.includes(path.sep) ? opts.json : path.join(opts.out, opts.json));
+if (jsonOut) writeFileSync(jsonOut, JSON.stringify({ what, hostPort, results }, null, 2) + "\n");
 const failed = results.some((r) => r.failed || r.projects === 0);
 console.log("  (project lines: of the host's snapshot, named in the text view)");
 console.log(failed ? "timeworld: the town did not come up in every run" : `timeworld: ${results.length} run(s) done`);

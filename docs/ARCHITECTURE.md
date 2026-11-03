@@ -76,7 +76,8 @@ Phase status (plan section 10; the dates and details are in [the roadmap](ROADMA
 
 ## The host (`apps/host`)
 
-One Node process, no dependency beyond Node, loopback only. Its parts, each a file in
+One Node process, no third-party dependency (beside Node only the workspace's `loops-client` and
+`world-model`), loopback only. Its parts, each a file in
 `apps/host/src` with its tests in `apps/host/test` against a loops stub on port 0:
 
 - **Discovery** (`discovery.ts`): the env's URL or socket is taken as given; else the Mac
@@ -362,7 +363,8 @@ pairing should expire, and what an unpaired health read may say are questions fo
 prepared on a branch (round 27, `task/r27-tab-pairing`) for that decision.
 Tailscale or another TLS proxy is only an option (`CREWHUB_WORLD_PUBLIC_URL` makes the
 cookie `Secure`); nothing hands a link to a remote person yet. Demo mode needs none of
-it, and no credential is ever bundled (a test greps the browser code and the built bundle).
+it, and no credential is ever bundled (a test greps the browser code and, in `check`'s last step after the build, the
+built bundle).
 
 ## Primary references
 
