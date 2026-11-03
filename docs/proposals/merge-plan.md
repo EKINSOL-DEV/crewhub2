@@ -203,6 +203,17 @@ order, then question 1's branch last; every hand merge then happens in that last
   - **The merges:** all seven merge cleanly onto `e15cd1d`; the README hunks stay clear of rule D's.
   - **The replays on `e15cd1d`:** `tab q3 q8 q11 q14 q15` (D, F, E; C passes), result `fe083a9`, 1247 / 1247; and
     `cookie+expiry q3 q8 q11 q14 q15` (A, then B), result `cf5def4`, 1245 / 1245. No rule of the plan changed.
+- **Round 53, a night round, on the head only.** The host opens a built file before it answers (H1), answers a
+  passthrough that is not JSON with 502 and reads `?cursor=` as digits only (H4), shares a snapshot assembly in flight
+  (H3); the page takes a connect answer as done only on the host's `ok` (S2), retries a failed prop import (S3) and keeps
+  no old renders on a view switch (W1); the corners come first in the Tab order (A9, A5); CI and `check:copy`/`check:docs`
+  fixes; road 2's 404 admit narrowed. No answer branch changed.
+  - **The merges:** all seven merge cleanly onto every head of the night, last `8c6162e`; `task/r53-road2-admit` was
+    reshaped to stay clear of `task/r27-tab-pairing`'s two lines above road 2's admit in `tools/regress.mjs`, and
+    `task/r53-host-nits` keeps the loops stub and the host README as they were, clear of q14's and q15's hunks.
+  - **The replays on `8c6162e`:** `tab q3 q8 q11 q14 q15` (D, F, E; C passes), result `6cc0391`, 1263 / 1263; and
+    `cookie+expiry q3 q8 q11 q14 q15` (A, then B), result `14a960c`, 1261 / 1261. Both were green on each head of the night
+    that changed the host or the page too. No rule of the plan changed.
 - **The `cookie+expiry` and `cookie` rows, rehearsed in round 37** (detached checkouts; the five independent branches
   then the question-1 branch): the five alone on `e55ef42`, check 1070 of 1070; the five then `q1-cookie-expiry` (A,
   then B), check 1075 of 1075 on `e55ef42` and again on `761db9f` (`769434a`); the five then `r27-tab-pairing`, check
