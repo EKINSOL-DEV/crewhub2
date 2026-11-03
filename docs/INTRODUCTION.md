@@ -1,7 +1,7 @@
 # An introduction to CrewHub World
 
-For a reader who knows crewhub-loops and has never seen the world. Everything here is as built on 2026-10-23 (round
-29 of the night and the two days after); where a claim rests on a file, the file is named. The pictures are light-theme
+For a reader who knows crewhub-loops and has never seen the world. Written as built on 2026-10-23 (round
+29 of the night and the two days after) and checked against the code again in round 54 (`35a3ebf`); where a claim rests on a file, the file is named. The pictures are light-theme
 screenshots, most of them live against the development crewhub-loops, the newer ones over the fake crewhub-loops or the
 demo; each caption says which.
 
@@ -20,10 +20,12 @@ What it is not:
   air, which card was seen) and the town document a person draws in build mode (section 2.6).
 - **Not a control.** Nothing in the world starts, stops, wakes or steers an agent. The one optional "director" moves
   the world's own figures and is off by default (section 2.10).
-- **Read-only by construction, not by promise.** In live mode the browser never talks to loops. It talks to a small
-  relay, `apps/host`, which holds the one key and forwards an allow-list of `GET` paths only (`apps/host/src/allowList.ts`:
-  health, `auth/me`, events and the stream, projects, features, milestones, releases, boards, tickets, comments,
-  progress, principals, agents, team, watchdog). Every other method answers 405 and never reaches loops; a test sends
+- **Read-only by construction, not by promise.** In live mode the browser never holds or sends a key to loops. Its reads go
+  through a small relay, `apps/host`, which holds the one key and forwards an allow-list of `GET` paths only
+  (`apps/host/src/allowList.ts`: health, `auth/me`, events and the stream, projects, features, milestones, releases,
+  boards, tickets, comments, progress, principals, agents, team, watchdog and, where the key may read it, the chat:
+  the threads and a message by id). The page's only direct contact with loops is loops' own web app framed in the Chat
+  panel and, on road 2, its own `GET`s of your chat with your loops cookie (section 6). Every other method answers 405 and never reaches loops; a test sends
   them. The key is never in a response, a log or the bundle (tests grep every response and log line).
 - **No model call, anywhere.** `scripts/scan-model-calls.ts` runs in `npm test` and fails on an AI SDK import or a model
   endpoint. Rendering, motion and status need none ([COST_POLICY.md](COST_POLICY.md)).
@@ -36,9 +38,9 @@ What it is not:
 
 ### 2.1 The town
 
-One building per project, on a town plan that grows with the project count: a clearing for none, a hamlet (one or a
-few buildings, a lodge and a mail hut), a village or a town (every building, a town hall and a post office on two civic
-lots and a square), and a region of districts when there are many (`apps/world/src/world/townPlan.ts`, `TIER_WORDS`).
+One building per project, on a town plan that grows with the project count: a clearing for none, a hamlet (one building, a
+lodge, a mail hut and a green), a village (two to four: the lodge and the mail hut by a square), a town (five to nine:
+a town hall and a post office on two civic lots and the square), and a region of districts from ten (`apps/world/src/world/townPlan.ts`, `TIER_WORDS`).
 The home view is an orthographic overview; a click on a building enters it. A project's colour and icon from loops
 become a striped awning, a flag and an emblem on a plinth by the door, and since round 15 the outer walls take a soft
 wash of the project colour as well: a third of the way from the style's chalk, with a floor of difference for a colour
@@ -48,7 +50,7 @@ it is plain; an archived building keeps its boarded, muted chalk.
 ![The live town against the development crewhub-loops: six project buildings with coloured awnings and flags, one of them boarded up, the town hall and the post office between them, the Live chip at the top right.](images/live-town.jpg)
 
 Who stands outside the buildings: agents that are registered but work in no project of the town (and every other
-external bot) stand in the **town hall** (the lodge in a hamlet). The **postman** stands at the post office with its letters and
+external bot) stand in the **town hall** (the lodge below five projects). The **postman** stands at the post office with its letters and
 walks its rounds to the buildings' mailboxes: it is loops' deliveries made visible (`packages/world-model/src/describe.ts`, the
 mailbox lines). The world's own key, the external bot the host reads with, is the **observer**: it is listed by loops
 among the agents, but the world never draws it and the text view says why.
@@ -65,7 +67,7 @@ a model is one node holding its parts as data, which halved the objects made bef
 ([COST_POLICY.md](COST_POLICY.md)). The same rule was kept for every cut after it: the phone's first paint (rounds 21
 and 22), the figures as data (round 23) and the inside layers of the likely next building built ahead in idle time
 (round 24, the worst enter frame on a phone at 4x from 90 to 57 ms); since round 24 anyone reruns the proof with
-`tools/pixcheck.mjs` on two commits (74 label-free demo pairs and 324 cast pairs, a diff image per pair).
+`tools/pixcheck.mjs` on two commits (74 label-free demo pairs and 320 cast pairs, a diff image per pair).
 
 ![Inside the CR building in the demo: the outer walls washed with the project's coral, the awning and flag outside, the lead at its desk in the office, the workers and the designer on the floor, the racks of Administration at the front, the truck at the dock.](images/building.jpg)
 
@@ -206,7 +208,7 @@ model is not built ([ROADMAP.md](ROADMAP.md), "Open").
 | An agent (role lead, worker, analyst, design) | A figure in the office or on the floor; its cast is the building's |
 | An external bot (another one) | A figure in the town hall; the host's own bot is the observer and is never drawn |
 | The team snapshot's lane status | The posture: focused, relaxed, raised hand, greyed out ("status unknown" without a probe) |
-| A delivery | A flagged letter in the building's mailbox; the postman walks them to the post office |
+| A delivery | A flagged letter in the building's mailbox; the postman walks them from the post office to the building |
 | `ticket.quiet` | Dust on the package and a clock tag, until a person or an agent touches the ticket |
 | `automation.ran` | A card on the board by the front door for 8 s; the last three as text lines |
 | `owner-request.updated` | Nothing: loops serves it to the owner only, and the world's key never receives it |
@@ -221,7 +223,8 @@ describeWorld`. Both emit loops-shaped envelopes with increasing `seq`; the mode
 
 - **Demo mode** is the default and needs nothing: a scripted in-browser crewhub-loops (`packages/demo`) with a sixteen-
   minute storyline and four scenarios (Fresh install, One project, Small team, Studio with twenty projects in four
-  groups), a playback bar, its own lanes, the world's key as its observer and a CI bot, the quiet and automation events,
+  groups; the Demo chip picks one, or `?scenario=fresh|one|small-team|studio`; Settings › Source switches between
+  Automatic, Demo and Live), a playback bar, its own lanes, the world's key as its observer and a CI bot, the quiet and automation events,
   and a scripted chat dock whose replies feed the same bubbles, chat mark and Recent answers as live (round 17).
   Everything is labelled as demo. [`packages/demo/CONTENT.md`](../packages/demo/CONTENT.md) tells the
   storyline.
@@ -306,8 +309,8 @@ shared Mac never reaches somebody else's host.
   in the threat model; `proposals/open-questions.md`).
 - **The states are honest.** Health says where loops was found, what the key's state is (none, unchecked, checking,
   rejected, ok), how the stream is, how far the first snapshot is; the world shows one screen per state (No loops
-  found, Pair this browser, Connect, Checking, Key rejected, Loops down) and, once the town runs, a chip (Live,
-  Catching up, Stale, Loops down, Stream busy, Pair again) that opens the **Connection panel** (with, since round 20,
+  found, Pair this browser, Connect, Checking, Key rejected, Loops down) and, once the town runs, a chip (Connecting,
+  Live, Catching up, Stale, Loops down, Unauthorized, Stream busy, Pair again) that opens the **Connection panel** (with, since round 20,
   a Town row: where the town is kept and its revision).
 
 ![The Connection panel over the live town against the development crewhub-loops (round 29): Live, loops found through the Mac app's socket, the key from the stored key, streaming with its cursor, one archived project from loops' event log, crewhub-loops version 0.1.0, the host over the Unix socket, the Town row (kept by the host, revision 2) and the Zones row; the Chat section, which on this older loops says no bubbles and names both ways out, follows below the panel's fold.](images/connection-panel.jpg)
@@ -402,10 +405,13 @@ Every fact the scene shows is also a sentence. The **text view** (press T) descr
 connection line, each building with its racks and desks and what lies on them, who is where in which posture, the
 persons, the closed buildings, the dust, the board's last runs, the zones, the director's log
 (`packages/world-model/src/describe.ts`). A **Where is …?** form answers for one agent in zone labels, never
-coordinates, and in the third person ("cr-dev-1 is in the workers room of CR product at the CR-12 desk; nearby: …");
+coordinates, and in the third person ("cr-dev-1 is on the floor of CrewHub World at the CR-12 desk; nearby: …"; with `?rooms=classic`, "in the workers
+room of …");
 the second person is kept for an agent asking about itself, which nothing does today (`where.ts`, round 15). The jump
-list (`/`) names every building; Details (D) shows every label; W begins walk mode;
-Escape backs out of anything.
+list (`/`, or Ctrl/Cmd+K from anywhere) names every district, building, agent and civic place; Details (D) shows every
+label; W begins walk mode; Escape backs out of anything. On the scene the arrow keys, Home and End move the ring and
+Enter goes in, Backspace comes out, H is home, + and - zoom, [ and ] rotate, F shows the frame rate and Shift+F follows
+the selected agent; in build mode Ctrl/Cmd+Z and Y undo and redo.
 
 **The introduction inside the world** (round 20): the first time a browser opens the world (demo or live) a tour of six
 short steps stands over the real UI, one sentence each, in this document's words: the town, a building and its three

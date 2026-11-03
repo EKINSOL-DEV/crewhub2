@@ -12,7 +12,7 @@ Towns and rooms are CrewHub's own; every fact is crewhub-loops'. See
 superseded. The [design system](DESIGN_SYSTEM.md) supplies the UI tokens and
 components.
 
-**The diagram below is the target.** Four of its arrows run today: the agents, probes
+**The diagram below is the target.** Five of its arrows run today: the agents, probes
 and people writing to crewhub-loops (loops' own), the host reading crewhub-loops (and,
 where the key may read the chat, the agents' answers for the bubbles), the browser
 reading the host, the browser framing loops' own web app in the Chat panel and, where
@@ -98,7 +98,8 @@ One Node process, no dependency beyond Node, loopback only. Its parts, each a fi
 - **The connect routes** (`host.ts`): `POST /world-api/connect {key}` from a paired browser
   on an allowed origin checks the key, stores it and switches the host to it without a
   restart (the old upstream stream stopped first, every tab reset); `DELETE` forgets it.
-  These are the host's only writes, to its own folder.
+  Connect, the town (`PUT /world-api/town`, into `world.db`) and the dev origin (in memory) are the host's only
+  writes, all to its own folder or memory; none reaches crewhub-loops.
 - **Pairing** (`pairing.ts`): a one-time link (`/pair/<token>`, 10 minutes) exchanged for an
   `HttpOnly; SameSite=Strict` cookie signed with a secret (since round 26 every cookie of the name is
   tried, so another loopback server cannot shadow it; a short secret file is replaced; the served
@@ -129,13 +130,13 @@ One Node process, no dependency beyond Node, loopback only. Its parts, each a fi
 - **The stream** (`stream.ts`, `loops.ts`, `transport.ts`): one upstream `GET /api/events/stream`
   per host process, whatever the tabs do, opened from `from=tail` with the sealed cursor or
   `after=`, reconnected after the 300 s end with 1.5 to 3 s of jitter, backoff on errors,
-  `Retry-After` on 429, a reset on 410 or a restored log; a stream that stays open but silent past two
-  heartbeats (a half-dead socket after a sleep) is aborted and reopened at the cursor, at once when the tab
-  comes back into view (round 27); a ring buffer of 2000 envelopes
-  catches a tab up; the tabs get Server-Sent Events (`status`, `event`, `heartbeat`,
-  `reset`). The transport seam makes TCP (`fetch`) and the Unix socket (`node:http` with
+  `Retry-After` on 429, a reset on 410 or a restored log; an upstream connection silent for 45 s is dropped and
+  reopened (`stream.ts`, `idleMs`; the browser's `hostSource.ts` heals its own stream to the host after 40 s of
+  silence, at once when the tab comes back into view, round 27); a ring buffer of 2000 envelopes
+  catches a tab up; the tabs get Server-Sent Events, one JSON message each (`status`, `event`, `heartbeat`,
+  `reset`, `chat`, `town`, `threads`). The transport seam makes TCP (`fetch`) and the Unix socket (`node:http` with
   `socketPath`) indistinguishable above it.
-- **The allow-list and the guard** (`allowList.ts`): the loops `GET` paths the host may read
+- **The allow-list and the guard** (`allowList.ts`; the guard in `host.ts`): the loops `GET` paths the host may read
   and the browser routes it answers, in one file; every other path 404, every other method
   405, nothing reaching loops; `Host` must be loopback (421), `Origin` the host's own or an
   allowed one (403).
@@ -279,7 +280,7 @@ is what the tool prints last, `regress: <passed>/<total>`, with each group's in 
 road 2's proof against loops main (`road2proof.mjs`: the page's every
 request, header names only), the pixel-identical
 proof of a change (`pixcheck.mjs`: two commits or dist folders built and served apart, 74 label-free demo pairs and
-324 cast pairs, a diff image per pair, exit 0 only at all zeros), the accessibility pass
+320 cast pairs, a diff image per pair, exit 0 only at all zeros), the accessibility pass
 (`a11y.mjs`: what a screen reader is given on every Connect screen, the panel and the town's labels, the keyboard,
 contrast, a phone, reduced motion), the frame and memory measurements (`perf.mjs`, `memory.mjs`, in demo
 and live mode; `memory.mjs` also runs a timed soak with a load gate and, since round 29, diffs the DOM when its node

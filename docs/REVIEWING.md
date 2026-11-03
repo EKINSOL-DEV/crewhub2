@@ -26,7 +26,8 @@ tests taken out, nothing else); both figures are from the same diff.
 
 ## 2. A reading order by area
 
-The times assume a careful read at about 300 lines an hour for source and a skim of the tests at three times that
+The line counts in the sections below are as measured at `a3e5a22`; most files have grown since (round 54 checked, for
+example, `host.ts` 1,375 lines and `App.tsx` 1,411 at `35a3ebf`). The times assume a careful read at about 300 lines an hour for source and a skim of the tests at three times that
 pace; "the risky parts alone" is the files named under each area at the careful pace. Nobody needs the first column.
 Which one-line bugs in the risky parts the tests are known to catch is measured in §5. The regress groups named
 under "Pinned by" are described check by check in `tools/README.md`; their counts are the tool's own INFO lines, not
@@ -78,8 +79,8 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
 
 - **Entry files.** `apps/host/src/allowList.ts` (the one list, both directions), `transport.ts` (TCP or the Unix
   socket, the same headers, no redirect followed), `loops.ts`, `keyCheck.ts`, `discovery.ts` (finds the Mac app,
-  read only), `snapshot.ts`, `stream.ts`; on the browser's side `packages/loops-client/src/hostSource.ts` (the one
-  file in the browser that may fetch, and only its own host), `validate.ts` and `types.ts` (loops' shapes),
+  read only), `snapshot.ts`, `stream.ts`; on the browser's side `packages/loops-client/src/hostSource.ts` (one of the
+  two files in the browser that may fetch, and only its own host; the other is `pageChat.ts`, road 2), `validate.ts` and `types.ts` (loops' shapes),
   `source.ts` (the `WorldSource` seam); `packages/loops-fake/src/fake.ts`, the test double that speaks loops' routes.
 - **What it does.** GET-only reads of crewhub-loops under an allow-list, one upstream event stream shared by every
   tab with a ring buffer of 2,000 envelopes, the snapshot assembled from loops' lists. The browser takes a snapshot,
@@ -94,7 +95,7 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
 - **Pinned by.** `allowList.test.ts`, `stream.test.ts`, `unixsock.test.ts`, `snapshot.test.ts`, `discovery.test.ts`,
   `loopsVersion.test.ts`; `packages/loops-client/test/hostSource.test.ts`, `validate.test.ts` (against the 15
   recorded answers), `hostConnect.test.ts`, `hostConnection.test.ts`; the fake's own tests; the regress groups `live`
-  (26, over the fake and a host the tool starts), `real` (13, against a real development crewhub-loops), `ops` (8).
+  (over the fake and a host the tool starts), `real` (against a real development crewhub-loops), `ops`.
 - **Fuzzed (round 34).** The allow-list's path and query matching in process and through the host
   (`fuzzAllowList.test.ts`), the stream's lines, seq, heartbeat and sealed cursor (`fuzzStream.test.ts`), the
   transport over any answer, the tail and a passthrough (`fuzzTransport.test.ts`). Fixed: a seq that is no seq (a
@@ -106,8 +107,9 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
 - **Entry files.** `apps/world/src/state/chatRoad.ts` (the road is one value, `key`, `page` or `none`, and every
   sentence the panels say), `packages/loops-client/src/pageChat.ts` (road 2's client), `apps/world/src/state/pageChat.ts`
   (its runner), `said.ts` (the bubbles and the Recent answers list); road 1 is `readsChat` and `relink` in
-  `apps/host/src/host.ts` with `chatLine.ts`; road A is `components/ChatPanel.tsx`; `scripts/bubbles-copy.ts` keeps
-  the copy in one place (`npm run check:copy`).
+  `apps/host/src/host.ts` with `chatLine.ts`; road A is `components/ChatPanel.tsx`; `scripts/bubbles-copy.ts`
+  (`npm run check:copy`) checks the code copied verbatim from crewhub-loops against its source commit; it is skipped
+  when no crewhub-loops checkout sits beside this one, so always on CI.
 - **What it does.** Road A frames crewhub-loops' own web app in the Chat panel. Road 1: the host's viewer key reads
   only the chat of the person who made the key, and a `chat` message on the stream becomes a bubble. Road 2: where
   loops has `CHL_WORLD_ORIGIN` set to the page's origin, the page itself reads the signed-in person's own chat with
@@ -118,12 +120,14 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
   `remote`) and their words. *The host's word:* health says `session: key`, `unknown` while it cannot know, nothing
   when it knows the key reads no chat; a key unchecked at start and accepted on the stream later is asked then (round
   29, High 1); the page re-reads health when the stream goes live or the key word changes (Medium 2). *The frame:*
-  `sandbox="allow-same-origin allow-scripts"`, another origin, so it cannot reach the world. A message id is shown
+  `sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"`
+  and `allow="clipboard-write"` (`state/chatPanel.ts`, `CHAT_FRAME_SANDBOX`), another origin, so it cannot reach the world. A message id is shown
   once (round 29, Low 6). The poll runs every 5 s shown, 60 s hidden, per open page (question 9).
 - **Pinned by.** `apps/world/test/pageChat.test.ts` (362 lines), `chatRoad.test.ts`, `said.test.ts`,
   `recentAnswers.test.ts`, `chatPanel.test.ts`; `packages/loops-client/test/pageChat.test.ts` (the header names,
   against a real loopback server); `apps/host/test/chatKey.test.ts`; `scripts/scan-model-calls.ts` (fetch is allowed
-  in two browser files and nowhere else); the regress groups `chat` (both roads over the fakes) and `live`;
+  in two browser files, `hostSource.ts` and `pageChat.ts`; beside them only the host, the fake and two tools that write
+  to a development loops, `road2proof.mjs` and `loops-seed.mjs`); the regress groups `chat` (both roads over the fakes) and `live`;
   `tools/road2proof.mjs` records a browser's requests on road 2.
 - **Fuzzed (round 34).** Road 2's readers, verdict, probe and poll over any answer (`pageChat.fuzz.test.ts`), the
   page's reading of health and the roads' words (`chatRoad.fuzz.test.ts`), road 1's dm payloads and the message and
@@ -156,8 +160,8 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
 - **Pinned by.** `apps/world/test/hostTown.test.ts` (545 lines, the review's proofs inverted), `townStore.test.ts`,
   `settlementUndo.test.ts`; `apps/host/test/town.test.ts`, `worldDb.test.ts`; `packages/world-model/test/townDocument.test.ts`,
   `history.test.ts`, `projection.test.ts`, `reducer.test.ts`, `loopsDrift.test.ts`, `noModelCalls.test.ts`;
-  `packages/demo/test/loops-shapes.test.ts` (the demo speaks loops' shapes); the regress groups `town` (9: two
-  browsers see one town, a host restart keeps it, a restore is previewed) and `demo` (38).
+  `packages/demo/test/loops-shapes.test.ts` (the demo speaks loops' shapes); the regress groups `town` (two
+  browsers see one town, a host restart keeps it, a restore is previewed) and `demo`.
 - **Fuzzed (round 34).** The town document's validator, import and stored history (`townDocument.fuzz.test.ts`),
   the host's PUT body, validator and `world.db`'s rows (`townFuzz.test.ts`). Fixed: a damaged `world.db` row made a
   move answer 500; it now heals on the next write.
@@ -211,7 +215,7 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
 - **What it does.** CI runs the check; the browser passes, the measurements, the pixel proof and the development
   crewhub-loops are tools, run by hand with a browser and a server of your own.
 - **The risky parts.** The allow-list in `scan-model-calls.ts` is the promise "no model call, and no network call
-  but the host": a new entry there is a review item of its own. `loops-dev.sh` refuses the Mac app's ports (8091,
+  but the host's, road 2's own chat reads and the tools' development loops": a new entry there is a review item of its own. `loops-dev.sh` refuses the Mac app's ports (8091,
   8000, 9443) and never touches the app's data folder; `loops-seed.mjs` writes to a development loops with a key,
   never to the app. Every tool opens only `http://127.0.0.1:<the port you name>/`.
 - **Pinned by.** CI; `scripts/test/` (the Node guard, the seed, the pixel and DOM diffs). No unit test can reach the
@@ -240,7 +244,7 @@ cache warm: `npm ci` 1 s, `npm run check` 49 s, the demo open and clicked throug
 town on the screen 3 min 35 s after `npm ci` began; a cold npm cache adds the download. Where the stranger stumbled,
 the words below now say what to do.
 
-The demo, two minutes, nothing but Node 24 and npm 11 (`.nvmrc`; an older Node stops at once with the reason):
+The demo, two minutes, nothing but Node 24 and npm 11 (`.nvmrc`; with an older Node `npm test` and `npm run check` stop at once with the reason):
 
 ```sh
 npm ci
@@ -250,8 +254,8 @@ npm run check                    # typecheck, the unit tests (it prints their co
 
 On a shared machine, prefix `npm run dev` with `CREWHUB_WORLD_PORT=<a free port>`: the dev server proxies `/world-api`
 to the host on 5180 by default, which may be somebody else's (it refuses a host from another checkout and says so;
-with nothing on the port the page runs the demo). `npm run dev` takes no port of its own: it is Vite's 5173, or the
-next free one.
+with nothing on the port the page runs the demo). `npm run dev` takes no port of its own: it is always Vite's 5173
+(`strictPort`), so with 5173 taken it stops.
 
 Click a building, press T for the text view, B for build mode, and the "?" button in the toolbar (Help > Show the
 introduction) for the tour.
@@ -278,7 +282,7 @@ the page reading your own chat where that loops has `CHL_WORLD_ORIGIN` set: star
 names (`CREWHUB_WORLD_PORT=<that port>`) and sign in to loops in the same browser; signed out, the Connection panel's
 Chat section says so and names both ways. With no loops at hand, section 0 of the same document runs the fake in
 three commands (`npm run loops:fake -- --port 8391`, the host with its two env lines, `npm run dev`, then
-`?source=live`). A regress group of your own: `node tools/regress.mjs --port <your Vite port> --groups demo`
+`?source=live`). A regress group of your own: start Vite with `CREWHUB_WORLD_PORT=<a port of your own>` (never 5180), then `node tools/regress.mjs --port <your Vite port> --host-port <that port> --groups demo`
 ([tools/README.md](../tools/README.md)).
 
 ## 4. What is deliberately not here
