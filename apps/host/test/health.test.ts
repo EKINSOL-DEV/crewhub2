@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { createHost } from "../src/host.ts";
 import { createLoopsStub, installation } from "./loopsStub.ts";
-import { testHost } from "./testHost.ts";
 import { waitFor } from "./wait.ts";
 
 const read = async (url: string) => (await (await fetch(`${url}/world-api/health`)).json()) as Record<string, any>;
@@ -9,7 +9,7 @@ const read = async (url: string) => (await (await fetch(`${url}/world-api/health
 describe("health", () => {
   it("reports ok with the key name, loops' version, the cursor and the connection's states", async () => {
     const stub = await createLoopsStub({ ...installation() });
-    const host = await testHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", keySource: "env", retryMs: { min: 20, max: 100 } });
+    const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", keySource: "env", retryMs: { min: 20, max: 100 } });
     try {
       // Health answers at once with the states as they are (it waits for a link in the making for HEALTH_WAIT_MS at
       // most); the shape below is the settled one, so the test waits for the stream, not for a second.
@@ -34,8 +34,8 @@ describe("health", () => {
 
   it("reports unauthorized for a refused key (401 and 403 alike) and down when nothing answers", async () => {
     const stub = await createLoopsStub(installation());
-    const wrongKey = await testHost({ loopsUrl: stub.url, key: "chl_wrong", keyName: "crewhub-world", retryMs: { min: 20, max: 100 } });
-    const nobody = await testHost({ loopsUrl: "http://127.0.0.1:1", key: "chl_x", keyName: "crewhub-world", retryMs: { min: 20, max: 100 } });
+    const wrongKey = await createHost({ loopsUrl: stub.url, key: "chl_wrong", keyName: "crewhub-world", retryMs: { min: 20, max: 100 } });
+    const nobody = await createHost({ loopsUrl: "http://127.0.0.1:1", key: "chl_x", keyName: "crewhub-world", retryMs: { min: 20, max: 100 } });
     try {
       // The verdict needs the key check and its health probe; nobody's host needs a refused connection. Both are
       // waited for by their state, not by health's bounded wait.
