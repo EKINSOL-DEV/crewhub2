@@ -205,10 +205,6 @@ export function createConnection(options: ConnectionOptions): Connection {
   // every link; the stream's archive events and every snapshot's report keep it.
   const archive = createArchiveMemory({
     ...(options.archiveStore === undefined ? {} : { store: options.archiveStore }),
-    targetNow: () => {
-      const found = discovery.current();
-      return found === null ? null : targetText(found.target);
-    },
     log,
   });
 
