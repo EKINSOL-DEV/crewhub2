@@ -225,6 +225,15 @@ order, then question 1's branch last; every hand merge then happens in that last
     `cookie+expiry q3 q8 q11 q14 q15` (A, then B), result `54f3f88`, 1336 / 1336. Both were also green on the night's
     `8da28c8`, `c5abf49`, `44fad2f`, `5ab5fad` and `79e805b`, and on each of the nine merges between `d548410` and
     `593f26b`. No rule of the plan changed.
+- **Round 55, the night's last part, on the head only.** No host source changed. A stopped host source in the page arms
+  no stale timer (`loops-client`); four pure modules moved out of `apps/world`'s state runtime, behaviour unchanged;
+  `no-app-reach` also refuses a test's connect to 8291 to 8293, 8391, 5180 and 5173 and a listen on those or the Mac
+  app's ports; tests only for `style-greenhouse` and `apps/world`'s world simulation; `design-choices.md` P3 and
+  `mutation-harness.md`. No answer branch changed.
+  - **The merges:** all seven merge cleanly onto every head of round 55, last `bce82f1`.
+  - **The replays on `bce82f1`:** `tab q3 q8 q11 q14 q15`, result `ba4cf8b`, 1370 / 1370; and `cookie+expiry q3 q8 q11
+    q14 q15`, result `3a2c0f3`, 1368 / 1368. Both were also green on `6a119db`, `6568025`, `3ab9bd8` and `586db58`, the
+    round's other code merges. No rule of the plan changed.
 - **The `cookie+expiry` and `cookie` rows, rehearsed in round 37** (detached checkouts; the five independent branches
   then the question-1 branch): the five alone on `e55ef42`, check 1070 of 1070; the five then `q1-cookie-expiry` (A,
   then B), check 1075 of 1075 on `e55ef42` and again on `761db9f` (`769434a`); the five then `r27-tab-pairing`, check

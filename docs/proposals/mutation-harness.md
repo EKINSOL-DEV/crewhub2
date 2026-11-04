@@ -12,7 +12,10 @@ planted roads, and the order a day round runs the mutants in. **No mutant of the
 ## 1. What guards a test run today
 
 [`scripts/no-app-reach.mjs`](../../scripts/no-app-reach.mjs) is preloaded into every test process and, through
-`NODE_OPTIONS`, into every node child. It is a deny list of the roads known in round 35:
+`NODE_OPTIONS`, into every node child. It is a deny list of the roads known in round 35, as it stood at `cc23d62`.
+**Since then** (round 55, `task/r55-guard`) it also refuses a connect to 8291 to 8293, 8391, 5180 and 5173, and a
+listen on 8091, 8000, 9443, 8291 to 8293, 8391 and 5180: the table's TCP and listen rows below are history for those
+ports. The rest of the table still holds:
 
 | Road | Refused by no-app-reach | Not refused |
 | --- | --- | --- |
