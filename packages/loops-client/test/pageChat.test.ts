@@ -12,6 +12,7 @@ import test from "node:test";
 import {
   PAGE_CHAT_EVENTS_LIMIT,
   PAGE_CHAT_INIT,
+  PAGE_CHAT_LINE_MAX,
   POLL_HIDDEN_MS,
   POLL_MAX_MS,
   POLL_MS,
@@ -154,6 +155,11 @@ test("the readers: threads leniently, events to the agents' new messages with th
   const long = "x".repeat(200);
   assert.equal(firstLine(long).length, 140);
   assert.ok(firstLine(long).endsWith("…"));
+});
+
+test("a first line of exactly PAGE_CHAT_LINE_MAX characters is kept whole; one more is cut to that length with an ellipsis (round 54, r54-mut-client)", () => {
+  assert.equal(firstLine("x".repeat(PAGE_CHAT_LINE_MAX)), "x".repeat(PAGE_CHAT_LINE_MAX));
+  assert.equal(firstLine("x".repeat(PAGE_CHAT_LINE_MAX + 1)), `${"x".repeat(PAGE_CHAT_LINE_MAX - 1)}…`);
 });
 
 test("one poll: the events, each agent message by id, the threads again when a dm event came; a 401 is signed out, a 410 is the cursor gone", async () => {

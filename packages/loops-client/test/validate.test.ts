@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   resetWarnings,
+  str,
   toWorldEvent,
   validateAgents,
   validateBoardResponse,
@@ -441,4 +442,12 @@ test("round 48 (r48-enums): one unknown value in each part keeps the whole snaps
   assert.equal(v.projects[0]!.color, null);
   assert.equal(v.principals[1]!.kind, "service");
   assert.equal(v.quiet![0]!.actor.kind, "service");
+});
+
+test("a refusal names what it got: null, an array, or the typeof (round 54, r54-mut-client)", () => {
+  const said = (result: Result<string>) => (result.ok ? assert.fail("a refusal was expected") : result.message);
+  assert.equal(said(str(null, "$.a")), "expected string, got null");
+  assert.equal(said(str([1], "$.a")), "expected string, got array");
+  assert.equal(said(str(5, "$.a")), "expected string, got number");
+  assert.equal(said(str({}, "$.a")), "expected string, got object");
 });

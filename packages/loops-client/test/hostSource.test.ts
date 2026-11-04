@@ -668,3 +668,32 @@ test("a snapshot read ahead that is still pending is the source's first read; on
   assert.equal(host.snapshots, 2);
   broken.stop();
 });
+
+test("a town message hands its rev to onTown; a rev that is no whole number from 0 up is dropped (round 54, r54-mut-client)", async () => {
+  const host = await startHost();
+  const revs: number[] = [];
+  const run = observe(host.url, { onTown: (rev) => revs.push(rev) });
+  await run.until(() => host.cursors.length === 1, "the stream");
+  for (const rev of [1.5, -1, "7", null, 7, 0]) host.push({ type: "town", rev });
+  host.push({ type: "heartbeat", seq: 100, ts: "2026-10-07T12:00:00Z" });
+  await run.until(() => count(run.messages, "heartbeat") === 1, "the heartbeat sent after the town messages");
+  assert.deepEqual(revs, [7, 0]);
+  run.stop();
+  await host.close();
+});
+
+test("a host that said loops is down and then goes quiet stays loops-down: only a live stream goes stale and is healed (round 54, r54-mut-client)", async () => {
+  const host = await startHost();
+  const run = observe(host.url);
+  await run.until(() => host.cursors.length === 1, "the stream");
+  host.push({ type: "status", loops: "down" });
+  await run.until(() => run.state() === "loops-down", "loops-down");
+  // The status armed the stale timer (staleMs 150) before this wait began; a timer due later fires after it whatever
+  // the load, so this wait outlasts it without the clock deciding anything.
+  await new Promise((resolve) => setTimeout(resolve, TIMINGS.staleMs * 4));
+  assert.equal(run.state(), "loops-down");
+  assert.ok(!run.states.includes("stale"), `states ${run.states.join(",")}`);
+  assert.equal(host.cursors.length, 1, "the stream was left open, not healed");
+  run.stop();
+  await host.close();
+});
