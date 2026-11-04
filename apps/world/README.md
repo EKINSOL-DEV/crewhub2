@@ -20,7 +20,8 @@ town until the host has found crewhub-loops, this browser is paired and the key 
 loop, built from the Greenhouse models, materials and lighting (`models.ts`,
 `shaders.ts`, and the scene palette in `data.ts`). `src/world/townLayout.ts` holds the
 pure plot grid and label wording. `src/App.tsx` owns the minimal UI: navigation, the
-Demo chip, the playback bar, settings and the hidden text view.
+Demo chip, the playback bar, settings and the hidden text view; which of its dialogs and panels are
+open, where the focus returns and what Escape closes is `src/state/overlays.ts`.
 
 Keys: arrow keys move between buildings, Enter goes inside, Escape or Backspace returns
 to the town, `+`/`-` zoom, `[`/`]` rotate, H returns home, T opens the text view. Drag
