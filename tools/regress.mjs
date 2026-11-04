@@ -117,7 +117,9 @@
    origin, and on a group that stops before its end.
 
    Output in --out (default tools/out/): <tag>-NN-<stop>.png, <tag>-results.json (every check as { name, pass,
-   detail }) and <tag>.log (what is printed, with each group's time as an INFO line). The last line printed is
+   detail }), <tag>-problems.json (every page problem the run heard, each with its time, and the town group's host
+   restarts: the record lib/closingCheck.ts judges, kept so a failed closing check can be read and replayed) and
+   <tag>.log (what is printed, with each group's time as an INFO line). The last line printed is
    `regress: <passed>/<total>`; the exit code is 0 only when every check passed.
 
    Run it against a dev server (Vite): some checks read the scene through `window.__town`, which only dev builds set. */
@@ -129,7 +131,7 @@ import { cli, dressed, launch, list, problemLines, seek, speed, watch } from "./
 import { announced, chip as chipOf, chipWord, connectTitle, contextOptions, drawn, labels, level, levels, openPage, readTextView as text, screenShown, textView as sheet, trail, untilChip } from "./lib/page.mjs";
 import { createConnectStub } from "./lib/connectStub.mjs";
 import { createLoopsWebStub } from "./lib/loopsWebStub.mjs";
-import { isProbeRefusal } from "./lib/probeRefusal.ts";
+import { closingCheck, connectGroupAdmits } from "./lib/closingCheck.ts";
 import { startRig } from "./lib/rig.mjs";
 import { regressPlan } from "./lib/regressArgs.ts";
 import { appDataPort, ownAppData, ownLoopsUrl, ownPort } from "./lib/toolGuard.ts";
@@ -171,6 +173,10 @@ const results = [];
 const ok = (name, cond, detail = "") => (results.push({ name, pass: !!cond, detail }), log.push(`${cond ? "PASS" : "FAIL"} ${name}${detail ? ": " + detail : ""}`));
 const info = (text) => log.push(`INFO ${text}`);
 const problems = [];
+/** The host restarts the town group makes on purpose, each as { origin, tag, from, to } (ms): see lib/closingCheck.ts. */
+const restarts = [];
+/** The Forgets the connect group makes in one tab on purpose, each as { tag, pageOrigin, from, to } (ms): see lib/closingCheck.ts. */
+const forgets = [];
 
 /** Runs one group when it was asked for, times it, and turns an exception in it into one FAIL instead of a dead run. */
 async function group(name, run) {
@@ -227,12 +233,6 @@ const road2Ask = (x) => {
     return false;
   }
 };
-/**
- * The probe's refusal as the browser prints it (the verdict origin-not-set or unreachable): exactly the CORS line for
- * the threads route at a loops origin of this run from the page's own origin, and the browser's "Failed to load
- * resource" line for that same URL. Nothing else (lib/probeRefusal.ts, the rule a11y.mjs shares since round 32).
- */
-const probeRefusal = (x) => isProbeRefusal(x, allLoopsOrigins());
 const canvas = (p) => p.locator("canvas").first();
 const crumbs = async (p) => (await p.locator("header, .breadcrumb, nav").first().innerText().catch(() => "")).replace(/\s+/g, " ").trim();
 /** The chip in the header that says the data is scripted; since the scenario picker it is a button, "Demo: <scenario>". */
@@ -1514,6 +1514,18 @@ await group("town", async () => {
   let host = rig.host;
   const port = host.port;
   const liveOrigin = served ? host.url : origin;
+  /**
+   * Closes the host and starts the next on the same port with `worldDb`, and notes the window in `restarts`: from just
+   * before the close to the moment the new host listens. The town's open pages read `/world-api/health` when their
+   * stream drops (state/health.ts re-reads on the stream's word), and a read inside that window is refused: the
+   * browser prints it as a console error, which the closing check admits there and nowhere else.
+   */
+  const restartHost = async (worldDb) => {
+    const from = Date.now();
+    await host.close();
+    host = await start(worldDb, port);
+    restarts.push({ origin: liveOrigin, tag: "town", from, to: Date.now() });
+  };
   const liveBase = `${liveOrigin}/`;
   info(`town: fake on 127.0.0.1:${fake.port}, host on 127.0.0.1:${port} ${served ? "serving apps/world/dist" : `behind the Vite proxy on ${origin}`}; databases ${dbs.map((d) => d.file).join(" and ")}`);
   const contexts = [];
@@ -1578,8 +1590,7 @@ await group("town", async () => {
 
     // 2. The host goes away and comes back on the same port with a database that has no town: the browser's own town
     // (kept in IndexedDB under the installation's key) is imported once, and the host now has the zone.
-    await host.close();
-    host = await start(dbs[1], port);
+    await restartHost(dbs[1]);
     await first.reload();
     await first.waitForSelector(".connection-chip[data-connection=\"live\"]", { timeout: 30000 }).catch(() => {});
     await atRev(first, 1);
@@ -1615,8 +1626,7 @@ await group("town", async () => {
     await shot(second, "32-town-second");
 
     // 4. A host restart on the same database keeps the town.
-    await host.close();
-    host = await start(dbs[1], port);
+    await restartHost(dbs[1]);
     await first.reload();
     await first.waitForSelector(".connection-chip[data-connection=\"live\"]", { timeout: 30000 }).catch(() => {});
     await atRev(first);
@@ -1640,8 +1650,7 @@ await group("town", async () => {
     await second.keyboard.press("Escape");
     await atRev(first, revBeforeUndo + 1);
     const afterUndo = await zoneLines(first);
-    await host.close();
-    host = await start(dbs[1], port);
+    await restartHost(dbs[1]);
     await first.reload();
     await first.waitForSelector(".connection-chip[data-connection=\"live\"]", { timeout: 30000 }).catch(() => {});
     await atRev(first);
@@ -1966,10 +1975,10 @@ await group("connect", async () => {
   /** A mark set on the window: still there at the end means the page never reloaded in between. */
   const mark = (pg) => pg.evaluate(() => ((globalThis.__connectMarker = "set"), undefined));
   const marked = (pg) => pg.evaluate(() => globalThis.__connectMarker ?? null).catch(() => null);
-  /** The browser logs every 4xx a fetch meets: the refused key's 403 and the unpaired tab's 401 are what they are meant to be. */
-  // The browser logs every 4xx and 5xx a fetch meets: the refused key's 403, the unpaired tab's 401, and the 503 no_key the
-  // other tab's stream meets when it reconnects after a Forget elsewhere (the stub ends the streams; a real host keeps them).
-  const expected = (x) => x.kind === "console" && (/status of (401|403)/.test(x.text) || (/\[connect stub other tab\]/.test(x.text) && /status of 503/.test(x.text)));
+  // The browser logs every 4xx and 5xx a fetch meets: the refused key's 403, the unpaired tab's 401, the 503 no_key the
+  // other tab's stream meets when it reconnects after a Forget elsewhere, and the forgetting tab's own read inside its
+  // Forget (`forgets`); the rule is lib/closingCheck.ts's `connectGroupAdmits`, tested on recorded runs.
+  const expected = (x) => connectGroupAdmits(x, forgets);
   const own = [];
   const openConnect = (label) => openPage(browser, { origin, problems: own, tag: label });
 
@@ -2045,6 +2054,10 @@ await group("connect", async () => {
       await other.goto(BASE);
       const otherLive = await until(other, "live", 30000);
       await mark(other);
+      // The Forget's window (lib/closingCheck.ts): from the click to the forgetting tab live again; a read of that tab
+      // that lands in it (a thin event's ticket refetch) meets the stub's 503 no_key before the tab reloads, and is admitted.
+      const forget = { tag: "connect stub", pageOrigin: origin, from: Date.now(), to: 0 };
+      forgets.push(forget);
       await chip(pg).click();
       await pg.getByRole("button", { name: "Forget this key" }).click();
       await pg.getByRole("button", { name: "Forget", exact: true }).click();
@@ -2055,6 +2068,7 @@ await group("connect", async () => {
       await other.close();
       await stub.setState("connected");
       const relive = await until(pg, "live", 30000);
+      forget.to = Date.now();
       ok("connect: after the forget, a key again brings the forgetting tab's town back", relive === "live", relive);
       await mark(pg);
       // A host that no longer knows this browser (a restart without its secret): the tab shows Pair this browser, not
@@ -2824,12 +2838,14 @@ async function waitForMove(hostApi, slug, ms) {
   return null;
 }
 
+writeFileSync(`${OUT}${tag}-problems.json`, JSON.stringify({ restarts, forgets, problems }, null, 1));
 const road2Asks = problems.filter((x) => x.kind === "external" && road2Ask(x));
 const external = problems.filter((x) => x.kind === "external" && !road2Ask(x)).map((x) => x.text);
-const refusals = problems.filter(probeRefusal);
-const errors = problemLines(problems.filter((x) => x.kind !== "external" && !probeRefusal(x)));
+const closing = closingCheck(problems, { loopsOrigins: [...allLoopsOrigins()], restarts });
+const refusals = closing.probeRefusals;
+const errors = problemLines(closing.failing);
 ok(`no external requests beyond road 2's own (${road2Asks.length} GET(s) of the four chat routes at the loops web origins the hosts named: the page's probe and, where the origin is set, its poll)`, external.length === 0, [...new Set(external)].slice(0, 5).join(" "));
-ok(`no page errors or console errors beyond the probe's CORS refusal where the fake does not name the page's origin (${refusals.length} line(s), the browser's own two for ${new Set(refusals.map((x) => x.pageOrigin)).size} page(s))`, errors.length === 0, errors.slice(0, 5).join(" | "));
+ok(`no page errors or console errors beyond the probe's CORS refusal where the fake does not name the page's origin (${refusals.length} line(s), the browser's own two for ${new Set(refusals.map((x) => x.pageOrigin)).size} page(s)) and a health read refused inside one of the town group's host restarts (${closing.restartRefusals.length} line(s), ${restarts.length} restart(s))`, errors.length === 0, errors.slice(0, 5).join(" | "));
 await browser.close();
 
 const passed = results.filter((r) => r.pass).length;

@@ -1,0 +1,415 @@
+{
+ "restarts": [
+  {
+   "origin": "http://127.0.0.1:64795",
+   "tag": "town",
+   "from": 1793801962190,
+   "to": 1793801962204
+  },
+  {
+   "origin": "http://127.0.0.1:64795",
+   "tag": "town",
+   "from": 1793801968243,
+   "to": 1793801968244
+  },
+  {
+   "origin": "http://127.0.0.1:64795",
+   "tag": "town",
+   "from": 1793801970908,
+   "to": 1793801970917
+  }
+ ],
+ "problems": [
+  {
+   "kind": "external",
+   "text": "[town] http://127.0.0.1:64794/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801957476,
+   "url": "http://127.0.0.1:64794/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Access to fetch at 'http://127.0.0.1:64794/api/dm/threads' from origin 'http://127.0.0.1:64795' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801957479,
+   "url": "http://127.0.0.1:64795/"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Failed to load resource: net::ERR_FAILED",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801957479,
+   "url": "http://127.0.0.1:64794/api/dm/threads"
+  },
+  {
+   "kind": "external",
+   "text": "[town] http://127.0.0.1:64794/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801957480,
+   "url": "http://127.0.0.1:64794/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801957555,
+   "url": "http://127.0.0.1:64794/api/dm/threads"
+  },
+  {
+   "kind": "external",
+   "text": "[town] http://127.0.0.1:64794/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801957887,
+   "url": "http://127.0.0.1:64794/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Access to fetch at 'http://127.0.0.1:64794/api/dm/threads' from origin 'http://127.0.0.1:64795' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801957996,
+   "url": "http://127.0.0.1:64795/"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Failed to load resource: net::ERR_FAILED",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801957996,
+   "url": "http://127.0.0.1:64794/api/dm/threads"
+  },
+  {
+   "kind": "external",
+   "text": "[town] http://127.0.0.1:64794/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801957997,
+   "url": "http://127.0.0.1:64794/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801958018,
+   "url": "http://127.0.0.1:64794/api/dm/threads"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Failed to load resource: net::ERR_CONNECTION_REFUSED",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801962213,
+   "url": "http://127.0.0.1:64795/world-api/health"
+  },
+  {
+   "kind": "external",
+   "text": "[town] http://127.0.0.1:64794/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801962325,
+   "url": "http://127.0.0.1:64794/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Access to fetch at 'http://127.0.0.1:64794/api/dm/threads' from origin 'http://127.0.0.1:64795' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801962445,
+   "url": "http://127.0.0.1:64795/"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Failed to load resource: net::ERR_FAILED",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801962445,
+   "url": "http://127.0.0.1:64794/api/dm/threads"
+  },
+  {
+   "kind": "external",
+   "text": "[town] http://127.0.0.1:64794/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801962445,
+   "url": "http://127.0.0.1:64794/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801962476,
+   "url": "http://127.0.0.1:64794/api/dm/threads"
+  },
+  {
+   "kind": "external",
+   "text": "[town] http://127.0.0.1:64794/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801962954,
+   "url": "http://127.0.0.1:64794/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Access to fetch at 'http://127.0.0.1:64794/api/dm/threads' from origin 'http://127.0.0.1:64795' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801963048,
+   "url": "http://127.0.0.1:64795/"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Failed to load resource: net::ERR_FAILED",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801963048,
+   "url": "http://127.0.0.1:64794/api/dm/threads"
+  },
+  {
+   "kind": "external",
+   "text": "[town] http://127.0.0.1:64794/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801963049,
+   "url": "http://127.0.0.1:64794/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801963095,
+   "url": "http://127.0.0.1:64794/api/dm/threads"
+  },
+  {
+   "kind": "external",
+   "text": "[town] http://127.0.0.1:64794/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801963284,
+   "url": "http://127.0.0.1:64794/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Access to fetch at 'http://127.0.0.1:64794/api/dm/threads' from origin 'http://127.0.0.1:64795' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801963405,
+   "url": "http://127.0.0.1:64795/"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Failed to load resource: net::ERR_FAILED",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801963405,
+   "url": "http://127.0.0.1:64794/api/dm/threads"
+  },
+  {
+   "kind": "external",
+   "text": "[town] http://127.0.0.1:64794/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801963414,
+   "url": "http://127.0.0.1:64794/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801963437,
+   "url": "http://127.0.0.1:64794/api/dm/threads"
+  },
+  {
+   "kind": "external",
+   "text": "[town] http://127.0.0.1:64794/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801968343,
+   "url": "http://127.0.0.1:64794/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Access to fetch at 'http://127.0.0.1:64794/api/dm/threads' from origin 'http://127.0.0.1:64795' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801968479,
+   "url": "http://127.0.0.1:64795/"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Failed to load resource: net::ERR_FAILED",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801968479,
+   "url": "http://127.0.0.1:64794/api/dm/threads"
+  },
+  {
+   "kind": "external",
+   "text": "[town] http://127.0.0.1:64794/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801968479,
+   "url": "http://127.0.0.1:64794/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801968505,
+   "url": "http://127.0.0.1:64794/api/dm/threads"
+  },
+  {
+   "kind": "external",
+   "text": "[town] http://127.0.0.1:64794/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801969491,
+   "url": "http://127.0.0.1:64794/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Access to fetch at 'http://127.0.0.1:64794/api/dm/threads' from origin 'http://127.0.0.1:64795' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801969588,
+   "url": "http://127.0.0.1:64795/"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Failed to load resource: net::ERR_FAILED",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801969588,
+   "url": "http://127.0.0.1:64794/api/dm/threads"
+  },
+  {
+   "kind": "external",
+   "text": "[town] http://127.0.0.1:64794/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801969588,
+   "url": "http://127.0.0.1:64794/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801969607,
+   "url": "http://127.0.0.1:64794/api/dm/threads"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Failed to load resource: net::ERR_CONNECTION_REFUSED",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801970932,
+   "url": "http://127.0.0.1:64795/world-api/health"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Failed to load resource: net::ERR_CONNECTION_REFUSED",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801970932,
+   "url": "http://127.0.0.1:64795/world-api/health"
+  },
+  {
+   "kind": "external",
+   "text": "[town] http://127.0.0.1:64794/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801971022,
+   "url": "http://127.0.0.1:64794/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Access to fetch at 'http://127.0.0.1:64794/api/dm/threads' from origin 'http://127.0.0.1:64795' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801971136,
+   "url": "http://127.0.0.1:64795/"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Failed to load resource: net::ERR_FAILED",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801971137,
+   "url": "http://127.0.0.1:64794/api/dm/threads"
+  },
+  {
+   "kind": "external",
+   "text": "[town] http://127.0.0.1:64794/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801971137,
+   "url": "http://127.0.0.1:64794/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801971163,
+   "url": "http://127.0.0.1:64794/api/dm/threads"
+  },
+  {
+   "kind": "external",
+   "text": "[town] http://127.0.0.1:65164/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801974315,
+   "url": "http://127.0.0.1:65164/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Access to fetch at 'http://127.0.0.1:65164/api/dm/threads' from origin 'http://127.0.0.1:64795' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801974386,
+   "url": "http://127.0.0.1:64795/"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Failed to load resource: net::ERR_FAILED",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801974386,
+   "url": "http://127.0.0.1:65164/api/dm/threads"
+  },
+  {
+   "kind": "external",
+   "text": "[town] http://127.0.0.1:65164/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801974386,
+   "url": "http://127.0.0.1:65164/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801974434,
+   "url": "http://127.0.0.1:65164/api/dm/threads"
+  },
+  {
+   "kind": "external",
+   "text": "[town] http://127.0.0.1:65164/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801974719,
+   "url": "http://127.0.0.1:65164/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Access to fetch at 'http://127.0.0.1:65164/api/dm/threads' from origin 'http://127.0.0.1:64795' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801974850,
+   "url": "http://127.0.0.1:64795/"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Failed to load resource: net::ERR_FAILED",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801974850,
+   "url": "http://127.0.0.1:65164/api/dm/threads"
+  },
+  {
+   "kind": "external",
+   "text": "[town] http://127.0.0.1:65164/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801974850,
+   "url": "http://127.0.0.1:65164/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[town] Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+   "pageOrigin": "http://127.0.0.1:64795",
+   "at": 1793801974859,
+   "url": "http://127.0.0.1:65164/api/dm/threads"
+  }
+ ]
+}
