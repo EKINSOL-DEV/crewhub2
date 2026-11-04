@@ -1,7 +1,7 @@
 /** The `connection` object of the host's health (spec addendum "a smooth connection"): read strictly, never the key. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readConnection } from "../src/hostSource.ts";
+import { readConnection } from "../src/hostWire.ts";
 
 test("readConnection keeps the states and the optional details, and drops what it does not know", () => {
   const full = readConnection({

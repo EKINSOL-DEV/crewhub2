@@ -74,7 +74,7 @@ test("fake → host → HostSource → projection: a move, a fake restart, no ke
   const snapshots = () => steps.filter((step) => step.step === "snapshot").length;
   assert.equal((await fetch(`${host.url}/world-api/snapshot`)).status, 401, "unpaired: no data");
   const paired = await pair(host.mintPairLink());
-  const source = createHostSource({ baseUrl: host.url, timings: TIMINGS, headers: paired });
+  const source = createHostSource({ baseUrl: host.url, headers: paired }, { timings: TIMINGS });
   const projection = new Projection(source, { coalesceMs: 0 });
   const states: ConnectionState[] = [];
   const connection = source.connection!;
@@ -106,7 +106,7 @@ test("fake → host → HostSource → projection: a move, a fake restart, no ke
     assert.ok(!bytes.includes(key), "the stream leaks the key");
 
     // 3. Two sources share one upstream loops stream.
-    const second = createHostSource({ baseUrl: host.url, timings: TIMINGS, headers: paired });
+    const second = createHostSource({ baseUrl: host.url, headers: paired }, { timings: TIMINGS });
     const secondProjection = new Projection(second, { coalesceMs: 0 });
     const stopSecond = second.start((message) => secondProjection.apply(message));
     try {

@@ -12,7 +12,7 @@
  * Tests: `connection.test.ts` and the moved host tests go through this interface against the loops stub, no HTTP;
  * `chatKey`, `connect`, `health`, `e2e` and the fuzzes through the host.
  */
-import type { HostConnection, HostKeyState, HostSnapshotState, ChatThreadFact } from "@crewhub/loops-client";
+import type { HostConnection, HostKeyState, HostMessage, HostSnapshotState, LoopsState, ChatThreadFact } from "@crewhub/loops-client";
 import { createArchiveMemory } from "./archiveMemory.ts";
 import type { ArchiveStore } from "./archiveStore.ts";
 import { type ChatPath, createChatPath } from "./chatPath.ts";
@@ -22,7 +22,7 @@ import { checkKey } from "./keyCheck.ts";
 import type { KeyStore } from "./keyStore.ts";
 import { type LoopsClient, type LoopsResponse, createLoopsClient } from "./loops.ts";
 import { type ArchiveReport, type AssembledSnapshot, SnapshotError, type SnapshotStats, assembleSnapshot } from "./snapshot.ts";
-import { type HostMessage, type LoopsState, type Upstream, createUpstream } from "./stream.ts";
+import { type Upstream, createUpstream } from "./stream.ts";
 
 /** What the stream's 401 or 403 means for a key that was accepted before: health's `connection.key.reason`. */
 export const STREAM_REFUSED_REASON = "crewhub-loops refused the key on the event stream (401 or 403): it was revoked or its bot disabled meanwhile. Paste a new access key, or forget this one.";
@@ -53,10 +53,6 @@ export interface ConnectionTimings {
   reconnectMs?: { min: number; max: number };
   /** The host's own heartbeat on the tabs' stream while no link stands. Default 15 s. */
   heartbeatMs?: number;
-  /** Reads in flight at most while a snapshot is assembled. Default 6. */
-  snapshotConcurrency?: number;
-  /** The chat path's coalescing of the threads' re-reads after dm events. Default `THREADS_REFRESH_MS` (1 s). */
-  chatRefreshMs?: number;
 }
 
 export interface ConnectionOptions {
@@ -109,6 +105,8 @@ export type KeyOutcome =
   | { state: "unreachable"; reason: string }
   | { state: "no_loops" };
 
+export type ReadOutcome = { kind: "unavailable"; reason: string } | { kind: "ok"; response: LoopsResponse };
+
 export type SnapshotOutcome =
   | { kind: "ok"; body: unknown; stats: SnapshotStats }
   /** No link, or the stream not up: the reason as the route answers it (`no_loops`, `no_key`, `unauthorized`, `loops_down`). */
@@ -124,10 +122,12 @@ export interface Connection {
   words(): ConnectionWords;
   /** Resolves once a link in the making has made its first attempt (health waits for it, bounded). */
   settled(): Promise<void>;
-  /** After a relink in flight: why a data route cannot answer (`no_loops`, `no_key`, `unauthorized`, `loops_down`), or null when the link is up. */
-  unavailable(): Promise<string | null>;
-  /** One read of loops with the key through the link; throws when no link stands or the read fails (as the client does). */
-  read(path: string, query: Record<string, string>): Promise<LoopsResponse>;
+  /**
+   * One read of loops with the key through the link, after a relink in flight: `unavailable` with why (`no_loops`,
+   * `no_key`, `unauthorized`, `loops_down`) when no link stands, else the answer; a read that fails throws as the
+   * client does (the route's catch).
+   */
+  read(path: string, query: Record<string, string>): Promise<ReadOutcome>;
   /** The snapshot: shared with every tab that asks while one assembly runs on the same upstream with no reset since. */
   snapshot(): Promise<SnapshotOutcome>;
   /** A pasted key: checked with loops, stored, switched to. The key is never logged. */
@@ -236,7 +236,6 @@ export function createConnection(options: ConnectionOptions): Connection {
       client,
       keyName,
       log,
-      ...(timings.chatRefreshMs === undefined ? {} : { refreshMs: timings.chatRefreshMs }),
       onThreads: (threads) => {
         if (live()) sendThreads(threads);
       },
@@ -476,7 +475,6 @@ export function createConnection(options: ConnectionOptions): Connection {
       rememberedSlugs: archive.slugs(),
       observer: holder === null ? null : holder.name,
       onArchive: (report: ArchiveReport) => archive.reported(report),
-      ...(timings.snapshotConcurrency === undefined ? {} : { concurrency: timings.snapshotConcurrency }),
       onProgress: (progress) => {
         if (snapshotState.state !== "reading") return;
         snapshotState = { state: "reading", reads: progress.reads, ...(progress.projects === null ? {} : { projects: progress.projects }) };
@@ -633,13 +631,11 @@ export function createConnection(options: ConnectionOptions): Connection {
     state,
     words,
     settled: () => relinking.then(() => link?.upstream.start()),
-    async unavailable() {
+    async read(path, query) {
       await relinking;
-      return unavailableNow();
-    },
-    read(path, query) {
-      if (link === null) return Promise.reject(new Error("no link to loops"));
-      return link.client.get(path, query);
+      const why = unavailableNow();
+      if (why !== null || link === null) return { kind: "unavailable", reason: why ?? "loops_down" };
+      return { kind: "ok", response: await link.client.get(path, query) };
     },
     snapshot,
     setKey,
