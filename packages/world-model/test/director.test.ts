@@ -133,6 +133,14 @@ test("the plan input holds labels, tags, role, state and place, and is cut to it
   assert.equal(planInput(model, "missing", tags), null);
 });
 
+test("round 54: a plan input exactly at its budget is kept whole", () => {
+  const tags = (r: string) => (r === "lobby" ? ["coffee-machine"] : []);
+  const full = planInput(town(), "cr", tags)!;
+  const exact = planInput(town(), "cr", tags, full.tokens)!;
+  assert.deepEqual([exact.truncated, exact.input.agents.length, exact.tokens], [false, 6, full.tokens]);
+  assert.equal(planInput(town(), "cr", tags, full.tokens - 1)!.truncated, true);
+});
+
 test("an intent reads as one sentence with no speech", () => {
   assert.equal(describeIntent(town(), go("idle-1") as Intent), "idle-1 goes to the coffee machine in the lobby");
 });

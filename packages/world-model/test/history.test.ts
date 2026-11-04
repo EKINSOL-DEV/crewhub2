@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   HISTORY_LIMIT,
+  amendHistory,
   canRedo,
   canUndo,
   commitHistory,
@@ -71,4 +72,16 @@ test("a stored history restores its current revision, falling back to the newest
   assert.deepEqual(restored, history);
   assert.equal(restoreHistory(stored, 999)?.index, HISTORY_LIMIT - 1);
   assert.equal(restoreHistory([], null), null);
+});
+
+test("round 54: an amend replaces the current revision in place: same revision, no undo step, the redo tail kept", () => {
+  let history = createHistory(emptyTownDocument());
+  for (let x = 1; x <= 4; x++) history = edited(history, x);
+  history = undoHistory(undoHistory(history));
+  const result = applyEdit(currentDocument(history), { type: "set-plot", slug: "crewhub", cell: { x: 77, z: 0 } }, CONTEXT);
+  assert.ok(result.ok);
+  const amended = amendHistory(history, result.doc);
+  assert.equal(amended.index, history.index);
+  assert.deepEqual(amended.entries.map((d) => d.revision), [0, 1, 2, 3, 4]);
+  assert.deepEqual(amended.entries.map((d) => d.plots[0]?.cell.x ?? null), [null, 1, 77, 3, 4]);
 });

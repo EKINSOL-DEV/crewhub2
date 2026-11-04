@@ -326,6 +326,17 @@ test("the meeting room appears when two principals comment on one ticket within 
   assert.equal(building(reduce(T0 + 10 * 60_000)).rooms.some((r) => r.kind === "meeting"), false);
 });
 
+test("round 54: the meeting room needs the lead and one of its workers on a key; the lead's own lines alone are no meeting", () => {
+  const { reduce, event } = world({ projects: [CL], boards: { "crewhub-loops": board([card("t4", "CL-4", "in_progress")]) } });
+  const progress = (seq: number, text: string, ts: number) =>
+    envelope("ticket.progress", { ticket: "CL-4", agent: "cl-lead", kind: "update", text }, { seq, ts: new Date(ts).toISOString() });
+  event(progress(101, "planning the split", T0 - 5 * 60_000));
+  event(progress(102, "still planning", T0 - 4 * 60_000));
+  assert.equal(building(reduce()).rooms.some((r) => r.kind === "meeting"), false);
+  event(progress(103, "cl-dev-2: picked it up", T0 - 60_000));
+  assert.equal(building(reduce()).rooms.find((r) => r.kind === "meeting")?.label, "Meeting room: discussing CL-4");
+});
+
 test("describeWorld has a line for every building, object and agent", () => {
   const archivedProject = project("old-site", "OS", "os-lead", { archivedAt: "2026-09-01T00:00:00Z" });
   const cards = [

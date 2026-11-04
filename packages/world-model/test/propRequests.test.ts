@@ -5,7 +5,7 @@ import type { CommentOut, LabelOut, PrincipalKind } from "@crewhub/loops-client"
 import type { PropModel } from "@crewhub/world-engine";
 import { emptyMemory } from "../src/memory.ts";
 import { Projection } from "../src/projection.ts";
-import { extractPropRequest, importedPropId, placeFor, propRequestsFromFacts } from "../src/propRequests.ts";
+import { extractPropRequest, importedPropId, placeFor, propRequestsFromFacts, richJsonBlocks } from "../src/propRequests.ts";
 import type { PropTicket } from "../src/propRequests.ts";
 import { reduceWorld } from "../src/reducer.ts";
 import { emptyTownDocument } from "../src/townDocument.ts";
@@ -92,6 +92,23 @@ test("without bodyMarkdown the rich body's json code node is read", () => {
   };
   const result = extractPropRequest(ticket(), [comment(null, { body: rich })]);
   assert.ok(result.ok);
+  assert.equal(result.prop.id, "user:floor-lamp");
+});
+
+test("round 54: a code node's text in several text nodes is joined as it is, with no line break between them", () => {
+  const cut = lampJson.indexOf("floor-lamp") + 3;
+  const rich = {
+    v: 1 as const,
+    doc: {
+      type: "doc",
+      content: [
+        { type: "codeBlock", attrs: { language: "json" }, content: [{ type: "text", text: lampJson.slice(0, cut) }, { type: "text", text: lampJson.slice(cut) }] },
+      ],
+    },
+  };
+  assert.deepEqual(richJsonBlocks(rich), [lampJson]);
+  const result = extractPropRequest(ticket(), [comment(null, { body: rich })]);
+  assert.ok(result.ok, result.ok ? "" : result.error);
   assert.equal(result.prop.id, "user:floor-lamp");
 });
 

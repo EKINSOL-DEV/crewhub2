@@ -163,3 +163,34 @@ test("the town document's text view places a prop in its hall, naming the hosted
   assert.match(halls, /in crewhub, Administration at cell 5,1/);
   assert.match(halls, /in crewhub, The floor \(the analyst zone\) at cell 2,2/);
 });
+
+test("round 54: the floor seats the workers room first, then the analyst room, by name inside each room", () => {
+  const b = building("f", [
+    agent("Zed", { role: "worker", room: "workers" }),
+    agent("Al", { role: "analyst", room: "analyst" }),
+    agent("Bea", { role: "worker", room: "workers" }),
+  ]);
+  assert.equal(hallSummary(b, "floor"), "The floor: Bea (idle), Zed (idle), Al (idle)");
+});
+
+test("round 54: the classic text view says an empty room is empty and dimmed, and only that room", () => {
+  const b = building("ch", [agent("Ada", { role: "worker", room: "workers" })], {
+    rooms: [
+      { ...room("workers", "ch"), label: "Workers room" },
+      { ...room("analyst", "ch"), label: "Analyst room", present: false, emptyLabel: "no analyst agents active" },
+    ],
+  });
+  const empty = describeWorld(world([b])).filter((l) => l.text.includes("is empty and dimmed"));
+  assert.deepEqual(
+    empty.map((l) => [l.section, l.text]),
+    [["CH product (CH): Analyst room", "Analyst room is empty and dimmed: no analyst agents active."]],
+  );
+});
+
+test("round 54: a question caption is said to stay until the agent's next line; another kind is not", () => {
+  const caption = (kind: "question" | "update") => ({ text: "which branch?", kind, ticketKey: "CH-12", until: null });
+  const b = building("q", [agent("Ada", { caption: caption("question") }), agent("Bo", { caption: caption("update") })]);
+  const text = describeWorld(world([b])).map((l) => l.text);
+  assert.ok(text.includes('Ada says (question, on CH-12, staying until its next line): "which branch?"'), text.join("\n"));
+  assert.ok(text.includes('Bo says (update, on CH-12): "which branch?"'), text.join("\n"));
+});
