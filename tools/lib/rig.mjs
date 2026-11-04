@@ -32,8 +32,9 @@ export const TEST_TIMINGS = { retryMs: { min: 100, max: 500 }, reconnectMs: { mi
  * and names it as the host's `loopsWebUrl`.
  * `serve`: `{ dist, hostPort? }` (the host serves `dist` on `hostPort`, a free one when left out or 0; `dist` must be
  * built), `{ origin, hostPort }` (the host listens on `hostPort` behind the Vite at `origin`, which it allows) or both
- * (`served` when `dist` is built, else behind the Vite: regress's rule); `{ hostPort }` alone is a host on that port that
- * allows no other origin (a stub's inner host, a host read over its own address).
+ * (`served` on a free port when `dist` is built, so no port of the caller's is taken, else behind the Vite on
+ * `hostPort`: regress's rule); `{ hostPort }` alone is a host on that port that allows no other origin (a stub's inner
+ * host, a host read over its own address).
  * `pairing`: "on" (the host's default; `pair(page)` opens the one-time link), "off", or `{ secret }` (on, with that
  * pairing secret, so a restarted host keeps every paired browser).
  * `host`: more host options (a key store, a world database, a loops socket, a `keySource`), spread last.
@@ -82,7 +83,9 @@ export async function startRig({ loops, web = false, serve, pairing = "on", host
     served
       ? { ...base, ...patch, staticDir: serve.dist, ...(port === undefined ? {} : { port }) }
       : { ...base, ...patch, port: hostPort, ...(serve.origin === undefined ? {} : { allowedOrigins: [serve.origin] }) };
-  let host = await createHost(hostOptionsFor({}, served && hostPort !== 0 ? hostPort : undefined));
+  // Serving beside a Vite origin (regress's rule), the host takes a free port: no port of the caller's is taken, the
+  // browser opens the host directly. Serving with no Vite origin named (--preview, the road-2 proof), it takes `hostPort`.
+  let host = await createHost(hostOptionsFor({}, served && serve.origin === undefined && hostPort !== 0 ? hostPort : undefined));
   const origin = served ? host.url : (serve.origin ?? host.url);
   const link = () => host.mintPairLink(served ? undefined : serve.origin);
   return {

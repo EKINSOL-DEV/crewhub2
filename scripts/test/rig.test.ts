@@ -60,10 +60,11 @@ test("a dist named and built is served on the host's own address; named and not 
     await assert.rejects(startRig({ loops: { fake: {} }, serve: { dist: dir }, pairing: "off" }), /run npm run build first/);
     writeFileSync(path.join(dir, "index.html"), "<!doctype html><title>rig</title>built");
     assert.equal(distBuilt(dir), true);
-    const rig = await startRig({ loops: { fake: {} }, serve: { dist: dir, origin: "http://127.0.0.1:5399", hostPort: 0 }, pairing: "off" });
+    const rig = await startRig({ loops: { fake: {} }, serve: { dist: dir, origin: "http://127.0.0.1:5399", hostPort: 5398 }, pairing: "off" });
     try {
       assert.equal(rig.served, true, "built: served, whatever Vite origin was named beside it");
       assert.equal(rig.origin, rig.host.url);
+      assert.notEqual(rig.host.port, 5398, "served beside a Vite origin: a free port, not the one the Vite proxies to");
       const page = await read(`${rig.host.url}/`);
       assert.equal(page.status, 200);
       assert.match(page.body, /built/);
