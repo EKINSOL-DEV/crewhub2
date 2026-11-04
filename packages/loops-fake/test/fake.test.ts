@@ -9,6 +9,7 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import {
+  LOOPS_EVENT_TYPES,
   validateAgents,
   validateBoardResponse,
   validateCommentsResponse,
@@ -188,6 +189,7 @@ test("from=tail, the honest lastSeq of CL-390, GET /api/events paging, the seale
   assert.deepEqual([trick.body.events, trick.body.lastSeq], [[], 0]);
   const bad = await get(fake, "/api/events?types=no.such");
   assert.deepEqual([bad.status, bad.body.error.code], [400, "validation_error"]);
+  assert.equal((await get(fake, `/api/events?types=${LOOPS_EVENT_TYPES.join(",")}&limit=1`)).status, 200, "the client's whole catalogue is accepted");
   assert.equal((await get(fake, "/api/events?from=head")).status, 400);
   await fake.moveTicket("CR-21", "planned");
   const moved = fake.lastSeq();
