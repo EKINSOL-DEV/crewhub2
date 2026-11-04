@@ -213,3 +213,24 @@ test("storedValue is the read and the write alone: a storage given as a function
   assert.equal(value.read(from), 0, "a parse that throws reads as nothing stored");
   assert.deepEqual(Object.keys(value).sort(), ["key", "read", "write"]);
 });
+
+/* Round 62's mutation run: what the rows above left open. */
+test("nothing stored reads as null, never undefined: parse's one word for it, whatever the storage answers", () => {
+  const value = storedValue<string | null | undefined>({ key: "n", parse: (text) => text, format: (v) => v ?? null });
+  assert.equal(value.read(null), null, "no storage");
+  assert.equal(value.read(memory()), null, "a storage without the key");
+  assert.equal(value.read({ getItem: () => undefined as unknown as null }), null, "a storage that answers undefined");
+});
+
+test("a set before any read is the page's value: the storage is not asked again, and an override no longer wins", () => {
+  withLocalStorage({ get: () => { throw new Error("blocked"); } }, () => {
+    const blocked = createSetting<boolean>({ key: "first", ...onOff });
+    blocked.set(true);
+    assert.equal(blocked.now(), true, "kept, though the storage cannot give it back");
+  });
+  withLocalStorage({ value: memory() }, () => {
+    const overridden = createSetting<string>({ key: "o", ...oneOfChoices(["a", "c"], "c"), override: () => "a" });
+    overridden.set("c");
+    assert.equal(overridden.now(), "c", "the viewer's choice, not the override");
+  });
+});
