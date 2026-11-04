@@ -10,11 +10,6 @@ import type { Kit } from "./kit.ts";
 import { PartsNode } from "./partsNode.ts";
 
 const DEG = Math.PI / 180;
-/* Small parts at full detail cost most of a room's triangles (a calendar's day squares, a plant's leaves) and read the
-   same with less: a box whose bevel is a centimetre or less is a plain box, a small sphere or cylinder has fewer sides. */
-const PLAIN_BEVEL = 0.012;
-const SMALL_SPHERE = 0.05;
-const SMALL_CYLINDER = 0.04;
 
 /** The shape of a part: the kit's shared geometry and material for it, and the scale a sphere part takes. */
 function partShape(kit: Kit, part: Pick<PropPart, "shape" | "size" | "radius" | "sweep"> & Partial<Pick<PropPart, "emissive" | "material">>, color: string): { geometry: THREE.BufferGeometry; material: THREE.Material; scale: readonly [number, number, number] | null } {
@@ -24,17 +19,18 @@ function partShape(kit: Kit, part: Pick<PropPart, "shape" | "size" | "radius" | 
   switch (part.shape) {
     case "box": {
       const radius = part.radius ?? PROP_LIMITS.cornerRadiusDefault;
-      geometry = Math.min(radius, a / 3, b / 3, c / 3) <= PLAIN_BEVEL ? kit.geometry(`prop-plain-box:${a},${b},${c}`, () => new THREE.BoxGeometry(a, b, c)) : kit.boxGeometry(a, b, c, radius);
+      // Small parts at full detail cost most of a room's triangles (a calendar's day squares, a plant's leaves) and read the same with less.
+      geometry = Math.min(radius, a / 3, b / 3, c / 3) <= PROP_LIMITS.plainBevel ? kit.geometry(`prop-plain-box:${a},${b},${c}`, () => new THREE.BoxGeometry(a, b, c)) : kit.boxGeometry(a, b, c, radius);
       break;
     }
     case "cylinder":
-      geometry = Math.max(a, c) <= SMALL_CYLINDER ? kit.geometry(`prop-small-cylinder:${a},${c},${b}`, () => new THREE.CylinderGeometry(a, c, b, 10)) : kit.cylinderGeometry(a, c, b);
+      geometry = Math.max(a, c) <= PROP_LIMITS.smallCylinder ? kit.geometry(`prop-small-cylinder:${a},${c},${b}`, () => new THREE.CylinderGeometry(a, c, b, 10)) : kit.cylinderGeometry(a, c, b);
       break;
     case "cone":
       geometry = kit.cylinderGeometry(0, a, b);
       break;
     case "sphere":
-      geometry = Math.max(a, b, c) <= SMALL_SPHERE ? kit.geometry("prop-small-sphere", () => new THREE.SphereGeometry(1, 8, 6)) : kit.sphereGeometry(1);
+      geometry = Math.max(a, b, c) <= PROP_LIMITS.smallSphere ? kit.geometry("prop-small-sphere", () => new THREE.SphereGeometry(1, 8, 6)) : kit.sphereGeometry(1);
       scale = [a, b, c];
       break;
     case "torus":

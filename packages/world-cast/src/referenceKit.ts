@@ -3,6 +3,7 @@
    style that gives no kit of its own. A style's kit draws the same shapes in its own look. */
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+import { PROP_LIMITS } from "@crewhub/world-engine";
 import type { StyleTheme } from "@crewhub/world-style";
 import type { CastManifest, FigureHalo, FigureKit, FigurePart } from "./index.ts";
 
@@ -54,18 +55,18 @@ export function referenceKit(colors: CastManifest["colors"], theme: StyleTheme =
       let g: THREE.BufferGeometry;
       switch (part.shape) {
         case "box": {
-          const radius = Math.min(part.radius ?? 0.04, a / 3, b / 3, c / 3);
-          g = geometry(`box:${a},${b},${c},${radius}`, () => (radius <= 0.012 ? new THREE.BoxGeometry(a, b, c) : new RoundedBoxGeometry(a, b, c, radius <= 0.03 ? 1 : 2, radius)));
+          const radius = Math.min(part.radius ?? PROP_LIMITS.cornerRadiusDefault, a / 3, b / 3, c / 3);
+          g = geometry(`box:${a},${b},${c},${radius}`, () => (radius <= PROP_LIMITS.plainBevel ? new THREE.BoxGeometry(a, b, c) : new RoundedBoxGeometry(a, b, c, radius <= 0.03 ? 1 : 2, radius)));
           break;
         }
         case "cylinder":
-          g = geometry(`cylinder:${a},${b},${c}`, () => new THREE.CylinderGeometry(a, c, b, Math.max(a, c) <= 0.04 ? 10 : 20));
+          g = geometry(`cylinder:${a},${b},${c}`, () => new THREE.CylinderGeometry(a, c, b, Math.max(a, c) <= PROP_LIMITS.smallCylinder ? 10 : 20));
           break;
         case "cone":
           g = geometry(`cone:${a},${b}`, () => new THREE.CylinderGeometry(0, a, b, 20));
           break;
         case "sphere":
-          g = Math.max(a, b, c) <= 0.05 ? geometry("small-sphere", () => new THREE.SphereGeometry(1, 8, 6)) : geometry("sphere", () => new THREE.SphereGeometry(1, 12, 10));
+          g = Math.max(a, b, c) <= PROP_LIMITS.smallSphere ? geometry("small-sphere", () => new THREE.SphereGeometry(1, 8, 6)) : geometry("sphere", () => new THREE.SphereGeometry(1, 12, 10));
           break;
         case "torus":
           g = geometry(`torus:${a},${b}`, () => new THREE.TorusGeometry(a, b, 10, 32).rotateX(Math.PI / 2));
