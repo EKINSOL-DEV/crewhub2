@@ -37,7 +37,7 @@ export const PROP_MATERIALS = [
 ] as const;
 export const PROP_CATEGORIES = ["work", "rest", "gather", "storage", "greenery", "light", "decoration"] as const;
 
-/** Every numeric limit of the format. World units are metres; one grid cell is `cellSize` wide. */
+/** Every numeric limit of the format, and the sizes the kits draw with fewer triangles. World units are metres; one grid cell is `cellSize` wide. */
 export const PROP_LIMITS = {
   cellSize: 0.6,
   footprintMin: 1,
@@ -60,6 +60,12 @@ export const PROP_LIMITS = {
   cornerRadiusMax: 0.5,
   /** Default rounded-box corner radius, as `Assets.box` in the world. */
   cornerRadiusDefault: 0.04,
+  /** A box whose bevel is at most this draws as a plain box. Small parts at full detail cost most of a room's triangles and read the same with less. */
+  plainBevel: 0.012,
+  /** A sphere with no radius above this draws with fewer sides. */
+  smallSphere: 0.05,
+  /** A cylinder with neither end's radius above this draws with fewer sides. */
+  smallCylinder: 0.04,
   /** A wedge's sweep, degrees: from a thin sliver to the whole round. */
   sweepMin: 1,
   sweepMax: 360,

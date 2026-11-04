@@ -1,22 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { clearThreads, getThreads, rememberThreads } from "../src/state/threads.ts";
 import { threadWords } from "../src/world/agentCard/sections/answers.ts";
+import { manualChatStores } from "./chatStoresFixture.ts";
 
 const NOW = Date.parse("2026-10-22T09:00:00Z");
 
-test("the threads store (round 24): null until the host sends a list, then the list whole by agent, replaced each time; clear forgets", () => {
-  clearThreads();
-  assert.equal(getThreads(), null, "a key that cannot read the chat, a demo page: nothing known");
-  rememberThreads([{ agentId: "boing", lastMessageAt: "2026-10-22T07:00:00Z", unreadCount: 1 }, { agentId: "g-man", lastMessageAt: "2026-10-22T08:00:00Z", unreadCount: 0 }]);
-  assert.deepEqual([...getThreads()!.keys()], ["boing", "g-man"]);
-  rememberThreads([{ agentId: "g-man", lastMessageAt: "2026-10-22T08:30:00Z", unreadCount: 2 }]);
-  assert.equal(getThreads()!.get("boing"), undefined, "the list is replaced, not merged");
-  assert.equal(getThreads()!.get("g-man")?.unreadCount, 2);
-  rememberThreads([]);
-  assert.equal(getThreads()!.size, 0, "an empty list is still a list: the key reads the chat and there is no thread");
-  clearThreads();
-  assert.equal(getThreads(), null);
+test("the threads store (round 24): null until the host sends a list, then the list whole by agent, replaced each time", () => {
+  const { threads } = manualChatStores().stores;
+  assert.equal(threads.get(), null, "a key that cannot read the chat, a demo page: nothing known");
+  threads.remember([{ agentId: "boing", lastMessageAt: "2026-10-22T07:00:00Z", unreadCount: 1 }, { agentId: "g-man", lastMessageAt: "2026-10-22T08:00:00Z", unreadCount: 0 }]);
+  assert.deepEqual([...threads.get()!.keys()], ["boing", "g-man"]);
+  threads.remember([{ agentId: "g-man", lastMessageAt: "2026-10-22T08:30:00Z", unreadCount: 2 }]);
+  assert.equal(threads.get()!.get("boing"), undefined, "the list is replaced, not merged");
+  assert.equal(threads.get()!.get("g-man")?.unreadCount, 2);
+  threads.remember([]);
+  assert.equal(threads.get()!.size, 0, "an empty list is still a list: the key reads the chat and there is no thread");
 });
 
 test("thread words: when the last message was written, in source time, and what is unread", () => {

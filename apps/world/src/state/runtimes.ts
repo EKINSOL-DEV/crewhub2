@@ -16,19 +16,31 @@ import { styleRegistry } from "../world/style";
 import { setNavigator } from "../shims/react-router-dom";
 import { buildingPlanNow } from "./buildingPlan";
 import { demoChat, liveChat, opensSettings, type Chat, type RoadWord } from "./chat";
-import { rememberPageProbe } from "./chatRoadStore";
+import type { ChatRoadView } from "./chatRoad";
+import { chatRoadReader } from "./chatRoadStore";
+import { createChatStores, type ThreadMap } from "./chatStores";
 import { subscribeOf } from "./connectionSubscribe";
 import { createDirectorRuntime, type DirectorRuntime, type DirectorState } from "./director";
+import { getHealth, subscribeHealth } from "./health";
 import { createHostTownStore, townStoreFor } from "./hostTown";
 import { pageConfig } from "./page";
-import { createPageChatRunner, publishPageChat } from "./pageChat";
-import { rememberSaid } from "./said";
+import { createPageChatRunner } from "./pageChat";
+import type { Answer, SaidMap } from "./said";
 import { takeFirstSnapshot } from "./source";
-import { rememberThreads } from "./threads";
 import { createTownRuntime, type TownRuntime, type TownState } from "./town";
 import { hostConnected, hostTownChanged, onHostConnected, onHostTown } from "./townBus";
 import { createTownStore, seededTown } from "./townStore";
 import { browserFrameClock, createWorldRuntime, worldSources, type WorldRuntime, type WorldState } from "./world";
+
+/** The page's chat stores, on the browser's clock and timers. */
+export const chatStores = createChatStores({
+  now: () => Date.now(),
+  schedule: (fn, ms) => {
+    const timer = setTimeout(fn, ms);
+    return () => clearTimeout(timer);
+  },
+});
+const chatRoad = chatRoadReader(chatStores, { get: getHealth, subscribe: subscribeHealth });
 
 let world: WorldRuntime | null = null;
 /** The page's world runtime. */
@@ -49,7 +61,7 @@ export function worldRuntime(): WorldRuntime {
     epochMs,
     clock: browserFrameClock(),
     buildingLimit: page.buildingLimit,
-    outlets: { said: rememberSaid, threads: rememberThreads, hostConnected, firstSnapshot: () => performance.mark("world:snapshot") },
+    outlets: { said: chatStores.said.remember, threads: chatStores.threads.remember, hostConnected, firstSnapshot: () => performance.mark("world:snapshot") },
   });
   return world;
 }
@@ -92,14 +104,13 @@ let chat: Chat | null = null;
 export function chatRuntime(): Chat {
   if (chat) return chat;
   const world = worldRuntime();
-  chat = world.chat === null ? liveChat({ world, road: pageRoad }) : demoChat({ world, dock: world.chat, said: rememberSaid, storage: () => globalThis.localStorage });
+  chat = world.chat === null ? liveChat({ world, road: pageRoad }) : demoChat({ world, dock: world.chat, said: chatStores.said.remember, storage: () => globalThis.localStorage });
   return chat;
 }
 
 /**
- * Road 2's page wiring (round 28, state/pageChat.ts): one runner for this word; its lines go to the said store, its
- * threads to the threads store, its state to the page's chat store and the probe's verdict to the chat road store
- * (state/chatRoadStore, r28-session: the words switch by themselves); the page coming back into view and the online
+ * Road 2's page wiring (round 28, state/pageChat.ts): one runner for this word; its lines, its threads, its state and the
+ * probe's verdict go to the chat stores (the road's words switch by themselves, r28-session); the page coming back into view and the online
  * event wake it. Returns the stop.
  */
 function pageRoad(word: RoadWord): () => void {
@@ -107,11 +118,11 @@ function pageRoad(word: RoadWord): () => void {
     ...word,
     hidden: () => document.hidden,
     online: () => navigator.onLine,
-    onLine: (line) => rememberSaid(line),
-    onThreads: (threads) => rememberThreads(threads),
+    onLine: chatStores.said.remember,
+    onThreads: chatStores.threads.remember,
     onState: (state) => {
-      publishPageChat(state);
-      rememberPageProbe(state.probe);
+      chatStores.page.publish(state);
+      chatStores.probe.remember(state.probe);
     },
   });
   const visible = () => {
@@ -177,4 +188,24 @@ export function useDirectorFeed(): void {
 export function useDirector(): DirectorState {
   const director = directorRuntime();
   return useSyncExternalStore(director.subscribe, () => director.state);
+}
+
+/** The lines in flight, for the canvas (re-rendered when one arrives or goes). */
+export function useSaid(): SaidMap {
+  return useSyncExternalStore(chatStores.subscribe, chatStores.said.lines);
+}
+
+/** The Recent answers list: the last lines the page saw, newest first. */
+export function useRecentAnswers(): readonly Answer[] {
+  return useSyncExternalStore(chatStores.subscribe, chatStores.recent);
+}
+
+/** The threads as the host last sent them, or null when it sent none. */
+export function useChatThreads(): ThreadMap | null {
+  return useSyncExternalStore(chatStores.subscribe, chatStores.threads.get);
+}
+
+/** The chat road for this page, live: the health store and the probe's verdict. */
+export function useChatRoad(): ChatRoadView {
+  return useSyncExternalStore(chatRoad.subscribe, chatRoad.read);
 }

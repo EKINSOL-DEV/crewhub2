@@ -269,4 +269,3 @@ export const greenhouseStyle: WorldStyleFactory = {
   manifest,
   create: () => new GreenhouseStyle(),
 };
-export const GREENHOUSE_STYLE_ID = manifest.id;

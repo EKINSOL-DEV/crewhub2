@@ -37,7 +37,7 @@ const USAGE = "node tools/loops-seed.mjs --url <origin> [--key-file <file>] [--a
 
 const seedLib = await import(pathToFileURL(path.join(TOOLS, "lib", "seed.ts")).href);
 const { checkUrl, readKey, classify, seedTicketRequest, createTicketRequest, moveRequest, assignRequest, waitOnRequest, labelsRequest, commentRequest, progressRequest, resolveHandle, convergeMoves, schedule, tally, clock, PERSON_ONLY_DONE, actorOf, agentKeyFile, writerFor } = seedLib;
-const { demoScenario, demoScenarios, parseScenarioId, SCENARIO_IDS } = await import(pathToFileURL(path.join(REPO, "packages", "demo", "src", "scenarios.ts")).href);
+const { DEFAULT_SCENARIO, demoScenario, demoScenarios, scenarioIdOf } = await import(pathToFileURL(path.join(REPO, "packages", "demo", "src", "scenarios.ts")).href);
 const { DEMO_SEED, buildStory } = await import(pathToFileURL(path.join(REPO, "packages", "demo", "src", "script.ts")).href);
 
 // Command line
@@ -80,8 +80,8 @@ if (!urlVerdict.ok) fail(args.url === undefined ? urlVerdict.reason : `refusing 
 const ORIGIN = urlVerdict.origin;
 const speed = Number(args.speed);
 if (!(speed > 0)) fail("--speed must be a number above 0");
-const scenarioId = args.scenario === undefined ? parseScenarioId(null) : args.scenario;
-if (!SCENARIO_IDS.includes(scenarioId)) fail(`unknown scenario ${scenarioId}; known: ${demoScenarios().map((s) => s.id).join(", ")}`);
+const scenarioId = args.scenario === undefined ? DEFAULT_SCENARIO : scenarioIdOf(args.scenario);
+if (scenarioId === null) fail(`unknown scenario ${args.scenario}; known: ${demoScenarios().map((s) => s.id).join(", ")}`);
 const projectCap = args.projects === undefined ? Infinity : Number(args.projects);
 if (!(projectCap > 0)) fail("--projects must be a number above 0");
 const dryRun = args["dry-run"];

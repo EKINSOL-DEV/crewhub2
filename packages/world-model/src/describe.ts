@@ -4,9 +4,11 @@
  */
 import { agentWords } from "./appearance.ts";
 import { archivedWords } from "./archive.ts";
+import { freshnessWords } from "./freshness.ts";
 import { pinnedCard, quietWords, runWords } from "./board.ts";
 import { roleInferred, roleWords } from "./roleWords.ts";
 import { roomLabel } from "./rooms.ts";
+import { statusWords } from "./status.ts";
 import { DESK_WORDS, HALL_LABELS, RACK_KINDS, RACK_NAMES, ROLE_DESK_WORDS, doneWord, hallOf, isRackKind, placeWords, roomPlaceWords, type Hall, type RoomWording, type WordingOptions } from "./halls.ts";
 import type {
   AgentPlacement,
@@ -18,14 +20,6 @@ import type {
   WorkObject,
   WorldModel,
 } from "./model.ts";
-
-const STATUS_WORDS: Record<TicketStatus, string> = {
-  backlog: "backlog",
-  planned: "planned",
-  in_progress: "in progress",
-  review: "review",
-  done: "done",
-};
 
 const LOOK_WORDS: Record<WorkObject["look"], string> = {
   folder: "folder",
@@ -77,14 +71,7 @@ export function describeWorld(model: WorldModel, civic: CivicWords = CIVIC_WORDS
   const buildingName = (slug: string | null) => (slug ? (nameOf.get(slug) ?? slug) : `the ${civic.hall}`);
 
   if (model.mode === "demo") add("Town", "Demo mode: scripted data, no live crewhub-loops session", "demo");
-  const { freshness } = model;
-  if (freshness.teamTs === null) {
-    add("Town", "No team snapshot: no team probe has reported to this crewhub-loops, so every agent's status is unknown.");
-  } else if (freshness.stale) {
-    add("Town", `The team snapshot is stale since ${freshness.teamTs}: every agent's status shows as unknown.`);
-  } else {
-    add("Town", `Team snapshot from ${freshness.teamTs}, ${freshness.ageSeconds ?? 0} s old.`);
-  }
+  add("Town", freshnessWords(model.freshness).sentence);
   const active = model.buildings.filter((b) => !b.archived);
   const archived = model.buildings.filter((b) => b.archived);
   add(
@@ -291,7 +278,7 @@ function describeHalls(building: Building, add: Add): void {
 
 function describeObject(section: string, object: WorkObject, building: Building, add: Add, rooms: RoomWording): void {
   // A status newer than this build is said as loops sent it, as a newer kind or outcome is (round 48).
-  const status = object.newStatus === null ? STATUS_WORDS[object.status] : `status "${object.newStatus}" (new to this world, kept with the backlog)`;
+  const status = object.newStatus === null ? statusWords(object.status) : `status "${object.newStatus}" (new to this world, kept with the backlog)`;
   const parts = [`${object.key} "${object.title}": ${object.kind} as a ${LOOK_WORDS[object.look]}, ${status}`];
   if (object.rejected) {
     const reason = object.rejected.reason ? `: "${object.rejected.reason}"` : "";

@@ -167,9 +167,9 @@ describe("fuzz: the stream's parsing of loops' lines", () => {
       // The events fed to the archive memory, every project's slug whatever shape `project` has on the wire: only path
       // segments enter the link's set or the set (round 34; the upstream kept this set before round 59d's C5).
       const memory = createArchiveMemory({ log: () => undefined });
-      memory.linked("fuzz");
-      for (const m of messages) if (m.type === "event") memory.heard(m.envelope);
-      for (const slug of [...memory.seen(), ...memory.slugs(), ...(memory.state(true).slugs ?? [])]) assert.ok(isSegment(slug), `seed ${seed}: archived slug ${JSON.stringify(slug)} is no segment`);
+      const link = memory.linked("fuzz");
+      for (const m of messages) if (m.type === "event") link.heard(m.envelope);
+      for (const slug of [...link.forSnapshot()().slugs, ...(memory.state(true).slugs ?? [])]) assert.ok(isSegment(slug), `seed ${seed}: archived slug ${JSON.stringify(slug)} is no segment`);
       // The resume of each connection after the first: a sealed token loops offered (a heartbeat's or a tail's) for
       // exactly this position, else after=<cursor>. Either way nothing but a token or a non-negative integer travels.
       for (const [k, resume] of resumes.entries()) {

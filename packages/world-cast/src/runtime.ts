@@ -12,8 +12,9 @@
    the meshes too). The joints, the contact shadow, the halo and the steps stay objects: they move, or are shaders. */
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
-import type { FigurePiece, FigurePiecesHolder, StaticPart } from "@crewhub/world-style";
+import type { FigurePiece, FigurePiecesHolder } from "@crewhub/world-style";
 import { figureColor, hashKey, perchPlacement, wave, type PerchPlacement } from "./figure.ts";
+import { MOTION_CHANNELS } from "./names.ts";
 import type {
   Cast,
   CastManifest,
@@ -35,8 +36,6 @@ import type {
 } from "./index.ts";
 
 const DEG = Math.PI / 180;
-/** A joint's nine channels, in this order: rotation, offset, scale (x, y, z each). */
-const CHANNELS = ["rotation.x", "rotation.y", "rotation.z", "offset.x", "offset.y", "offset.z", "scale.x", "scale.y", "scale.z"];
 /** A stale figure fades this far towards the kit's `stale` grey and is a little see-through; a proxy is an echo. */
 const STALE_FADE = 0.75;
 const STALE_OPACITY = 0.8;
@@ -146,12 +145,6 @@ class FigureJoint extends THREE.Group implements FigurePiecesHolder {
   readonly figurePieces: FigurePiece[] = [];
 }
 
-/** A part as data read off the mesh a kit without `piece` makes: the same geometry, material and transform; the mesh is dropped. */
-function pieceOfMesh(mesh: THREE.Mesh): StaticPart {
-  mesh.updateMatrix();
-  return { geometry: mesh.geometry, material: mesh.material as THREE.Material, position: mesh.position.clone(), rotation: mesh.rotation.clone(), scale: mesh.scale.clone(), matrix: mesh.matrix.clone(), castShadow: mesh.castShadow, receiveShadow: mesh.receiveShadow };
-}
-
 interface Wave {
   joint: Joint;
   channel: number;
@@ -248,8 +241,8 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
   for (const part of spec.parts) {
     if (part.roles && !part.roles.includes(options.role)) continue;
     const color = figureColor(spec, part.color, seed);
-    // The part as data, on its joint: the kit's own (`piece`), else read off the mesh the kit makes.
-    const data = kit.piece ? kit.piece(part, color) : pieceOfMesh(kit.part(part, color));
+    // The part as data, on its joint.
+    const data = kit.piece(part, color);
     const piece: FigurePiece = { ...data, visible: true, mesh: null };
     (objects.get(part.joint ?? "root") ?? body).figurePieces.push(piece);
     parts.push({ piece, spec: part, color, glow: typeof part.glow === "string" ? figureColor(spec, part.glow, seed) : part.glow, material: data.material });
@@ -288,7 +281,7 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
   const compile = (list: readonly Motion[] | undefined): Wave[] =>
     (list ?? []).flatMap((m) => {
       const joint = joints.get(m.joint);
-      const channel = CHANNELS.indexOf(m.channel);
+      const channel = MOTION_CHANNELS.indexOf(m.channel);
       if (!joint || channel < 0) return [];
       return [
         {

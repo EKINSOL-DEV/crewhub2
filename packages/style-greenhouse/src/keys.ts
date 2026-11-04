@@ -1,18 +1,24 @@
 /* The tables of what the style sets on a model once it has one: its top surface, its light pools, its blob shadow. Pure:
    no three.js, so tests can read it. The keys the style draws with code are codeModels.ts's table. */
 import type { ModelKey } from "@crewhub/world-style";
+import manifest from "../style.json" with { type: "json" };
 
-/** Top surface heights (m) where objects are set down, for models whose bounding box is taller than the top. */
+const { workSurfaces } = manifest;
+
+/**
+ * Top surface heights (m) where objects are set down, for models whose bounding box is taller than the top. A top the
+ * manifest has as a work surface is read from it; the manifest's other work surfaces do not belong here.
+ */
 export const SURFACES: Partial<Record<ModelKey, number>> = {
-  "furniture.workdesk": 0.565,
-  "furniture.lead-desk": 0.635,
+  "furniture.workdesk": workSurfaces["furniture.workdesk"].height,
+  "furniture.lead-desk": workSurfaces["furniture.lead-desk"].height,
   "furniture.desk": 0.92,
   // A status rack's first shelf; the shelves above it are `RACK_SHELF_PITCH` apart (furniture.ts).
   "furniture.rack-backlog": 0.09,
   "furniture.rack-planning": 0.09,
   "furniture.rack-review": 0.09,
   "furniture.rack-done": 0.09,
-  "furniture.huddle-table": 0.532,
+  "furniture.huddle-table": workSurfaces["furniture.huddle-table"].height,
   "furniture.archive-counter": 0.542,
 };
 
@@ -27,8 +33,8 @@ export interface LightPool {
 }
 
 /** A desk's screen glow: on the desk top in front of the screen (+z) and on the floor where the chair stands. */
-const screenGlow = (top: number, scale: number): LightPool[] => [
-  { radius: 0.45 * scale, y: top + 0.004, z: 0.12 * scale, kind: "screen" },
+const screenGlow = (desk: ModelKey, scale: number): LightPool[] => [
+  { radius: 0.45 * scale, y: SURFACES[desk]! + 0.004, z: 0.12 * scale, kind: "screen" },
   { radius: 0.95 * scale, y: 0.014, z: 0.85 * scale, kind: "screen" },
 ];
 
@@ -46,9 +52,9 @@ export const LIGHT_POOLS: Partial<Record<ModelKey, LightPool | LightPool[]>> = {
   "furniture.reading-lamp": { radius: 0.95, y: 0.012, x: 0.1, z: 0.1 },
   "decor.table-lamp": { radius: 0.6, y: 0.004 },
   // Monitors face the seat, away from the camera: their glow shows as cool light on the desk and the chair's floor.
-  "furniture.workdesk": screenGlow(0.565, 0.62),
-  "furniture.lead-desk": screenGlow(0.635, 0.7),
-  "furniture.desk": screenGlow(0.92, 1),
+  "furniture.workdesk": screenGlow("furniture.workdesk", 0.62),
+  "furniture.lead-desk": screenGlow("furniture.lead-desk", 0.7),
+  "furniture.desk": screenGlow("furniture.desk", 1),
   // The corner lamps, and a wide soft wash under the string lights across the middle (round the fountain).
   "civic.square": [...[-2.55, 2.55].flatMap((x) => [-2.55, 2.55].map((z) => ({ radius: 1.6, y: 0.14, x, z }))), { radius: 3.6, y: 0.13 }],
   "civic.cafe": [

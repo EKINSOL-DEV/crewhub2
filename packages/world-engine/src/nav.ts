@@ -16,6 +16,7 @@ import {
   type Definitions,
   type WorldLayout,
 } from "./index.ts";
+import { flood } from "./flood.ts";
 import { MinHeap } from "./heap.ts";
 
 export interface NavRoom {
@@ -387,29 +388,10 @@ export class NavGraph {
 /** Breadth-first step counts from `origin` over static occupancy; -1 is unreachable. */
 function distanceField(room: MutableRoom, origin: Cell): Int32Array {
   const { width, depth } = room.layout.grid;
-  const field = new Int32Array(width * depth).fill(-1),
-    queue = new Int32Array(width * depth);
-  const first = origin.z * width + origin.x;
-  if (room.blocked[first] !== -1) return field;
-  field[first] = 0;
-  queue[0] = first;
-  let read = 0,
-    write = 1;
-  while (read < write) {
-    const id = queue[read++]!,
-      x = id % width,
-      z = (id - x) / width,
-      d = field[id]! + 1;
-    if (z > 0) visit(id - width);
-    if (x < width - 1) visit(id + 1);
-    if (z < depth - 1) visit(id + width);
-    if (x > 0) visit(id - 1);
-    function visit(n: number) {
-      if (field[n] === -1 && room.blocked[n] === -1) {
-        field[n] = d;
-        queue[write++] = n;
-      }
-    }
-  }
+  const field = new Int32Array(width * depth).fill(-1);
+  if (room.blocked[origin.z * width + origin.x] !== -1) return field;
+  flood(room.layout.grid, room.blocked, origin, (id, from) => {
+    field[id] = from === -1 ? 0 : field[from]! + 1;
+  });
   return field;
 }

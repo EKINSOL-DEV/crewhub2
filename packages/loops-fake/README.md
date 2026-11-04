@@ -91,8 +91,18 @@ as the host does.
 Also served, for the chat roads (rounds 12 and 28): `POST /api/auth/login` (the fake's `person`; 401 `bad_credentials`;
 sets `chl_session`, and that session reads as an admin: every event, the chat) and `POST /api/auth/logout` (204); the
 chat reads `GET /api/dm/threads`, `/api/dm/threads/{agent}/messages` and `/api/dm/messages/{id}` (403 to a key
-unless `keyReadsChat`); with `worldOrigin` set, a request from that origin passes only as a GET on loops' four world
-routes, with the CORS headers, and any other `Origin` is 403 `origin_forbidden`.
+unless `keyReadsChat`); the first two are the demo api's (`packages/demo/src/api.ts`, the fake is its HTTP adapter as
+the world's dock is its in-page one), so a thread's messages page newest-last at 50 (`limit` 1 to 100, `before` a
+message id of the thread, `nextCursor` the page's oldest id while older ones exist) and the agent must be an enabled
+lead (404 unknown, 403 otherwise, as loops' `dm.py`; round 61, W2). With `worldOrigin` set, a request from that
+origin passes only as a GET on loops' four world routes, with the CORS headers, and any other `Origin` is 403
+`origin_forbidden`.
+
+Loops' wire grammar, the pure pieces, is written once in `src/wire.ts` and spoken by two servers: this fake and the
+host's test stub (`apps/host/test/loopsStub.ts`, which imports it from `@crewhub/loops-fake`): the error envelope
+(`errorBody`, `WireError`), where a read or a stream resumes (`parseResume`: `after=` or `cursor=`, never both, else
+the `Last-Event-ID` header), the heartbeat line (`heartbeatLine`, `ts` last) and the 429 answer (`tooManyStreams`,
+`RETRY_AFTER_S`). Each server seals and opens its own cursors and keeps its own server loop (round 61, W3).
 
 Everything else is 404 `not_found`; on a known route any method but GET or HEAD is 405 `method_not_allowed`, except
 login and logout (POST only) and the stream (GET only). Auth: 401 `unauthenticated` without a key, 401

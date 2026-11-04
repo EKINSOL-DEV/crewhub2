@@ -13,6 +13,32 @@ for page changes. None of the fourteen Strong candidates needs a decision about 
 branch's files (H1 meets q3; H2, H3, T1 and T2 meet r27 and q1), a port carries the answer. **Worth exploring** and
 **Speculative** candidates are for Nicky; nothing is done about them tonight.
 
+**Round 61 (the night of 4 to 5 November)** carried out the **Worth exploring** list and four Speculative ones, the same
+way (a developer per candidate, a fresh reviewer per branch, ports where met, the browser proof per batch):
+
+| Candidate | Merge | Note |
+| --- | --- | --- |
+| W1 the loops event catalogue once | `b8ba179` | the client stops warning on three types the fake knew (up to three console lines fewer) |
+| W2 the fake's GET dm routes through `createDemoApi` | `52d298a` | a test double's change: pages at 50, 403 for a non-lead, 404 for an unknown agent; `PAGE_DEFAULT`/`PAGE_MAX` stay in the fake for its other lists |
+| W3 loops' wire grammar once (`loops-fake/src/wire.ts`) | `6aee8cf` | the stub's server loop untouched; the stub now refuses every non-strict `after` and honours `Last-Event-ID` (inputs no test sends) |
+| W4 the world-origin contract read from `pageChat.ts` | `7607295` | the fake's three names renamed `ORIGIN_*` |
+| W5 the cast contract's names in `names.ts` | `287b1f2` | same order and error words |
+| W6 the small-part thresholds in `PROP_LIMITS` | `9f84ffa` | a parity test per shipped cast; pixels identical |
+| W7 `agentCard.ts`' pieces private | `2c8f7cc` | tests through `agentCardFacts` |
+| W8 the stale snapshot's words once (`freshness.ts`) | `c7d14cb` | the package half; **the page's own wordings are left** (the card holds a fourth one, so folding them would change visible sentences) |
+| W9 `statusWords` and `drawn` in `status.ts` | `bece4d7` | the card's Recent line keeps loops' word for a status this build does not know |
+| W10 the indexes trimmed to their callers | `473060e` (cast, greenhouse), `bbc92b9` (model, engine) | |
+| W11 a desk top's height once | `8ebf0a3` | pixels identical |
+| H5 the key's bot read once (`keyBot.ts`) | `4f2f1a1` | the doctor says viewer for a bot flagged viewer and reader, as keyCheck judges it |
+| H6 the key's state machine in `keyHolder.ts` | `81a4203` | **the recheck timer stays in `connection.ts`**: moving it edits lines q3's and q14's ports change; a follow-up once they are decided |
+| P3 the text view as one pure module (`world/textView.ts`) | `8f73080` | |
+| P4 the chat's page stores as one runtime (`createChatStores`) | `1923c70` | q11's first port (one import line) |
+| T3 regress's groups as files (`tools/regress/`) | `20cda0c` | r27 by a new port |
+| S1, S3, S4, S5 | `e1b7494`, `b545889`, `d2e1b27`, `058e0c2` | the demo's constants; `scenarioIdOf`; the reference kit's `piece`; one `flood` |
+
+Still for Nicky: P5 (waits on r27's answer), P6, P7, S2, S6, H7's key scrub (q15), H6's timer and the injected clock
+(q3, q14, r27, q1).
+
 | Candidate | Strength | Owner tonight | Answer branches |
 | --- | --- | --- | --- |
 | H1 a program's road to a running host, one module | Strong | arch-c2 (Fable): **merged `f7eb265`** | q3 `@8a1ae94` and r27 `@fd0b8b9` by ports; the wire imported by relative path so the dev config still loads on Node 22.12 |

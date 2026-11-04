@@ -1,15 +1,15 @@
 /* Road 2 of the chat in the page (round 28): the page reads the signed-in person's own conversation from crewhub-loops
    itself, as `packages/loops-client` pageChat.ts spells out (GET only, the four routes, the person's cookie, no header
-   of our own, the sealed cursor), and feeds the same `said` store as the host's road (`rememberSaid`: the bubbles, the
-   chat mark, Recent answers and the card) and the threads' facts (`rememberThreads`). It runs only when the contract's
+   of our own, the sealed cursor), and feeds the same `said` store as the host's road (state/chatStores: the bubbles, the
+   chat mark, Recent answers and the card) and the threads' facts. It runs only when the contract's
    `decideChatRoad` says `page`: the host's key does not read the chat, and the page's own probe answered. Nothing of
    it goes through the host; the host only names the loops web origin (`health.loopsWebUrl`, the same origin the API
    is on).
 
    The runner is pure in its inputs (the fetch, the clock, hidden and online, the stores' two writers), so a test drives
    it in milliseconds; the page's wiring (state/runtimes.ts `pageRoad`, which the live chat of state/chat.ts restarts
-   when the host's word changes) hands it the browser's. The store keeps what the panel and the tools read: the probe's
-   verdict, the loops origin asked, whether the poll runs, how many polls, the last failure. This module imports nothing
+   when the host's word changes) hands it the browser's. Its state (`PageChatState`) goes to the chat stores' `page`: the
+   probe's verdict, the loops origin asked, whether the poll runs, how many polls, the last failure. This module imports nothing
    of the page, so it and its test load under node without the world. */
 import {
   isLoopbackOrigin,
@@ -44,23 +44,7 @@ export interface PageChatState {
   lastPollAt: number | null;
 }
 
-const INITIAL: PageChatState = { probe: "unknown", origin: null, road: "none", polling: false, polls: 0, lines: 0, failure: null, lastPollAt: null };
-
-let current: PageChatState = INITIAL;
-const listeners = new Set<() => void>();
-/** The page's wiring (state/runtimes.ts `pageRoad`) publishes the runner's state here. */
-export function publishPageChat(next: Partial<PageChatState>): void {
-  current = { ...current, ...next };
-  for (const listener of listeners) listener();
-}
-
-export const subscribePageChat = (listener: () => void) => {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-};
-export const getPageChat = () => current;
+export const INITIAL_PAGE_CHAT: PageChatState = { probe: "unknown", origin: null, road: "none", polling: false, polls: 0, lines: 0, failure: null, lastPollAt: null };
 
 /**
  * The origin the page asks: the loops web origin the host names (the API is on the same origin), never anything else;
@@ -119,7 +103,7 @@ export function createPageChatRunner(options: PageChatRunnerOptions): PageChatRu
   const hidden = options.hidden ?? (() => false);
   const online = options.online ?? (() => true);
   const timeoutMs = options.timeoutMs ?? 10_000;
-  let state: PageChatState = { ...INITIAL, origin: options.loopsOrigin };
+  let state: PageChatState = { ...INITIAL_PAGE_CHAT, origin: options.loopsOrigin };
   let generation = 0;
   let cancel: (() => void) | null = null;
   let cursor: string | null = null;
