@@ -89,17 +89,17 @@ C3's runtime tests cover its facts through the runtime's interface instead; the 
 
 ## Where it stands
 
-As of 12:56 on 4 November (59d). The branch head is the one reviewed or merged.
+As of 13:45 on 4 November (59d). The branch head is the one reviewed or merged.
 
 
 | Candidate | Branch head | State | Answer branches | Merge |
 | --- | --- | --- | --- | --- |
 | C4 | `58947920` | merged (reviewed: review-c4) | q14 by port `port/task/q14-dm-read-cap@5894792`; six clean | `53c46ad` |
 | C5 | `b5a8b73d` | merged (reviewed: review-c5) | all clean (q14 through C4's port) | `29261f5` |
-| C1 | `c83bae11` | in review (review-c1) | r27, q1, q3, q14, q15 by ports, after C7's | |
-| C7 | `8a0f9c50` | reviewed (review-c7: merge); merging the head in | q15, q3, r27, q1 by ports (being carried to its new head) | |
+| C1 | `c83bae11` | reviewed (review-c1: merge after fixes); fixes and the head being merged in | r27, q1, q3, q14, q15 by ports, carried from C7's | |
+| C7 | `f336f0c0` | merged (reviewed: review-c7, a lenient `reset` restored; regress connect,live,chat,ops,town 78/78, a11y 188/188) | q15, q3, r27, q1 by ports `@f336f0c`; q14 through C4's | `8ff4368` |
 | C3 | `e6c5a347` | merged (reviewed: review-c3; regress 139/140 with the known town console flake, a11y 188/188, pixcheck 74/74 identical) | q1 by port `port/task/q1-cookie-expiry@e6c5a34`; six clean | `e3e21f8` |
-| C6 | | in progress | r27 by port; q1 import clash being avoided | |
-| C8 | `d3bb76f2` | reviewed (review-c8: merge, one table row added) | all clean | |
-| C2 | `2811b59` | reviewed (review-c2: merge after the Escape focus fix, re-checked) | all clean | |
-| C9 | | waits on C2 and C6 | | |
+| C6 | `ecac8f77` | reviewed (review-c6: merge); the head being merged in | r27 and q1 by ports | |
+| C8 | `54e0577f` | merged (reviewed: review-c8, one table row added; regress 139/140 with the known town console flake, a11y 189/189, pixcheck 74/74 identical) | all clean | `36f8e1b` |
+| C2 | `4cd23a5` | merged (reviewed: review-c2, the Escape focus fix re-checked; regress 160/160, a11y 189/189 with the new focus assert, pixcheck 74/74 identical) | all clean | `2e2df46` |
+| C9 | | in progress (arch-page, on C2 and C6) | | |
