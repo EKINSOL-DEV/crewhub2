@@ -613,6 +613,11 @@ export class NavSimulation {
       }
       a.path = path;
     }
+    // A room set offscreen mid-walk: the step under way is done, the rest is a jump (#move would chain the next step).
+    if (a.destination && this.detail(a.room) === "offscreen") {
+      this.#teleport(a);
+      return false;
+    }
     if (a.aside && !a.path.length) {
       a.aside = false;
       this.#request(a.index, a.legs.length ? "leg" : "route");

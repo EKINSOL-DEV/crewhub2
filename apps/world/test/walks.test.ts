@@ -198,3 +198,23 @@ test("round 48 (r48-scene): after a seek back (a new snapshot) the idle errands 
   assert.equal(walks.errand("cr/dev-1"), null, "seated again after the seek");
   assert.ok(play(walks, due, 2, () => walks.errand("cr/dev-1")?.reason === "idle"), "played again: the same choice in the same bucket");
 });
+
+test("round 54: reduced motion turned on while an agent walks: its next frames show a jump, not the rest of the walk", () => {
+  const walks = new Walks();
+  const options = { entered: "cr", reducedMotion: false, ambient: "off" as const, buildingPlan: "classic" as const };
+  walks.update(model(), options);
+  run(walks, 1);
+  const handOver = model({ ...onDesk, transit: { fromRoom: "workers", toRoom: "review", toDeskOf: null, startedAt: T, until: T + 3000 } });
+  walks.update(handOver, options);
+  run(walks, 0.2);
+  assert.equal(walks.nav.sim.actor("cr/dev-1")!.status, "moving", "on its way to the review pile");
+  walks.update(handOver, { ...options, reducedMotion: true });
+  const cells = new Set<string>();
+  run(walks, 1, () => {
+    const { room, cell } = walks.nav.sim.actor("cr/dev-1")!.location;
+    cells.add(`${room}|${cell.x},${cell.z}`);
+    return false;
+  });
+  assert.equal(roomOf(walks, "cr/dev-1"), roomId("cr", "review"), "at the review pile within a second");
+  assert.ok(cells.size <= 3, `a jump: the step under way, then the pile (${[...cells].join(" ")})`);
+});
