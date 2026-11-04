@@ -1,11 +1,11 @@
 /* What the world adds around the copied chat (components/bubbles): its query client, live updates from the demo source's
    event stream, the view that picks the default head, and the "settings" navigation. */
-import { QueryClient, useQueryClient, type QueryKey } from "@tanstack/react-query";
+import { QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-import type { Envelope } from "@crewhub/loops-client";
 import { shouldRetry } from "../api/client";
 import { dmKeys } from "../components/bubbles/queries";
 import { setNavigator } from "../shims/react-router-dom";
+import { chatInvalidations } from "./chatInvalidations";
 import { demoChatApi } from "./chatApi";
 import { worldRuntime } from "./world";
 
@@ -14,11 +14,7 @@ export function createChatQueryClient(): QueryClient {
   return new QueryClient({ defaultOptions: { queries: { staleTime: 5_000, retry: shouldRetry } } });
 }
 
-/** loops `state/events.tsx` `invalidationsFor`, the chat part: DM events and chat deliveries refresh messages and unread. */
-export function chatInvalidations(e: Pick<Envelope, "type" | "payload">): QueryKey[] {
-  if (e.type.startsWith("dm.") || typeof e.payload["dmThreadId"] === "string") return [["dm-messages"], ["dm-threads"]];
-  return [];
-}
+export { chatInvalidations };
 
 /**
  * Live updates, the way loops' event stream drives the chat: every chat event invalidates the copy's query keys. A new

@@ -9,32 +9,16 @@
    are its only outlet, and the text view labels everything it does "scripted". */
 import { useEffect, useSyncExternalStore } from "react";
 import { createDirectorFeed, DEMO_SEED, type FeedUsage, type PlanRecord, type PropTags } from "@crewhub/demo";
-import { DEFAULT_PRESENCE, effectivePresence, normalizePresence, type AgentKey, type PresenceSettings, type Reachable, type WorldModel } from "@crewhub/world-model";
+import { effectivePresence, normalizePresence, type AgentKey, type PresenceSettings, type Reachable, type WorldModel } from "@crewhub/world-model";
 import { clearIntents, playIntent } from "../world/intentPlayer";
 import { VISIT_TAGS } from "../world/movement";
 import { NavWorld } from "../world/navigation";
 import { buildingPlanNow } from "./buildingPlan";
 import { logPlans } from "./planLog";
+import { loadPresence, savePresence } from "./presenceStore";
 import { worldRuntime } from "./world";
 
-const STORAGE_KEY = "crewhub.presence.v1";
-
-export function loadPresence(): PresenceSettings {
-  try {
-    const raw = globalThis.localStorage?.getItem(STORAGE_KEY);
-    return raw ? normalizePresence(JSON.parse(raw)) : DEFAULT_PRESENCE;
-  } catch {
-    return DEFAULT_PRESENCE;
-  }
-}
-
-function savePresence(settings: PresenceSettings) {
-  try {
-    globalThis.localStorage?.setItem(STORAGE_KEY, JSON.stringify(settings));
-  } catch {
-    // Storage can throw (private window, blocked site data); the settings then last for this page only.
-  }
-}
+export { loadPresence };
 
 /* Reachability is the navigation world's: the building templates' rooms, props and doors, kept in step with every
    model. A prop tag is reachable in a room when one of its approach cells can be reached from the agent's seat; a

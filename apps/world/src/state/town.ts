@@ -26,6 +26,7 @@ import { createHostTownStore, townStoreFor } from "./hostTown";
 import { onHostConnected, onHostTown } from "./townBus";
 import { createPropQueue } from "./propQueue";
 import { createTownStore, seededTown, type TownStore } from "./townStore";
+import { applyEdits, visibleInvalid } from "./townEdits";
 import { LIVE, SCENARIO, STRESS, TOWN_COPY_FROM, TOWN_KEY, worldRuntime } from "./world";
 
 export interface TownState {
@@ -111,14 +112,10 @@ class TownRuntime {
 
   /** Several edits as one revision (one undo step). */
   editAll(edits: TownEdit[]): EditOutcome {
-    let doc = this.store.state.doc;
-    for (const edit of edits) {
-      const result = applyEdit(doc, edit, this.context);
-      if (!result.ok) return result;
-      doc = result.doc;
-    }
+    const result = applyEdits(this.store.state.doc, edits, this.context);
+    if (!result.ok) return result;
     for (const edit of edits) if (edit.type === "place") this.fresh.add(edit.placement.id);
-    void this.store.commit(doc);
+    void this.store.commit(result.doc);
     return { ok: true };
   }
 
@@ -194,8 +191,7 @@ class TownRuntime {
   /** Error objects stand only while their ticket is still a done, unimported prop request (a seek can undo it). */
   #visibleInvalid(): InvalidRequest[] {
     if (!this.#invalid.size) return [];
-    const listed = new Set(propRequestsFromFacts(worldRuntime().projection.facts, this.store.state.doc).map((r) => r.ticketKey));
-    return [...this.#invalid.values()].filter((r) => listed.has(r.ticketKey));
+    return visibleInvalid(this.#invalid, new Set(propRequestsFromFacts(worldRuntime().projection.facts, this.store.state.doc).map((r) => r.ticketKey)));
   }
 
   #checkRequests() {
