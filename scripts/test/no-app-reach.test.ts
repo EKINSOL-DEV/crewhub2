@@ -115,7 +115,7 @@ test("a child process is guarded too: in record mode a relative settings.json, r
   }
 });
 
-test("a child's fetch (undici, the host's own road to loops) of the decoy's health is refused in record mode before any packet", async () => {
+test("a child's fetch of the decoy's health (undici, the host's own road to loops) is refused in record mode before any packet", async () => {
   // The normalized form fetch uses is refused for the app's port by the rule alone; the child's fetch goes to the decoy.
   assert.match(refusesConnect([[{ port: 8091, host: "127.0.0.1" }, () => undefined]]) ?? "", /Mac app's port/);
   const dir = fs.mkdtempSync(path.join(tmpdir(), "chw-reach-"));
