@@ -877,6 +877,12 @@ nothing else (no target paths, no names). The world shows one screen per state:
 A Connection panel (the chip opens it) lists discovery, the key's name, the cursor, the last event and the
 reconnects. `npm run host -- doctor` prints the same states in the terminal.
 
+**Round 31 (answer branch `task/q3-health-less`, question 3).** Health before pairing is now exactly that: the states,
+`checkout` and a blank `keyName` (the dev server's probe needs the string). The bot's name, loops' version, the
+cursor and the chat word were still in an unpaired read; they are a paired browser's now, and the dev origins go to a
+paired browser or to a program (no Origin), never to an unpaired page. The dev server's line and the doctor's port
+line read the key's state instead of its name.
+
 **Not tonight (proposed, loops side):** a "Connect CrewHub World" button in the loops web that creates the bot and
 hands the key to the host, on the `world/viewer-key` branch's road.
 

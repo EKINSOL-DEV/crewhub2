@@ -42,22 +42,30 @@ describe("whose host is on the dev proxy's port", () => {
     const other = devHostVerdict({ port: 5194, explicit: true, local, answer: { kind: "not-a-host" } });
     assert.equal(other.ok, true);
     assert.match(other.line, /127\.0\.0\.1:5194 \(CREWHUB_WORLD_PORT=5194\): what answers there is not the world's host/);
-    const mine = devHostVerdict({ port: 5180, explicit: false, local, answer: { kind: "host", checkout: "1b2c3d4e5f60", keyName: "crewhub-world" } });
+    const mine = devHostVerdict({ port: 5180, explicit: false, local, answer: { kind: "host", checkout: "1b2c3d4e5f60", keyName: "crewhub-world", keyState: "ok" } });
     assert.equal(mine.ok, true);
     assert.match(mine.line, /this checkout's host \(key crewhub-world\)\.$/);
-    const older = devHostVerdict({ port: 5180, explicit: false, local, answer: { kind: "host", checkout: null, keyName: "" } });
+    const older = devHostVerdict({ port: 5180, explicit: false, local, answer: { kind: "host", checkout: null, keyName: "", keyState: null } });
     assert.equal(older.ok, true);
     assert.match(older.line, /a host answers \(no key yet\) from before the checkout id in health, so whose it is cannot be told; going on\./);
   });
 
+  it("a host with pairing on says no name before pairing (round 31, question 3): the line says the key's state, never 'no key yet' while there is one", () => {
+    const paired = devHostVerdict({ port: 5180, explicit: false, local, answer: { kind: "host", checkout: "1b2c3d4e5f60", keyName: "", keyState: "ok" } });
+    assert.match(paired.line, /this checkout's host \(a key, ok\)\.$/);
+    assert.match(devHostVerdict({ port: 5180, explicit: false, local, answer: { kind: "host", checkout: "1b2c3d4e5f60", keyName: "", keyState: "rejected" } }).line, /this checkout's host \(a key, rejected\)\.$/);
+    assert.match(devHostVerdict({ port: 5180, explicit: false, local, answer: { kind: "host", checkout: "1b2c3d4e5f60", keyName: "", keyState: "none" } }).line, /this checkout's host \(no key yet\)\.$/);
+    assert.match(devHostVerdict({ port: 5180, explicit: false, local, answer: { kind: "host", checkout: "9f2c1a7b3d4e", keyName: "", keyState: "ok" } }).line, /^The host on 127\.0\.0\.1:5180 .* belongs to another checkout: checkout id 9f2c1a7b3d4e, a key, ok\./);
+  });
+
   it("refuses another checkout's host, naming the port, both checkouts and the way out", () => {
-    const verdict = devHostVerdict({ port: 5180, explicit: false, local, answer: { kind: "host", checkout: "9f2c1a7b3d4e", keyName: "crewhub-world" } });
+    const verdict = devHostVerdict({ port: 5180, explicit: false, local, answer: { kind: "host", checkout: "9f2c1a7b3d4e", keyName: "crewhub-world", keyState: "ok" } });
     assert.equal(verdict.ok, false);
     assert.equal(
       verdict.line,
       "The host on 127.0.0.1:5180 (the default, CREWHUB_WORLD_PORT=<port> names another) belongs to another checkout: checkout id 9f2c1a7b3d4e, key crewhub-world. This checkout is /Users/me/crewhub2-task-x (checkout id 1b2c3d4e5f60). The dev server does not start. Start this checkout's host on a port of yours (CREWHUB_WORLD_PORT=<port> npm run host) and this Vite with the same CREWHUB_WORLD_PORT, or stop that host if it is yours.",
     );
-    assert.match(devHostVerdict({ port: 5195, explicit: true, local, answer: { kind: "host", checkout: "9f2c1a7b3d4e", keyName: "" } }).line, /^The host on 127\.0\.0\.1:5195 \(CREWHUB_WORLD_PORT=5195\) belongs to another checkout: checkout id 9f2c1a7b3d4e, no key yet\./);
+    assert.match(devHostVerdict({ port: 5195, explicit: true, local, answer: { kind: "host", checkout: "9f2c1a7b3d4e", keyName: "", keyState: "none" } }).line, /^The host on 127\.0\.0\.1:5195 \(CREWHUB_WORLD_PORT=5195\) belongs to another checkout: checkout id 9f2c1a7b3d4e, no key yet\./);
   });
 });
 
