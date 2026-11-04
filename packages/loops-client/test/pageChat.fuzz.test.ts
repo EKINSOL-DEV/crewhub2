@@ -1,5 +1,5 @@
 /* Round 34: road 2's answers under fuzz. What crewhub-loops sends the page through the origin is read by `readThreads`,
-   `readEvents` and `readPageChatLine`, judged by `probeVerdict`, and asked for by `probePageChat` and `pollPageChat`
+   `readEvents` and `readDmLine`, judged by `probeVerdict`, and asked for by `probePageChat` and `pollPageChat`
    over the one request shape. Seeded, a few thousand inputs: answers of any shape, broken copies of the real ones, odd
    statuses, bodies that are not JSON, fetches that fail. What a caller sees: never a throw; a thread fact, an agent's
    message id or a bubble line only when its fields are of the right shape (a line never empty, never over 140
