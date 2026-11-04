@@ -102,6 +102,29 @@ describe("the archive memory, fed facts", () => {
     assert.deepEqual([...seen], ["atlas"], "a snapshot under way reads the link's set when it gets to the archived projects");
   });
 
+  it("answers a snapshot's archived getter: the link's stream set as it is when asked, then the set as the assembly started, and whether that had any (round 60, A1)", () => {
+    const { m } = memory(memoryStore());
+    m.linked(A);
+    m.reported({ source: "log", slugs: ["old"] });
+    m.heard("project.archived", "atlas");
+    const archived = m.forSnapshot();
+    m.heard("project.archived", "beacon"); // heard during the assembly: the stream set counts it
+    m.reported({ source: "log", slugs: [] }); // another snapshot's report: this assembly keeps the set it started with
+    assert.deepEqual(archived(), { slugs: ["atlas", "beacon", "atlas", "old"], remembered: true });
+    assert.deepEqual(m.forSnapshot()(), { slugs: ["atlas", "beacon"], remembered: false }, "an assembly starting now: the set is empty");
+  });
+
+  it("keeps a snapshot's archived getter on the link it started on when a relink comes during the assembly (round 60, A1)", () => {
+    const { m } = memory(memoryStore());
+    m.linked(A);
+    m.reported({ source: "log", slugs: ["old"] });
+    m.heard("project.archived", "atlas");
+    const archived = m.forSnapshot();
+    m.linked(B);
+    m.heard("project.archived", "beacon");
+    assert.deepEqual(archived(), { slugs: ["atlas", "atlas", "old"], remembered: true }, "B's archive is not A's assembly's");
+  });
+
   it("uses this loops' memory on disk: the set, its time, source remembered, and says so", () => {
     const store = memoryStore({ slugs: ["old"], at: "2026-10-21T04:56:46.430Z", target: A });
     const { m, lines } = memory(store);

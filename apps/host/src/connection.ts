@@ -471,8 +471,7 @@ export function createConnection(options: ConnectionOptions): Connection {
     snapshotState = { state: "reading", reads: 0 };
     const out = await assembleSnapshot(client, {
       cursor: upstream.cursor(),
-      knownArchivedSlugs: archive.seen(),
-      rememberedSlugs: archive.slugs(),
+      archived: archive.forSnapshot(),
       observer: holder === null ? null : holder.name,
       onArchive: (report: ArchiveReport) => archive.reported(report),
       onProgress: (progress) => {
