@@ -74,7 +74,7 @@ export {
   restoreHistory,
   undoHistory,
 } from "./history.ts";
-export { builtinIds, createCatalogue, findFreeCell, sameSite, siteLayout, takesFootprint } from "./catalogue.ts";
+export { builtinIds, createCatalogue, sameSite, siteLayout, takesFootprint } from "./catalogue.ts";
 export {
   PROP_LABEL,
   extractPropRequest,
