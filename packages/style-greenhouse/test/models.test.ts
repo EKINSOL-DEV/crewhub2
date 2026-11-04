@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { PROP_MATERIALS, validatePropModel } from "@crewhub/world-engine";
-import { CODE_KEYS } from "../src/keys.ts";
+import { CODE_KEYS } from "../src/codeModels.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const manifest = JSON.parse(readFileSync(path.join(ROOT, "style.json"), "utf8")) as {

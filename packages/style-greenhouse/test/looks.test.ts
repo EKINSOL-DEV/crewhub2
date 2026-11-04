@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { resolveStyleOptions, type StyleOption } from "@crewhub/world-style";
-import { CODE_KEYS } from "../src/keys.ts";
+import { CODE_KEYS } from "../src/codeModels.ts";
 import { compileLook, type LooksData, type MaterialSwap, type Substitute } from "../src/looks.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");

@@ -4,7 +4,6 @@
 import * as THREE from "three";
 import type { CastManifest, FigureKit } from "@crewhub/world-cast";
 import type {
-  EmblemName,
   ModelKey,
   ModelOptions,
   PaletteName,
@@ -18,9 +17,9 @@ import { resolveStyleOptions } from "@crewhub/world-style";
 import manifestJson from "../style.json";
 import * as civic from "./civic.ts";
 import * as life from "./life.ts";
+import { codeModel } from "./codeModels.ts";
 import { compileLights, type Light, type Lights } from "./daylight.ts";
 import { environment } from "./environment.ts";
-import { archiveCounter, bench, desk, huddleTable, lamp, leadDesk, officeWindow, roleDesk, shelf, sofa, statusRack, table, workdesk } from "./furniture.ts";
 import { Kit, type GreenhouseManifestData } from "./kit.ts";
 import { BLOB_SHADOWS, LIGHT_POOLS, SURFACES } from "./keys.ts";
 import { compileLook, type Look, type LooksData, type MaterialSwap } from "./looks.ts";
@@ -30,7 +29,6 @@ import { partsModel } from "./parts.ts";
 import * as pieces from "./pieces.ts";
 import * as shell from "./shell.ts";
 import { figureKit } from "./figureKit.ts";
-import * as growth from "./growth.ts";
 import * as town from "./town.ts";
 
 type ManifestFile = StyleManifest & GreenhouseManifestData & { looks?: LooksData; materialSets?: Record<string, MaterialSwap[]> };
@@ -190,188 +188,7 @@ class GreenhouseStyle implements WorldStyle {
   }
 
   #code(dresser: Dresser, key: ModelKey, o: ModelOptions): THREE.Object3D | null {
-    const { kit } = dresser;
-    const piece = this.#piece(dresser);
-    if (key.startsWith("emblem.")) return pieces.emblem(kit, key.slice("emblem.".length) as EmblemName, o);
-    switch (key) {
-      case "ground":
-        return town.ground(kit, o);
-      case "plot":
-        return town.plot(kit, o);
-      case "town.paving":
-        return town.paving(kit, o);
-      case "town.hedge":
-        return town.hedge(kit, o);
-      case "town.flower-bed":
-        return town.flowerBed(kit, o);
-      case "town.pond":
-        return town.pond(kit, o);
-      case "town.bridge":
-        return town.bridge(kit, o);
-      case "town.stream":
-        return town.stream(kit, o);
-      case "town.fence":
-        return town.fence(kit, o);
-      case "town.string-lights":
-        return town.stringLights(kit, o);
-      case "town.bunting":
-        return town.bunting(kit, o);
-      case "town.crossing":
-        return town.crossing(kit, o);
-      case "town.wear":
-        return town.wear(kit, o);
-      case "town.field":
-        return town.field(kit, o);
-      case "town.puddle":
-        return town.puddle(kit, o);
-      case "town.lantern":
-        return town.lantern(kit, o);
-      case "town.turf":
-        return town.turf(kit, o);
-      case "town.feature":
-        // What stands between a district's buildings is the planting's to say (style.json "looks"); the town garden
-        // leaves the spot to the grass.
-        return new THREE.Group();
-      case "town.staked-plot":
-        return growth.stakedPlot(kit, o);
-      case "town.plot-sign":
-        return growth.plotSign(kit, o);
-      case "town.scaffolding":
-        return growth.scaffolding(kit, o);
-      case "town.district-gate":
-        return growth.districtGate(kit, o);
-      case "town.zone-mark":
-        return pieces.zoneMark(kit, o);
-      case "path":
-        return pieces.path(kit, o);
-      case "street-lamp":
-        return pieces.streetLamp(kit);
-      case "planting":
-      case "furniture.plant":
-        return pieces.planting(kit, o);
-      case "wall":
-        return shell.tallWall(kit, o, this.#glass);
-      case "wall.low":
-        return shell.rim(kit, o);
-      case "wall.glass":
-        return shell.glassWall(kit, o, this.#glass);
-      case "door":
-        return shell.entrance(kit, o);
-      case "building.partition":
-        return shell.partition(kit, o, this.#glass);
-      case "building.door-frame":
-        return shell.doorFrame(kit, o);
-      case "building.slab":
-        return shell.slab(kit, o);
-      case "building.apron":
-        return shell.apron(kit, o);
-      case "building.loading-door":
-        return shell.loadingDoor(kit, o);
-      case "building.ivy":
-        return shell.ivy(kit, o);
-      case "building.closed-sign":
-        return shell.closedSign(kit, o);
-      case "building.name-sign":
-        return shell.nameSign(kit, o);
-      case "building.wall-lamp":
-        return shell.wallLamp(kit, o);
-      case "building.floor-shade": {
-        const { width, depth } = o.size ?? { width: 2, height: 0, depth: 2 };
-        return kit.edgeShade(width, depth);
-      }
-      case "building.silhouette":
-        return shell.silhouette(kit, o);
-      case "floor":
-        return pieces.floor(kit, o);
-      case "room.sign":
-        return pieces.roomSign(kit);
-      case "building.flag":
-        return shell.flag(kit, o);
-      case "building.planks":
-        return shell.planks(kit, o);
-      case "post-office":
-        return civic.postOffice(kit, piece);
-      case "town-hall":
-        return civic.townHall(kit, piece);
-      case "civic.square":
-        return civic.square(kit, piece);
-      case "civic.cafe":
-        return civic.cafe(kit, piece);
-      case "civic.greenhouse":
-        return civic.greenhouse(kit);
-      case "civic.windmill":
-        return civic.windmill(kit);
-      case "civic.welcome-sign":
-        return civic.welcomeSign(kit);
-      case "furniture.desk":
-        return desk(kit, o.seed ?? 0);
-      case "furniture.bench":
-        return bench(kit);
-      case "furniture.lamp":
-        return lamp(kit);
-      case "furniture.sofa":
-        return sofa(kit);
-      case "furniture.table":
-        return table(kit);
-      case "furniture.shelf":
-        return shelf(kit);
-      case "furniture.workdesk":
-        // The floor's desks by role: the analyst's screens, the designer's drawing board (addendum "three rooms").
-        return o.variant === "analyst" || o.variant === "design" ? roleDesk(kit, o.variant, o.seed ?? 0) : workdesk(kit, o.seed ?? 0);
-      case "furniture.lead-desk":
-        return leadDesk(kit);
-      case "furniture.rack-backlog":
-      case "furniture.rack-planning":
-      case "furniture.rack-review":
-      case "furniture.rack-done":
-        return statusRack(kit);
-      case "furniture.huddle-table":
-        return huddleTable(kit);
-      case "furniture.archive-counter":
-        return archiveCounter(kit);
-      case "decor.office-window":
-        return officeWindow(kit);
-      case "ticket.strap":
-        return pieces.straps(kit, o);
-      case "ticket.seal":
-        return pieces.band(kit, o, "seal-tape");
-      case "ticket.band":
-        return pieces.band(kit, o, o.accent ?? "sage");
-      case "ticket.sticker":
-        return pieces.sticker(kit, o);
-      case "ticket.speech":
-        return pieces.speech(kit);
-      case "sparkle":
-        return pieces.sparkle(kit);
-      case "focus-ring":
-        return pieces.focusRing(kit, o);
-      case "focus-glow":
-        return life.affordance(kit, "outline", o.size?.width ?? 4, o.size?.depth ?? 4);
-      case "focus-fill":
-        return life.affordance(kit, "fill", o.size?.width ?? 4, o.size?.depth ?? 4);
-      case "selection-ring":
-        return life.affordance(kit, "ring", 1.15, 1.15);
-      case "town.contact-shadow":
-        return pieces.contactShadow(kit, o);
-      case "town.bird":
-        return life.bird(kit);
-      case "town.butterfly":
-        return life.butterfly(kit);
-      case "town.firefly":
-        return life.firefly(kit);
-      case "town.mote":
-        return life.mote(kit);
-      case "town.window-glow":
-        return life.windowGlow(kit);
-      case "town.ripple":
-        return life.ripple(kit);
-      case "town.steam":
-        return life.steam(kit);
-      case "town.cloud-shadow":
-        return life.cloudShadow(kit);
-      default:
-        return null;
-    }
+    return codeModel(key, dresser.kit, o, { glass: this.#glass, piece: this.#piece(dresser) });
   }
 
   /** The kit a cast draws its figures with: one per cast, so each cast's own colours follow the theme. */
