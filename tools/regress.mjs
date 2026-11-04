@@ -2098,8 +2098,9 @@ await group("connect", async () => {
       await pg.goto(BASE);
       const noLoops = await screen(pg, "no-loops");
       ok("connect: No crewhub-loops found comes first", noLoops && /No crewhub-loops found/.test(await title(pg)), await title(pg));
-      // Round 48 (r48-ui U1): a Connect screen asks every 2.5 s (CONNECT_POLL_MS). The gate's onHealth was a new function on
-      // every answer, so the poll's effect started again with each one and asked back to back, thousands of times a second.
+      // Round 48 (r48-ui U1): a Connect screen asks every 2.5 s (state/health.ts, HEALTH_POLL_MS.screen). The gate's
+      // onHealth was a new function on every answer, so the poll's effect started again with each one and asked back to
+      // back, thousands of times a second.
       const asks = await healthAsks(pg, 6000);
       ok("connect: a Connect screen asks the host's health every 2.5 s, not back to back", asks <= 5, `${asks} health request(s) in 6 s`);
       await shot(pg, "34-connect-no-loops");

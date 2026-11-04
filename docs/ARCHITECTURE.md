@@ -80,6 +80,11 @@ One Node process, no third-party dependency (beside Node only the workspace's `l
 `world-model`), loopback only. Its parts, each a file in
 `apps/host/src` with its tests in `apps/host/test` against a loops stub on port 0:
 
+- **The connection** (`connection.ts`, round 59d): one module per host that owns the lifecycle below (the
+  discovery, the key and its verdicts, the link with its stream, chat path and archive memory, the snapshot
+  and the tab feed) behind one interface (`start`, `state`, `words`, `settled`, `read`, `snapshot`, `setKey`,
+  `forgetKey`, `feed`, `tabs`, `broadcast`, `scrub`, `close`); `host.ts` keeps the HTTP (routes, guards, pairing, static files, the town) on top of it.
+  Its tests (`connection.test.ts`, `connectionSnapshot.test.ts`) go through that interface, no HTTP.
 - **Discovery** (`discovery.ts`): the env's URL or socket is taken as given; else the Mac
   app's data folder is read (never written): its Unix socket `run/api.sock`, then the
   port in `settings.json`, each probed with the public `GET /api/health`, the two in
@@ -206,6 +211,14 @@ arrives and the answer to a pasted key, the panel's facts are a definition list 
 ticking "Updated" line not live, and the page's own status region says a connection change
 over the town once ("Connection: Stream busy. Another host or tab uses this key…"), never on
 load; links that open a new tab say so; `tools/a11y.mjs` asks a headless browser for all of it.
+
+Every read of the host's health in the page goes through one module, `apps/world/src/state/health.ts`
+(round 59d). Its callers declare a freshness need instead of polling: a screen (2.5 s), the Connection panel (5 s),
+the first snapshot loading (0.5 s), or a glance (the text view or the Chat panel opening: one read). It asks at the
+fastest need's pace, with one read in flight at a time. It takes the stream's word, so it reads again when the
+stream goes live or the key word changes, and it polls a host that leaves the key unsaid. It keeps one health value,
+starting with the gate's read, and derives from it the screen over the town, the chat road's input and the first
+snapshot's progress. Its tests drive it with a fake probe and a fake clock (`apps/world/test/hostHealth.test.ts`).
 The runbook's chip and screen table is [LOOPS_SETUP.md](LOOPS_SETUP.md), section 5.
 
 ## World styles

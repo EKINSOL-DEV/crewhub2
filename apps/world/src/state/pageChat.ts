@@ -247,13 +247,3 @@ export function createPageChatRunner(options: PageChatRunnerOptions): PageChatRu
     state: () => state,
   };
 }
-
-/**
- * When the page reads the host's health again for the chat road (round 29, Medium 2): a value that changes when the
- * stream goes live and when the host's key word on the stream changes; null while nothing is known (the stream not
- * live yet and no key word), so the first read (the gate's) stands until the host says something.
- */
-export function healthRereadKey(connection: string | null, streamKey: string | null): string | null {
-  if (connection !== "live" && streamKey === null) return null;
-  return `${connection === "live" ? "live" : "off"}:${streamKey ?? "-"}`;
-}
