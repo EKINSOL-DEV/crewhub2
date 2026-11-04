@@ -5,7 +5,7 @@
  *
  * Every edit goes through `applyEdit`, which never mutates and returns a document with `revision + 1`. Grid rules
  * (overlap, reachability) are not checked here: the room grid belongs to the renderer, so build mode validates a
- * placement with the engine (`catalogue.ts` `roomLayout` + `WorldSimulation.placement`) before it applies the edit.
+ * placement with the engine (`catalogue.ts` `siteLayout` + `placementRules`) before it applies the edit.
  * This module keeps the document itself consistent: known styles, known props, unique ids.
  */
 import { PROP_ID_PATTERN, validatePropModel } from "@crewhub/world-engine";

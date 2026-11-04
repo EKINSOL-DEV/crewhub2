@@ -11,12 +11,13 @@
 import type { Action } from "../../packages/demo/src/actions.ts";
 import type { TicketSeed } from "../../packages/demo/src/content.ts";
 import type { ScriptEntry } from "../../packages/demo/src/script.ts";
+import { APP_PORTS } from "../../scripts/named-ports.mjs";
 
 export type Status = "backlog" | "planned" | "in_progress" | "review" | "done";
 export const STATUSES: readonly Status[] = ["backlog", "planned", "in_progress", "review", "done"];
 
-/** The Mac app, `make dev-api` and the nginx https port: never a target, whatever `--url` says. */
-export const REFUSED_PORTS: readonly number[] = [8091, 8000, 9443];
+/** The Mac app, `make dev-api` and the nginx https port: never a target, whatever `--url` says. The one list (round 60, pk-P3): `scripts/named-ports.mjs`. */
+export const REFUSED_PORTS: readonly number[] = APP_PORTS;
 const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost"]);
 
 /**

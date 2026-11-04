@@ -5,6 +5,8 @@
  * and a step-aside, event-driven replanning and per-room detail levels.
  */
 import {
+  MAX_TICK_SECONDS,
+  SPEED_CELLS_PER_SECOND,
   cellKey,
   occupancy,
   validateLayout,
@@ -55,8 +57,6 @@ export interface NavSimStats extends NavStats {
   maxWait: number;
 }
 
-export const SPEED_CELLS_PER_SECOND = 2.8;
-export const MAX_TICK_SECONDS = 0.1;
 export const WAIT_REPLAN_SECONDS = 1.5;
 export const WAIT_STEP_ASIDE_SECONDS = 5;
 /** Entering a reserved cell costs this much in a wait-budget replan. */

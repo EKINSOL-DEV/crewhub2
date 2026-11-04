@@ -1,15 +1,15 @@
 /* The town document's placements inside the building templates. Pure: no Three.js, no DOM.
 
    A room of a building template is a world-engine layout with its own furniture. Build mode adds the document's
-   placements to it, one at a time in document order, through the engine's own footprint rules
-   (`WorldSimulation.placement`: in bounds, no overlap, the entrance and every approach cell reachable). A placement
+   placements to it, one at a time in document order, through the engine's own placement rules
+   (`placementRules`: in bounds, no overlap, the entrance and every approach cell reachable). A placement
    the engine refuses, or one whose room is not in the building now, is kept as a labelled error: it is never dropped
    silently. Door cells are guarded by a footprint-free marker prop whose approach is the door itself, so a placement
    can neither stand on a door nor wall one off.
 
    Props attached to a ticket or an agent take no footprint (plan 6.3); they ride on the work object or sit on the
    agent's desk, and are listed apart from the grid. */
-import { cellKey, propCells, WorldSimulation } from "@crewhub/world-engine";
+import { cellKey, placementRules, propCells, type PlacementRules } from "@crewhub/world-engine";
 import type { Cell, Definitions, PropDefinition, Rotation, WorldLayout, WorldProp } from "@crewhub/world-engine";
 import type { PlacedProp, RoomKind, TownDocument } from "@crewhub/world-model";
 import { hallOf, interiorDefinitions, roomOf, type BuildingTemplate } from "./buildingTemplate.ts";
@@ -160,14 +160,21 @@ function yieldDressing(room: RoomPlacements, definitions: Definitions, prop: Wor
   return { ok: true };
 }
 
-function check(layout: WorldLayout, definitions: Definitions, prop: WorldProp): { ok: true } | { ok: false; reason: string } {
-  let simulation: WorldSimulation;
+/** The engine's rules over a room's layout, or null when the layout itself is invalid (a room is never partly resolved). */
+function rulesOf(layout: WorldLayout, definitions: Definitions): PlacementRules | null {
   try {
-    simulation = new WorldSimulation(layout, definitions, []);
+    return placementRules(layout, definitions);
+  } catch {
+    return null;
+  }
+}
+
+function check(layout: WorldLayout, definitions: Definitions, prop: WorldProp): { ok: true } | { ok: false; reason: string } {
+  try {
+    return placementRules(layout, definitions).check(prop);
   } catch (e) {
     return { ok: false, reason: e instanceof Error ? e.message : "The room's layout is invalid." };
   }
-  return simulation.placement(prop);
 }
 
 /** A prop that rides on a ticket or sits on an agent's desk: no footprint, not on the grid. */
@@ -230,16 +237,7 @@ export function footprintPose(def: PropDefinition, cell: Cell, rotation: Rotatio
  * lands where it is seen; null when the room is full.
  */
 export function freeCellIn(room: RoomPlacements, definitions: Definitions, propId: string, rotation: Rotation = 0): Cell | null {
-  let simulation: WorldSimulation;
-  try {
-    simulation = new WorldSimulation(room.layout, definitions, []);
-  } catch {
-    return null;
-  }
-  const { width, depth } = room.layout.grid;
-  for (let z = depth - 1; z >= 0; z--)
-    for (let x = width - 1; x >= 0; x--)
-      if (simulation.placement({ id: "free-cell-probe", definitionId: propId, cell: { x, z }, rotation }).ok) return { x, z };
+  for (const cell of rulesOf(room.layout, definitions)?.freeCells(propId, rotation, "end") ?? []) return cell;
   return null;
 }
 
@@ -249,17 +247,8 @@ export function freeCellIn(room: RoomPlacements, definitions: Definitions, propI
  * reachable).
  */
 export function freeSpots(room: RoomPlacements, definitions: Definitions, count: number): Cell[] {
-  let simulation: WorldSimulation;
-  try {
-    simulation = new WorldSimulation(room.layout, definitions, []);
-  } catch {
-    return [];
-  }
   const { width, depth } = room.layout.grid;
-  const free: Cell[] = [];
-  for (let z = 0; z < depth; z++)
-    for (let x = 0; x < width; x++)
-      if (simulation.placement({ id: "free-spot-probe", definitionId: DOOR_MARKER, cell: { x, z }, rotation: 0 }).ok) free.push({ x, z });
+  const free = [...(rulesOf(room.layout, definitions)?.freeCells(DOOR_MARKER) ?? [])];
   const distance = (c: Cell) => Math.hypot(c.x + 0.5 - width / 2, c.z + 0.5 - depth / 2);
   return free.sort((a, b) => distance(a) - distance(b) || b.z - a.z || b.x - a.x).slice(0, count);
 }

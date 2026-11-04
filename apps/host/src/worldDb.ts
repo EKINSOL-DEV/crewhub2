@@ -10,7 +10,7 @@
  * change on a file that already has a schema, the file is copied to `world.db.bak-v<current>` beside it (never
  * overwritten). A document is kept as the browser sent it, text, so an export is the same bytes.
  *
- * Writes carry the revision they are based on: `putTown` answers a conflict instead of overwriting another browser's
+ * Writes carry the revision they are based on: `applyTown` answers a conflict instead of overwriting another browser's
  * revision (last write wins with a check; the browser reloads and says so).
  */
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
@@ -106,8 +106,6 @@ export interface StoredTown {
   canRedo: boolean;
 }
 
-export type PutOutcome = { ok: true; rev: number } | { ok: false; conflict: { rev: number; document: string | null } };
-
 /** One move of the host's history: a person's edit, the world's own record, a step back or forward. */
 export type TownOp = { kind: "commit" | "amend"; document: string } | { kind: "undo" | "redo" };
 
@@ -132,8 +130,6 @@ export interface WorldDb {
   /** Backup copies made at this open (`world.db.bak-v<n>`), for the log. */
   backups: string[];
   getTown(installation: string): StoredTown | null;
-  /** Writes a revision over `baseRev` (0 creates); a conflict when the host holds another revision. A commit, in the history's words. */
-  putTown(installation: string, document: string, baseRev: number, updatedBy?: string | null, now?: () => string): PutOutcome;
   /**
    * Moves the installation's history (round 21): a commit or an amend with a document, an undo or a redo without one,
    * each over `baseRev`. The current document after the move comes back with the new revision; a step that cannot be
@@ -284,10 +280,6 @@ export function openWorldDb(configDir: string, options: WorldDbOptions = {}): Wo
       if (found === undefined) return null;
       const history = historyOf(found);
       return { installation, rev: found.rev, document: found.document, updatedAt: found.updatedAt, updatedBy: found.updatedBy ?? null, canUndo: history !== null && canUndo(history), canRedo: history !== null && canRedo(history) };
-    },
-    putTown(installation, document, baseRev, updatedBy = null, now = () => new Date().toISOString()) {
-      const outcome = store.applyTown(installation, { kind: "commit", document }, baseRev, updatedBy, now);
-      return outcome.ok ? { ok: true, rev: outcome.rev } : outcome;
     },
     applyTown(installation, op, baseRev, updatedBy = null, now = () => new Date().toISOString()) {
       const at = now();

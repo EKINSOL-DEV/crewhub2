@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { createLoopsClient } from "../src/loops.ts";
-import { type ArchiveReport, archivedSlugsFromEvents, assembleSnapshot, readArchivedSlugsFromEvents } from "../src/snapshot.ts";
+import { type ArchiveReport, assembleSnapshot, readArchivedSlugsFromEvents } from "../src/snapshot.ts";
 import { type LoopsStub, createLoopsStub, envelope, installation } from "./loopsStub.ts";
 
 /** A `project.archived` or `project.restored` envelope at `seq` for `slug`. */
@@ -30,7 +30,7 @@ describe("archived projects from the event log", () => {
 
   it("keeps the last archive or restore per slug and pages past loops' 500", async () => {
     const client = createLoopsClient(stub.url, stub.key);
-    const slugs = await archivedSlugsFromEvents(client);
+    const { slugs } = await readArchivedSlugsFromEvents(client);
     assert.deepEqual(slugs.sort(), ["flip", "old"], "atlas was restored, flip was archived last");
     const reads = stub.requests.filter((r) => r.path.startsWith("/api/events?"));
     assert.ok(reads.length >= 2, `pages: ${reads.map((r) => r.path).join(" ")}`);

@@ -1,4 +1,5 @@
 /** Types for `no-app-reach.mjs` (a plain-Node preload, so the TypeScript test can import its rules). */
+export const APP_DATA_PARTS: readonly string[];
 export const APP_DATA: string;
 export const CONFIG_DIR: string;
 export const LOOPS_CONFIG: string;
