@@ -13,7 +13,8 @@
    Output: <tag>-<state>-town-<theme>-<width>.png, <tag>-<state>-chip-<theme>-<width>.png, <tag>-<state>-settings-<theme>-<width>.png,
    <tag>-<state>-text-<theme>-<width>.png, <tag>-<state>-chat-<theme>-<width>.png, <tag>-<state>-card-<agent>-<theme>-<width>.png (the page) and
    <tag>-<state>-cardonly-<agent>-<theme>-<width>.png (the card). The card's text goes on stdout, so a check can read it. */
-import { cli, launch, list, problemLines, watch } from "./lib/world.mjs";
+import { cli, launch, list, problemLines } from "./lib/world.mjs";
+import { openPage } from "./lib/page.mjs";
 
 const opts = cli("node tools/liveshots.mjs --port <port> [--tag live] [--theme light,dark] [--width 1440,375] [--state live] [--settle 6000] [--views town,chip,settings,text,chat,card] [--card <agent>] [--out <dir>] [--swiftshader]", {
   options: { tag: "live", theme: "light,dark", width: "1440", state: "live", settle: "6000", views: "town,chip,settings,text", card: "" },
@@ -41,7 +42,6 @@ async function openCard(p, agent) {
   await p.waitForTimeout(800);
   return p.locator(".agent-card");
 }
-const viewport = (width) => (width <= 480 ? { viewport: { width, height: 812 }, isMobile: true, hasTouch: true } : { viewport: { width, height: 900 } });
 const browser = await launch(opts);
 const problems = [];
 const notes = [];
@@ -49,10 +49,7 @@ let count = 0;
 const name = (view, theme, width) => `${opts.out}${opts.tag}-${opts.state}-${view}-${theme}-${width}.png`;
 for (const theme of themes)
   for (const width of widths) {
-    const ctx = await browser.newContext({ ...viewport(width), deviceScaleFactor: 1, colorScheme: theme });
-    const p = await ctx.newPage();
-    watch(p, opts.origin, problems, `${theme} ${width}`);
-    await p.goto(`${opts.base}?source=live`, { waitUntil: "load" });
+    const p = await openPage(browser, { origin: opts.origin, width, theme, problems, tag: `${theme} ${width}`, url: `${opts.base}?source=live`, waitUntil: "load" });
     await p.waitForSelector("canvas", { timeout: 60000 }).catch(() => notes.push(`${theme} ${width}: no canvas`));
     await p.waitForTimeout(Number(opts.settle));
     const chip = p.locator(".connection-chip").first();

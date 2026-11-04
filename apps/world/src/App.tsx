@@ -53,6 +53,7 @@ import type { ConnectionState } from "@crewhub/loops-client";
 import type { Pick } from "./world/buildingView";
 import { roomName } from "./world/roomWords";
 import { useBuildingPlan } from "./state/buildingPlan";
+import { dialogIsOpen, useOverlays } from "./state/overlays";
 import { DirectorLog } from "./components/DirectorLog";
 import { PresenceSettings } from "./components/PresenceSettings";
 import { WhereForm } from "./components/WhereForm";
@@ -116,21 +117,16 @@ function World() {
   const walking = view.walk !== null;
   const [reducedMotion, setReducedMotion] = useState(prefersReducedMotion);
   const [graphicsFailed, setGraphicsFailed] = useState(false);
-  const [textOpen, setTextOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [connectionOpen, setConnectionOpen] = useState(false);
+  // The dialogs and panels over the town (state/overlays.ts): which are open, where the focus returns, what Escape closes.
+  const [overlayState, overlays] = useOverlays();
+  const { text: textOpen, settings: settingsOpen, connection: connectionOpen, tour: tourOpen, jump: jumpOpen, chat: chatOpen, editor: editorOpen } = overlayState.open;
   // The introduction inside the world (round 20): open by itself once per browser, or from Settings and the "?" menu.
-  const [tourOpen, setTourOpen] = useState(false);
   const tourAsked = useRef(false);
-  /** Where the focus goes when the tour closes: the Settings button when Settings opened it (its own button is gone with the sheet). */
-  const tourReturn = useRef<HTMLElement | null>(null);
   const [announcement, setSpoken] = useState("");
   // The same sentence twice is heard twice (state/announce.ts, round 50 N3); one function for the page's life.
   const setAnnouncement = useCallback((text: string) => setSpoken((before) => nextAnnouncement(before, text)), []);
-  const [jumpOpen, setJumpOpen] = useState(false);
-  // The Chat panel (components/ChatPanel, live mode): open, with the agent it was opened for (its card) or none (the chip).
-  const [chat, setChat] = useState<{ agent: { key: string; name: string } | null } | null>(null);
-  const chatReturn = useRef<HTMLElement | null>(null);
+  // The Chat panel (components/ChatPanel, live mode): the agent it was opened for (its card), or none (the chip).
+  const [chatAgent, setChatAgent] = useState<{ key: string; name: string } | null>(null);
   const [overrides, setOverrides] = useState<Record<string, RoleId>>(readRoleOverrides);
   const ambient = useAmbient();
   const details = useDetails();
@@ -142,9 +138,9 @@ function World() {
   // The building template this viewer sees decides the words for places: rooms, or the three halls.
   const rooms = useBuildingPlan();
   const dark = useDark();
-  const [editing, setEditing] = useState<{ prop: PropModel | null } | null>(null);
+  // The prop editor: the prop it edits, or none for a new one.
+  const [editedProp, setEditedProp] = useState<PropModel | null>(null);
   useEffect(() => townRuntime().onAnnounce(setAnnouncement), []);
-  const returnFocus = useRef<HTMLElement | null>(null);
   const textRegion = useRef<HTMLElement>(null),
     settingsCard = useRef<HTMLDivElement>(null);
 
@@ -252,7 +248,7 @@ function World() {
     (prop: PropModel) => {
       const result = townRuntime().edit({ type: "add-user-prop", prop });
       if (!result.ok) return result.error;
-      setEditing(null);
+      overlays.close("editor");
       build.choose(prop.id);
       setAnnouncement(`${prop.name} saved under Mine and chosen for placing.`);
       return null;
@@ -289,7 +285,7 @@ function World() {
   const go = useCallback((place: Place, agent?: string) => void dispatch({ type: "go", place, agent }), []);
   const camera = useCallback((action: CameraAction) => void dispatch({ type: "camera", action }), []);
   const jump = useCallback((entry: JumpEntry) => {
-    setJumpOpen(false);
+    overlays.dismiss("jump");
     // The list closes on the chosen entry (not through closeJump): the scene takes the focus, so the arrow keys and
     // Enter work at once (Enter opens the card of a figure jumped to); the body would have had it (round 21).
     requestAnimationFrame(focusScene);
@@ -297,14 +293,8 @@ function World() {
   }, []);
   /** The jump list's active row's building (null when none or the list is closed): the scene builds it ahead. */
   const jumpActive = useCallback((entry: JumpEntry | null) => void dispatch({ type: "jumpActive", building: entry?.place.building ?? null }), []);
-  const openJump = useCallback(() => {
-    returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setJumpOpen(true);
-  }, []);
-  const closeJump = useCallback(() => {
-    setJumpOpen(false);
-    returnFocus.current?.focus();
-  }, []);
+  const openJump = useCallback(() => overlays.open("jump"), []);
+  const closeJump = useCallback(() => overlays.close("jump"), []);
   const jumps = useMemo(() => (jumpOpen ? jumpEntries(model, districts) : []), [jumpOpen, model, districts]);
   // A district that emptied or a town that shrank back to one settlement has no district level left.
   useEffect(() => {
@@ -314,10 +304,7 @@ function World() {
   const selectedAgent = selection.selected?.kind === "agent" ? selection.selected.key : null;
   const agentName = useCallback((key: string) => agentNameOf(model, key), [model]);
   const follow = useCallback((key: string | null) => void dispatch({ type: "follow", key }), []);
-  const openSettings = useCallback(() => {
-    returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setSettingsOpen(true);
-  }, []);
+  const openSettings = useCallback(() => overlays.open("settings"), []);
   // The page's chat (state/chat.ts): it follows the host's health and the building you are in; its navigations open Settings.
   const talk = useChat({ health: hostHealth, leadId: inside?.lead.id ?? null, openSettings });
   // Opening the chat for an agent (a bubble tap, a card's Chat button, an answer row; null: the chip) goes where the
@@ -329,37 +316,21 @@ function World() {
       if (opening.card !== null) pick({ kind: "agent", key: opening.card }, false);
       return;
     }
-    chatReturn.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setChat({ agent: opening.panel });
+    overlays.open("chat");
+    setChatAgent(opening.panel);
     setAnnouncement(translate("world.chat.panel.announce"));
   });
-  const closeChat = useCallback(() => {
-    setChat(null);
-    chatReturn.current?.focus();
-  }, []);
+  const closeChat = useCallback(() => overlays.close("chat"), []);
   const openAnswer = useStable((_a: Answer, target: AnswerTarget) => openChat(target.agent?.key ?? null));
 
-  const openText = useCallback(() => {
-    returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setTextOpen(true);
-  }, []);
-  const closeText = useCallback(() => {
-    setTextOpen(false);
-    returnFocus.current?.focus();
-  }, []);
-  const closeSettings = useCallback(() => {
-    setSettingsOpen(false);
-    returnFocus.current?.focus();
-  }, []);
+  const openText = useCallback(() => overlays.open("text"), []);
+  const closeText = useCallback(() => overlays.close("text"), []);
+  const closeSettings = useCallback(() => overlays.close("settings"), []);
   /** "Show the introduction": from Settings (which closes first, so the tour's card stands over the town) or the "?" menu. */
-  const openTour = useCallback(() => {
-    tourReturn.current = settingsOpen ? returnFocus.current : null;
-    setSettingsOpen(false);
-    setTourOpen(true);
-  }, [settingsOpen]);
+  const openTour = useCallback(() => overlays.openTour(), []);
   const closeTour = useCallback(() => {
     writeTourDone();
-    setTourOpen(false);
+    overlays.close("tour");
   }, []);
   // Leaving build mode unmounts its sheet; a focus that was in the sheet (the palette, by keyboard) would fall to the
   // body. It goes to the Build button in the toolbar instead (round 21).
@@ -373,14 +344,8 @@ function World() {
     buildWasOn.current = build.state.on;
   }, [build.state.on]);
   // The Connection panel (live mode): the chip opens it; Escape and its close button return the focus to the chip.
-  const openConnection = useCallback(() => {
-    returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setConnectionOpen(true);
-  }, []);
-  const closeConnection = useCallback(() => {
-    setConnectionOpen(false);
-    returnFocus.current?.focus();
-  }, []);
+  const openConnection = useCallback(() => overlays.open("connection"), []);
+  const closeConnection = useCallback(() => overlays.close("connection"), []);
   useEffect(() => {
     if (textOpen) textRegion.current?.focus();
   }, [textOpen]);
@@ -405,7 +370,7 @@ function World() {
       return;
     }
     // The jump list opens from anywhere, a text field included (Cmd or Ctrl+K types nothing).
-    if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k" && !editing) {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k" && !editorOpen) {
       e.preventDefault();
       if (jumpOpen) closeJump();
       else openJump();
@@ -420,10 +385,18 @@ function World() {
       return;
     }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
-    if (editing) {
-      if (e.key === "Escape") setEditing(null);
-      return;
+    // Escape closes the innermost thing first: the page's dialogs by their order (state/overlays.ts), then build mode's
+    // drag, selection and chosen prop, then the view's own chain (state/view.ts).
+    if (e.key === "Escape") {
+      const dialog = overlays.escapeTarget();
+      if (dialog !== null) {
+        e.preventDefault();
+        overlays.close(dialog);
+        return;
+      }
     }
+    // The prop editor and the jump list keep the keys below from the page (the jump list after B, as ever).
+    if (editorOpen) return;
     // While walking, the movement keys are the walk's (WorldCanvas), and the mode keys that share them wait.
     if (walking && /^(w|a|s|d|b|shift|arrow(up|down|left|right)|enter)$/i.test(e.key)) return;
     if (e.key.toLowerCase() === "b" && !graphicsFailed) {
@@ -431,33 +404,10 @@ function World() {
       build.toggle();
       return;
     }
-    // Escape closes the innermost thing first: the page's dialogs (the jump list, the chat, the Connection panel,
-    // Settings), then build mode's drag, selection and chosen prop, then the view's own chain (state/view.ts).
-    if (jumpOpen) {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        closeJump();
-      }
-      return;
-    }
+    if (jumpOpen) return;
     if (e.key === "/") {
       e.preventDefault();
       openJump();
-      return;
-    }
-    if (e.key === "Escape" && chat) {
-      e.preventDefault();
-      closeChat();
-      return;
-    }
-    if (e.key === "Escape" && connectionOpen) {
-      e.preventDefault();
-      closeConnection();
-      return;
-    }
-    if (e.key === "Escape" && settingsOpen) {
-      e.preventDefault();
-      closeSettings();
       return;
     }
     if (build.key(e)) {
@@ -534,7 +484,7 @@ function World() {
   // The text view's Chat line and the Chat panel's small print say the chat session's state (round 14): one health read
   // when either opens on a live page (state/health.ts, the `glance` need), so the words are the host's current ones.
   useHealthNeed(!demo && textOpen ? "glance" : null);
-  useHealthNeed(!demo && chat !== null ? "glance" : null);
+  useHealthNeed(!demo && chatOpen ? "glance" : null);
   const trailNames = { home: homeName(districts), district: here?.name ?? null, building: inside?.name ?? null, room: inside && zoomed ? roomName(inside, zoomed, rooms) : null };
   const trail = useMemo(
     () => crumbs(placeOf(view, districts), trailNames),
@@ -553,14 +503,14 @@ function World() {
   const screen = useLiveScreen(demo ? null : { connection, key: streamKey });
   // The tour starts by itself once the town stands (a short beat after the model has buildings, or at once in the demo),
   // never over a Connect screen, a dialog or a failed scene, never for a tool's browser, never again after Skip or Done.
-  const dialogOpen = settingsOpen || jumpOpen || connectionOpen || chat !== null || card || textOpen || build.state.on || editing !== null;
+  const dialogOpen = dialogIsOpen(overlayState) || card || build.state.on;
   const townStands = demo || model.buildings.length > 0;
   useEffect(() => {
     if (tourAsked.current || !townStands || screen !== null) return;
     const timer = setTimeout(() => {
       if (tourAsked.current) return;
       tourAsked.current = true;
-      if (tourShouldStart({ done: readTourDone(), webdriver: navigator.webdriver === true, search: location.search, screenShown: screen !== null, dialogOpen, graphicsFailed })) setTourOpen(true);
+      if (tourShouldStart({ done: readTourDone(), webdriver: navigator.webdriver === true, search: location.search, screenShown: screen !== null, dialogOpen, graphicsFailed })) overlays.startTour();
     }, 1500);
     return () => clearTimeout(timer);
   }, [townStands, screen, dialogOpen, graphicsFailed]);
@@ -614,11 +564,11 @@ function World() {
 
       {connectionOpen && connection && <ConnectionPanel state={connection} onClose={closeConnection} />}
 
-      {chat && <ChatPanel agent={chat.agent} health={hostHealth} road={chatRoad} full={narrow} answers={answers} recentEmpty={recentEmptyWords("live", chatRoad)} targetOf={talk.answerTarget} onAnswer={openAnswer} onClose={closeChat} />}
+      {chatOpen && <ChatPanel agent={chatAgent} health={hostHealth} road={chatRoad} full={narrow} answers={answers} recentEmpty={recentEmptyWords("live", chatRoad)} targetOf={talk.answerTarget} onAnswer={openAnswer} onClose={closeChat} />}
 
       {jumpOpen && <JumpList entries={jumps} onJump={jump} onClose={closeJump} onActive={jumpActive} />}
 
-      {tourOpen && <Tour mode={demo ? "demo" : "live"} reducedMotion={reducedMotion} returnTo={tourReturn.current} onClose={closeTour} />}
+      {tourOpen && <Tour mode={demo ? "demo" : "live"} reducedMotion={reducedMotion} returnTo={overlayState.tourReturn} onClose={closeTour} />}
 
       {settingsOpen && (
         <Card ref={settingsCard} className="world-sheet settings-sheet" role="dialog" aria-labelledby="settings-title">
@@ -654,26 +604,29 @@ function World() {
             onClose={build.toggle}
             onUndo={undo}
             onRedo={redo}
-            onEdit={(propId) => setEditing({ prop: propId ? (town.catalogue.get(propId)?.model ?? null) : null })}
+            onEdit={(propId) => {
+              setEditedProp(propId ? (town.catalogue.get(propId)?.model ?? null) : null);
+              overlays.open("editor");
+            }}
             onRequest={requestProp}
           />
         </Suspense>
       )}
-      {editing && (
+      {editorOpen && (
         <Suspense fallback={null}>
           <PropEditor
-            initial={editing.prop}
+            initial={editedProp}
             takenIds={town.catalogue.entries.map((e) => e.id)}
             theme={dark ? "lamplight" : "day"}
             onSave={saveProp}
-            onClose={() => setEditing(null)}
+            onClose={() => overlays.close("editor")}
           />
         </Suspense>
       )}
 
       {!graphicsFailed && <CameraToolbar camera={camera} walking={walking} toggleWalk={walking ? stopWalk : build.state.on ? null : startWalk} />}
 
-      <ChatCorner narrow={narrow} demo={demo} connection={connection} chatOpen={chat !== null} onOpenChat={() => openChat(null)} />
+      <ChatCorner narrow={narrow} demo={demo} connection={connection} chatOpen={chatOpen} onOpenChat={() => openChat(null)} />
 
       {playback && <PlaybackBar playback={playback} />}
 

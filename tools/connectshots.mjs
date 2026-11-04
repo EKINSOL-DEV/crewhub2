@@ -20,6 +20,7 @@
      no-loops or pair (no pair link) the host must be in that state itself.
    Output in --out: <tag><state>-<theme>-<width>.png. Prints connectshots: <passed>/<total> last; exit 0 at full marks. */
 import { cli, launch, list, pairedTab, problemLines, watch } from "./lib/world.mjs";
+import { openPage, screen, waitChip } from "./lib/page.mjs";
 import { createConnectStub } from "./lib/connectStub.mjs";
 import { isProbeRefusal } from "./lib/probeRefusal.ts";
 import { ownPort } from "./lib/toolGuard.ts";
@@ -38,7 +39,6 @@ const widths = list(opts.width).map(Number);
 const themes = list(opts.theme, ["light", "dark"], opts.fail, "theme");
 const states = list(opts.states ?? (opts.real ? STATES : STATES.filter((s) => !REAL_ONLY.includes(s))).join(","), STATES, opts.fail, "state");
 if (!opts.real) for (const s of states) if (REAL_ONLY.includes(s)) opts.fail(`state "${s}" needs --real (and --readonly-key-file): the stub host knows no Read only bot`);
-const viewport = (width) => (width <= 480 ? { viewport: { width, height: 812 }, isMobile: true, hasTouch: true } : { viewport: { width, height: 900 } });
 const GOOD_KEY = "chl_" + "goodKEY-_0123456789abcdefghijklmnopqrstuv".slice(0, 43);
 const BAD_KEY = "chl_bad" + "x".repeat(40);
 
@@ -55,16 +55,10 @@ const ok = (name, condition, detail = "") => {
 const name = (state, theme, width) => `${opts.out}${opts.tag}${state}-${theme}-${width}.png`;
 const baseState = (state) => (state === "pasted" || state === "invalid" ? "connect" : state === "panel" || state === "forget" ? "connected" : state === "busy-panel" ? "busy" : state);
 
-async function open(theme, width) {
-  const ctx = await browser.newContext({ ...viewport(width), deviceScaleFactor: 1, colorScheme: theme });
-  const p = await ctx.newPage();
-  watch(p, opts.origin, problems, `${theme} ${width}`);
-  await p.goto(opts.base, { waitUntil: "load" });
-  return p;
-}
-const screen = (p, which, timeout = 15000) => p.waitForSelector(`.connect-page[data-screen="${which}"]`, { timeout });
-const live = (p, timeout = 45000) => p.waitForSelector('.connection-chip[data-connection="live"]', { timeout });
-const chipState = (p, which, timeout = 45000) => p.waitForSelector(`.connection-chip[data-connection="${which}"]`, { timeout });
+/** A page of this tool (lib/page.mjs): the viewport by width, the theme, watched, at the world's address. */
+const open = (theme, width) => openPage(browser, { origin: opts.origin, width, theme, problems, tag: `${theme} ${width}`, url: opts.base, waitUntil: "load" });
+const live = (p, timeout = 45000) => waitChip(p, "live", timeout);
+const chipState = waitChip;
 
 if (opts.real) {
   await realRun();
