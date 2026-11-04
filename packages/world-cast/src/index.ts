@@ -455,8 +455,8 @@ export interface FigurePatch {
   perch?: FigureSpec["perch"];
 }
 
-export { applyFigurePatch, figureColor, figureEyes, hashKey, perchFor, perchPlacement, wave, type PerchPlacement } from "./figure.ts";
+export { applyFigurePatch } from "./figure.ts";
 export { validateCastManifest, validateFigure, validateFigurePatch, validatePerson, type CastValidation } from "./validate.ts";
 export { createCast, fadedCopiesAlive } from "./runtime.ts";
 export { referenceKit } from "./referenceKit.ts";
-export { castProblems, everyState, measureFigure, sightProblems } from "./contract.ts";
+export { castProblems, everyState, measureFigure } from "./contract.ts";
