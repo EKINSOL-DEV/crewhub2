@@ -2,6 +2,7 @@
  * What the agent card knows about one agent: gathered from the world model (what the reducer placed) and the facts
  * behind it (the loops snapshot, the team snapshot, the recent event history). Pure and defensive: a fact that is
  * absent is null or an empty list, never guessed. The card's sections (apps/world) decide what to show from this.
+ * `agentCardFacts` is the whole interface: the pieces that gather it are private and tested through it (round 61, W7).
  */
 import type { AgentOut, ProjectRef, TeamAgent } from "@crewhub/loops-client";
 import { linesOf, listAgents, projectByTicketKey, type AgentEntity } from "./agents.ts";
@@ -172,7 +173,7 @@ export interface AgentCardFacts {
   lead: AgentLeadFacts | null;
 }
 
-export const RECENT_LIMIT = 5;
+const RECENT_LIMIT = 5;
 
 const str = (value: unknown): string | null => (typeof value === "string" && value.length > 0 ? value : null);
 const bool = (value: unknown): boolean | null => (typeof value === "boolean" ? value : null);
@@ -180,14 +181,14 @@ const int = (value: unknown): number | null => (Number.isInteger(value) ? (value
 const record = (value: unknown): Record<string, unknown> | null => (value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null);
 
 /** Reads a `ComputerOut` without trusting it: a name is required, the kind is whatever string loops sent. */
-export function computerFacts(computer: unknown): ComputerFacts | null {
+function computerFacts(computer: unknown): ComputerFacts | null {
   const c = record(computer);
   const name = c ? str(c.name) : null;
   return name ? { name, kind: str(c?.kind) ?? "unknown" } : null;
 }
 
 /** Reads `AgentOut.lane` (`AgentLane` on the wire, typed on the client since 4cdcd383) without trusting any field. */
-export function laneFacts(lane: unknown): AgentLaneFacts | null {
+function laneFacts(lane: unknown): AgentLaneFacts | null {
   const l = record(lane);
   if (!l) return null;
   const desired = record(l.desired);
@@ -245,7 +246,7 @@ const inDock = (agent: AgentOut): boolean => agent.role === "lead" && !agent.dis
  * world's role words; the lead offered instead is the first loops lists of the worker's lead and the building's lead,
  * and never the agent itself.
  */
-export function chatFacts(agents: readonly AgentOut[], entity: Pick<AgentEntity, "key" | "registered" | "lead">, building: Pick<Building, "lead"> | null): AgentChatFacts {
+function chatFacts(agents: readonly AgentOut[], entity: Pick<AgentEntity, "key" | "registered" | "lead">, building: Pick<Building, "lead"> | null): AgentChatFacts {
   const own = agents.find((a) => a.id === entity.key);
   if (own && inDock(own)) return { self: true, why: null, lead: null };
   const why = !own
@@ -286,8 +287,8 @@ function ticketBrief(fact: CardFact, facts: Readonly<Facts>): TicketBrief {
 
 const byStatusThenNewest = (a: TicketBrief, b: TicketBrief) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || (b.updatedAt ?? 0) - (a.updatedAt ?? 0) || a.key.localeCompare(b.key);
 
-/** The agent's tickets from the board cards the host read (see `AgentTicketFacts`); pure, tested. */
-export function ticketFacts(facts: Readonly<Facts>, key: string): AgentTicketFacts {
+/** The agent's tickets from the board cards the host read (see `AgentTicketFacts`); pure, tested through the card. */
+function ticketFacts(facts: Readonly<Facts>, key: string): AgentTicketFacts {
   const held: TicketBrief[] = [];
   const waitedOnBy: TicketBrief[] = [];
   for (const fact of Object.values(facts.cards)) {
@@ -300,7 +301,7 @@ export function ticketFacts(facts: Readonly<Facts>, key: string): AgentTicketFac
 }
 
 /** The agent's lead (see `AgentLeadFacts`): the team snapshot's word for a worker, else the building's lead, never itself. */
-export function leadFacts(facts: Readonly<Facts>, entity: Pick<AgentEntity, "key" | "lead">, building: Pick<Building, "lead"> | null): AgentLeadFacts | null {
+function leadFacts(facts: Readonly<Facts>, entity: Pick<AgentEntity, "key" | "lead">, building: Pick<Building, "lead"> | null): AgentLeadFacts | null {
   if (entity.lead && entity.lead !== entity.key) {
     const known = facts.agents.find((a) => a.id === entity.lead);
     return { key: entity.lead, displayName: known?.displayName ?? entity.lead, how: "team" };
@@ -325,7 +326,7 @@ function placementsOf(model: WorldModel, key: string): { agent: AgentPlacement; 
 }
 
 /** The recent facts that name the agent, newest first, at most `RECENT_LIMIT`. */
-export function recentFacts(entity: AgentEntity, facts: Readonly<Facts>): RecentFact[] {
+function recentFacts(entity: AgentEntity, facts: Readonly<Facts>): RecentFact[] {
   const out: RecentFact[] = [];
   for (const { line, text } of linesOf(entity, facts)) out.push({ ts: line.ts, kind: "progress", ticketKey: line.ticketKey, text: `${line.kind} on ${line.ticketKey}: ${text}` });
   // Moves and comments carry the loops actor; a worker never acts in loops under its own name.

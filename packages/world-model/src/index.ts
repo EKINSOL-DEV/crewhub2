@@ -32,7 +32,7 @@ export {
   sameSign,
 } from "./halls.ts";
 export type { Hall, RackKind, RoomWording, WordingOptions } from "./halls.ts";
-export { RECENT_LIMIT, agentCardFacts, chatFacts, computerFacts, laneFacts, leadFacts, recentFacts, ticketFacts } from "./agentCard.ts";
+export { agentCardFacts } from "./agentCard.ts";
 export type { AgentCardFacts, AgentChatFacts, AgentLaneFacts, AgentLeadFacts, AgentLoopsFacts, AgentProgress, AgentTeamSession, AgentTicketFacts, ComputerFacts, RecentFact, TicketBrief } from "./agentCard.ts";
 export type { CivicWords } from "./describe.ts";
 export { DEFAULT_ZONE_ID, resolveZones, zoneById, zoningOf } from "./zones.ts";
