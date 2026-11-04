@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { homedir } from "node:os";
 import path from "node:path";
-import { ConfigError, worldEnv, DEFAULT_APP_DATA, keyFilesOf, keyNameOf, loadKey, loadServerConfig, resolveLoopsWebUrl, validateSocketPath, configFolderLine } from "../src/config.ts";
+import { ConfigError, KEY_SHAPE, worldEnv, DEFAULT_APP_DATA, keyFilesOf, keyNameOf, loadKey, loadServerConfig, resolveLoopsWebUrl, validateSocketPath, configFolderLine } from "../src/config.ts";
 
 const files = { storedKey: "/me/.config/crewhub-world/loops-key", defaultKey: "/secrets/agent-crewhub-world.key" };
 const disk = (contents: Record<string, string>) => (file: string) => contents[file] ?? null;
@@ -128,5 +128,28 @@ describe("the config folder line (round 34)", () => {
     assert.equal(configFolderLine({ CREWHUB_WORLD_CONFIG_DIR: "/tmp/my-world" }, "/Users/me"), "config folder /tmp/my-world (from CREWHUB_WORLD_CONFIG_DIR)");
     assert.equal(configFolderLine({ CREWHUB_WORLD_CONFIG_DIR: "/Users/me/world-trial" }, "/Users/me"), "config folder ~/world-trial (from CREWHUB_WORLD_CONFIG_DIR)");
     assert.equal(configFolderLine({ CREWHUB_WORLD_CONFIG_DIR: "   " }, "/Users/me").endsWith("(the default ~/.config/crewhub-world)"), true, "blank is unset");
+  });
+});
+
+describe("a setting that holds an http(s) URL (round 60, H7: one rule for the sign-in link and the public URL)", () => {
+  const settings: [string, (text: string) => string | null][] = [
+    ["CREWHUB_WORLD_LOOPS_WEB_URL", (text) => resolveLoopsWebUrl(text, null)],
+    ["CREWHUB_WORLD_PUBLIC_URL", (text) => loadServerConfig({ CREWHUB_WORLD_PUBLIC_URL: text }).publicUrl],
+  ];
+  for (const [name, read] of settings) {
+    it(`${name} answers the origin, and refuses anything else by its own name`, () => {
+      assert.equal(read("http://127.0.0.1:5381/some/path?q=1"), "http://127.0.0.1:5381");
+      assert.equal(read("  https://localhost:5381/  "), "https://localhost:5381");
+      for (const bad of ["not a url", "ftp://localhost", "javascript:alert(1)", "/just/a/path"]) {
+        assert.throws(() => read(bad), (error: unknown) => error instanceof ConfigError && error.message === `${name} must be an http(s) URL`, bad);
+      }
+    });
+  }
+});
+
+describe("a key's shape (round 60, H7: one rule for a pasted key and the doctor's reading of a file)", () => {
+  it("is chl_ and 8 to 200 of letters, digits, - and _, one line", () => {
+    for (const yes of [`chl_${"a".repeat(8)}`, `chl_${"Z9-_".repeat(50)}`]) assert.equal(KEY_SHAPE.test(yes), true, yes);
+    for (const no of ["", "chl_", `chl_${"a".repeat(7)}`, `chl_${"a".repeat(201)}`, `key_${"a".repeat(20)}`, `chl_${"a".repeat(8)} x`, `chl_${"a".repeat(8)}\nb`, `CHL_${"a".repeat(8)}`]) assert.equal(KEY_SHAPE.test(no), false, JSON.stringify(no));
   });
 });

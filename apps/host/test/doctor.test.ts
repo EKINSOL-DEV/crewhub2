@@ -7,7 +7,7 @@ import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:f
 import { createServer as createHttpServer } from "node:http";
 import { createServer } from "node:net";
 import type { AddressInfo } from "node:net";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, it } from "node:test";
 import { plainTime } from "../src/archiveStore.ts";
@@ -170,6 +170,21 @@ describe("the doctor", () => {
     assert.equal(probed.projects!.status, "skip");
     const missing = byId(await runDoctor({ env: { ...base, CREWHUB_WORLD_KEY_FILE: path.join(dir, "gone.key") }, probePort: free }));
     assert.match(missing.key!.text, /cannot read the key file .*gone\.key/);
+  });
+
+  it("words a road under the home folder with ~ when it says what it looked for (round 60, H7)", async () => {
+    // An app data folder under home that does not exist: the disk is faked, nothing under home is read or written.
+    const dir = folder();
+    const closed = await freePort();
+    const appData = path.join(homedir(), "chw-doctor-test-no-such-folder");
+    const down = byId(await runDoctor({
+      env: { CREWHUB_WORLD_LOOPS_APP_DATA: appData, CREWHUB_WORLD_CONFIG_DIR: path.join(dir, "cw") },
+      probePort: free,
+      keyFiles: { storedKey: path.join(dir, "cw", "loops-key"), defaultKey: path.join(dir, "none.key") },
+      statPath: (file) => (file.endsWith("api.sock") ? { isSocket: true } : null),
+      readFile: (file) => (file.endsWith("settings.json") ? `{"port": ${closed}}` : null),
+    }));
+    assert.ok(down.loops!.text.startsWith(`nothing answers; looked for app-socket ~/chw-doctor-test-no-such-folder/run/api.sock, app-port http://127.0.0.1:${closed}.`), down.loops!.text);
   });
 
   it("says what it looked for when nothing answers, and what listens on the host's port", async () => {

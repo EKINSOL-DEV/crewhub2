@@ -40,6 +40,9 @@ export function isLoopbackAddress(address: string | undefined): boolean {
   return address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1";
 }
 
+/** Whether a request says its body is JSON: the rule of the host's three JSON routes (connect, the town, this one). */
+export const isJsonContentType = (contentType: string | undefined): boolean => /^application\/json\b/i.test(contentType ?? "");
+
 /** The decision on one `POST /world-api/dev-origin`. */
 export function devOriginVerdict(input: {
   body: unknown;
@@ -57,7 +60,7 @@ export function devOriginVerdict(input: {
   if (input.originHeader !== undefined) return { ok: false, status: 403, error: "not_a_program", message: "A page cannot tell the host its origin: this is for this checkout's dev server (npm run dev)" };
   if (!input.hasSecret) return { ok: false, status: 404, error: "no_run_file", message: "This host has no run file, so no dev server can prove it is the same user; start the host with npm run host" };
   if (!input.sameUser) return { ok: false, status: 403, error: "not_same_user", message: "The dev origin needs the host's run file secret in the x-crewhub-world-mint header (the dev server reads $TMPDIR/crewhub-world-host-<port>.json, 0600, as open does)" };
-  if (!/^application\/json\b/i.test(input.contentType ?? "")) return { ok: false, status: 415, error: "json_required", message: "Send application/json" };
+  if (!isJsonContentType(input.contentType)) return { ok: false, status: 415, error: "json_required", message: "Send application/json" };
   if (input.body === null || typeof input.body !== "object") return { ok: false, status: 400, error: "bad_body", message: "Send {origin, checkout}" };
   const body = input.body as Record<string, unknown>;
   const origin = loopbackOrigin(body["origin"]);

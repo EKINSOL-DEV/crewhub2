@@ -4,7 +4,7 @@
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { appPortOf, candidates, createDiscovery, discoverOnce, targetText } from "../src/discovery.ts";
+import { appPortOf, candidates, createDiscovery, discoverOnce, roadsOf, targetText } from "../src/discovery.ts";
 import type { LoopsTarget } from "../src/transport.ts";
 import { waitFor } from "./wait.ts";
 
@@ -96,5 +96,17 @@ describe("the discovery", () => {
     } finally {
       discovery.stop();
     }
+  });
+});
+
+describe("the roads as they are said (round 60, H7: one wording for the log line and the doctor)", () => {
+  const noApp = { loopsUrl: null, loopsSocket: null, loopsWebUrl: null, appData: "/home/me/app" };
+  it("says each road's way and target, in the order of the candidates; `say` words the target and nothing else", () => {
+    assert.deepEqual(roadsOf({ ...noApp, loopsUrl: "http://127.0.0.1:5381" }), ["env-url http://127.0.0.1:5381"]);
+    assert.deepEqual(roadsOf({ ...noApp, loopsSocket: "/home/me/loops.sock" }, (target) => target.replace("/home/me", "~")), ["env-socket ~/loops.sock"]);
+    const both = { ...noApp, statPath: () => ({ isSocket: true }), readFile: () => JSON.stringify({ port: 5381 }) };
+    const roads = roadsOf(both, (target) => `<${target}>`);
+    assert.deepEqual(roads.map((r) => r.split(" ")[0]), candidates(both).map((c) => c.via));
+    assert.ok(roads.every((r, i) => r.endsWith(`<${targetText(candidates(both)[i]!.target)}>`)), roads.join(", "));
   });
 });
