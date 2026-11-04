@@ -204,6 +204,14 @@ arrives and the answer to a pasted key, the panel's facts are a definition list 
 ticking "Updated" line not live, and the page's own status region says a connection change
 over the town once ("Connection: Stream busy. Another host or tab uses this key…"), never on
 load; links that open a new tab say so; `tools/a11y.mjs` asks a headless browser for all of it.
+
+Every read of the host's health in the page goes through one module, `apps/world/src/state/health.ts`
+(round 59d). Its callers declare a freshness need instead of polling: a screen (2.5 s), the Connection panel (5 s),
+the first snapshot loading (0.5 s), or a glance (the text view or the Chat panel opening: one read). It asks at the
+fastest need's pace, with one read in flight at a time. It takes the stream's word, so it reads again when the
+stream goes live or the key word changes, and it polls a host that leaves the key unsaid. It keeps one health value,
+starting with the gate's read, and derives from it the screen over the town, the chat road's input and the first
+snapshot's progress. Its tests drive it with a fake probe and a fake clock (`apps/world/test/hostHealth.test.ts`).
 The runbook's chip and screen table is [LOOPS_SETUP.md](LOOPS_SETUP.md), section 5.
 
 ## World styles
