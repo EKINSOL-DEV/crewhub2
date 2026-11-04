@@ -1,7 +1,7 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type Ref } from "react";
 import { ArrowLeft, BookOpen, ChevronRight, CircleHelp, Eye, FlaskConical, Hammer, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Footprints, Scan, Search, Settings, Sun, Tags, X } from "lucide-react";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { agentCardFacts, archivedWords, CIVIC_WORDS, describeTownDocument, describeWorld, roleWords, ruleProps, zoningOf, type AgentPlacement, type CivicWords, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomKind, type RoomWording, type TextLine, type WorldModel } from "@crewhub/world-model";
+import { agentCardFacts, CIVIC_WORDS, describeTownDocument, describeWorld, roleWords, ruleProps, zoningOf, type AgentPlacement, type CivicWords, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomWording, type TextLine, type WorldModel } from "@crewhub/world-model";
 import type { PropModel } from "@crewhub/world-engine";
 import { Bubbles } from "./components/bubbles/Bubbles";
 import { TownSettings } from "./components/TownSettings";
@@ -33,7 +33,7 @@ import { useMedia } from "./state/media";
 import { useWindowKeydown } from "./state/windowKeys";
 import { Button, Card, Chip, Field, Menu } from "./components/primitives";
 import { SceneBoundary } from "./components/SceneBoundary";
-import WorldCanvas, { type Selection } from "./components/WorldCanvas";
+import WorldCanvas from "./components/WorldCanvas";
 import { createChatQueryClient, useChatEvents, useChatNavigation, useChatView } from "./state/chat";
 import { useAmbient } from "./state/ambient";
 import { useCast } from "./state/cast";
@@ -41,7 +41,8 @@ import { castRegistry } from "./world/cast";
 import { describeCasts } from "./world/castText";
 import { describeZones, townKeeping, townKeepingWords } from "./world/zoneText";
 import { styleRegistry } from "./world/style";
-import { crumbs, districtsOf, homeName, isRegion, jumpEntries, needsOf, needsWords, stepOut, summarise, summaryWords, type Crumb, type DistrictPlace, type JumpEntry, type Place } from "./world/wayfinding";
+import { crumbs, districtsOf, homeName, isRegion, jumpEntries, needsOf, needsWords, summarise, summaryWords, type Crumb, type DistrictPlace, type JumpEntry, type Place } from "./world/wayfinding";
+import { agentNameOf, hereOf, HOME_VIEW, insideOf, placeOf, stepView, type View, type ViewIntent, type ViewStep } from "./state/view";
 import { toggleDetails, useDetails } from "./state/details";
 import { toggleFps } from "./state/fps";
 import { readRoleOverrides, writeRoleOverrides } from "./state/roleOverrides";
@@ -52,18 +53,16 @@ import type { TownLayer } from "./world/propLayer";
 import { pageConfig } from "./state/page";
 import { translate } from "./i18n";
 import { probeHost, type ConnectionState, type HostHealth } from "@crewhub/loops-client";
-import { buildingTemplate } from "./world/buildingTemplate";
 import type { Pick } from "./world/buildingView";
-import { firstRoom, roomNeighbor } from "./world/interiorLayout";
-import { roomName, roomSummary, zoomedTo } from "./world/roomWords";
+import { roomName } from "./world/roomWords";
 import { useBuildingPlan } from "./state/buildingPlan";
 import { DirectorLog } from "./components/DirectorLog";
 import { PresenceSettings } from "./components/PresenceSettings";
 import { WhereForm } from "./components/WhereForm";
 import { civicWords } from "./world/settlementDressing";
 import type { CameraAction } from "./world/TownScene";
-import { countsLine, laneWords, mmss } from "./world/townLayout";
-import { describePlan, moveFocus } from "./world/townPlan";
+import { mmss } from "./world/townLayout";
+import { describePlan } from "./world/townPlan";
 import { useTownPlan } from "./state/plan";
 
 // Build mode and the prop editor are not needed for the first frame: they load when first opened.
@@ -110,9 +109,13 @@ function World() {
   const dockHeight = useDockHeight();
   const { theme, cycle } = useTheme();
   useDirectorFeed();
-  const [entered, setEntered] = useState<string | null>(null);
-  const [focused, setFocused] = useState(0);
-  const [ringVisible, setRingVisible] = useState(false);
+  // The world view (state/view.ts): where it is, what is picked, the card, the follow, the walk and the camera commands
+  // as one value, stepped by intents. The ref is the truth between renders (the scene sends intents from its frames,
+  // several before React renders again); the state mirrors it for rendering.
+  const viewRef = useRef<View>(HOME_VIEW);
+  const [view, setView] = useState<View>(HOME_VIEW);
+  const { entered, zoomed, selection, card, following } = view;
+  const walking = view.walk !== null;
   const [reducedMotion, setReducedMotion] = useState(prefersReducedMotion);
   const [graphicsFailed, setGraphicsFailed] = useState(false);
   const [textOpen, setTextOpen] = useState(false);
@@ -126,23 +129,7 @@ function World() {
   const [announcement, setSpoken] = useState("");
   // The same sentence twice is heard twice (state/announce.ts, round 50 N3); one function for the page's life.
   const setAnnouncement = useCallback((text: string) => setSpoken((before) => nextAnnouncement(before, text)), []);
-  const [action, setAction] = useState<{ id: number; type: CameraAction }>({ id: 0, type: "home" });
-  const [room, setRoom] = useState<RoomKind | null>(null);
-  const [zoomed, setZoomed] = useState<RoomKind | null>(null);
-  // The district the view is in (a region only): the level between the home view and a building.
-  const [district, setDistrict] = useState<string | null>(null);
   const [jumpOpen, setJumpOpen] = useState(false);
-  /** The jump list's active row's building (null when none or the list is closed): the scene builds it ahead. */
-  const [likely, setLikely] = useState<string | null>(null);
-  const jumpActive = useCallback((entry: JumpEntry | null) => setLikely(entry?.place.building ?? null), []);
-  const [flight, setFlight] = useState<{ id: number; anchor: string; reach?: number }>({ id: 0, anchor: "" });
-  const [selection, setSelection] = useState<Selection>({ hover: null, selected: null });
-  // Walk mode: the person walks a visitor through the world. The level it began on is kept for the way back.
-  const [walking, setWalking] = useState(false);
-  const walkBack = useRef<{ entered: string | null; room: RoomKind | null; zoomed: RoomKind | null; district: string | null } | null>(null);
-  // The agent card (open for the selected agent) and the agent the camera follows (components/AgentCard).
-  const [card, setCard] = useState(false);
-  const [following, setFollowing] = useState<string | null>(null);
   // The Chat panel (components/ChatPanel, live mode): open, with the agent it was opened for (its card) or none (the chip).
   const [chat, setChat] = useState<{ agent: { key: string; name: string } | null } | null>(null);
   const chatReturn = useRef<HTMLElement | null>(null);
@@ -165,8 +152,7 @@ function World() {
 
   const buildings = model.buildings;
   const plan = useTownPlan(model, town.doc);
-  const inside = buildings.find((b) => b.slug === entered) ?? null;
-  const camera = useCallback((type: CameraAction) => setAction((a) => ({ id: a.id + 1, type })), []);
+  const inside = insideOf(view, buildings);
   // The districts in use: a building stands in the district of its plot (after a regroup that is not its zone's).
   const districtKey = `${model.zones.map((z) => `${z.id}:${z.name}:${z.order}`).join("|")}#${model.buildings.map((b) => `${b.slug}:${b.zoneId}`).join("|")}`;
   const districts = useMemo(() => {
@@ -174,10 +160,8 @@ function World() {
     return districtsOf(model, (slug) => stands.get(slug));
     // The model is a new object on every reduction; the districts follow who stands where.
   }, [districtKey, plan, model]);
-  const region = isRegion(districts);
-  const here = region ? (districts.find((d) => d.id === district) ?? null) : null;
-  const districtOfBuilding = useCallback((slug: string) => (isRegion(districts) ? (districts.find((d) => d.buildings.some((b) => b.slug === slug))?.id ?? null) : null), [districts]);
-  const build = useBuildMode(town, inside, room, setAnnouncement);
+  const here = hereOf(view, districts);
+  const build = useBuildMode(town, inside, view.room, setAnnouncement);
   const rules = useMemo(() => ruleProps(model, town.doc.rules), [model, town.doc.rules]);
   const townLayer = useMemo<TownLayer>(
     () => ({
@@ -278,113 +262,43 @@ function World() {
     [build],
   );
 
-  // describe, startWalk, stopWalk, summary and follow are useStable, not useCallback (round 53, r53-review2 W1): a
-  // useCallback kept from an older render holds that render's whole scope, and with it the older scopes its fellows
-  // hold, so every switch between the town, a building and a room kept a render of World alive. Each is only called
-  // from a handler, never during a render, so its identity carries nothing.
-  const describe = useStable(
-    (index: number) => {
-      const b = buildings[index];
-      if (!b) return "";
-      if (b.archived) return `${b.name} (${b.key}), archived: ${archivedWords(b.archivedAt, model.now)}${b.archivedBy ? ` by ${b.archivedBy}` : ""}. ${countsLine(b.counts)}. Enter to look inside.`;
-      const lead = b.agents.find((a) => a.key === b.lead.id && a.presence === "real");
-      return `${b.name} (${b.key}). ${countsLine(b.counts)}. Lead ${b.lead.displayName}, ${lead ? laneWords(lead.laneStatus, model.freshness) : "not in the building"}. Enter to go inside.`;
-    },
-  );
-  const enter = useCallback(
-    (slug: string) => {
-      const index = buildings.findIndex((b) => b.slug === slug);
-      const b = buildings[index];
-      if (!b) return;
-      setEntered(slug);
-      setDistrict(districtOfBuilding(slug));
-      setFocused(index);
-      setRoom(null);
-      setZoomed(null);
-      setSelection({ hover: null, selected: null });
-      setCard(false);
-      setFollowing(null);
-      setAnnouncement(`Inside ${b.name} (${b.key}). ${b.agents.filter((a) => a.presence === "real").length} agents here. Escape or Backspace returns to the town.`);
-    },
-    [buildings, districtOfBuilding],
-  );
-  const describeDistrict = useCallback((d: DistrictPlace) => `${d.name}. ${summaryWords(summarise(d.buildings))}`, []);
-  const back = useCallback(() => {
-    setEntered(null);
-    setRoom(null);
-    setZoomed(null);
-    setSelection({ hover: null, selected: null });
-    setCard(false);
-    setFollowing(null);
-    // In a region a building steps out to its district; Escape once more shows the region.
-    setAnnouncement(here ? `${describeDistrict(here)} Escape shows the region.` : `The town. ${describe(focused)}`);
-  }, [describe, describeDistrict, focused, here]);
-  const startWalk = useStable(() => {
-    walkBack.current = { entered, room, zoomed, district };
-    // A walk takes the camera: a follow ends and the agent card closes.
-    setFollowing(null);
-    setCard(false);
-    setSelection({ hover: null, selected: null });
-    setRingVisible(false);
-    setWalking(true);
-    setAnnouncement("Walking. W A S D or the arrow keys move you, Shift hurries, drag to look around. Walk through a door to go in or out. Escape stops.");
-  });
-  /* Escape: back to the level the walk began on. */
-  const stopWalk = useStable(() => {
-    const was = walkBack.current;
-    walkBack.current = null;
-    setWalking(false);
-    if (was) {
-      setEntered(was.entered && buildings.some((b) => b.slug === was.entered) ? was.entered : null);
-      setRoom(was.room);
-      setZoomed(was.zoomed);
-      setDistrict(was.district);
+  // The view's intents go through one stable function (round 53, r53-review2 W1: a useCallback kept from an older render
+  // held that render's whole scope; this one holds nothing but the ref). It steps the module with this render's facts,
+  // keeps the ref and the state, says the sentence, and closes the page's overlay the view asks closed.
+  const dispatch = useStable((intent: ViewIntent): ViewStep => {
+    const before = viewRef.current;
+    const step = stepView(before, intent, { model, districts, plan, rooms });
+    if (step.view !== before) {
+      viewRef.current = step.view;
+      setView(step.view);
     }
-    setAnnouncement("Walking stopped.");
+    if (step.say !== null) setAnnouncement(step.say);
+    if (step.close === "text") closeText();
+    else if (step.close === "build") build.toggle();
+    /* The agent card closes (its close button, or Escape reaching it in the chain): a focus that was in the card goes to
+       the scene, not to the body (round 21; tools/a11y.mjs checks the canvas has it). */
+    if (intent.type === "closeCard" || (intent.type === "escape" && before.card && !step.view.card)) {
+      requestAnimationFrame(() => {
+        if (document.activeElement === null || document.activeElement === document.body) focusScene();
+      });
+    }
+    return step;
   });
+  const back = useCallback(() => void dispatch({ type: "back" }), []);
+  const startWalk = useCallback(() => void dispatch({ type: "startWalk" }), []);
+  const stopWalk = useCallback(() => void dispatch({ type: "stopWalk" }), []);
   /* Goes to a place of any level (the breadcrumb, the jump list, a district's label, the text view). */
-  const go = useCallback(
-    (place: Place, agent?: string) => {
-      // Going somewhere by name ends a walk there.
-      setWalking(false);
-      const b = place.building ? buildings.find((x) => x.slug === place.building) : undefined;
-      const d = isRegion(districts) ? (districts.find((x) => x.id === place.district) ?? null) : null;
-      setDistrict(b ? districtOfBuilding(b.slug) : (d?.id ?? null));
-      setEntered(b?.slug ?? null);
-      setRoom(b ? place.room : null);
-      setZoomed(b ? place.room : null);
-      // The agent to land beside: in its building, or in the town (the town hall's agents, the postman).
-      setSelection({ hover: null, selected: agent ? { kind: "agent", key: agent } : null });
-      setCard(false);
-      setFollowing(null);
-      if (b) {
-        setFocused(buildings.indexOf(b));
-        setAnnouncement(`Inside ${b.name} (${b.key})${place.room ? `, ${roomName(b, place.room, rooms)}` : ""}. Escape steps back out.`);
-      } else if (d) {
-        setRingVisible(false);
-        setAnnouncement(`${describeDistrict(d)} Escape shows the region.`);
-      } else setAnnouncement(isRegion(districts) ? `The region: ${districts.map((x) => x.name).join(", ")}.` : "The town.");
-    },
-    [buildings, describeDistrict, districtOfBuilding, districts, rooms],
-  );
-  const jump = useCallback(
-    (entry: JumpEntry) => {
-      setJumpOpen(false);
-      // The list closes on the chosen entry (not through closeJump): the scene takes the focus, so the arrow keys and
-      // Enter work at once (Enter opens the card of a figure jumped to); the body would have had it (round 21).
-      requestAnimationFrame(focusScene);
-      go(entry.place, entry.agent);
-      if (entry.agent && !entry.place.building) {
-        // A figure outside the buildings: the camera lands close beside it, selected; Enter opens its card.
-        setFlight((f) => ({ id: f.id + 1, anchor: `a:town:${entry.agent}`, reach: 5 }));
-        setAnnouncement(`${entry.label}. ${entry.detail} Enter opens its card.`);
-      } else if (entry.civic) {
-        setFlight((f) => ({ id: f.id + 1, anchor: `c:${entry.civic}` }));
-        setAnnouncement(`${entry.label}. ${entry.detail}`);
-      }
-    },
-    [go],
-  );
+  const go = useCallback((place: Place, agent?: string) => void dispatch({ type: "go", place, agent }), []);
+  const camera = useCallback((action: CameraAction) => void dispatch({ type: "camera", action }), []);
+  const jump = useCallback((entry: JumpEntry) => {
+    setJumpOpen(false);
+    // The list closes on the chosen entry (not through closeJump): the scene takes the focus, so the arrow keys and
+    // Enter work at once (Enter opens the card of a figure jumped to); the body would have had it (round 21).
+    requestAnimationFrame(focusScene);
+    dispatch({ type: "jump", entry });
+  }, []);
+  /** The jump list's active row's building (null when none or the list is closed): the scene builds it ahead. */
+  const jumpActive = useCallback((entry: JumpEntry | null) => void dispatch({ type: "jumpActive", building: entry?.place.building ?? null }), []);
   const openJump = useCallback(() => {
     returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setJumpOpen(true);
@@ -396,48 +310,12 @@ function World() {
   const jumps = useMemo(() => (jumpOpen ? jumpEntries(model, districts) : []), [jumpOpen, model, districts]);
   // A district that emptied or a town that shrank back to one settlement has no district level left.
   useEffect(() => {
-    if (district && !here) setDistrict(null);
-  }, [district, here]);
-  const summary = useStable((kind: RoomKind) => (inside ? roomSummary(inside, kind, (a: AgentPlacement) => laneWords(a.laneStatus, model.freshness), rooms) : ""));
-  const focusRoom = useCallback(
-    (kind: RoomKind, zoom: boolean) => {
-      setRoom(kind);
-      if (zoom) setZoomed(kind);
-      setAnnouncement(zoom ? `${zoomedTo(summary(kind), kind, rooms)} Escape goes back to the building.` : summary(kind));
-    },
-    [summary, rooms],
-  );
-  const pick = useCallback(
-    (target: Pick | null, hover: boolean) => {
-      if (target?.kind === "prop") target = null;
-      if (hover) {
-        setSelection((s) => ({ ...s, hover: target }));
-        return;
-      }
-      if (target?.kind === "room") {
-        focusRoom(target.room, true);
-        return;
-      }
-      // A click on an agent selects it and opens its card; a click elsewhere (or on the selected object) clears.
-      if (target?.kind === "agent") {
-        setSelection((s) => ({ hover: s.hover, selected: target }));
-        setCard(true);
-        return;
-      }
-      setCard(false);
-      setSelection((s) => ({ hover: s.hover, selected: target && JSON.stringify(target) !== JSON.stringify(s.selected) ? target : null }));
-    },
-    [focusRoom],
-  );
+    if (view.district !== null && here === null) dispatch({ type: "settle" });
+  }, [view.district, here]);
+  const pick = useCallback((target: Pick | null, hover: boolean) => void dispatch({ type: "pick", target, hover }), []);
   const selectedAgent = selection.selected?.kind === "agent" ? selection.selected.key : null;
-  const agentName = useCallback(
-    (key: string) => [...model.buildings.flatMap((b) => b.agents), ...model.townHall, ...model.postOffice].find((a) => a.key === key)?.displayName ?? key,
-    [model],
-  );
-  const follow = useStable((key: string | null) => {
-    setFollowing(key);
-    setAnnouncement(key ? `Following ${agentName(key)}. Escape, Shift+F or a drag stops following.` : "Stopped following.");
-  });
+  const agentName = useCallback((key: string) => agentNameOf(model, key), [model]);
+  const follow = useCallback((key: string | null) => void dispatch({ type: "follow", key }), []);
   // The Chat panel opens from the chip (no agent) or from a card (that agent); Escape and its close button return the
   // focus to the opener. Never in the demo, whose chat is its own scripted dock.
   const openChat = useStable((key: string | null) => {
@@ -462,25 +340,6 @@ function World() {
     if (model.mode === "demo") pick({ kind: "agent", key: target.agent?.key ?? a.agentId }, false);
     else openChat(target.agent?.key ?? null);
   });
-  /* The followed figure walked somewhere else: the level follows it; the selection and the card stay. */
-  const followedTo = useCallback(
-    (slug: string | null) => {
-      const b = slug ? buildings.find((x) => x.slug === slug) : undefined;
-      setEntered(b?.slug ?? null);
-      if (b) {
-        setDistrict(districtOfBuilding(b.slug));
-        setFocused(buildings.indexOf(b));
-      }
-      setRoom(null);
-      setZoomed(null);
-      setAnnouncement(following ? `${agentName(following)} ${b ? `walked into ${b.name} (${b.key})` : "is walking through the town"}.` : "");
-    },
-    [agentName, buildings, districtOfBuilding, following],
-  );
-  const followStopped = useCallback(() => {
-    setFollowing(null);
-    setAnnouncement("Stopped following.");
-  }, []);
 
   const openText = useCallback(() => {
     returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -507,13 +366,6 @@ function World() {
   const closeTour = useCallback(() => {
     writeTourDone();
     setTourOpen(false);
-  }, []);
-  /** The agent card closes (Escape, its close button): a focus that was in the card goes to the scene, not to the body (round 21). */
-  const closeCard = useCallback(() => {
-    setCard(false);
-    requestAnimationFrame(() => {
-      if (document.activeElement === null || document.activeElement === document.body) focusScene();
-    });
   }, []);
   // Leaving build mode unmounts its sheet; a focus that was in the sheet (the palette, by keyboard) would fall to the
   // body. It goes to the Build button in the toolbar instead (round 21).
@@ -588,8 +440,8 @@ function World() {
       build.toggle();
       return;
     }
-    // Escape closes the innermost thing first: Settings, then build mode (its drag, selection, chosen prop, then the
-    // mode itself), then the text view, the selection, the zoomed room and the building.
+    // Escape closes the innermost thing first: the page's dialogs (the jump list, the chat, the Connection panel,
+    // Settings), then build mode's drag, selection and chosen prop, then the view's own chain (state/view.ts).
     if (jumpOpen) {
       if (e.key === "Escape") {
         e.preventDefault();
@@ -621,9 +473,10 @@ function World() {
       e.preventDefault();
       return;
     }
-    if (e.key === "Escape" && walking) {
-      e.preventDefault();
-      stopWalk();
+    if (e.key === "Escape") {
+      // The view's Escape chain (state/view.ts), innermost first: the walk, build mode, the text view, the follow, the
+      // card, the selection, the zoomed room, the building, the district. Nothing left: the key is nobody's.
+      if (dispatch({ type: "escape", open: { text: textOpen, build: build.state.on } }).handled) e.preventDefault();
       return;
     }
     if (e.key.toLowerCase() === "w" && !graphicsFailed && !build.state.on && !textOpen && !settingsOpen && !selection.selected) {
@@ -631,29 +484,10 @@ function World() {
       startWalk();
       return;
     }
-    if (e.key === "Escape" && build.state.on) {
-      e.preventDefault();
-      build.toggle();
-      return;
-    }
     // Shift+F follows the selected agent (F alone is the frame rate overlay).
     if (e.key.toLowerCase() === "f" && e.shiftKey && !graphicsFailed && (selectedAgent || following)) {
       e.preventDefault();
       follow(following ? null : selectedAgent);
-      return;
-    }
-    if (e.key === "Escape") {
-      if (textOpen) closeText();
-      else if (following) follow(null);
-      else if (card) closeCard();
-      else if (selection.selected) setSelection((s) => ({ ...s, selected: null }));
-      else if (zoomed) {
-        setZoomed(null);
-        setAnnouncement(`Inside ${inside?.name ?? "the building"}. Arrow keys move between ${rooms === "classic" ? "rooms" : "the halls"}.`);
-      } else if (entered) back();
-      else if (here) go(stepOut({ district: here.id, building: null, room: null })!);
-      else return;
-      e.preventDefault();
       return;
     }
     if (e.key === "Backspace" && entered && !walking) {
@@ -686,52 +520,15 @@ function World() {
     }
   });
 
-  // Arrow keys and Enter move the focus ring between plots while the scene has keyboard focus.
+  // Arrow keys and Enter move the focus ring between plots while the scene has keyboard focus (state/view.ts decides).
   const sceneKey = (e: ReactKeyboardEvent) => {
     if (typing(e.target) || e.altKey || e.ctrlKey || e.metaKey || walking) return;
     // A key in the agent card (it sits in the stage) is the card's, not the scene's (state/sceneKeys.ts, round 50 A4).
     if (!sceneOwnsKey(e.target instanceof Element ? e.target : null)) return;
     // Build mode moves the chosen or selected prop with the arrow keys (the window listener handles them).
     if (build.state.on && inside && (build.state.propId || build.state.selected)) return;
-    if (inside) {
-      // Inside a building: arrow keys move the focus ring between rooms, Enter zooms to the focused room.
-      const onCanvas = e.target === e.currentTarget.querySelector("canvas");
-      if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
-        e.preventDefault();
-        const template = buildingTemplate(inside, rooms);
-        focusRoom(room ? roomNeighbor(template, room, e.key) : firstRoom(template), false);
-      } else if (e.key === "Enter" && onCanvas) {
-        e.preventDefault();
-        // Enter on a selected agent opens its card; else it zooms to the focused room.
-        if (selectedAgent && !card) setCard(true);
-        else focusRoom(room ?? firstRoom(buildingTemplate(inside, rooms)), true);
-      }
-      return;
-    }
-    if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) {
-      e.preventDefault();
-      // The ring moves by where the buildings stand, not by their order in the list.
-      const next = ringVisible ? moveFocus(plan, buildings.map((b) => b.slug), focused, e.key) : focused;
-      setFocused(next);
-      setRingVisible(true);
-      setAnnouncement(describe(next));
-    }
-    if (e.key === "Enter" && e.target === e.currentTarget.querySelector("canvas")) {
-      e.preventDefault();
-      // Enter on a selected town figure (after a jump to it) opens its card; else it enters the focused building.
-      if (selectedAgent && !card) {
-        setCard(true);
-        return;
-      }
-      const b = buildings[focused];
-      if (b) enter(b.slug);
-    }
+    if (dispatch({ type: "key", key: e.key, onCanvas: e.target === e.currentTarget.querySelector("canvas") }).handled) e.preventDefault();
   };
-  const hover = useCallback((index: number | null) => {
-    if (index === null) return;
-    setFocused(index);
-    setRingVisible(true);
-  }, []);
 
   const demo = model.mode === "demo";
   const connection = useConnection();
@@ -767,10 +564,9 @@ function World() {
     if (pageChatOrigin === null) return;
     return startPageChat({ loopsOrigin: pageChatOrigin, hostKeyReadsChat: keyReadsChat });
   }, [pageChatOrigin, keyReadsChat]);
-  const onGo = useStable(go);
   const trailNames = { home: homeName(districts), district: here?.name ?? null, building: inside?.name ?? null, room: inside && zoomed ? roomName(inside, zoomed, rooms) : null };
   const trail = useMemo(
-    () => crumbs({ district: here?.id ?? null, building: inside?.slug ?? null, room: inside ? zoomed : null }, trailNames),
+    () => crumbs(placeOf(view, districts), trailNames),
     // The names decide; the object is new each render.
     [here?.id, inside?.slug, zoomed, JSON.stringify(trailNames)],
   );
@@ -844,7 +640,7 @@ function World() {
 
       {/* The corners come before the scene, so Tab reaches the header before the scene's labels, as it is seen (round 52,
           r50-a11y A9); they still paint over the scene's top overlays by their z-index (world.css `.world-corner`). */}
-      <Corner demo={demo} connection={connection} connectionOpen={connectionOpen} onOpenConnection={openConnection} graphicsFailed={graphicsFailed} trail={trail} onGo={onGo} onJump={openJump} jumpOpen={jumpOpen} following={following ? agentName(following) : null} onStopFollow={() => follow(null)} />
+      <Corner demo={demo} connection={connection} connectionOpen={connectionOpen} onOpenConnection={openConnection} graphicsFailed={graphicsFailed} trail={trail} onGo={go} onJump={openJump} jumpOpen={jumpOpen} following={following ? agentName(following) : null} onStopFollow={() => follow(null)} />
 
       <CornerTools theme={theme} cycle={cycle} details={details} buildOn={build.state.on} toggleBuild={build.toggle} settingsOpen={settingsOpen} openSettings={openSettings} closeSettings={closeSettings} graphicsFailed={graphicsFailed} openTour={openTour} />
 
@@ -857,37 +653,17 @@ function World() {
               onSaidTap={(key) => (demo ? pick({ kind: "agent", key }, false) : openChat(key))}
               marks={marks}
               plan={plan}
-              entered={entered}
-              focused={focused}
-              likely={likely}
-              ringVisible={ringVisible}
-              room={room}
-              zoomed={zoomed}
-              selection={selection}
-              onPick={pick}
+              view={view}
+              onIntent={dispatch}
               reducedMotion={reducedMotion}
               ambient={ambient}
               details={details}
-              action={action}
               districts={districts}
-              district={here?.id ?? null}
-              flight={flight}
-              onDistrict={(id) => onGo({ district: id, building: null, room: null })}
-              onEnter={enter}
-              onHover={hover}
               onError={() => setGraphicsFailed(true)}
               onAnnounce={setAnnouncement}
               town={townLayer}
               onBuild={build.pointer}
-              walking={walking}
-              onWalkPlace={(slug) => (slug ? enter(slug) : back())}
-              card={card}
-              onCloseCard={closeCard}
               onChat={demo ? null : openChat}
-              following={following}
-              onFollow={follow}
-              onFollowed={followedTo}
-              onFollowStopped={followStopped}
             />
           </SceneBoundary>
         )}
@@ -959,7 +735,7 @@ function World() {
 
       {playback && <PlaybackBar playback={playback} />}
 
-      {(textOpen || graphicsFailed) && <TextView civic={civic} rooms={rooms} ref={textRegion} lines={textLines} connection={connection} chat={chatPlaceLine(demo ? "demo" : "live", chatRoad)} marks={marks} answers={answers} recentEmpty={recentEmptyWords(demo ? "demo" : "live", chatRoad)} targetOf={answerTargetOf} onAnswer={openAnswer} fallback={graphicsFailed} onClose={graphicsFailed ? null : closeText} districts={districts} onGo={graphicsFailed ? null : onGo} />}
+      {(textOpen || graphicsFailed) && <TextView civic={civic} rooms={rooms} ref={textRegion} lines={textLines} connection={connection} chat={chatPlaceLine(demo ? "demo" : "live", chatRoad)} marks={marks} answers={answers} recentEmpty={recentEmptyWords(demo ? "demo" : "live", chatRoad)} targetOf={answerTargetOf} onAnswer={openAnswer} fallback={graphicsFailed} onClose={graphicsFailed ? null : closeText} districts={districts} onGo={graphicsFailed ? null : go} />}
     </div>
   );
 }
