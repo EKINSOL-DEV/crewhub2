@@ -127,7 +127,7 @@ should shrink.
 
 ## Limits
 
-The exact numbers the validator uses (`PROP_LIMITS`).
+The exact numbers the validator uses, and the three sizes at which a part draws with fewer triangles (`PROP_LIMITS`).
 
 | Limit | Value | Meaning |
 | --- | --- | --- |
@@ -150,6 +150,9 @@ The exact numbers the validator uses (`PROP_LIMITS`).
 | `rotationMax` | 360 | largest absolute rotation, degrees |
 | `cornerRadiusMax` | 0.5 | largest box corner radius |
 | `cornerRadiusDefault` | 0.04 | box corner radius when `radius` is left out |
+| `plainBevel` | 0.012 | a box whose bevel is at most this draws as a plain box (not a validation limit) |
+| `smallSphere` | 0.05 | a sphere with no radius above this draws with fewer sides (not a validation limit) |
+| `smallCylinder` | 0.04 | a cylinder with neither end's radius above this draws with fewer sides (not a validation limit) |
 | `sweepMin` | 1 | narrowest wedge, degrees |
 | `sweepMax` | 360 | widest wedge (a whole round), degrees |
 | `minTotalVolume` | 0.0005 | smallest total volume of all parts, m³ |
