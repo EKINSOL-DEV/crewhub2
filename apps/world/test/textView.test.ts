@@ -74,7 +74,8 @@ test("textViewLines says where a live town document is kept, lower-cased into on
     return textViewLines(facts(model, { town: { ...facts(model).town, storage } })).filter((l) => l.text.startsWith("The town document is "));
   };
   assert.deepEqual(keeping("live", "host"), [{ section: "Town document", text: "The town document is kept by the world's host for this crewhub-loops, shared by every paired browser.", kind: "fact" }]);
-  assert.deepEqual(keeping("live", "indexeddb"), [{ section: "Town document", text: "The town document is kept in this browser until the host is back.", kind: "fact" }]);
+  // A prefix: this test owns the lower-casing into a sentence, `townKeepingWords` owns the words after it (q8's answer adds a rule there).
+  assert.match(keeping("live", "indexeddb")[0]!.text, /^The town document is kept in this browser until the host is back\./);
   assert.deepEqual(keeping("demo", "indexeddb"), []);
 });
 
