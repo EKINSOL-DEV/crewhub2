@@ -55,3 +55,25 @@ test("the stress stream is deterministic: a seek replays the same events", () =>
   // Seeking to 0 replays the stream from the start.
   assert.deepEqual(record(0), straight);
 });
+
+test("the stress snapshot: each column numbered 1 to n, groups in the region of twenty only; a tab that leaves stops nobody else's stream (round 54, r54-mut-demo: stress.ts:181, :368, :454)", () => {
+  for (const size of [12, 20] as const) {
+    const scheduler = createManualScheduler();
+    const source = createStressSource({ scheduler, size });
+    const first: SourceMessage[] = [];
+    const second: SourceMessage[] = [];
+    const leave = source.start((m) => first.push(m));
+    source.start((m) => second.push(m));
+    const snapshot = first[0];
+    assert.ok(snapshot?.type === "snapshot");
+    for (const [slug, board] of Object.entries(snapshot.snapshot.boards)) {
+      for (const column of board.columns) assert.deepEqual(column.tickets.map((t) => t.position), column.tickets.map((_, i) => i + 1), `${slug} ${column.status}`);
+    }
+    assert.equal("groups" in snapshot.snapshot, size === 20, `size ${size}`);
+    source.playback.setSpeed(16);
+    leave();
+    const before = second.length;
+    scheduler.advance(3_000);
+    assert.ok(second.length > before, `size ${size}: the tab that stayed still hears the stream`);
+  }
+});

@@ -155,3 +155,13 @@ test("auth/me says a signed-in person's own role (admin), as loops' principal_ou
   const asKey = (await (await fetch(`${fake.url}/api/auth/me`, { headers: { authorization: `Bearer ${fake.key}` } })).json()) as { principal: { kind: string; role: string } };
   assert.equal(asKey.principal.role, "lead");
 });
+
+test("the agents list marks the key's own bot viewer only when the key may read the chat, and no other agent ever (round 54, r54-mut-demo: fake.ts:672)", async () => {
+  for (const keyReadsChat of [false, true]) {
+    const fake = await createLoopsFake({ speed: 0, keyReadsChat });
+    fakes.push(fake);
+    const body = (await (await fetch(`${fake.url}/api/agents`, { headers: { authorization: `Bearer ${fake.key}` } })).json()) as { agents: { id: string; viewer?: boolean }[] };
+    assert.ok(body.agents.length > 1);
+    assert.deepEqual(body.agents.filter((a) => a.viewer === true).map((a) => a.id), keyReadsChat ? [fake.keyName] : [], `keyReadsChat ${keyReadsChat}`);
+  }
+});
