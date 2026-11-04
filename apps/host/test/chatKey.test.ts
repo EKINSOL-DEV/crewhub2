@@ -2,7 +2,7 @@
  * The chat over the key, the one road since round 19: a crewhub-loops whose viewer key may read the chat (the key's own
  * entry in `GET /api/agents` says `viewer: true`, and `GET /api/dm/threads` answers 200 to it). The host notices at the
  * key check, says `session: key` in health, and turns an agent's `dm.created` on the key's own stream into a chat line
- * (the message read by id with the key, chatLine.ts). A loops that does not let the key read the chat gets no
+ * (the message read by id with the key, chatPath.ts). A loops that does not let the key read the chat gets no
  * `connection.session` at all and a log line that says how to make a viewer key; `/world-api/session`, the sign-in road
  * of rounds 12 to 18, is gone (404). Against the stub.
  */

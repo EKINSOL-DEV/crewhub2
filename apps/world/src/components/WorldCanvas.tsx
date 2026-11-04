@@ -2,7 +2,8 @@ import { memo, useCallback, type ReactNode, useEffect, useLayoutEffect, useMemo,
 import { useMedia } from "../state/media";
 import { Archive, Check, CircleHelp, Clock, Flag, Hand, MessageCircle, MessageSquare, Play, RefreshCw, Sprout, TriangleAlert, Trophy, User, Zap } from "lucide-react";
 import { archivedWords, agentCardFacts, doneWord, pinnedCard, quietWords, roleWords, runWords, type AgentPlacement, type Building, type PersonVisit, type ProgressKind, type RoomWording, type WorkObject, type WorldModel } from "@crewhub/world-model";
-import { STRESS, worldRuntime } from "../state/world";
+import { pageConfig } from "../state/page";
+import { townRuntime, worldRuntime } from "../state/runtimes";
 import { useHostHealth } from "../state/health";
 import { loopsWebUrl } from "../state/source";
 import { AgentCard, AgentCardFailed } from "./AgentCard";
@@ -41,7 +42,6 @@ import { freeLots, type TownPlan } from "../world/townPlan";
 import { lotKey } from "../world/settlement";
 import { setMovingBuilding, useMovingBuilding } from "../state/layoutMove";
 import { moveBuilding, plotLabel } from "./LayoutPanel";
-import { townRuntime } from "../state/town";
 import type { LaneStatus, RoomKind, RuleProp } from "@crewhub/world-model";
 import { type Said, type SaidMap, saidBy, saidLabel } from "../state/said";
 import { markLabel, type SaidMark } from "../world/saidText";
@@ -240,7 +240,7 @@ export default function WorldCanvas(props: Props) {
     town,
     speed,
     ambient: props.ambient,
-    measure: STRESS,
+    measure: pageConfig().stress,
     fps,
     selectedAgent: props.selection.selected?.kind === "agent" ? props.selection.selected.key : props.selection.selected?.kind === "person" ? props.selection.selected.id : null,
     districts: districtViews,
@@ -301,7 +301,7 @@ export default function WorldCanvas(props: Props) {
           <span>Laying out the town…</span>
         </div>
       )}
-      {STRESS && ready && <FrameOverlay scene={scene} />}
+      {pageConfig().stress && ready && <FrameOverlay scene={scene} />}
       {compact && card && card.element}
       {fps && ready && <FpsOverlay scene={scene} />}
       {props.walking && ready && <WalkControls scene={scene} />}
