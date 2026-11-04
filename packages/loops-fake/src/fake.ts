@@ -234,7 +234,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
   const emptyTeam = options.emptyTeam === true;
   const keyReadsChat = options.keyReadsChat === true;
   const principal: PrincipalRef = { id: keyName, kind: "agent", displayName: keyName };
-  const person = options.person ?? { id: "nicky", password: `demo-${randomBytes(9).toString("base64url")}`, displayName: "Nicky" };
+  const person = options.person ?? { id: DEMO_PERSON, password: `demo-${randomBytes(9).toString("base64url")}`, displayName: "Nicky" };
   const personPrincipal: PrincipalRef = { id: person.id, kind: "user", displayName: person.displayName };
   /** The session cookies handed out by `POST /api/auth/login` and still accepted (a logout removes one). */
   const sessions = new Set<string>();

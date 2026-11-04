@@ -3,7 +3,7 @@
  * event log, and answers reads in exactly the shapes of read-model.md. Mutations live in
  * `actions.ts`; they change this state and append the envelopes loops would write.
  */
-import { ACTIVITY_TYPES, openTicketsOf, selectLogFacts } from "@crewhub/loops-client";
+import { ACTIVITY_TYPES, TICKET_STATUSES, openTicketsOf, selectLogFacts } from "@crewhub/loops-client";
 import type {
   ActorRef,
   AgentOut,
@@ -41,7 +41,6 @@ import { type DemoContent, type ProjectGroupSeed, type ProjectSeed, SMALL_TEAM }
 import { teamWithComputers, withLanes } from "./lanes.ts";
 import { DAY, MINUTE, SECOND, iso } from "./time.ts";
 
-export const STATUSES: readonly TicketStatus[] = ["backlog", "planned", "in_progress", "review", "done"];
 const STALE_MS = 300 * SECOND;
 const WATCHDOG_TICK_MS = 120 * SECOND;
 const TICKET_KEY_RE = /\b[A-Z][A-Z0-9]{1,7}-[1-9][0-9]{0,8}\b/;
@@ -311,7 +310,7 @@ export function initialState(base: number, cursor: number, content: DemoContent 
       resolutionReason: null,
       archivedAt: archived ? base - 20 * 60 * MINUTE : null,
       releaseId: seed.archivedInto ?? seed.carrierOf ?? null,
-      createdById: seed.createdBy ?? "nicky",
+      createdById: seed.createdBy ?? DEMO_PERSON,
       bodyMarkdown: seed.body,
       stall: null,
       episodes: 0,
@@ -329,7 +328,7 @@ export function initialState(base: number, cursor: number, content: DemoContent 
       state: "draft",
       carrierId: carrier.id,
       requestedLeadId: seed.requestedLeadId,
-      createdById: "nicky",
+      createdById: DEMO_PERSON,
       createdAt: carrier.createdAt,
       publishedAt: null,
       publishRequestedBy: null,
@@ -794,7 +793,7 @@ export class DemoReads {
     if (!this.state.projects.some((p) => p.slug === slug)) return null;
     const live = this.liveTickets(slug).filter((t) => this.inDoneWindow(t));
     return {
-      columns: STATUSES.map((status) => ({
+      columns: TICKET_STATUSES.map((status) => ({
         status,
         tickets: live
           .filter((t) => t.status === status)

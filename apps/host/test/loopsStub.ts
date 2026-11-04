@@ -9,6 +9,7 @@
  */
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
+import { TICKET_STATUSES } from "@crewhub/loops-client";
 
 export interface StubRequest {
   method: string;
@@ -370,7 +371,7 @@ export function installation(): Required<Pick<StubOptions, "routes" | "pages">> 
     ...extra,
   });
   const board = (key: string) => ({
-    columns: ["backlog", "planned", "in_progress", "review", "done"].map((status) => ({
+    columns: TICKET_STATUSES.map((status) => ({
       status,
       tickets:
         status === "in_progress"
