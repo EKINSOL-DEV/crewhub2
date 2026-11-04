@@ -59,7 +59,8 @@
    "dev", and the cast, scenario and stress size when given. */
 import { writeFileSync } from "node:fs";
 import path from "node:path";
-import { castChoice, cli, launch, seek, speed, store, worldUrl } from "./lib/world.mjs";
+import { castChoice, cli, launch, seek, speed, worldUrl } from "./lib/world.mjs";
+import { openPage, waitFor } from "./lib/page.mjs";
 import { LIVE_FLAGS, LIVE_OPTIONS, LIVE_USAGE, startLive } from "./lib/live.mjs";
 
 const opts = cli(
@@ -94,33 +95,24 @@ const browser = await launch({ swiftshader: opts.swiftshader, extra: ["--enable-
 const openContexts = new Set();
 
 async function open({ phone = false, stress = phone && phoneStress, fast = false, pretty = false, fps = true, dpr = 1 } = {}) {
-  const context = await browser.newContext({
-    viewport: phone ? { width: 375, height: 812 } : { width: 1440, height: 900 },
-    deviceScaleFactor: dpr,
-    ...(dpr > 1 ? { isMobile: true, hasTouch: true } : {}),
-    colorScheme: theme === "dark" ? "dark" : "light",
-  });
-  openContexts.add(context);
-  context.on("close", () => openContexts.delete(context));
-  await store(context, { "crewhub-world.quality": fast ? "fast" : pretty ? "pretty" : quality, "crewhub-world.fps": fps ? "on" : "off", ...castChoice(castId) });
-  // Long tasks (> 50 ms) for the view-change scenarios.
-  await context.addInitScript(() => {
+  // Long tasks (> 50 ms) for the view-change scenarios, observed from before the app starts.
+  const longTasks = () => {
     window.__longtasks = [];
     try {
       new PerformanceObserver((list) => {
         for (const e of list.getEntries()) window.__longtasks.push({ start: e.startTime, duration: e.duration });
       }).observe({ type: "longtask", buffered: true });
     } catch {}
-  });
-  const page = await context.newPage();
+  };
+  // The page (lib/page.mjs): a phone or a window, the device scale, the theme, the stored quality, fps and cast, the
+  // observer, the phone's CPU slowed four times, the pairing step in live mode; the browser's own page errors are printed.
+  const page = await openPage(browser, { width: phone ? 375 : 1440, theme: theme === "dark" ? "dark" : "light", dpr, store: { "crewhub-world.quality": fast ? "fast" : pretty ? "pretty" : quality, "crewhub-world.fps": fps ? "on" : "off", ...castChoice(castId) }, initScripts: [longTasks], cpuThrottle: phone ? 4 : 1, pair: live ? (p) => live.pair(p) : null });
+  const context = page.context();
+  openContexts.add(context);
+  context.on("close", () => openContexts.delete(context));
   page.on("pageerror", (e) => console.error(`  page error: ${e.message}`));
-  if (phone) {
-    const cdp = await context.newCDPSession(page);
-    await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
-  }
-  if (live) await live.pair(page);
   await page.goto(worldUrl(base, stress ? stressSize : null, opts.scenario, opts.rooms, opts.source));
-  await page.waitForFunction((fps) => performance.getEntriesByName("world:town-dressed").length > 0 && (!fps || window.__worldPerfWindow), fps, { timeout: 60000 });
+  await waitFor(page, fps ? "perf" : "dressed");
   if (phone && stress) await speed(page, "4x");
   return { context, page };
 }

@@ -11,7 +11,8 @@
 
    Output in --out (default tools/out/): room-<cast>-<what>-<theme>.png, room-side-<what>-<theme>.png and
    room-page-<theme>.png. Page errors, console errors and requests that leave the page's origin are printed. */
-import { cli, launch, list, problemLines, watch } from "./lib/world.mjs";
+import { cli, launch, list, problemLines } from "./lib/world.mjs";
+import { openPage } from "./lib/page.mjs";
 
 const ALL_STATES = ["working", "idle", "done", "blocked", "waiting", "attention", "stale", "proxy", "walking", "carrying"];
 const opts = cli("node tools/castshots.mjs --port <port> [--cast <id,...>] [--theme light,dark] [--states <state,...>] [--only states,extras,side] [--out <dir>] [--swiftshader]", {
@@ -27,9 +28,7 @@ const problems = [];
 const notes = [];
 let count = 0;
 for (const scheme of SCHEMES) {
-  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: scheme });
-  const p = await ctx.newPage();
-  watch(p, opts.origin, problems, scheme);
+  const p = await openPage(browser, { origin: opts.origin, theme: scheme, problems, tag: scheme });
   // The stage only (the room), after the scene drew and settled; `wait` longer for scenes that should be mid-motion.
   const shot = async (query, name, wait = 900) => {
     await p.goto(`${BASE}?${query}`);

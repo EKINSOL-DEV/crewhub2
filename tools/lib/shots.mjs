@@ -1,11 +1,9 @@
 /* The world in screenshots: a list of views, in every theme and at every width asked for. Shared by shots.mjs (one
    run) and castworld.mjs (one run per cast). */
-import { castChoice, dressed, seek, speed, store, watch, worldUrl } from "./world.mjs";
+import { openPage } from "./page.mjs";
+import { castChoice, dressed, seek, speed, worldUrl } from "./world.mjs";
 
 export const VIEWS = ["town", "building", "room", "walk", "stress", "person", "events"];
-
-/** A phone is a touch device with a tall screen; every other width is a desktop window 900 high. */
-const viewport = (width) => (width <= 480 ? { viewport: { width, height: 812 }, isMobile: true, hasTouch: true } : { viewport: { width, height: 900 } });
 
 /**
  * Takes the shots. `name(view, theme, width)` gives each file its name (without the directory and ".png").
@@ -30,11 +28,7 @@ export async function worldShots(browser, { base, origin, out, views, themes, wi
   for (const theme of themes) {
     for (const width of widths) {
       const open = async (url) => {
-        const ctx = await browser.newContext({ ...viewport(width), deviceScaleFactor: 1, colorScheme: theme });
-        await store(ctx, castChoice(cast));
-        const p = await ctx.newPage();
-        watch(p, origin, problems, `${theme} ${width}`);
-        await p.goto(url);
+        const p = await openPage(browser, { origin, width, theme, store: castChoice(cast), problems, tag: `${theme} ${width}`, url });
         await dressed(p);
         await p.waitForTimeout(settle);
         return p;
