@@ -1,6 +1,6 @@
 import type { Envelope } from "./types.ts";
 import type { ChatLine, ChatThreadFact } from "./source.ts";
-import { type Result, knownOr, lenientOneOf, validateEnvelope } from "./validate.ts";
+import { type Result, knownOr, lenientOneOf, validateEnvelope, warnOnce } from "./validate.ts";
 
 /**
  * The wire between the world's host (`apps/host`) and the page, defined once: the browser routes under `/world-api`,
@@ -360,7 +360,7 @@ export type HostMessage =
   | { type: "status"; loops: LoopsState; stream?: "busy"; reason?: string; key?: HostKeyState["state"] }
   | { type: "event"; envelope: Envelope }
   | { type: "heartbeat"; seq: number; ts: string }
-  /** An agent's message to the person, read by the host with its own key where loops lets it (apps/host chatLine.ts): a bubble. */
+  /** An agent's message to the person, read by the host with its own key where loops lets it (apps/host chatPath.ts): a bubble. */
   | { type: "chat"; chat: ChatLine }
   /** The installation's town document changed on the host (round 20, worldDb.ts): the browsers refetch `/world-api/town`. */
   | { type: "town"; rev: number }
@@ -371,15 +371,17 @@ export type HostMessage =
 const RESET_REASONS = ["gone", "reconnected", "cursor"] as const;
 /** A `loops` word this page does not know is read as `down` (a newer host): the world from before took it so. */
 const loopsWord = knownOr(LOOPS_STATES, "host loops state", "down");
-/** A reset's reason is for the log: a word this page does not know passes through. */
+/** A reset's reason is for the log: a word this page does not know passes through (and one missing is read as `gone`, below). */
 const resetReason = lenientOneOf(RESET_REASONS, "reset reason");
 const fail = (path: string, message: string): Result<never> => ({ ok: false, path, message });
 const okAs = (message: HostMessage): Result<HostMessage> => ({ ok: true, value: message });
 
 /**
  * One message of the host's stream, strictly: the kinds above in their shapes, or why not (the path names the field).
- * Lenient only where a word may be newer than this page (`loops`, a reset's reason) and on a `key` word it does not
- * know, which is dropped as the status stands (the world from before ignored it the same way).
+ * Lenient only where a word may be newer than this page (`loops`, a reset's reason), on a `key` word it does not know,
+ * which is dropped as the status stands (the world from before ignored it the same way), and on a reset without a
+ * reason: a reset is the host's "continuity broke" signal and the page re-snapshots on it whatever the reason, which it
+ * never reads, so a missing one is read as `gone` (said once) rather than losing the signal.
  */
 export function readHostMessage(value: unknown): Result<HostMessage> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return fail("$", "expected a message object");
@@ -414,6 +416,10 @@ export function readHostMessage(value: unknown): Result<HostMessage> {
       return threads === null ? fail("$.threads", "expected a list of thread facts") : okAs({ type: "threads", threads });
     }
     case "reset": {
+      if (typeof raw.reason !== "string") {
+        warnOnce("stream:$.reason", `a reset without a reason (${JSON.stringify(raw.reason)}) is read as gone: the page re-snapshots`);
+        return okAs({ type: "reset", reason: "gone" });
+      }
       const reason = resetReason(raw.reason, "$.reason");
       return reason.ok ? okAs({ type: "reset", reason: reason.value }) : reason;
     }
