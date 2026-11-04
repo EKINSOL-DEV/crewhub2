@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { createLoopsClient } from "../src/loops.ts";
-import { archivedSlugsFromEvents, assembleSnapshot } from "../src/snapshot.ts";
+import { archivedSlugsFromEvents, assembleSnapshot, readArchivedSlugsFromEvents } from "../src/snapshot.ts";
 import { type LoopsStub, createLoopsStub, envelope, installation } from "./loopsStub.ts";
 
 /** A `project.archived` or `project.restored` envelope at `seq` for `slug`. */
@@ -50,5 +50,18 @@ describe("archived projects from the event log", () => {
     const one = stub.requests.filter((r) => r.path === "/api/projects/old" || r.path === "/api/projects/flip");
     assert.equal(one.length, 2, "each archived project is read once, although the log and the stream both named it");
     assert.ok(!stub.requests.some((r) => r.path === "/api/projects/atlas"), "a restored project is not read one by one");
+  });
+
+  it("a log whose pages never run short is read for 1000 pages and no more, and the read says it is incomplete (round 54, r54-mut-host2: snapshot.ts:165)", async () => {
+    const page = Array.from({ length: 500 }, () => ({ type: "project.archived", project: { slug: "endless" } }));
+    let reads = 0;
+    const client = {
+      async getJson<T>(_path: string, query: Record<string, string> = {}): Promise<{ status: number; body: T | null }> {
+        reads += 1;
+        return { status: 200, body: { events: page, lastSeq: Number(query["after"]) + 500 } as T };
+      },
+    };
+    assert.deepEqual(await readArchivedSlugsFromEvents(client), { slugs: ["endless"], complete: false });
+    assert.equal(reads, 1000);
   });
 });
