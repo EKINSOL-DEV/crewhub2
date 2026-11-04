@@ -23,32 +23,13 @@ async function until(check: () => boolean, limit = 5_000): Promise<void> {
   }
 }
 
-/**
- * A browser whose IndexedDB refuses to open (a private window): the store falls back to memory once the open fails, a
- * task later, as in a browser. (`indexedDB: null` publishes "loaded" inside its first load(), before that load is
- * remembered, so a town listener that amends at once would load again, and again: a latent loop of the memory-only
- * store that no browser reaches; reported in round 59d's C3 report, not changed here.)
- */
-function refusingIndexedDB(): IDBFactory {
-  return {
-    open() {
-      const r = {} as { error: Error; onerror?: () => void; onsuccess?: () => void; onupgradeneeded?: () => void; onblocked?: () => void };
-      setTimeout(() => {
-        r.error = new Error("refused");
-        r.onerror?.();
-      }, 0);
-      return r;
-    },
-  } as unknown as IDBFactory;
-}
-
 /** A demo world at 16x, its frames run at once (the frame clock's frame is the test's microtask). */
 function demoTown() {
   const scheduler = createManualScheduler(1_000);
   const demo = createDemoSource({ scheduler, speed: 16, epochMs: 0 });
   const clock: FrameClock = { now: () => 0, frame: (fn) => void queueMicrotask(fn), after: (ms, fn) => void setTimeout(fn, ms), every: () => {}, hidden: () => false };
   const world = createWorldRuntime({ source: demo, chat: demo, epochMs: 0, clock, buildingLimit: NaN, outlets: { said: () => {}, threads: () => {}, hostConnected: () => {}, firstSnapshot: () => {} } });
-  const store = createTownStore({ context: CONTEXT, indexedDB: refusingIndexedDB(), warn: () => {} });
+  const store = createTownStore({ context: CONTEXT, indexedDB: null, warn: () => {} });
   let ids = 0;
   const town = createTownRuntime({ world, context: CONTEXT, store, buildingPlan: () => "three-rooms", newId: () => `p${(ids += 1)}` });
   const said: string[] = [];
@@ -61,6 +42,9 @@ const plotAt = (slug: string, x: number) => ({ type: "set-plot" as const, slug, 
 test("editAll: every edit applies on the one before as one revision (one undo step), or none does and the first refusal is the answer", async () => {
   const { town } = demoTown();
   await until(() => town.state.loaded);
+  // The memory store is loaded at once; the runtime's first allocation (the default district) is amended right after.
+  await until(() => (town.state.doc.districts ?? []).length > 0);
+  await settle();
   const before = town.state.doc;
   const refused = town.editAll([plotAt("a", 1), { type: "delete", id: "nope" }, plotAt("c", 7)]);
   assert.deepEqual(refused, { ok: false, error: "No placed prop with id nope." });
