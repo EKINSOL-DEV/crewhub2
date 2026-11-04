@@ -66,6 +66,8 @@ export interface Upstream {
   loopsVersion(): string | undefined;
   /** Connection attempts after the first one (loops' 300 s end counts, so does every retry while down). */
   reconnects(): number;
+  /** The resets broadcast so far (loops' log expired or restored, the tail gone backwards): a snapshot begun before one is not shared after it. */
+  resets(): number;
   /** The reason while loops refuses the stream with 429 `too_many_streams`; null otherwise. */
   busy(): string | null;
   /** When the last event arrived (loops' `ts`), ISO 8601; undefined before the first. */
@@ -160,8 +162,10 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
     bufferFrom = from;
     cursor = from;
   };
+  let resets = 0;
   const reset = (reason: "gone" | "reconnected", from: number) => {
     clearBuffer(from);
+    resets += 1;
     broadcast({ type: "reset", reason });
   };
   /** The token loops gave for exactly `at` (a tail read, or a heartbeat with nothing after it). */
@@ -390,6 +394,7 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
     cursor: () => cursor,
     loopsVersion: () => version,
     reconnects: () => Math.max(0, attempts - 1),
+    resets: () => resets,
     lastEventAt: () => lastEventAt,
     busy: () => busyReason,
     subscribe(from, listener) {
