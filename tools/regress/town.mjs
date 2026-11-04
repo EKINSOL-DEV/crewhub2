@@ -281,11 +281,11 @@ export async function run({ pass, page, check, out }) {
       });
       if (typeof host.mintPairLink === "function") {
         await pg.goto(host.mintPairLink(served ? undefined : origin));
-        await pg.waitForTimeout(300);
+        await pairedTab(pg).catch(() => {});
       }
       await pg.goto(liveBase);
       const propOnHost = async () => {
-        const body = await pg.request.get(`${liveOrigin}/world-api/town`).then((r) => r.json()).catch(() => null);
+        const body = await hostGet(pg, `${liveOrigin}/world-api/town`).then((r) => r.json()).catch(() => null);
         return (body?.document?.userProps ?? []).some((prop) => prop.provenance?.kind === "ticket" && prop.provenance.ticketKey === "CR-37");
       };
       const until = async (test, ms) => {
