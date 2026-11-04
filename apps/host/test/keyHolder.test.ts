@@ -83,6 +83,16 @@ describe("the held key", () => {
     assert.equal(secondOpinion(keyIn("ok"), "ok"), false);
   });
 
+  it("the sentence health shows for a key the stream refused, word for word (round 62, r62-mut-a: keyHolder.ts:28)", () => {
+    assert.equal(STREAM_REFUSED_REASON, "crewhub-loops refused the key on the event stream (401 or 403): it was revoked or its bot disabled meanwhile. Paste a new access key, or forget this one.");
+  });
+
+  it("a verdict of unreachable with no check started knows no state to give back: unchecked, even for a pasted key (round 62, r62-mut-a: keyHolder.ts:73)", () => {
+    const pasted = holdKey("chl_p", "crewhub-world", "env", "ok");
+    checked(pasted, UNREACHABLE);
+    assert.deepEqual(word(pasted), { state: "unchecked", reason: undefined });
+  });
+
   it("the record is the fields the connection reads and nothing else: what a check remembers is not in it", () => {
     assert.deepEqual(Object.keys(keyIn("checking")), ["key", "name", "source", "state"]);
     assert.deepEqual(Object.keys(keyIn("rejected")), ["key", "name", "source", "state", "reason"]);
