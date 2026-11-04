@@ -15,7 +15,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
-import { type DemoSource, type ScenarioId, DEMO_PERSON, createDemoSource } from "@crewhub/demo";
+import { type DemoSource, type ScenarioId, DEMO_PERSON, createDemoApi, createDemoSource } from "@crewhub/demo";
 import type { CommentOut, Envelope, LoopsSnapshot, PlaybackSpeed, PrincipalRef, TicketStatus } from "@crewhub/loops-client";
 import { TICKET_STATUSES } from "@crewhub/loops-client";
 import { withKeyBot } from "./lanes.ts";
@@ -312,6 +312,20 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     ...(options.speed === undefined ? {} : { speed: options.speed }),
     ...(options.startAt === undefined ? {} : { startAt: options.startAt }),
   });
+  /**
+   * The chat's reads are the demo api's (`packages/demo/src/api.ts`, loops' `dm.py` over the same source): the fake is
+   * its HTTP adapter, as the world's dock is its in-page one. The gate stays the fake's (`keyReadsChat`, below).
+   */
+  const demoApi = createDemoApi(source);
+  /** The demo api's answer as the fake's: the body, or its error envelope rethrown so the fake's headers and CORS apply. */
+  async function viaDemoApi(url: URL): Promise<unknown> {
+    const answer = await demoApi.handle("GET", `${url.pathname}${url.search}`);
+    if (answer.status >= 400) {
+      const { code, message } = (answer.body as { error: { code: string; message: string } }).error;
+      throw new ApiError(answer.status, code, message);
+    }
+    return answer.body;
+  }
 
   /**
    * Loops' per-principal visibility for a lead agent's key (`api/stream.py` `event_visibility_sql`, the rows of
@@ -575,11 +589,13 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     if (caller === null) throw new ApiError(401, "unauthenticated", "Authentication required");
     const viewer: "key" | "person" = caller.kind === "user" ? "person" : "key";
     // The chat (dm.py): any principal reads, but a key reads only the threads it is part of; the fake's key is in none.
+    // A thread's messages page newest-last at 50 with `before` (`limit` 1 to 100), and the agent must be an enabled lead
+    // (404 unknown, 403 otherwise): the demo api's rules, as loops'.
     const readsChat = viewer === "person" || keyReadsChat;
-    if (at("dm", "threads")) return { threads: readsChat ? await source.getDmThreads() : [] };
+    if (at("dm", "threads")) return readsChat ? viaDemoApi(url) : { threads: [] };
     if (at("dm", "threads", "*", "messages")) {
       if (!readsChat) throw new ApiError(403, "forbidden", "Not a participant of this thread");
-      return { messages: await source.getDmMessages(parts[3] ?? ""), nextCursor: null };
+      return viaDemoApi(url);
     }
     if (at("dm", "messages", "*")) {
       if (!readsChat) throw new ApiError(403, "forbidden", "Not a participant of this thread");
