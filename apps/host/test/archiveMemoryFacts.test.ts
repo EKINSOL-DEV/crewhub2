@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { type ArchiveMemory, belongsTo, createArchiveMemory } from "../src/archiveMemory.ts";
 import type { ArchiveRecord, ArchiveStore } from "../src/archiveStore.ts";
+import type { KnownArchived } from "../src/snapshot.ts";
 
 const A = "http://127.0.0.1:41001";
 const B = "/tmp/loops-b.sock";
@@ -29,6 +30,15 @@ function memoryStore(initial: ArchiveRecord | null = null) {
   };
   return store satisfies ArchiveStore;
 }
+
+/**
+ * What a snapshot makes of the archived getter's answer: the slugs in first-occurrence order (the snapshot dedups them,
+ * and that order is its read order), and the flag. A getter that dedups itself answers the same (review-a1 2).
+ */
+const asked = (archived: () => KnownArchived) => {
+  const known = archived();
+  return { slugs: [...new Set(known.slugs)], remembered: known.remembered };
+};
 
 /** A memory over `store` (or none: this run only), a clock that ticks per change. */
 function memory(store?: ArchiveStore) {
@@ -108,8 +118,8 @@ describe("the archive memory, fed facts", () => {
     const archived = m.forSnapshot();
     m.heard("project.archived", "beacon"); // heard during the assembly: the stream set counts it
     m.reported({ source: "log", slugs: [] }); // another snapshot's report: this assembly keeps the set it started with
-    assert.deepEqual(archived(), { slugs: ["atlas", "beacon", "atlas", "old"], remembered: true });
-    assert.deepEqual(m.forSnapshot()(), { slugs: ["atlas", "beacon"], remembered: false }, "an assembly starting now: the set is empty");
+    assert.deepEqual(asked(archived), { slugs: ["atlas", "beacon", "old"], remembered: true });
+    assert.deepEqual(asked(m.forSnapshot()), { slugs: ["atlas", "beacon"], remembered: false }, "an assembly starting now: the set is empty");
   });
 
   it("keeps a snapshot's archived getter on the link it started on when a relink comes during the assembly (round 60, A1)", () => {
@@ -120,7 +130,7 @@ describe("the archive memory, fed facts", () => {
     const archived = m.forSnapshot();
     m.linked(B);
     m.heard("project.archived", "beacon");
-    assert.deepEqual(archived(), { slugs: ["atlas", "atlas", "old"], remembered: true }, "B's archive is not A's assembly's");
+    assert.deepEqual(asked(archived), { slugs: ["atlas", "old"], remembered: true }, "B's archive is not A's assembly's");
   });
 
   it("uses this loops' memory on disk: the set, its time, source remembered, and says so", () => {
