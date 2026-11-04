@@ -225,15 +225,12 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
   }
 
   async function readVersion(): Promise<void> {
-    try {
-      // Keyless (round 29): `GET /api/health` is public, and crewhub-loops main answers 403 to a viewer key on it.
-      const { status, body } = await client.getPublicJson<{ version?: unknown }>("/api/health");
-      if (status === 200 && typeof body?.version === "string") {
-        version = body.version;
-        options.onVersion?.(version);
-      }
-    } catch {
-      // health is information only
+    // Keyless (round 29): `GET /api/health` is public, and crewhub-loops main answers 403 to a viewer key on it. Health
+    // is information only: nothing answering is nothing said.
+    const health = await client.health();
+    if (health !== null && health.status === 200 && health.version !== undefined) {
+      version = health.version;
+      options.onVersion?.(version);
     }
   }
 

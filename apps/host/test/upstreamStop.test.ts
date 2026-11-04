@@ -28,7 +28,7 @@ function heldTailClient() {
       }
       return { status: 200, body: null };
     },
-    getPublicJson: async () => ({ status: 200, body: null }),
+    health: async () => ({ status: 200, ok: false }),
     async stream(_resume, signal) {
       streams += 1;
       // A stream that stays open until it is aborted, as loops' does for 300 s.

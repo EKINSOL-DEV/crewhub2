@@ -4,6 +4,7 @@
  * else; it is never logged and any text that goes back to a browser is scrubbed of it (a defence in depth: loops
  * does not echo the Authorization header, this makes sure).
  */
+import { type LoopsHealth, readHealth } from "./loopsHealth.ts";
 import { type LoopsTarget, createTransport } from "./transport.ts";
 
 export type { LoopsTarget } from "./transport.ts";
@@ -23,10 +24,11 @@ export interface LoopsClient {
   /** The same, parsed; `body` is null when the body is not JSON. */
   getJson<T = unknown>(path: string, query?: Record<string, string>): Promise<{ status: number; body: T | null }>;
   /**
-   * A public read without the key (round 29): `GET /api/health` is public, and crewhub-loops main refuses it to a
-   * limited key (a viewer gets 403 there, #959), so the version is read keyless, as discovery probes it.
+   * Loops' health without the key (round 29): `GET /api/health` is public, and crewhub-loops main refuses it to a
+   * limited key (a viewer gets 403 there, #959), so it is read keyless by the one reader (loopsHealth.ts), as the
+   * discovery probes it, within the read timeout; null when nothing answers.
    */
-  getPublicJson<T = unknown>(path: string, query?: Record<string, string>): Promise<{ status: number; body: T | null }>;
+  health(): Promise<LoopsHealth | null>;
   /**
    * Opens the NDJSON stream from `resume` (`after=<seq>`, or `cursor=<sealed token>` from a heartbeat or
    * `GET /api/events`; never both); the caller reads the body. Throws on a network error.
@@ -73,16 +75,7 @@ export function createLoopsClient(target: LoopsTarget | string, key: string, opt
       }
       return { status: response.status, body };
     },
-    async getPublicJson<T>(path: string, query: Record<string, string> = {}) {
-      const response = await keyless.request(path, query, { accept: "application/json", timeoutMs: readTimeoutMs });
-      let body: T | null = null;
-      try {
-        body = JSON.parse(await response.text()) as T;
-      } catch {
-        body = null;
-      }
-      return { status: response.status, body };
-    },
+    health: () => readHealth(keyless, readTimeoutMs),
     stream(resume, signal) {
       const query = "cursor" in resume ? { cursor: resume.cursor } : { after: String(resume.after) };
       return transport.request("/api/events/stream", query, { accept: "application/x-ndjson", signal });

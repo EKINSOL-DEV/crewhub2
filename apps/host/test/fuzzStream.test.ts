@@ -101,9 +101,7 @@ function fakeClient(plans: Plan[], tail: () => { lastSeq: number; cursor: unknow
       }
       return { status: 404, body: null };
     },
-    async getPublicJson<T>() {
-      return { status: 200, body: { version: "fuzz" } as unknown as T };
-    },
+    health: async () => ({ status: 200, ok: true, version: "fuzz" }),
     stream(resume, signal) {
       resumes.push(resume);
       const plan = plans.shift();
