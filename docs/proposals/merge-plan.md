@@ -381,6 +381,7 @@ head by merging that head into it, never by a rebase; the answer branch itself s
 | `d907708` | the timing tests made deterministic | the same five ports | `ea1b0ab` 1538 / `64b6ecd` 1535 |
 | `d41c82e` to `b0af686` | round 60: A1 to A6, H2, P2 and P6 of the second review | the same five ports (each round-60 branch merges cleanly with them) | on `b0af686`: 1555 / 1552 |
 | `a0ddd3d` to `a16e103` | round 60: H1, page P1, P1, P4, P3, P5, H3, H7, page P2, the blocked-storage fix | from H1 on: q3 → `port/task/q3-health-less@8a1ae94`, `tab` → `port/task/r27-tab-pairing@fd0b8b9`; q1 `@e5f79a9`, q14 and q15 `@f2276db` as before | on `a0ddd3d`: 1574 / 1571; on `d9cd1d5`: 1640 / 1637 |
+| `4c43f15` to `162d480` | round 60: T1 and T2 of the second review, A7 | `tab` → `port/task/r27-tab-pairing@ccbf0ed` (one port for T1 and T2); q3 `@8a1ae94`, q1 `@e5f79a9`, q14 and q15 `@f2276db` as before | on `0b3f4ae`: 1659 / 1656; on `162d480`: 1665 / 1662 |
 
 To replay Nicky's answers on such a head, pass each port named on its row: for example, on `2072e9a`,
 `node tools/answers-replay.mjs 2072e9a cookie+expiry q3 q8 q11 q14 q15 --check --use q14=port/task/q14-dm-read-cap@f2276db --use q15=port/task/q15-body-cap@f2276db --use q3=port/task/q3-health-less@f2276db --use cookie+expiry=port/task/q1-cookie-expiry@e5f79a9`
