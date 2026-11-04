@@ -23,9 +23,9 @@ The candidates, in full, are crewy's review (C1 to C9). In short: each one turns
 
    A deepening merges only when every answer branch merges cleanly or has a green port. Where it costs little, a
    deepening is shaped so that the answer branches still merge cleanly.
-3. **Host-side candidates** are proved with node tests and may merge by day. **Page-side candidates** wait on held
-   branches for a night's browser proof: the regress groups without `real`, `a11y.mjs`, and `pixcheck`, whose pictures
-   are expected identical.
+3. **Host-side candidates** are proved with node tests. **Page-side candidates** are also proved in the browser: the
+   regress groups without `real`, `a11y.mjs`, and `pixcheck`, whose pictures are expected identical. Since 11:45 on
+   4 November, both kinds merge by day.
 4. **The safe merge order, every time:**
    1. `--no-ff` in the merge worktree;
    2. `npm run check`;
@@ -37,23 +37,34 @@ The candidates, in full, are crewy's review (C1 to C9). In short: each one turns
 
 ## Order and owners
 
-The host chain runs in a fixed order, because each candidate builds on the last. C4 and C5 are slices of C1's
-connection module, and C7 defines the wire that C1's module writes. The page chain is ordered by leverage: C3's
-runtimes are the base that C2, C6 and C9 lean on.
+Rescaled at 11:45 on 4 November, when Nicky lifted the day rules and allowed up to twelve agents at once. Seven
+candidates now run in parallel, each in its own worktree and each with its own port pair. One agent makes the
+answer-branch ports and runs the replays. A fresh reviewer reads each deepening before it merges.
 
-| # | Candidate | Side | Owner | Branch | When |
-| --- | --- | --- | --- | --- | --- |
-| 1 | **C4** the viewer key's chat path, one module; one set of DM readers in loops-client | host | arch-host (Fable 5.1) | `task/r59-c4-chat-path` | 59d, day |
-| 2 | **C5** the archive memory, one module (file store or this-run adapter) | host | arch-host | `task/r59-c5-archive-memory` | 59d, day |
-| 3 | **C1** the connection lifecycle split from the HTTP routes | host | arch-host | `task/r59-c1-connection` | from 59 (night) |
-| 4 | **C7** the host-to-page wire format, defined once | host | arch-host | `task/r59-c7-wire` | after C1 |
-| 5 | **C3** the world runtimes built from config; one-caller extractions folded back | page, held | arch-page (Opus 5.5) | `task/r59-c3-runtimes` | 59d, held for 59 |
-| 6 | **C6** one host-health module in the page | page, held | arch-page | `task/r59-c6-host-health` | 59d, held |
-| 7 | **C8** one module for an agent's appearance | page, held | arch-page | `task/r59-c8-appearance` | 59d or 59, held |
-| 8 | **C2** the world view's navigation, one module | page, held | to be named (59) | `task/r5x-c2-navigation` | after C3 |
-| 9 | **C9** a chat seam with a demo and a live adapter | page, held | to be named | `task/r5x-c9-chat-seam` | last, after C2, C3 and C6 |
+**The host chain:**
+- C4 and C5 run in parallel, each owning its own region of `host.ts`.
+- C1 starts only after both merge, because they are slices of its connection module.
+- C7 runs in parallel from the start. It owns the wire in `stream.ts`, `hostSource.ts`, `allowList.ts` and the stubs,
+  and leaves `createHost`'s body to C1.
 
-If the Fable developer reaches its usage limit, an Opus developer finishes its branch. No credits are bought.
+**The page chain:** C3, C6, C8 and C2 run in parallel, each owning its own lines of `App.tsx` and `WorldCanvas.tsx`.
+C9 comes last, because it shares `App.tsx` with C2 and C6. Page branches merge by day once their browser proof is
+green: the regress groups without `real`, `a11y.mjs`, and `pixcheck`'s demo set, expected identical.
+
+| Candidate | Side | Owner (model) | Branch | Starts |
+| --- | --- | --- | --- | --- |
+| **C4** the viewer key's chat path, one module; one set of DM readers in loops-client | host | arch-host (Fable 5.1) | `task/r59-c4-chat-path` | 59d, now |
+| **C5** the archive memory, one module (file store or this-run adapter) | host | arch-c5 (Opus 5.5) | `task/r59-c5-archive-memory` | 59d, now |
+| **C7** the host-to-page wire format, defined once | host | arch-c7 (Fable 5.1) | `task/r59-c7-wire` | 59d, now |
+| **C1** the connection lifecycle split from the HTTP routes | host | arch-host (Fable 5.1) | `task/r59-c1-connection` | after C4 and C5 merge |
+| **C3** the world runtimes built from config; one-caller extractions folded back | page | arch-page (Opus 5.5) | `task/r59-c3-runtimes` | 59d, now |
+| **C6** one host-health module in the page | page | arch-c6 (Opus 5.5) | `task/r59-c6-host-health` | 59d, now |
+| **C8** one module for an agent's appearance | page | arch-c8 (Opus 5.5) | `task/r59-c8-appearance` | 59d, now |
+| **C2** the world view's navigation, one module | page | arch-c2 (Fable 5.1) | `task/r59-c2-navigation` | 59d, now |
+| **C9** a chat seam with a demo and a live adapter | page | arch-page (Opus 5.5) | `task/r59-c9-chat-seam` | after C2 and C6 merge |
+| answer-branch ports and the replays | both | arch-ports (Opus 5.5) | `port/<answer-branch>@<head>` | 59d, now |
+
+If a Fable developer reaches its usage limit, an Opus developer finishes its branch. No credits are bought.
 
 ## What each candidate does to the answer branches
 
@@ -81,11 +92,11 @@ C3's runtime tests cover its facts through the runtime's interface instead; the 
 | Candidate | Branch head | State | Answer branches | Merge |
 | --- | --- | --- | --- | --- |
 | C4 | | in progress (59d) | | |
-| C5 | | waits on C4 | | |
-| C1 | | waits on C5 | | |
-| C7 | | waits on C1 | | |
-| C3 | | in progress (59d), held | | |
-| C6 | | waits on C3, held | | |
-| C8 | | waits on C6, held | | |
-| C2 | | not started | | |
-| C9 | | not started | | |
+| C5 | | in progress (59d) | | |
+| C1 | | waits on C4 and C5 | | |
+| C7 | | in progress (59d) | | |
+| C3 | | in progress (59d) | | |
+| C6 | | in progress (59d) | | |
+| C8 | | in progress (59d) | | |
+| C2 | | in progress (59d) | | |
+| C9 | | waits on C2 and C6 | | |
