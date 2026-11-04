@@ -1,6 +1,7 @@
 /* regress.mjs's command line (tools/lib/regressArgs.ts, round 57d, mutation-harness.md §5b.1): the default groups are
-   the nine that use fakes and stubs; real and the connect group's real half run only when real is named in --groups,
-   with the env file --loops-env names and no other. The tool is never run here: the decisions are the pure function's,
+   the nine that use fakes and stubs; real and the connect group's real half run only when asked, by real named in
+   --groups or by --real (round 58d: the same word as the other tools' opt-in), with the env file --loops-env names and
+   no other. The tool is never run here: the decisions are the pure function's,
    and the tool's source is read to see that it asks the function first and searches for no env file. */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -36,10 +37,16 @@ test("real without --loops-env is refused with one sentence: no env file is sear
   assert.equal(regressPlan({ ...none, groups: "real", loopsEnv: "   " }).ok, false, "blank is not a file");
 });
 
-test("--real is refused with the way to ask for real; an unknown group is refused with the known ones", () => {
-  for (const groups of ["", "real", "connect"]) {
-    assert.match(reason(regressPlan({ groups, real: true, loopsEnv: "a.env" })), /^--real is not an option: name real in --groups \(--groups real, or --groups connect,real .*\)/, groups);
+test("--real is the same opt-in (round 58d): it adds real to the chosen groups, default or given, and needs --loops-env", () => {
+  assert.deepEqual(regressPlan({ groups: "", real: true, loopsEnv: "a.env" }), { ok: true, groups: [...DEFAULT_GROUPS, "real"], real: true, loopsEnv: "a.env" });
+  assert.deepEqual(regressPlan({ groups: "connect,demo", real: true, loopsEnv: " a.env " }), { ok: true, groups: ["connect", "demo", "real"], real: true, loopsEnv: "a.env" });
+  assert.deepEqual(regressPlan({ groups: "real", real: true, loopsEnv: "a.env" }), { ok: true, groups: ["real"], real: true, loopsEnv: "a.env" }, "real once, not twice");
+  for (const groups of ["", "demo", "real"]) {
+    assert.match(reason(regressPlan({ groups, real: true, loopsEnv: "" })), /^real reads the development loops from --loops-env <file> only .*: name the file, no file is searched for$/, groups);
   }
+});
+
+test("an unknown group is refused with the known ones", () => {
   assert.match(reason(regressPlan({ ...none, groups: "walk,reall" })), /^unknown group "reall"; known: connect, walk, demo, tour, live, town, ops, chat, rooms, real$/);
 });
 

@@ -3,11 +3,13 @@
    Usage:
      node tools/regress.mjs --port <port> [--groups connect,walk,demo,tour,live,town,ops,chat,rooms] --host-port <port> [--loops dev|main] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]
      node tools/regress.mjs --port <port> --groups connect,real --host-port <port> --loops-env <file> [...]
+     node tools/regress.mjs --port <port> --real --host-port <port> --loops-env <file> [...]   (the nine and real)
 
    Groups (--groups, in this order; connect first, the connection being the first priority). The default is the nine
-   that use fakes and stubs; real and the connect group's real half aim at the development loops and run only when real
-   is named in --groups (round 57d: --real is refused with the way to say it, and real without --loops-env is refused
-   before anything starts; lib/regressArgs.ts):
+   that use fakes and stubs; real and the connect group's real half aim at the development loops and run only when asked:
+   real named in --groups, or --real (round 58d), which adds real to the groups chosen, default or given, as the other
+   tools' --real opts in to the development loops. Real without --loops-env is refused before anything starts (round
+   57d; lib/regressArgs.ts):
      connect the connect flow (spec addendum "a smooth connection"), 25 checks in two halves, both behind your Vite
            (started with CREWHUB_WORLD_PORT=<host-port>; apps/world/dist is never looked at here, whatever the live
            group does with it). Against the stub host of lib/connectStub.mjs, on --host-port, always: one page meets
@@ -17,7 +19,7 @@
            Live chip and no reload), the key in no DOM, storage or URL, the Connection panel's facts and Escape, the
            stub's `unpaired` state (a host that no longer knows the browser: Pair this browser over the live tab,
            and the town back by itself once paired again) and, on a second page, the Stream busy chip over the town
-           (loops' 429); every screen asks the host's health every 2.5 s, not back to back (round 48). Against the REAL development loops, only when real is named in --groups (the env file and the skip rules of `real`, plus
+           (loops' 429); every screen asks the host's health every 2.5 s, not back to back (round 48). Against the REAL development loops, only when real is asked for (in --groups or by --real; the env file and the skip rules of `real`, plus
            --loops-app-data, default ~/crewhub-loops-dev, which must hold a settings.json): a keyless host the tool
            starts on --host-port with the discovery through that folder, a fresh config folder under --out (removed at
            the end), pairing on with the secret kept in <config>/pairing-secret as `npm run world` keeps it; the
@@ -132,7 +134,7 @@ import { appDataPort, ownAppData, ownLoopsUrl, ownPort } from "./lib/toolGuard.t
 
 // The known groups are lib/regressArgs.ts' GROUPS. The groups run in the order they stand in this file (walk, demo,
 // tour, live, chat, town, ops, connect, rooms, real), whatever --groups lists (round 54, r54-review).
-const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,tour,live,town,ops,chat,connect,rooms (the default), or with real] --host-port <port> [--loops dev|main] [--loops-env <file> (required with real)] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]";
+const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,tour,live,town,ops,chat,connect,rooms (the default), or with real] [--real (adds real)] --host-port <port> [--loops dev|main] [--loops-env <file> (required with real)] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]";
 const opts = cli(USAGE, { options: { tag: "pass", groups: "", "host-port": "", loops: "", "loops-env": "", "loops-socket": "", "loops-app-data": "", "cpu-throttle": "1" }, flags: ["real"] });
 // First thing after the command line (round 57d): the groups, and the real development loops only when real is named in
 // --groups, read from --loops-env alone (lib/regressArgs.ts). A refusal stops here, before a browser, host or fake starts.
@@ -2214,7 +2216,7 @@ await group("connect", async () => {
       return;
     }
     // Never the Mac app's port nor 5180, even when the env file names it (a typo of 8291 is 8091). `real` is the
-    // development loops' opt-in (round 57d, §5b.4): only real in --groups reaches here.
+    // development loops' opt-in (round 57d, §5b.4): only real asked for (in --groups or by --real) reaches here.
     const urlVerdict = ownLoopsUrl(loopsUrl, { real: plan.real });
     if (!urlVerdict.ok) opts.fail(`${envFile}: LOOPS_DEV_URL ${urlVerdict.reason}`);
     const appData = loopsAppData();
@@ -2355,9 +2357,9 @@ await group("connect", async () => {
 
   try {
     await stubHalf();
-    // The real half aims at the development loops: only when real is named in --groups, as the real group (round 57d).
+    // The real half aims at the development loops: only when real is asked for, as the real group (round 57d, 58d).
     if (plan.real) await realHalf();
-    else info("connect: the real half not run, real is not in --groups");
+    else info("connect: the real half not run, real not asked for (--real, or real in --groups)");
   } finally {
     problems.push(...own.filter((x) => !expected(x)));
   }

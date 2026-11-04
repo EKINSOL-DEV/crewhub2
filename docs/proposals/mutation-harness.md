@@ -252,8 +252,9 @@ them onto decoys; the socket tests' `loopsUrl` is now a closed port. Left for a 
 1. **`tools/regress.mjs`:** `real` and connect's real half opt-in only (`--real`), the default groups the eight that use
    fakes and stubs; `loopsEnvFile` reads only `--loops-env`, with no search of the main checkout or `~/Documents/GitHub`.
    *Done in round 57d, `task/r57d-tool-defaults`, merged as `39f883d`: the default is the nine groups without `real` (eight
-   was a miscount), the opt-in is `real` named in `--groups` (`--real` is refused with a sentence), `real` without
-   `--loops-env` is refused; `tools/lib/regressArgs.ts`.*
+   was a miscount), the opt-in is `real` named in `--groups`, `real` without
+   `--loops-env` is refused; `tools/lib/regressArgs.ts`. Round 58d: `--real` is accepted as the same opt-in (it adds
+   `real` to the groups chosen), one word with the other tools' `--real`.*
 2. **`tools/timeworld.mjs`:** `--fake <port>` or an explicit `--loops-env` required, with no search.
    *Done in round 57d, `task/r57d-tool-defaults`, merged as `39f883d`: neither or both refused before anything starts;
    `tools/lib/timeworldArgs.ts`.*
@@ -264,7 +265,7 @@ them onto decoys; the socket tests' `loopsUrl` is now a closed port. Left for a 
    *Done in round 57d, `task/r57d-port-list`, merged as `554a068`: `scripts/named-ports.mjs` is the one list, read by the
    test preload (`no-app-reach.mjs`) and `tools/lib/toolGuard.ts`; `ownPort` refuses all nine as a tool's own port
    (`pixcheck`'s `--head-port` too), and `ownLoopsUrl` takes 8291 to 8293 only with `{ real: true }`, which `road2proof`,
-   `lib/live.mjs` (`perf`, `memory`, `profile`) give from their own `--real` flag and `regress` from `real` in `--groups`.*
+   `lib/live.mjs` (`perf`, `memory`, `profile`) give from their own `--real` flag and `regress` from `real` in `--groups` or, since round 58d, its own `--real`.*
 5. **`tools/README.md`:** examples with a port of one's own, not `--port 5173`.
    *Done in round 57d, `task/r57d-tool-defaults`, merged as `39f883d`: every example on 5385/5386, the opt-ins and refusals described.*
 6. **The host tests' helpers:** a shared `testHost()` that refuses to build a host without a target or an app data
