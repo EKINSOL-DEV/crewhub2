@@ -7,6 +7,7 @@ import { archivedWords } from "./archive.ts";
 import { pinnedCard, quietWords, runWords } from "./board.ts";
 import { roleInferred, roleWords } from "./roleWords.ts";
 import { roomLabel } from "./rooms.ts";
+import { statusWords } from "./status.ts";
 import { DESK_WORDS, HALL_LABELS, RACK_KINDS, RACK_NAMES, ROLE_DESK_WORDS, doneWord, hallOf, isRackKind, placeWords, roomPlaceWords, type Hall, type RoomWording, type WordingOptions } from "./halls.ts";
 import type {
   AgentPlacement,
@@ -18,14 +19,6 @@ import type {
   WorkObject,
   WorldModel,
 } from "./model.ts";
-
-const STATUS_WORDS: Record<TicketStatus, string> = {
-  backlog: "backlog",
-  planned: "planned",
-  in_progress: "in progress",
-  review: "review",
-  done: "done",
-};
 
 const LOOK_WORDS: Record<WorkObject["look"], string> = {
   folder: "folder",
@@ -291,7 +284,7 @@ function describeHalls(building: Building, add: Add): void {
 
 function describeObject(section: string, object: WorkObject, building: Building, add: Add, rooms: RoomWording): void {
   // A status newer than this build is said as loops sent it, as a newer kind or outcome is (round 48).
-  const status = object.newStatus === null ? STATUS_WORDS[object.status] : `status "${object.newStatus}" (new to this world, kept with the backlog)`;
+  const status = object.newStatus === null ? statusWords(object.status) : `status "${object.newStatus}" (new to this world, kept with the backlog)`;
   const parts = [`${object.key} "${object.title}": ${object.kind} as a ${LOOK_WORDS[object.look]}, ${status}`];
   if (object.rejected) {
     const reason = object.rejected.reason ? `: "${object.rejected.reason}"` : "";
