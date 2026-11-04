@@ -2,15 +2,16 @@ import assert from "node:assert/strict";
 import { request } from "node:http";
 import { connect } from "node:net";
 import { after, before, describe, it } from "node:test";
-import { createHost, type Host } from "../src/host.ts";
+import type { Host } from "../src/host.ts";
 import { type LoopsStub, createLoopsStub, installation } from "./loopsStub.ts";
+import { testHost } from "./testHost.ts";
 
 describe("the Host and Origin guard", () => {
   let stub: LoopsStub;
   let host: Host;
   before(async () => {
     stub = await createLoopsStub(installation());
-    host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", allowedOrigins: ["http://localhost:5173"], retryMs: { min: 20, max: 100 } });
+    host = await testHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", allowedOrigins: ["http://localhost:5173"], retryMs: { min: 20, max: 100 } });
   });
   after(async () => {
     await host.close();

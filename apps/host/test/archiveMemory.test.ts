@@ -11,8 +11,9 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, it } from "node:test";
 import { type ArchiveStore, createArchiveStore } from "../src/archiveStore.ts";
-import { type HostOptions, createHost } from "../src/host.ts";
+import type { HostOptions } from "../src/host.ts";
 import { type LoopsStub, createLoopsStub, envelope, installation } from "./loopsStub.ts";
+import { testHost } from "./testHost.ts";
 import { waitFor } from "./wait.ts";
 
 
@@ -35,7 +36,7 @@ describe("the archive memory", () => {
 
   async function startHost(stub: LoopsStub, archiveStore: ArchiveStore, extra: Partial<HostOptions> = {}) {
     const lines: string[] = [];
-    const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", keySource: "env", archiveStore, pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, log: (line) => lines.push(line), ...extra });
+    const host = await testHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", keySource: "env", archiveStore, pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, log: (line) => lines.push(line), ...extra });
     cleanup.push(() => host.close());
     const health = async () => (await (await fetch(`${host.url}/world-api/health`)).json()) as Record<string, any>;
     const snapshot = async () => (await (await fetch(`${host.url}/world-api/snapshot`)).json()) as Record<string, any>;

@@ -12,10 +12,11 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, it } from "node:test";
-import { type HostOptions, STREAM_REFUSED_REASON, createHost } from "../src/host.ts";
+import { type HostOptions, STREAM_REFUSED_REASON } from "../src/host.ts";
 import { UNKNOWN_REASON } from "../src/keyCheck.ts";
 import type { KeyStore } from "../src/keyStore.ts";
 import { createLoopsStub, installation } from "./loopsStub.ts";
+import { testHost } from "./testHost.ts";
 import { waitFor } from "./wait.ts";
 
 /** A soak, not a wait: the test expects nothing to happen in this time. It can only make the test slower, never fail it. */
@@ -62,7 +63,7 @@ describe("the key's state, honestly", () => {
     const store = memoryStore();
     // The read timeout stays the host's default (10 s): a slow read on a loaded machine must never pass for loops being
     // down in these tests. The one test about a timeout sets a short one itself, against a stub that hangs.
-    const host = await createHost({ keyStore: store, keyName: "crewhub-world", keySource: "stored", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, log: (line) => lines.push(line), ...options });
+    const host = await testHost({ keyStore: store, keyName: "crewhub-world", keySource: "stored", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, log: (line) => lines.push(line), ...options });
     cleanup.push(() => host.close());
     const health = async () => (await (await fetch(`${host.url}/world-api/health`)).json()) as Record<string, any>;
     const key = async () => (await health()).connection.key as { state: string; reason?: string; source?: string; recheckAt?: string };

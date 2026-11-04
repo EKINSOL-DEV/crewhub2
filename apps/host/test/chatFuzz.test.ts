@@ -9,9 +9,9 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import { LINE_MAX } from "../src/chatLine.ts";
-import { createHost } from "../src/host.ts";
 import { createLoopsStub, installation } from "./loopsStub.ts";
 import { openSse } from "./sse.ts";
+import { testHost } from "./testHost.ts";
 import { waitFor } from "./wait.ts";
 import { Fuzz, ODD_STRINGS, protoSnapshot, replay } from "../../../packages/world-engine/test/fuzz.ts";
 
@@ -45,7 +45,7 @@ describe("round 34 fuzz: road 1's answers through the host", () => {
     const stub = await createLoopsStub({ ...base, routes, keyReadsChat: true, dm: { threads: [THREAD], messages: { [MESSAGE.id]: MESSAGE } } });
     cleanup.push(() => stub.close());
     const lines: string[] = [];
-    const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", keySource: "env", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, log: (line) => lines.push(line) });
+    const host = await testHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", keySource: "env", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, log: (line) => lines.push(line) });
     cleanup.push(() => host.close());
     const health = async () => (await (await fetch(`${host.url}/world-api/health`)).json()) as Record<string, any>;
     await waitFor("the stream", async () => (await health()).connection.stream.state === "ok");
@@ -128,7 +128,7 @@ describe("round 34 fuzz: road 1's answers through the host", () => {
       const stub = await createLoopsStub({ ...base, routes: { ...base.routes, "/api/dm/threads": () => ({ status: 200, body }) }, keyReadsChat: true });
       cleanup.push(() => stub.close());
       const lines: string[] = [];
-      const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", keySource: "env", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, log: (line) => lines.push(line) });
+      const host = await testHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", keySource: "env", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, log: (line) => lines.push(line) });
       cleanup.push(() => host.close());
       const health = async () => (await (await fetch(`${host.url}/world-api/health`)).json()) as Record<string, any>;
       await waitFor("the stream", async () => (await health()).connection.stream.state === "ok");

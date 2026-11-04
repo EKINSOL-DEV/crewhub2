@@ -13,9 +13,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, it } from "node:test";
-import { createHost, type Host } from "../src/host.ts";
+import type { Host } from "../src/host.ts";
 import { TOWN_BODY_LIMIT, installationKey, openWorldDb, validateTownForHost, type WorldDb } from "../src/worldDb.ts";
 import { createLoopsStub, installation, type LoopsStub } from "./loopsStub.ts";
+import { testHost } from "./testHost.ts";
 import { waitFor } from "./wait.ts";
 import { Fuzz, PROTO_KEYS, protoSnapshot, replay } from "../../../packages/world-engine/test/fuzz.ts";
 
@@ -80,7 +81,7 @@ describe("round 34 fuzz: the town the host is handed", () => {
     stub = await createLoopsStub(installation());
     dir = mkdtempSync(path.join(tmpdir(), "chw-townfuzz-"));
     db = openWorldDb(dir);
-    host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", keySource: "env", pairing: "off", retryMs: { min: 20, max: 100 }, worldDb: db });
+    host = await testHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", keySource: "env", pairing: "off", retryMs: { min: 20, max: 100 }, worldDb: db });
     await waitFor("the stream", async () => ((await (await fetch(`${host!.url}/world-api/health`)).json()) as { connection: { stream: { state: string } } }).connection.stream.state === "ok");
     const put = (body: string, headers: Record<string, string>) => fetch(`${host!.url}/world-api/town`, { method: "PUT", headers, body });
     const read = async () => (await (await fetch(`${host!.url}/world-api/town`)).json()) as { rev: number; document: unknown };

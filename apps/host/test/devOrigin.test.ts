@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { DEV_ORIGIN_MAX, devOriginVerdict, loopbackOrigin } from "../src/devOrigin.ts";
 import { tellDevOrigin, tellOutcome } from "../src/checkout.ts";
-import { createHost } from "../src/host.ts";
+import { testHost } from "./testHost.ts";
 
 const program = { originHeader: undefined, contentType: "application/json", remoteAddress: "127.0.0.1", hostCheckout: "9f2c1a7b3d4e", known: new Set<string>(), sameUser: true, hasSecret: true };
 
@@ -51,7 +51,7 @@ describe("the dev origin decision", () => {
 describe("the dev origin at the host", () => {
   it("a program of this checkout is accepted once, health lists it, and the page's writes from that origin pass the guard; a page and a foreign origin are still refused", async () => {
     const lines: string[] = [];
-    const host = await createHost({ loopsUrl: "http://127.0.0.1:1", checkout: "9f2c1a7b3d4e", pairing: "off", mintSecret: "the-run-file-secret", retryMs: { min: 20, max: 100 }, log: (line) => lines.push(line) });
+    const host = await testHost({ loopsUrl: "http://127.0.0.1:1", checkout: "9f2c1a7b3d4e", pairing: "off", mintSecret: "the-run-file-secret", retryMs: { min: 20, max: 100 }, log: (line) => lines.push(line) });
     const tell = (port: number, origin: string, checkout: string, secret: string | null = "the-run-file-secret") => tellDevOrigin(port, origin, checkout, 1500, secret);
     try {
       const dev = "http://127.0.0.1:5294";
@@ -97,7 +97,7 @@ describe("the dev origin at the host", () => {
     assert.deepEqual(await tellDevOrigin(host.port, "http://127.0.0.1:5294", "9f2c1a7b3d4e", 500, "the-run-file-secret"), { kind: "silent" }, "closed: nothing answers");
     assert.deepEqual(await tellDevOrigin(host.port, "http://127.0.0.1:5294", "9f2c1a7b3d4e", 500, null), { kind: "silent" }, "closed and no run file: still silence, not a run-file complaint");
     // A host without a run file secret (a tool's in-process host) cannot be told at all.
-    const bare = await createHost({ loopsUrl: "http://127.0.0.1:1", checkout: "9f2c1a7b3d4e", pairing: "off", retryMs: { min: 20, max: 100 }, log: () => undefined });
+    const bare = await testHost({ loopsUrl: "http://127.0.0.1:1", checkout: "9f2c1a7b3d4e", pairing: "off", retryMs: { min: 20, max: 100 }, log: () => undefined });
     try {
       const r = await fetch(`${bare.url}/world-api/dev-origin`, { method: "POST", headers: { "content-type": "application/json", "x-crewhub-world-mint": "x" }, body: JSON.stringify({ origin: "http://127.0.0.1:5294", checkout: "9f2c1a7b3d4e" }) });
       assert.equal(r.status, 404);

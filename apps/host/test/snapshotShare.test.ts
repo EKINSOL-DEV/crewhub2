@@ -6,9 +6,10 @@ import assert from "node:assert/strict";
 import { createServer, request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, it } from "node:test";
-import { createHost, type Host } from "../src/host.ts";
+import type { Host } from "../src/host.ts";
 import { createLoopsStub, envelope, installation, type LoopsStub } from "./loopsStub.ts";
 import { openSse } from "./sse.ts";
+import { testHost } from "./testHost.ts";
 import { waitFor } from "./wait.ts";
 
 describe("the snapshot of tabs that ask together", () => {
@@ -42,7 +43,7 @@ describe("the snapshot of tabs that ask together", () => {
       else waiting.push(forward);
     });
     await new Promise<void>((resolve) => proxy.listen(0, "127.0.0.1", resolve));
-    const host = await createHost({ loopsUrl: `http://127.0.0.1:${(proxy.address() as AddressInfo).port}`, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 20, max: 40 }, log: () => undefined });
+    const host = await testHost({ loopsUrl: `http://127.0.0.1:${(proxy.address() as AddressInfo).port}`, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 20, max: 40 }, log: () => undefined });
     cleanup.push(async () => {
       await host.close();
       proxy.closeAllConnections();

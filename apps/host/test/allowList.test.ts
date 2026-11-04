@@ -3,15 +3,16 @@ import { createServer, request } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { allowedLoopsPath, matchWorldRoute } from "../src/allowList.ts";
-import { createHost, type Host } from "../src/host.ts";
+import type { Host } from "../src/host.ts";
 import { type LoopsStub, createLoopsStub, installation } from "./loopsStub.ts";
+import { testHost } from "./testHost.ts";
 
 describe("the allow-list", () => {
   let stub: LoopsStub;
   let host: Host;
   beforeEach(async () => {
     stub = await createLoopsStub(installation());
-    host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 } });
+    host = await testHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 } });
   });
   afterEach(async () => {
     await host.close();
@@ -72,7 +73,7 @@ describe("the allow-list", () => {
       req.pipe(ahead);
     });
     await new Promise<void>((resolve) => proxy.listen(0, "127.0.0.1", resolve));
-    const behind = await createHost({ loopsUrl: `http://127.0.0.1:${(proxy.address() as AddressInfo).port}`, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, log: () => undefined });
+    const behind = await testHost({ loopsUrl: `http://127.0.0.1:${(proxy.address() as AddressInfo).port}`, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, log: () => undefined });
     try {
       for (const path of ["/world-api/watchdog", "/world-api/tickets/AT-2"]) {
         const res = await fetch(`${behind.url}${path}`);

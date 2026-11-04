@@ -5,7 +5,8 @@ import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
-import { createHost, type Host } from "../src/host.ts";
+import type { Host } from "../src/host.ts";
+import { testHost } from "./testHost.ts";
 
 describe("a file of the world that cannot be read", () => {
   let host: Host;
@@ -15,7 +16,7 @@ describe("a file of the world that cannot be read", () => {
     await writeFile(path.join(dir, "index.html"), "<!doctype html><title>World</title>");
     await writeFile(path.join(dir, "locked.js"), "console.log(1)");
     await chmod(path.join(dir, "locked.js"), 0o000);
-    host = await createHost({ loopsUrl: "http://127.0.0.1:1", pairing: "off", staticDir: dir, retryMs: { min: 20, max: 100 }, log: () => undefined });
+    host = await testHost({ loopsUrl: "http://127.0.0.1:1", pairing: "off", staticDir: dir, retryMs: { min: 20, max: 100 }, log: () => undefined });
   });
   after(async () => {
     await host.close();

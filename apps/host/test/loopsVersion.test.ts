@@ -7,8 +7,8 @@ import assert from "node:assert/strict";
 import { createServer } from "node:net";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, it } from "node:test";
-import { createHost } from "../src/host.ts";
 import { createLoopsStub, installation } from "./loopsStub.ts";
+import { testHost } from "./testHost.ts";
 import { waitFor } from "./wait.ts";
 
 async function freePort(): Promise<number> {
@@ -29,7 +29,7 @@ describe("loops' version under a running host", () => {
   it("reads the version keyless (round 29): crewhub-loops main refuses the public health route to a viewer key, and the host still names the version", async () => {
     const stub = await createLoopsStub({ ...installation(), version: "0.3.1", healthRefusesKey: true, keyReadsChat: true });
     cleanup.push(() => stub.close());
-    const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 } });
+    const host = await testHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 } });
     cleanup.push(() => host.close());
     const health = async () => (await (await fetch(`${host.url}/world-api/health`)).json()) as Record<string, any>;
     await waitFor("the version", async () => (await health()).loopsCommit === "0.3.1");
@@ -44,7 +44,7 @@ describe("loops' version under a running host", () => {
     const port = await freePort();
     const lines: string[] = [];
     const first = await createLoopsStub({ ...installation(), port, version: "0.1.0" });
-    const host = await createHost({ loopsUrl: first.url, key: first.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, log: (line) => lines.push(line) });
+    const host = await testHost({ loopsUrl: first.url, key: first.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, log: (line) => lines.push(line) });
     cleanup.push(() => host.close());
     const health = async () => (await (await fetch(`${host.url}/world-api/health`)).json()) as Record<string, any>;
     await waitFor("the first version", async () => (await health()).loopsCommit === "0.1.0");

@@ -24,8 +24,8 @@ describe("the checkout id", () => {
 
 describe("health's checkout", () => {
   it("is the id the host was given, before the pairing gate (any page may ask whose host this is)", async () => {
-    const { createHost } = await import("../src/host.ts");
-    const host = await createHost({ loopsUrl: "http://127.0.0.1:1", checkout: "9f2c1a7b3d4e", retryMs: { min: 20, max: 100 }, log: () => undefined });
+    const { testHost } = await import("./testHost.ts");
+    const host = await testHost({ loopsUrl: "http://127.0.0.1:1", checkout: "9f2c1a7b3d4e", retryMs: { min: 20, max: 100 }, log: () => undefined });
     try {
       const health = (await (await fetch(`${host.url}/world-api/health`)).json()) as Record<string, unknown>;
       assert.equal(health.checkout, "9f2c1a7b3d4e");
@@ -47,8 +47,8 @@ describe("what a port answers a dev server", () => {
   });
 
   it("the probe: a host with its id, and silence where nothing listens", async () => {
-    const { createHost } = await import("../src/host.ts");
-    const host = await createHost({ loopsUrl: "http://127.0.0.1:1", checkout: "9f2c1a7b3d4e", retryMs: { min: 20, max: 100 }, log: () => undefined });
+    const { testHost } = await import("./testHost.ts");
+    const host = await testHost({ loopsUrl: "http://127.0.0.1:1", checkout: "9f2c1a7b3d4e", retryMs: { min: 20, max: 100 }, log: () => undefined });
     try {
       assert.deepEqual(await probeCheckout(host.port), { kind: "host", checkout: "9f2c1a7b3d4e", keyName: "" });
     } finally {

@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import type { LoopsSnapshot } from "@crewhub/loops-client";
-import { createHost, type Host } from "../src/host.ts";
+import type { Host } from "../src/host.ts";
 import { type LoopsStub, createLoopsStub, envelope, installation } from "./loopsStub.ts";
+import { testHost } from "./testHost.ts";
 import { waitFor } from "./wait.ts";
 
 describe("snapshot assembly", () => {
@@ -10,7 +11,7 @@ describe("snapshot assembly", () => {
   let host: Host;
   before(async () => {
     stub = await createLoopsStub({ ...installation(), events: [envelope(40, "ticket.created")] });
-    host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 } });
+    host = await testHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 } });
     const cursor = async () => ((await (await fetch(`${host.url}/world-api/health`)).json()) as { cursor?: number }).cursor;
     // The stream is open at the tail (40) before the archive event is emitted, so the host hears it on the stream.
     await waitFor("the stream at the tail", async () => (await cursor()) === 40);
@@ -49,7 +50,7 @@ describe("snapshot assembly", () => {
 
   it("answers 503 unauthorized when the key is refused", async () => {
     const wrong = await createLoopsStub(installation());
-    const other = await createHost({ loopsUrl: wrong.url, key: "chl_not_the_key", keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 } });
+    const other = await testHost({ loopsUrl: wrong.url, key: "chl_not_the_key", keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 } });
     try {
       const res = await fetch(`${other.url}/world-api/snapshot`);
       assert.equal(res.status, 503);
