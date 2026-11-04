@@ -1,4 +1,4 @@
-# Design choices for Nicky (rounds 41 to 54, 2026-11-04)
+# Design choices for Nicky (rounds 41 to 55, 2026-11-04)
 
 **How this relates to [open-questions.md](open-questions.md):** those are the fifteen merge decisions (pairing, health,
 the answer branches); these are smaller product choices the reviews of rounds 41 to 51 wrote down and left alone:
@@ -6,8 +6,8 @@ words on screen, where a card sits, what the host does in an odd case. Rounds 41
 round 48 (checked against the code at `d150cf4`) and nine from round 50's reviews of the packages and of
 accessibility (K, X, W13 and W14, checked at `5126318`), two from round 51's review of the host and the tools
 (H3 and P1, checked at `86bfbf6`), X5, the last of round 50's accessibility review, written up in round 52, E2
-from round 53's review of the page's state (checked at `402b618`), and P2, W15 and W16 from round 54 (checked at
-`35a3ebf`).
+from round 53's review of the page's state (checked at `402b618`), P2, W15 and W16 from round 54 (checked at
+`35a3ebf`), and P3 from round 55's look at round 54's mutation runs (checked at `cc23d62`).
 
 **How to answer:** one line per id, in the same short form as the open questions, for example `T1: as recommended`,
 `W4: keep` or `S1: waits`. A whole block in one line works too: `wording block: as recommended`
@@ -18,8 +18,8 @@ until you answer:** each choice names what stays if you say nothing, which is al
 [the live road](#the-live-road-l) (L, 2), [the host's behaviour](#the-hosts-behaviour-h) (H, 3),
 [the storyline](#the-storyline-s) (S, 4), [editing the town](#editing-the-town-e) (E, 2), and from round 50
 [the figures](#the-figures-k) (K, 3) and [accessibility](#accessibility-x) (X, 5); words on screen gained W13 and W14;
-from round 51 the host gained H3, and [the tools](#the-tools-p) (P, 2) is new; round 53 added E2, and round 54 P2,
-W15 and W16. **The cost** of a choice names the files, the tests and the pixel sets that would change. The demo pixel set
+from round 51 the host gained H3, and [the tools](#the-tools-p) (P, 3) is new; round 53 added E2, round 54 P2,
+W15 and W16, and round 55 P3. **The cost** of a choice names the files, the tests and the pixel sets that would change. The demo pixel set
 (`tools/pixcheck.mjs`) pictures the town, the town hall, a building and its rooms at 1440 and 375 px, light and dark,
 with the label layer hidden and the tour off; so plates, labels, sheets and the tour never move it.
 
@@ -635,6 +635,24 @@ compares the hashes everywhere. `hash`: the hashes and the check only; whoever r
 about 20 lines and a test. Neither touches `apps/`; no pixel set.
 **If you say nothing:** a copy's body is checked only where a crewhub-loops checkout is.
 **Answer:** `P2: sync / hash / keep`
+
+### P3. A test that the clock decides, once, with a wide margin (round 55; r54-hosttests' survivor `host.ts:319`)
+
+**Today.** The host's tests never let the clock decide a working test: `apps/host/test/wait.ts` waits for a state and
+fails only after a generous ceiling ("the ceiling bounds a broken test's run, it never decides a working one"). Round
+54's mutation run found the one place this leaves open. The host passes a shortened read timeout (`readTimeoutMs`,
+`host.ts:319`) to its loops client only for tests; `main.ts` never sets it, so the product always waits loops' 10 s
+(`READ_TIMEOUT_MS`, `apps/host/src/loops.ts:42`). If that line dropped the option, the one test that sets it
+(`keyStates.test.ts`, "a timeout is down", 1 s) would still pass, only 9 s slower, under the 15 s ceiling.
+**Options.** `race`: allow one named exception to the rule: a test where a 300 ms timeout must win against a stub that
+answers after 5 s (a 16x margin), with a comment in `wait.ts` naming it. `seam`: give the loops client an optional
+timer (a few lines in `loops.ts`, the default the real one), so a test decides the timeout with no clock. `keep`: the
+option is test-only and the product never uses it, so the gap cannot reach a person; leave it.
+**Recommended:** `keep`. A product seam or an exception to a rule that has kept the suite steady under load buys
+nothing a person sees.
+**Cost:** `race`: one test and two lines in `wait.ts`. `seam`: about 10 lines in `loops.ts` and one test. No pixel set.
+**If you say nothing:** `keep`.
+**Answer:** `P3: race / seam / keep`
 
 ## The wording block
 
