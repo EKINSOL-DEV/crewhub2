@@ -59,3 +59,23 @@ test("a Freshness built by hand, no stamp yet not stale (the building sign's lea
   });
   assert.equal(freshnessWords({ teamTs: TS, ageSeconds: 900, stale: true }).short, `stale since ${clock(TS)}`);
 });
+
+/* Round 62's mutation run: what the rows above left open. */
+test("freshnessOf: an empty stamp is no stamp; the age rounds half up, over the whole second", () => {
+  assert.deepEqual(freshnessOf(withTeam(""), AT), { teamTs: null, ageSeconds: null, stale: true });
+  assert.equal(freshnessOf(withTeam(TS), AT + 1500).ageSeconds, 2, "half a second rounds up");
+  assert.deepEqual(freshnessOf(withTeam(TS), AT + 3_600_000), { teamTs: TS, ageSeconds: 3600, stale: true }, "an hour is 3600 s, not nearly");
+});
+
+test("freshnessWords: the short words' clock is the viewer's own, hours and minutes, both two digits", () => {
+  // A zone half an hour off UTC, so that neither figure can come from UTC, and a time whose hour, minute and second all differ.
+  const was = process.env.TZ;
+  process.env.TZ = "Asia/Kolkata";
+  try {
+    assert.equal(freshnessWords({ teamTs: "2026-10-21T03:35:07Z", ageSeconds: 3600, stale: true }).short, "stale since 09:05");
+    assert.equal(freshnessWords({ teamTs: "2026-10-21T17:00:00Z", ageSeconds: 3600, stale: true }).short, "stale since 22:30");
+  } finally {
+    if (was === undefined) delete process.env.TZ;
+    else process.env.TZ = was;
+  }
+});
