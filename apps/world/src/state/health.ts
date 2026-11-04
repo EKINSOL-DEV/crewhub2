@@ -17,8 +17,10 @@
      progress (the last read's `connection.snapshot`, null when it went unanswered).
 
    The core (`createHostHealth`) takes the probe and the clock, so its tests drive it with a fake probe and a fake
-   schedule. The page's instance (`pageHealth`) asks the real host and starts with the gate's read (state/source.ts). It
-   does not import state/world.ts: the gate (main.tsx) uses it before the world's module loads. ADR 0005 unchanged. */
+   schedule. The page's instance (`pageHealth`) asks the real host and starts with the gate's read (state/source.ts
+   `sourceDecision`). It reads neither state/page.ts nor the runtimes: the gate (main.tsx) uses it before the world's
+   module loads, and a `pageConfig()` there would freeze the page's config at the gate's first read, before the gate
+   records the fresh decision the world is built from. ADR 0005 unchanged. */
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { probeHost, type ConnectionState, type HostHealth, type HostKeyState, type HostSnapshotState } from "@crewhub/loops-client";
 import { liveScreen, withStreamKey, type ConnectScreen } from "./connect.ts";

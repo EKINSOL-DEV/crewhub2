@@ -1,23 +1,10 @@
-/* The one seam between the world's data and its presentation. Everything else in apps/world reads the WorldModel
-   contract only (packages/world-model). The source is the scripted demo, or the live host (`createHostSource`,
-   /world-api) when the page's source decision says so (state/source.ts, made in main.tsx before this module loads). */
-import { useSyncExternalStore } from "react";
-import { createHostSource, type ConnectionState, type ConnectionStatus, type WorldSource } from "@crewhub/loops-client";
-import { subscribeOf } from "./connectionSubscribe";
-import { rememberSaid } from "./said";
-import { rememberThreads } from "./threads";
-import { demoChatLine, isAgentDm } from "./demoSaid";
-import {
-  browserScheduler,
-  createDemoSource,
-  createStressSource,
-  demoScenario,
-  parseScenarioId,
-  parseStressSize,
-  type DemoScenario,
-  type DemoSource,
-  type StressSize,
-} from "@crewhub/demo";
+/* The world runtime: the one seam between the world's data and its presentation. Everything else in apps/world reads the
+   WorldModel contract only (packages/world-model). A runtime is built from its config (state/page.ts builds the page's
+   one): its WorldSource (three adapters: the scripted demo, the stress fixture, the live host `createHostSource`), its
+   frame clock and the outlets that keep what is said beside the model. It reads no page, no environment and no store
+   of its own, so a node test builds one over `createDemoSource` with a manual scheduler and a fake clock. */
+import { createHostSource, type ChatLine, type ChatThreadFact, type ConnectionStatus, type HostSourceOptions, type WorldSource } from "@crewhub/loops-client";
+import { createDemoSource, createStressSource, type DemoSource, type Scheduler, type ScenarioId, type StressSize } from "@crewhub/demo";
 import {
   describeWorld,
   emptyMemory,
@@ -30,11 +17,7 @@ import {
   type TownZoning,
   type WorldModel,
 } from "@crewhub/world-model";
-import { sourceDecision, takeFirstSnapshot, townCopySource, townKeyFor, type SourceDecision } from "./source";
-import { hostConnected, hostTownChanged } from "./townBus";
-import { reduceWait } from "./reduceGap";
-import { agentDisplayName } from "./agentName";
-import { scenarioChoicesFor, type ScenarioChoice } from "./scenarioChoices";
+import { demoChatLine, isAgentDm } from "./demoSaid.ts";
 
 export interface WorldState {
   model: WorldModel;
@@ -47,41 +30,87 @@ const TIME_TICK_MS = 1000;
 /** While a ticket drone is in the air, re-reduce faster so the model lands the package on time at 16x. */
 const FLIGHT_TICK_MS = 250;
 
-const PARAMS = new URLSearchParams(globalThis.location?.search ?? "");
-
 /**
- * `?stress=1` and `?stress=20` (dev builds only): the synthetic stress towns (12 buildings with 100 agents, or 20
- * buildings with 200 agents in four groups) through the same seam, with a frame-time overlay. Production builds
- * ignore the flag.
+ * Under a heavy stream (the stress town at 16x) a reduction and what follows it (React, the scene's sync) cost several
+ * milliseconds, many times a second. Reductions are spaced by this many times the last one's cost, so the pipeline
+ * keeps to a small share of the main thread: no wait at 1x, a few frames at 16x. Never longer than REDUCE_GAP_MAX_MS.
  */
-export const STRESS_SIZE: StressSize | null = import.meta.env.DEV ? parseStressSize(PARAMS.get("stress")) : null;
-export const STRESS = STRESS_SIZE !== null;
-/**
- * `?buildings=N` (dev builds only): the world shows only the first N projects of its source. With the same town
- * document, raising N step by step is a town growing: the way to look at what a new project does to the settlement.
- */
-const BUILDING_LIMIT = import.meta.env.DEV ? Math.max(0, Math.floor(Number(PARAMS.get("buildings") ?? NaN))) : NaN;
+const REDUCE_GAP_PER_MS = 20;
+const REDUCE_GAP_MAX_MS = 200;
 
-/** `?scenario=<id>`: which demo installation the world shows; the default storyline without it. */
-export const SCENARIO: DemoScenario = demoScenario(parseScenarioId(PARAMS.get("scenario")));
+/** The page's clock for the runtime: wall time, animation frames, timers and whether the page is hidden. */
+export interface FrameClock {
+  /** Wall time in ms (the cost of a reduction is measured with it). */
+  now(): number;
+  /** Runs `fn` on the next animation frame. */
+  frame(fn: () => void): void;
+  /** Runs `fn` once after `ms`. */
+  after(ms: number, fn: () => void): void;
+  /** Runs `fn` every `ms`. */
+  every(ms: number, fn: () => void): void;
+  /** The page is hidden: the time ticks skip their reduction. */
+  hidden(): boolean;
+}
 
-/** The source this page runs on, decided before mount (main.tsx): the demo, or the live host. */
-export const SOURCE: SourceDecision = sourceDecision();
-export const LIVE = SOURCE.source === "live";
+/** The browser's frame clock. */
+export function browserFrameClock(): FrameClock {
+  return {
+    now: () => performance.now(),
+    frame: (fn) => void requestAnimationFrame(fn),
+    after: (ms, fn) => void setTimeout(fn, ms),
+    every: (ms, fn) => void globalThis.setInterval(fn, ms),
+    hidden: () => globalThis.document?.hidden ?? false,
+  };
+}
 
-/** The storage key of the town document on this page: the live town of this crewhub-loops installation, else one per scenario and per stress fixture. */
-export const TOWN_KEY = townKeyFor({ source: SOURCE.source, scenarioTownKey: SCENARIO.townKey, stressSize: STRESS_SIZE, loopsWebUrl: SOURCE.health?.loopsWebUrl ?? null });
-/** A live town made before the key carried the installation (the plain live key) is copied once into TOWN_KEY; null for a demo page. */
-export const TOWN_COPY_FROM = townCopySource({ source: SOURCE.source, townKey: TOWN_KEY });
+/** Where the runtime hands what it keeps beside the model. */
+export interface WorldOutlets {
+  /** An agent's line to the person (round 12): a bubble over its figure, never in the model. */
+  said(line: ChatLine): void;
+  /** The chat threads' facts (round 24): kept for the card, never in the model. */
+  threads(threads: readonly ChatThreadFact[]): void;
+  /** The live stream came (back) up: the town is read again (round 22). */
+  hostConnected(): void;
+  /** The first snapshot arrived: a mark for the tools that time the start (tools/timeworld.mjs). */
+  firstSnapshot(): void;
+}
 
-export type { ScenarioChoice };
+export interface WorldRuntimeConfig {
+  /** The adapter the world runs on (`worldSources`). */
+  source: WorldSource;
+  /** The chat dock's demo source; the world's own source when they are the same object. Null in live mode. */
+  chat: DemoSource | null;
+  /** Source time at the first loop's start (ms). */
+  epochMs: number;
+  clock: FrameClock;
+  /** `?buildings=N` (dev): the model shows only the first N buildings; NaN for all. */
+  buildingLimit: number;
+  outlets: WorldOutlets;
+}
 
-/** The Demo chip's picker: every scenario, and in dev builds the stress fixtures. Choosing one reloads the page. */
-export function scenarioChoices(): ScenarioChoice[] {
-  return scenarioChoicesFor({ params: PARAMS, pathname: globalThis.location?.pathname ?? "/", scenarioId: SCENARIO.id, stressSize: STRESS_SIZE, dev: import.meta.env.DEV });
+/** What `worldSources` needs of the page (state/page.ts's PageConfig). */
+export interface SourcePage {
+  live: boolean;
+  scenarioId: ScenarioId;
+  stressSize: StressSize | null;
 }
 
 type DemoLike = WorldSource & { readonly mode: "demo"; readonly playback: Playback };
+
+/**
+ * The three adapters of the world's seam: the live host (with the snapshot main.tsx read ahead, if it did, and the
+ * host's town revisions), the stress fixture (its chat dock a separate scripted demo), or the scenario's demo, which
+ * is also the dock's.
+ */
+export function worldSources(page: SourcePage, options: { scheduler: Scheduler; epochMs: number; firstSnapshot?: HostSourceOptions["firstSnapshot"]; onTown?: (rev: number) => void }): { source: WorldSource; chat: DemoSource | null } {
+  if (page.live) {
+    const { firstSnapshot, onTown } = options;
+    return { source: createHostSource({ ...(firstSnapshot ? { firstSnapshot } : {}), ...(onTown ? { onTown } : {}) }), chat: null };
+  }
+  const demo = createDemoSource({ scheduler: options.scheduler, epochMs: options.epochMs, scenario: page.scenarioId });
+  const source: DemoLike = page.stressSize !== null ? createStressSource({ scheduler: options.scheduler, epochMs: options.epochMs, size: page.stressSize }) : demo;
+  return { source, chat: demo };
+}
 
 class WorldRuntime {
   readonly source: WorldSource;
@@ -95,6 +124,8 @@ class WorldRuntime {
   /** The live source's standing with its host; null for the demo, which is always there. */
   readonly connection: ConnectionStatus | null;
   readonly projection: Projection;
+  readonly #clock: FrameClock;
+  readonly #buildingLimit: number;
   #memory = emptyMemory();
   #roleOverrides: Record<string, RoleId> = {};
   #zoning: TownZoning = {};
@@ -102,74 +133,65 @@ class WorldRuntime {
   #reducedMotion = false;
   #state: WorldState;
   #listeners = new Set<() => void>();
-  #frame = 0;
-  #wait: ReturnType<typeof setTimeout> | 0 = 0;
+  #frame = false;
+  #wait = false;
   #lastReduce = 0;
   /** How long the last reduction took (ms). */
   #cost = 0;
   #inFlight = false;
 
-  constructor() {
-    // The script starts at the minute the page opened, so the copied chat's relative times read naturally.
-    const epochMs = Math.floor(Date.now() / 60_000) * 60_000;
-    this.epochMs = epochMs;
-    if (LIVE) {
-      this.chat = null;
-      // The first snapshot main.tsx read ahead, if it did: the first model has the town.
-      const firstSnapshot = takeFirstSnapshot();
-      this.source = createHostSource({ ...(firstSnapshot ? { firstSnapshot } : {}), onTown: hostTownChanged });
-    } else {
-      const demo = createDemoSource({ scheduler: browserScheduler(), epochMs, scenario: SCENARIO.id });
-      this.chat = demo;
-      const demoLike: DemoLike = STRESS_SIZE !== null ? createStressSource({ scheduler: browserScheduler(), epochMs, size: STRESS_SIZE }) : demo;
-      this.source = demoLike;
-    }
+  constructor(config: WorldRuntimeConfig) {
+    const { source, chat, clock, outlets } = config;
+    this.source = source;
+    this.chat = chat;
+    this.epochMs = config.epochMs;
+    this.#clock = clock;
+    this.#buildingLimit = config.buildingLimit;
     this.connection = this.source.connection ?? null;
     // Every time the stream comes (back) up the town is read again (round 22): the host tells open tabs only, so a
     // `town` message sent while this tab reconnected (loops' 300 s end, a host restart) would otherwise be missed.
     if (this.connection) {
-      let was = this.connection.state();
-      this.connection.onChange(() => {
-        const now = this.connection!.state();
-        if (now === "live" && was !== "live") hostConnected();
+      const connection = this.connection;
+      let was = connection.state();
+      connection.onChange(() => {
+        const now = connection.state();
+        if (now === "live" && was !== "live") outlets.hostConnected();
         was = now;
       });
     }
     this.projection = new Projection(this.source);
     let firstSnapshot = true;
     this.source.start((message) => {
-      // The first snapshot is a mark for the tools that time the start (tools/timeworld.mjs).
       if (firstSnapshot && message.type === "snapshot") {
         firstSnapshot = false;
-        performance.mark("world:snapshot");
+        outlets.firstSnapshot();
       }
-      // An agent's line to the person (round 12): a bubble over its figure, kept beside the model, not in it.
       if (message.type === "chat") {
-        rememberSaid(message.chat);
+        outlets.said(message.chat);
         return;
       }
-      // The chat threads' facts (round 24): kept for the card, never in the model.
       if (message.type === "threads") {
-        rememberThreads(message.threads);
+        outlets.threads(message.threads);
         return;
       }
       // The demo's own dock answers (round 17, state/demoSaid.ts): the scripted reply's dm.created, read back from the
       // demo's thread, feeds the same store, so the demo shows the bubble, the mark and the Recent answers row too.
-      if (message.type === "event" && this.chat !== null && this.source === this.chat && isAgentDm(message.envelope)) {
+      if (message.type === "event" && this.demo !== null && isAgentDm(message.envelope)) {
+        const demo = this.demo;
         const { agentId } = message.envelope.payload;
         const envelope = message.envelope;
-        void this.chat.getDmMessages(agentId).then((messages) => {
+        void demo.getDmMessages(agentId).then((messages) => {
           const line = demoChatLine(envelope, messages, this.#agentName(agentId));
-          if (line !== null) rememberSaid(line);
+          if (line !== null) outlets.said(line);
         });
       }
       this.projection.apply(message);
     });
     this.projection.onChange(() => this.#schedule());
-    globalThis.setInterval(() => {
-      if (document.hidden) return;
-      if (this.#inFlight || performance.now() - this.#lastReduce >= TIME_TICK_MS) this.#schedule();
-    }, FLIGHT_TICK_MS);
+    clock.every(FLIGHT_TICK_MS, () => {
+      if (clock.hidden()) return;
+      if (this.#inFlight || clock.now() - this.#lastReduce >= TIME_TICK_MS) this.#schedule();
+    });
     this.#state = this.#reduce();
   }
 
@@ -177,9 +199,11 @@ class WorldRuntime {
     return this.#state;
   }
 
-  /** The display name of an agent in the current model (a figure anywhere), or null for one the model does not place. */
+  /** The display name of an agent in the current model (a figure anywhere: a building, the town hall, the post office), or null for one the model does not place. */
   #agentName(agentId: string): string | null {
-    return agentDisplayName(this.#state.model, agentId);
+    const model = this.#state.model;
+    for (const a of [...model.buildings.flatMap((b) => b.agents), ...model.townHall, ...model.postOffice]) if (a.name === agentId) return a.displayName;
+    return null;
   }
 
   /** The scripted demo behind the world, or null when the world runs the stress fixture or the live host. */
@@ -213,26 +237,31 @@ class WorldRuntime {
     return () => this.#listeners.delete(listener);
   };
 
-  /** Coalesce a burst of applied messages into one reduction per animation frame, spaced by the reductions' cost. */
+  /**
+   * Coalesce a burst of applied messages into one reduction per animation frame, spaced by the reductions' cost: the
+   * next one waits REDUCE_GAP_PER_MS times the last one's cost after it, at most REDUCE_GAP_MAX_MS.
+   */
   #schedule() {
     if (this.#frame || this.#wait) return;
-    const wait = reduceWait(this.#lastReduce, this.#cost, performance.now());
+    const wait = this.#lastReduce + Math.min(REDUCE_GAP_MAX_MS, this.#cost * REDUCE_GAP_PER_MS) - this.#clock.now();
     if (wait > 0) {
-      this.#wait = setTimeout(() => {
-        this.#wait = 0;
+      this.#wait = true;
+      this.#clock.after(wait, () => {
+        this.#wait = false;
         this.#schedule();
-      }, wait);
+      });
       return;
     }
-    this.#frame = requestAnimationFrame(() => {
-      this.#frame = 0;
+    this.#frame = true;
+    this.#clock.frame(() => {
+      this.#frame = false;
       this.#state = this.#reduce();
       for (const listener of this.#listeners) listener();
     });
   }
 
   #reduce(): WorldState {
-    const started = performance.now();
+    const started = this.#clock.now();
     const result = reduceWorld(this.projection.facts, this.#memory, {
       now: this.source.now(),
       mode: this.source.mode,
@@ -241,34 +270,16 @@ class WorldRuntime {
       reducedMotion: this.#reducedMotion,
     });
     this.#memory = result.memory;
-    this.#lastReduce = performance.now();
+    this.#lastReduce = this.#clock.now();
     this.#cost = this.#lastReduce - started;
     this.#inFlight = result.model.buildings.some((b) => b.objects.some((o) => o.transit));
-    const model = Number.isNaN(BUILDING_LIMIT) ? result.model : { ...result.model, buildings: result.model.buildings.slice(0, BUILDING_LIMIT) };
+    const model = Number.isNaN(this.#buildingLimit) ? result.model : { ...result.model, buildings: result.model.buildings.slice(0, this.#buildingLimit) };
     return { model, text: describeWorld(model), playback: this.source.playback };
   }
 }
 
-let runtime: WorldRuntime | null = null;
-/** One runtime per page: StrictMode's double mount and every hook share it. */
-export function worldRuntime(): WorldRuntime {
-  runtime ??= new WorldRuntime();
-  return runtime;
-}
+export type { WorldRuntime };
 
-export function useWorld(): WorldState {
-  const world = worldRuntime();
-  return useSyncExternalStore(world.subscribe, () => world.state);
-}
-
-/** The live source's connection state for the chip; null in demo mode. */
-export function useConnection(): ConnectionState | null {
-  const connection = worldRuntime().connection;
-  return useSyncExternalStore(subscribeOf(connection), () => (connection ? connection.state() : null));
-}
-
-/** The host's own word on its key from the stream's last status (none, checking, rejected, ok…); null in demo mode or from a host that does not say. */
-export function useConnectionKey(): ReturnType<ConnectionStatus["key"]> {
-  const connection = worldRuntime().connection;
-  return useSyncExternalStore(subscribeOf(connection), () => (connection ? connection.key() : null));
+export function createWorldRuntime(config: WorldRuntimeConfig): WorldRuntime {
+  return new WorldRuntime(config);
 }

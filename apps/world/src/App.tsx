@@ -46,9 +46,9 @@ import { toggleFps } from "./state/fps";
 import { readRoleOverrides, writeRoleOverrides } from "./state/roleOverrides";
 import { useBuildMode } from "./state/build";
 import { useDark, useTheme } from "./state/theme";
-import { townRuntime, useTown } from "./state/town";
+import { townRuntime, useConnection, useConnectionKey, useDirectorFeed, useTown, useWorld, worldRuntime } from "./state/runtimes";
 import type { TownLayer } from "./world/propLayer";
-import { scenarioChoices, useConnection, useConnectionKey, useWorld, worldRuntime } from "./state/world";
+import { pageConfig } from "./state/page";
 import { translate } from "./i18n";
 import type { ConnectionState } from "@crewhub/loops-client";
 import { buildingTemplate } from "./world/buildingTemplate";
@@ -60,7 +60,6 @@ import { DirectorLog } from "./components/DirectorLog";
 import { PresenceSettings } from "./components/PresenceSettings";
 import { WhereForm } from "./components/WhereForm";
 import { civicWords } from "./world/settlementDressing";
-import { useDirectorFeed } from "./state/director";
 import type { CameraAction } from "./world/TownScene";
 import { countsLine, laneWords, mmss } from "./world/townLayout";
 import { describePlan, moveFocus } from "./world/townPlan";
@@ -1004,7 +1003,7 @@ const SPEEDS: readonly { speed: PlaybackSpeed; label: string }[] = [
 
 /* The chrome around the scene, memoised: the world model changes many times a second under load, and none of these show
    it, so they render only when their own props change. */
-const SCENARIO_CHOICES = scenarioChoices();
+const SCENARIO_CHOICES = pageConfig().scenarioChoices;
 
 const Corner = memo(function Corner({
   demo,

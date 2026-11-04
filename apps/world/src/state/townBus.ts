@@ -1,5 +1,5 @@
 /* The host's word that the town changed (`{type: "town", rev}` on the stream, round 20), handed from the world's source
-   (state/world.ts) to the town runtime (state/hostTown.ts) without the two importing each other. */
+   (state/runtimes.ts wires it as the host source's `onTown`) to the town store (state/hostTown.ts) without the two importing each other. */
 export type TownListener = (rev: number) => void;
 
 const listeners = new Set<TownListener>();
