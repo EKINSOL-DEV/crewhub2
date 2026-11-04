@@ -72,9 +72,13 @@ test("pause stops the clock; speed multiplies it; a line plays when the position
   assert.equal(playback.positionMs(), 1_200);
   assert.deepEqual(said(), [-1, 1_000]);
   playback.setSpeed(0);
+  let changes = 0;
+  const off = playback.onChange(() => (changes += 1));
   scheduler.advance(5_000);
   assert.equal(playback.positionMs(), 1_200);
   assert.deepEqual(said(), [-1, 1_000]);
+  assert.equal(changes, 0, "a paused tick says nothing changed");
+  off();
   playback.setSpeed(1);
   scheduler.advance(100);
   assert.equal(playback.positionMs(), 1_300, "the pause is not played afterwards");
@@ -187,13 +191,17 @@ test("a seek: clamped to the loop (whole ms, anything not finite is the start), 
   assert.deepEqual(said(), [-1, -1], "the listener left");
 });
 
-test("a seek restarts the wall step, so the time before it is not played after it", () => {
+test("a seek and a speed restart the wall step: the time before them is not played after them, nor at the new speed", () => {
   const { scheduler, player, playback } = play([]);
   player.start(() => {});
   scheduler.advance(50);
   playback.seek(1_000);
   scheduler.advance(50); // the first tick, 50 ms after the seek
   assert.equal(playback.positionMs(), 1_050);
+  scheduler.advance(50);
+  playback.setSpeed(4);
+  scheduler.advance(50); // the next tick, 50 ms after the speed
+  assert.equal(playback.positionMs(), 1_250);
 });
 
 test("setSpeed: the speeds it accepts when the source names them, every speed when it does not", () => {

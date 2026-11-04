@@ -104,3 +104,69 @@ test("round 60, pk-P1: a stress seek clamps as the storyline's does: not a finit
     assert.equal(source.now(), Date.parse("2026-10-01T08:00:00Z"));
   }
 });
+
+/* Round 60, pk-P1: the stream's side of the player's seam. */
+const LOOP_MS = 30 * 60_000;
+const EPOCH = Date.parse("2026-10-01T08:00:00Z");
+
+test("round 60, pk-P1: the stream's loop end: no line stamped at the end itself, then the next loop's snapshot with its cursor above every seq before", () => {
+  const scheduler = createManualScheduler();
+  const source = createStressSource({ scheduler });
+  source.playback.setSpeed(16);
+  const messages: SourceMessage[] = [];
+  source.start((m) => messages.push(m));
+  source.playback.seek(LOOP_MS - 2_000);
+  messages.length = 0;
+  scheduler.advance(300); // 4.8 s of demo time: over the end
+  assert.equal(source.playback.loop(), 1);
+  const at = messages.findIndex((m) => m.type === "snapshot");
+  assert.ok(at >= 0);
+  const before = messages.slice(0, at).flatMap((m) => (m.type === "event" ? [m.envelope] : []));
+  assert.ok(before.length > 0);
+  for (const e of before) assert.ok(Date.parse(e.ts) < EPOCH + LOOP_MS, `${e.type} at ${e.ts}`);
+  const snapshot = messages[at];
+  assert.ok(snapshot?.type === "snapshot");
+  assert.ok(snapshot.snapshot.cursor > Math.max(...before.map((e) => e.seq)));
+  for (const m of messages.slice(at + 1)) if (m.type === "event") assert.ok(m.envelope.seq > snapshot.snapshot.cursor);
+});
+
+test("round 60, pk-P1: a stress snapshot's agents are seen at the clock, between two steps too", () => {
+  const scheduler = createManualScheduler();
+  const source = createStressSource({ scheduler });
+  const messages: SourceMessage[] = [];
+  source.start((m) => messages.push(m));
+  source.playback.seek(1_000); // between the steps at 800 and 1200
+  const snapshot = messages.at(-1);
+  assert.ok(snapshot?.type === "snapshot");
+  assert.ok(snapshot.snapshot.agents.length > 0);
+  for (const agent of snapshot.snapshot.agents) assert.equal(agent.lastSeenAt, new Date(EPOCH + 1_000).toISOString());
+});
+
+test("round 60, pk-P1: a seek onto a step replays that step silently: the stream goes on with the next, as if played straight", () => {
+  const stream = (seekTo: number | null) => {
+    const scheduler = createManualScheduler();
+    const source = createStressSource({ scheduler });
+    const events: { seq: number; type: string; ts: string }[] = [];
+    source.start((m) => m.type === "event" && events.push({ seq: m.envelope.seq, type: m.envelope.type, ts: m.envelope.ts }));
+    if (seekTo !== null) source.playback.seek(seekTo);
+    source.playback.setSpeed(16);
+    scheduler.advance(2_000);
+    return events;
+  };
+  const straight = stream(null);
+  const onto = Date.parse(straight[10]?.ts as string) - EPOCH;
+  assert.equal(onto % 400, 0);
+  const sought = stream(onto);
+  assert.ok(sought.length > 0);
+  assert.ok(sought.every((e) => Date.parse(e.ts) > EPOCH + onto), "nothing at the step sought onto is sent");
+  assert.deepEqual(sought[0], straight.find((e) => Date.parse(e.ts) > EPOCH + onto));
+});
+
+test("round 60, pk-P1: the stream names no speeds of its own: any speed plays", () => {
+  const scheduler = createManualScheduler();
+  const source = createStressSource({ scheduler });
+  source.start(() => {});
+  source.playback.setSpeed(2 as 1);
+  scheduler.advance(100);
+  assert.equal(source.playback.positionMs(), 200);
+});
