@@ -436,5 +436,11 @@ describe("the upstream, without a host", () => {
     await waitFor("seq 3 at the late observer", () => words(late).includes("event 3"));
     assert.deepEqual(words(late), ["event 3"]);
     assert.deepEqual(words(early), ["status ok", "event 2"], "an observer that stopped hears nothing more");
+    // The upstream's own stop ends the observers still listening: once its stream is gone, nothing the stub does reaches them.
+    await upstream.stop();
+    await waitFor("the host's stream closed", () => stub.openStreams() === 0);
+    stub.emit(anEvent());
+    stub.heartbeat();
+    assert.deepEqual(words(late), ["event 3"], "nothing after the upstream's stop");
   });
 });

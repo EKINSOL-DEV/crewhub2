@@ -383,6 +383,7 @@ export function createConnection(options: ConnectionOptions): Connection {
       // the key (a confirmed 401/403 is rejected, ok is ok, down says nothing), loops going away sends the discovery
       // looking again on the app's roads, the dm events feed the chat path and the archive events the memory of the
       // closed buildings. An observer, not a tab: it hears the changes from now on, no status at once and no replay.
+      // Its stop is the upstream's own (`stop()` ends every listener): the way to stop it alone is not kept.
       upstream.observe((message) => {
         if (link?.upstream !== upstream) return;
         if (message.type === "status") {
