@@ -23,6 +23,7 @@ import {
   type WorldLayout,
   type WorldProp,
 } from "./index.ts";
+import { flood } from "./flood.ts";
 
 /** What a simulation with actors adds to a check: the cells they hold (current and next) and the ones they stand on. */
 export interface Crew {
@@ -82,31 +83,6 @@ export function placementRules(layout: WorldLayout, defs: Definitions): Placemen
 
 /** One flood fill from the entrance says which cells are reachable, instead of a path search per interaction cell. */
 function reachableCells(g: GridSpec, blocked: Int32Array, start: Cell): Uint8Array {
-  const visited = new Uint8Array(blocked.length),
-    queue = new Int32Array(blocked.length);
-  const first = start.z * g.width + start.x;
-  if (blocked[first] !== -1) return visited;
-  let read = 0,
-    write = 1;
-  queue[0] = first;
-  visited[first] = 1;
-  while (read < write) {
-    const id = queue[read++]!,
-      x = id % g.width,
-      z = Math.floor(id / g.width);
-    for (const c of [
-      { x: x - 1, z },
-      { x: x + 1, z },
-      { x, z: z - 1 },
-      { x, z: z + 1 },
-    ]) {
-      if (!inBounds(g, c)) continue;
-      const next = c.z * g.width + c.x;
-      if (!visited[next] && blocked[next] === -1) {
-        visited[next] = 1;
-        queue[write++] = next;
-      }
-    }
-  }
-  return visited;
+  if (blocked[start.z * g.width + start.x] !== -1) return new Uint8Array(blocked.length);
+  return flood(g, blocked, start);
 }

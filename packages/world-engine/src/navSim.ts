@@ -14,6 +14,7 @@ import {
   type Placement,
   type WorldLayout,
 } from "./index.ts";
+import { flood } from "./flood.ts";
 import type { Door, Location, NavGraph, NavStats, RoomState, RouteLeg } from "./nav.ts";
 
 export type Detail = "full" | "offscreen";
@@ -683,36 +684,17 @@ export class NavSimulation {
   #nearestFree(roomId: string, origin: Cell, self: number): Cell | null {
     const room = this.graph.room(roomId);
     if (!room) return null;
-    const { width, depth } = room.layout.grid;
+    const { width } = room.layout.grid;
     const holders = this.#holders.get(roomId)!;
-    const seen = new Uint8Array(width * depth);
-    const queue = [origin.z * width + origin.x];
-    seen[queue[0]!] = 1;
-    for (let read = 0; read < queue.length; read++) {
-      const id = queue[read]!,
-        x = id % width,
+    let found: Cell | null = null;
+    flood(room.layout.grid, room.blocked, origin, (id) => {
+      const x = id % width,
         z = (id - x) / width;
-      if (
-        room.blocked[id] === -1 &&
-        (holders[id] === -1 || holders[id] === self) &&
-        !this.#groupOf.has(locationKey(roomId, { x, z }))
-      )
-        return { x, z };
-      for (const [nx, nz] of [
-        [x, z - 1],
-        [x + 1, z],
-        [x, z + 1],
-        [x - 1, z],
-      ] as const) {
-        if (nx < 0 || nz < 0 || nx >= width || nz >= depth) continue;
-        const n = nz * width + nx;
-        if (!seen[n] && room.blocked[n] === -1) {
-          seen[n] = 1;
-          queue.push(n);
-        }
-      }
-    }
-    return null;
+      if (room.blocked[id] !== -1 || (holders[id] !== -1 && holders[id] !== self) || this.#groupOf.has(locationKey(roomId, { x, z }))) return false;
+      found = { x, z };
+      return true;
+    });
+    return found;
   }
 
   // Wait budget --------------------------------------------------------------
