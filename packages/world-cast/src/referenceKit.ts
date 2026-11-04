@@ -5,12 +5,12 @@ import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { PROP_LIMITS } from "@crewhub/world-engine";
 import type { StyleTheme } from "@crewhub/world-style";
-import type { CastManifest, FigureHalo, FigureKit, FigurePart } from "./index.ts";
+import type { CastManifest, FigureHalo, FigureKit, FigurePart, ReservedColor } from "./index.ts";
 
 const DEG = Math.PI / 180;
 /** CSS colour names for what a cast does not name itself: a style colour, the alert colour and the stale grey. */
 const NEUTRAL = "gainsboro";
-const RESERVED: Record<string, string> = { alert: "orange", stale: "darkgray" };
+const RESERVED: Record<string, string> = { alert: "orange", stale: "darkgray" } satisfies Record<ReservedColor, string>;
 const SOFT = 0.45;
 
 export function referenceKit(colors: CastManifest["colors"], theme: StyleTheme = "day"): FigureKit {

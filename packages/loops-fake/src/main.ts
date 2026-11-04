@@ -7,7 +7,7 @@
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { SCENARIO_IDS, parseScenarioId } from "@crewhub/demo";
+import { DEFAULT_SCENARIO, SCENARIO_IDS, scenarioIdOf } from "@crewhub/demo";
 import { createLoopsFake } from "./fake.ts";
 import { fakePortVerdict } from "./ports.ts";
 
@@ -27,13 +27,13 @@ const builderKey = process.argv.includes("--builder-key");
 const portVerdict = fakePortVerdict(option("port"));
 if (!portVerdict.ok) throw new Error(portVerdict.reason);
 const port = portVerdict.port;
-// An unknown id is refused (round 54): parseScenarioId alone takes it as the default, so a typo played small-team.
+// An unknown id is refused (round 54): a typo must not play the default.
 const scenarioText = option("scenario");
-if (scenarioText !== undefined && !(SCENARIO_IDS as readonly string[]).includes(scenarioText)) {
+const scenario = scenarioText === undefined ? DEFAULT_SCENARIO : scenarioIdOf(scenarioText);
+if (scenario === null) {
   console.error(`--scenario ${scenarioText}: no such demo scenario; one of ${SCENARIO_IDS.join(", ")}`);
   process.exit(2);
 }
-const scenario = parseScenarioId(scenarioText);
 const speed = Number(option("speed") ?? "1");
 if (!(SPEEDS as readonly number[]).includes(speed)) throw new Error(`--speed must be one of ${SPEEDS.join(", ")}`);
 

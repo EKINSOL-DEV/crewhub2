@@ -7,7 +7,8 @@
  */
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { WORLD_EVENTS_LIMIT, WORLD_EVENT_TYPES, type LoopsFake, createLoopsFake } from "../src/index.ts";
+import { PAGE_CHAT_EVENT_TYPES } from "@crewhub/loops-client";
+import { type LoopsFake, createLoopsFake } from "../src/index.ts";
 
 const fakes: LoopsFake[] = [];
 after(async () => {
@@ -63,12 +64,45 @@ test("the world origin: anything else is 403 origin_forbidden with no CORS heade
   assert.equal(none.headers.get("access-control-allow-origin"), null);
 });
 
+test("the world origin: the routes' segments are loops' agent and message shapes, exact paths", async () => {
+  const f = await fake({ worldOrigin: WORLD });
+  const cookie = await signIn(f);
+  const refused = async (path: string) => {
+    const answer = await fetch(`${f.url}${path}`, { headers: { origin: WORLD, cookie } });
+    if (answer.status !== 403) return false;
+    const body = (await answer.json()) as { error: { code: string } };
+    return body.error.code === "origin_forbidden";
+  };
+  const longestAgent = `a${"-".repeat(31)}`;
+  const longestId = "A".repeat(64);
+  for (const path of ["/api/dm/threads", "/api/events", "/api/dm/threads/0/messages", `/api/dm/threads/${longestAgent}/messages`, "/api/dm/messages/a", `/api/dm/messages/${longestId}`, "/api/dm/messages/dm_A-z"]) {
+    assert.equal(await refused(path), false, `the guard lets ${path} through`);
+  }
+  for (const path of [
+    "/api/dm/threads/",
+    "/api/events/",
+    "/api/events/stream",
+    "/api/dm/threads/g-man",
+    "/api/dm/threads/g-man/messages/",
+    `/api/dm/threads/${longestAgent}a/messages`,
+    "/api/dm/threads/G-man/messages",
+    "/api/dm/threads/-man/messages",
+    "/api/dm/threads/g_man/messages",
+    "/api/dm/messages",
+    `/api/dm/messages/${longestId}A`,
+    "/api/dm/messages/dm.1",
+    "/api/dm/messages/a/b",
+    "/api/projects",
+  ]) {
+    assert.equal(await refused(path), true, `the guard refuses ${path}`);
+  }
+});
+
 test("the world origin: the events poll's limit is clamped to 50 and the types forced; unset, Origin is ignored; setWorldOrigin changes it live", async () => {
   const f = await fake({ worldOrigin: WORLD });
   const cookie = await signIn(f);
   const big = await fetch(`${f.url}/api/events?limit=500`, { headers: { origin: WORLD, cookie } });
   assert.equal(big.status, 200, "a larger limit is clamped, not refused");
-  assert.equal(WORLD_EVENTS_LIMIT, 50);
   f.setWorldOrigin(null);
   const ignored = await fetch(`${f.url}/api/projects`, { headers: { origin: "http://127.0.0.1:5999", cookie } });
   assert.equal(ignored.status, 200, "unset: Origin is ignored as before");
@@ -91,6 +125,7 @@ test("the world origin: an events poll without types is answered with the forced
   const world = await types({ origin: WORLD, cookie });
   f.setWorldOrigin(null);
   const plain = await types({ cookie });
-  assert.ok(plain.some((type) => !WORLD_EVENT_TYPES.includes(type)), `the log holds other types too: ${plain.join(", ")}`);
-  assert.ok(world.includes("dm.created") && world.every((type) => WORLD_EVENT_TYPES.includes(type)), `the world origin's poll: ${world.join(", ")}`);
+  const forced = PAGE_CHAT_EVENT_TYPES.split(",");
+  assert.ok(plain.some((type) => !forced.includes(type)), `the log holds other types too: ${plain.join(", ")}`);
+  assert.ok(world.includes("dm.created") && world.every((type) => forced.includes(type)), `the world origin's poll: ${world.join(", ")}`);
 });

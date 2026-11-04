@@ -1,6 +1,7 @@
 export type * from "./types.ts";
 export type * from "./source.ts";
 export {
+  ADMIN_EVENT_TYPES,
   AGENT_ROLES,
   COMMENT_KINDS,
   DELIVERY_REASONS,
@@ -11,6 +12,7 @@ export {
   LANE_KINDS,
   LANE_LIFECYCLES,
   LANE_STATUSES,
+  LOOPS_EVENT_TYPES,
   OBSERVED_SOURCES,
   MILESTONE_STATES,
   PRINCIPAL_KINDS,
@@ -84,6 +86,7 @@ export {
   REPROBE_MS,
   REPROBE_SLOW_MS,
   eventsUrl,
+  isAgentName,
   isLoopbackOrigin,
   messageUrl,
   pageGet,
@@ -97,5 +100,5 @@ export {
   threadsUrl,
 } from "./pageChat.ts";
 export type { EventsPage, FetchLike, PageAnswer, PageProbe, PollOutcome } from "./pageChat.ts";
-export { DM_LINE_MAX, firstLine, readAgentDm, readDmLine, readThreads } from "./dm.ts";
+export { DM_LINE_MAX, firstLine, isMessageId, readAgentDm, readDmLine, readThreads } from "./dm.ts";
 export type { AgentDm } from "./dm.ts";

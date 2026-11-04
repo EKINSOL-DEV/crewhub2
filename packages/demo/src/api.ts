@@ -1,8 +1,9 @@
 /**
  * The demo fetch layer: answers the crewhub-loops routes the chat bubbles call
  * (`loops:apps/web/src/components/bubbles/queries.ts`) from a DemoSource, in loops' shapes and
- * with loops' error envelope. Pure: no fetch, no DOM, no storage. The world routes its `api`
- * adapter here in demo mode; pins persistence is the caller's (`onPinsChange`).
+ * with loops' error envelope. Pure: no fetch, no DOM, no storage. Two adapters: the world routes its
+ * `api` adapter here in demo mode, and the loops fake answers its chat reads from here over HTTP
+ * (`packages/loops-fake/src/fake.ts`); pins persistence is the caller's (`onPinsChange`).
  *
  * The rules follow loops' `api/routers/dm.py` and `domain/dm.py`: chat is with enabled lead
  * agents only, pins default to the crewhub lead while the person has never pinned (here: the lead
