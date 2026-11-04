@@ -130,7 +130,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { cli, dressed, launch, list, problemLines, seek, speed, watch } from "./lib/world.mjs";
 import { createConnectStub } from "./lib/connectStub.mjs";
 import { createLoopsWebStub } from "./lib/loopsWebStub.mjs";
-import { closingCheck } from "./lib/closingCheck.ts";
+import { closingCheck, connectGroupAdmits } from "./lib/closingCheck.ts";
 import { regressPlan } from "./lib/regressArgs.ts";
 import { appDataPort, ownAppData, ownLoopsUrl, ownPort } from "./lib/toolGuard.ts";
 
@@ -173,6 +173,8 @@ const info = (text) => log.push(`INFO ${text}`);
 const problems = [];
 /** The host restarts the town group makes on purpose, each as { origin, tag, from, to } (ms): see lib/closingCheck.ts. */
 const restarts = [];
+/** The Forgets the connect group makes in one tab on purpose, each as { tag, pageOrigin, from, to } (ms): see lib/closingCheck.ts. */
+const forgets = [];
 
 /** Runs one group when it was asked for, times it, and turns an exception in it into one FAIL instead of a dead run. */
 async function group(name, run) {
@@ -2082,10 +2084,10 @@ await group("connect", async () => {
   /** A mark set on the window: still there at the end means the page never reloaded in between. */
   const mark = (pg) => pg.evaluate(() => ((globalThis.__connectMarker = "set"), undefined));
   const marked = (pg) => pg.evaluate(() => globalThis.__connectMarker ?? null).catch(() => null);
-  /** The browser logs every 4xx a fetch meets: the refused key's 403 and the unpaired tab's 401 are what they are meant to be. */
-  // The browser logs every 4xx and 5xx a fetch meets: the refused key's 403, the unpaired tab's 401, and the 503 no_key the
-  // other tab's stream meets when it reconnects after a Forget elsewhere (the stub ends the streams; a real host keeps them).
-  const expected = (x) => x.kind === "console" && (/status of (401|403)/.test(x.text) || (/\[connect stub other tab\]/.test(x.text) && /status of 503/.test(x.text)));
+  // The browser logs every 4xx and 5xx a fetch meets: the refused key's 403, the unpaired tab's 401, the 503 no_key the
+  // other tab's stream meets when it reconnects after a Forget elsewhere, and the forgetting tab's own read inside its
+  // Forget (`forgets`); the rule is lib/closingCheck.ts's `connectGroupAdmits`, tested on recorded runs.
+  const expected = (x) => connectGroupAdmits(x, forgets);
   const own = [];
   const openConnect = async (label) => {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
@@ -2166,6 +2168,10 @@ await group("connect", async () => {
       await other.goto(BASE);
       const otherLive = await until(other, "live", 30000);
       await mark(other);
+      // The Forget's window (lib/closingCheck.ts): from the click to the forgetting tab live again; a read of that tab
+      // that lands in it (a thin event's ticket refetch) meets the stub's 503 no_key before the tab reloads, and is admitted.
+      const forget = { tag: "connect stub", pageOrigin: origin, from: Date.now(), to: 0 };
+      forgets.push(forget);
       await chip(pg).click();
       await pg.getByRole("button", { name: "Forget this key" }).click();
       await pg.getByRole("button", { name: "Forget", exact: true }).click();
@@ -2176,6 +2182,7 @@ await group("connect", async () => {
       await other.close();
       await stub.setState("connected");
       const relive = await until(pg, "live", 30000);
+      forget.to = Date.now();
       ok("connect: after the forget, a key again brings the forgetting tab's town back", relive === "live", relive);
       await mark(pg);
       // A host that no longer knows this browser (a restart without its secret): the tab shows Pair this browser, not
@@ -2946,7 +2953,7 @@ async function waitForMove(hostApi, slug, ms) {
   return null;
 }
 
-writeFileSync(`${OUT}${tag}-problems.json`, JSON.stringify({ restarts, problems }, null, 1));
+writeFileSync(`${OUT}${tag}-problems.json`, JSON.stringify({ restarts, forgets, problems }, null, 1));
 const road2Asks = problems.filter((x) => x.kind === "external" && road2Ask(x));
 const external = problems.filter((x) => x.kind === "external" && !road2Ask(x)).map((x) => x.text);
 const closing = closingCheck(problems, { loopsOrigins: [...allLoopsOrigins()], restarts });
