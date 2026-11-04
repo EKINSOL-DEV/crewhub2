@@ -359,3 +359,12 @@ test("an approach two cells from the footprint is refused on every side; one cel
     assertError(wide([cell]), "approaches[0]", "one cell around it");
   assert.deepEqual(errors(wide([{ x: -1, z: -1 }, { x: 2, z: -1 }, { x: -1, z: 1 }, { x: 2, z: 1 }, { x: 0, z: 1 }, { x: 1, z: -1 }])), []);
 });
+
+test("round 54: a part may reach the footprint's edge plus the 1e-6 tolerance along z, and not beyond", () => {
+  const hz = (1 * PROP_LIMITS.cellSize) / 2 + PROP_LIMITS.overhang;
+  // A 0.5 deep box whose back face is exactly at -(hz + 1e-6), the last position the tolerance lets through.
+  const edge = -hz - 1e-6 + 0.25;
+  assert.equal(partBounds({ shape: "box", size: [0.5, 0.5, 0.5], position: [0, 0.25, edge] }).min[2], -hz - 1e-6);
+  assert.deepEqual(errors(prop({}, { position: [0, 0.25, edge] })), []);
+  assertError(prop({}, { position: [0, 0.25, edge - 1e-6] }), "parts[0].position[2]", "outside the footprint");
+});

@@ -371,3 +371,46 @@ test("round 50 (P2): a room removed and added again under the same id and size d
   assert.ok(!walkThrough(false).includes("3,1"), "an update of a room never re-added");
   assert.ok(!walkThrough(true).includes("3,1"), "the walker stood on the block at 3,1");
 });
+
+test("round 54: an actor waiting behind another is moved straight to its destination once its room goes offscreen", () => {
+  const graph = new NavGraph(stressDefinitions);
+  graph.addRoom({ id: "L", layout: room(3, 1) });
+  const sim = new NavSimulation(graph, [
+    { id: "walker", location: at("L", 0, 0) },
+    { id: "idle", location: at("L", 1, 0) },
+  ]);
+  sim.setDestination("walker", at("L", 2, 0));
+  for (let i = 0; i < 5; i++) sim.tick(1 / 30);
+  assert.equal(sim.actor("walker")!.status, "waiting");
+  assert.deepEqual(sim.actor("walker")!.location, at("L", 0, 0));
+  sim.setDetail(["L"], "offscreen");
+  sim.tick(1 / 30);
+  assert.deepEqual(sim.actor("walker")!.location, at("L", 2, 0));
+  assert.equal(sim.stats.teleports, 1);
+});
+
+test("round 54: a late joiner on a taken cell finds the free cell south of it", () => {
+  const graph = new NavGraph(stressDefinitions);
+  graph.addRoom({ id: "N", layout: room(1, 3) });
+  const sim = new NavSimulation(graph, [{ id: "a", location: at("N", 0, 0) }]);
+  assert.deepEqual(sim.addActor({ id: "b", location: at("N", 0, 0) }), { ok: true });
+  assert.deepEqual(sim.actor("b")!.location, at("N", 0, 1));
+});
+
+test("round 54: an offscreen actor set down beside its blocked destination goes there once the layout frees it", () => {
+  const graph = new NavGraph(stressDefinitions);
+  graph.addRoom({ id: "A", layout: room(5, 5) });
+  const sim = new NavSimulation(graph, [{ id: "a", location: at("A", 0, 0) }]);
+  sim.setDetail(["A"], "offscreen");
+  sim.setDestination("a", at("A", 3, 3));
+  assert.deepEqual(sim.updateRoom("A", room(5, 5, [block(3, 3)])), { ok: true });
+  sim.tick(1 / 30);
+  const beside = sim.actor("a")!.location;
+  assert.equal(beside.room, "A");
+  assert.notDeepEqual(beside.cell, { x: 3, z: 3 });
+  sim.tick(1 / 30);
+  assert.deepEqual(sim.actor("a")!.location, beside, "it waits beside the block");
+  assert.deepEqual(sim.updateRoom("A", room(5, 5)), { ok: true });
+  sim.tick(1 / 30);
+  assert.deepEqual(sim.actor("a")!.location, at("A", 3, 3));
+});
