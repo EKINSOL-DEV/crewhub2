@@ -256,7 +256,8 @@ export async function run({ pass, page, check, out }) {
     // What `npm run world` gives the host: the discovery through the data folder, its own stores, pairing on with the
     // secret kept in a file (the second host reads the same file: that is what keeps every paired browser).
     // The rig (lib/rig.mjs): a keyless host behind your Vite, discovering through the data folder, with its stores,
-    // pairing on with the secret from the file; a restart stands on the same options (the same secret, the same stores).
+    // pairing on with the secret from the file. The restart below hands the secret read from the file again and new
+    // stores (round 62, T-2): the morning-after road of `npm run world`, a host that reads the file, is what it proves.
     const rig = await startRig({
       loops: { discovery: { appData, intervalMs: 1000 } },
       serve: { origin, hostPort },
@@ -307,14 +308,21 @@ export async function run({ pass, page, check, out }) {
       const tv = await text(pg);
       ok(half("the town shows the real projects by name"), names.length > 0 && names.every((n) => tv.includes(n)) && !/Demo mode/.test(tv), names.join(", ") || tv.slice(0, 120).replace(/\n/g, " | "));
       ok(half("the key is in no DOM, storage or URL"), !(await leaked(pg, key)));
-      // The host stopped and started again, as the morning after: the stored key and the same secret file, so the tab
-      // is Live again without a new link.
+      // The host stopped and started again, as the morning after: the stored key and the same secret file, read again
+      // (not the bytes the first host was given), its stores made again, so the tab is Live again without a new link.
       await host.close();
       host = null;
       const atStop = await until(pg, "stale", 10000);
       const storedKey = readKey(keyPath);
       const restarted = Date.now();
-      host = await rig.restart({ key: storedKey, keyName: "crewhub-world", keySource: "stored" });
+      host = await rig.restart({
+        pairingSecret: loadPairingSecret(secretFile),
+        keyStore: createKeyStore(configDir),
+        archiveStore: createArchiveStore(configDir),
+        key: storedKey,
+        keyName: "crewhub-world",
+        keySource: "stored",
+      });
       const again = await until(pg, "live", 30000);
       const marker2 = await marked(pg);
       const after = await hostApi("/health").catch(() => null);
