@@ -16,12 +16,11 @@ import { INTRODUCTION_URL, readTourDone, tourShouldStart, writeTourDone } from "
 import { chatPlaceLine, recentEmptyWords } from "./state/chatRoad";
 import { useChatRoad } from "./state/chatRoadStore";
 import { FirstSnapshot } from "./components/FirstSnapshot";
-import { CONNECT_POLL_MS, ConnectPage } from "./components/ConnectPage";
-import { liveScreen, withStreamKey } from "./state/connect";
+import { ConnectPage } from "./components/ConnectPage";
 import { useRecentAnswers, useSaid, type Answer } from "./state/said";
 import { answerTarget, type AnswerTarget } from "./state/recentAnswers";
-import { rememberHealth, useHostHealth } from "./state/health";
-import { healthRereadKey, hostKeyReadsChat, loopsOriginOf } from "./state/pageChat";
+import { useHealthNeed, useHostHealth, useLiveScreen } from "./state/health";
+import { hostKeyReadsChat, loopsOriginOf } from "./state/pageChat";
 import { startPageChat } from "./state/pageChatPage";
 import { installSoakProbe } from "./state/soak";
 import { pageReads } from "./state/soakPage";
@@ -51,7 +50,7 @@ import { townRuntime, useConnection, useConnectionKey, useDirectorFeed, useTown,
 import type { TownLayer } from "./world/propLayer";
 import { pageConfig } from "./state/page";
 import { translate } from "./i18n";
-import { probeHost, type ConnectionState, type HostHealth } from "@crewhub/loops-client";
+import type { ConnectionState } from "@crewhub/loops-client";
 import { buildingTemplate } from "./world/buildingTemplate";
 import type { Pick } from "./world/buildingView";
 import { firstRoom, roomNeighbor } from "./world/interiorLayout";
@@ -743,21 +742,10 @@ function World() {
       setAnnouncement(translate("world.connection.changed", { state: connectionWord(connection), hint: translate(`world.connection.hint.${connection}`) }));
     spokenConnection.current = connection;
   }, [connection]);
-  // The host's health as the Pair screen last saw it (the gate's read first); the screen polls and keeps it fresh.
-  const [health, setHealth] = useState<HostHealth>(() => SOURCE.health ?? { loops: "ok", keyName: "", sharedKey: false, pairing: "on", paired: false });
   // The text view's Chat line and the Chat panel's small print say the chat session's state (round 14): one health read
-  // when either opens on a live page, so the words are the host's current ones, not the gate's first read.
-  const chatOpen = chat !== null;
-  useEffect(() => {
-    if (demo || !(textOpen || chatOpen)) return;
-    let live = true;
-    void probeHost("", 1500).then((fresh) => {
-      if (live && fresh !== null) rememberHealth(fresh);
-    });
-    return () => {
-      live = false;
-    };
-  }, [demo, textOpen, chatOpen]);
+  // when either opens on a live page (state/health.ts, the `glance` need), so the words are the host's current ones.
+  useHealthNeed(!demo && textOpen ? "glance" : null);
+  useHealthNeed(!demo && chat !== null ? "glance" : null);
   // Road 2 of the chat (round 28, state/pageChat.ts): on a live page whose host's key does not read the chat, the page
   // asks crewhub-loops itself at the origin the host names, and polls the person's own conversation when loops lets this
   // origin read it; the lines go to the said store like the host's. Restarted when the host's word changes.
@@ -779,40 +767,11 @@ function World() {
   // without its pairing secret, or the cookie gone). The Pair screen stands in for the town until the source, which keeps
   // asking every couple of seconds, is live again with the new link's cookie; then the town comes back by itself.
   // Unauthorized or loops down: the host's own word on its key says what it is (none after a Forget in another tab: the
-  // Connect screen; rejected: the rejected screen). The stream's status carries that word since round 11 and is preferred
-  // over the health read; a host from before says nothing, so while the source says so and no screen shows yet, the health
-  // is read again every few seconds (the Connect page reads it itself once it shows).
+  // Connect screen; rejected: the rejected screen). The stream's word goes to the host's health (state/health.ts), which
+  // reads again when it changes (the chat road follows it), polls a host from before round 11 that leaves the key unsaid,
+  // and says which screen stands in for the town.
   const streamKey = useConnectionKey();
-  // The host's word can change after the page's first read (round 29, Medium 2): the stream going live, or the host's
-  // key word on its status (a key checked late, accepted on the stream, forgotten in another tab). Health is read
-  // again then, so the road follows the host's real word and the road-2 runner restarts on it.
-  const rereadOn = healthRereadKey(connection, streamKey);
-  useEffect(() => {
-    if (demo || rereadOn === null) return;
-    let live = true;
-    void probeHost("", 1500).then((fresh) => {
-      if (live && fresh !== null) rememberHealth(fresh);
-    });
-    return () => {
-      live = false;
-    };
-  }, [demo, rereadOn]);
-  const screen = demo ? null : liveScreen(connection, withStreamKey(health, streamKey));
-  const degraded = !demo && streamKey === null && (connection === "unauthorized" || connection === "loops-down") && screen === null;
-  useEffect(() => {
-    if (!degraded) return;
-    let live = true;
-    const ask = async () => {
-      const fresh = await probeHost("", 1500);
-      if (live && fresh !== null) setHealth(fresh);
-    };
-    void ask();
-    const timer = setInterval(() => void ask(), CONNECT_POLL_MS);
-    return () => {
-      live = false;
-      clearInterval(timer);
-    };
-  }, [degraded]);
+  const screen = useLiveScreen(demo ? null : { connection, key: streamKey });
   // The tour starts by itself once the town stands (a short beat after the model has buildings, or at once in the demo),
   // never over a Connect screen, a dialog or a failed scene, never for a tool's browser, never again after Skip or Done.
   const dialogOpen = settingsOpen || jumpOpen || connectionOpen || chat !== null || card || textOpen || build.state.on || editing !== null;
@@ -826,7 +785,7 @@ function World() {
     }, 1500);
     return () => clearTimeout(timer);
   }, [townStands, screen, dialogOpen, graphicsFailed]);
-  if (screen !== null) return <ConnectPage screen={screen} health={health} onHealth={setHealth} />;
+  if (screen !== null) return <ConnectPage screen={screen} />;
 
   return (
     <div
@@ -894,7 +853,7 @@ function World() {
         {!demo && connection === "connecting" && <FirstSnapshot />}
       </main>
 
-      {connectionOpen && connection && <ConnectionPanel state={connection} initial={SOURCE.health} onClose={closeConnection} />}
+      {connectionOpen && connection && <ConnectionPanel state={connection} onClose={closeConnection} />}
 
       {chat && !demo && <ChatPanel agent={chat.agent} health={hostHealth} road={chatRoad} full={narrow} answers={answers} recentEmpty={recentEmptyWords("live", chatRoad)} targetOf={answerTargetOf} onAnswer={openAnswer} onClose={closeChat} />}
 
@@ -1041,9 +1000,6 @@ const SPEEDS: readonly { speed: PlaybackSpeed; label: string }[] = [
   { speed: 4, label: "4x" },
   { speed: 16, label: "16x" },
 ];
-
-/** The source this page runs on, decided before mount (state/page.ts reads it once). */
-const SOURCE = pageConfig().source;
 
 /* The chrome around the scene, memoised: the world model changes many times a second under load, and none of these show
    it, so they render only when their own props change. */
