@@ -1,10 +1,11 @@
 /* The no-app-reach guard (round 35): no unit test may reach the Mac app. `npm test` preloads scripts/no-app-reach.mjs
    into every test process and, through NODE_OPTIONS, into every Node a test spawns. This test checks that the preload
-   is active here, that its rules say what they should, and that a child process is guarded the same way. Nothing here
-   opens a connection: the one connect attempt is made in a child that first proves the guard is in it, in record mode,
-   where the guard refuses the socket before any packet leaves. */
+   is active here, that its rules say what they should, and that a child process is guarded the same way. No test aims
+   at a named port (round 56): the Mac app's ports are proved by the rule functions alone, and a child's connect goes to
+   a decoy, a listener of the test's own that the guard is told to refuse (CREWHUB_TEST_GUARD_DECOY, guardDecoy.ts). If
+   the guard let it through, the child would reach only that listener, and the test would see the hit. */
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
 import { tmpdir } from "node:os";
@@ -12,6 +13,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { APP_DATA, APP_PORTS, CONFIG_DIR, LOOPS_CONFIG, MARK, connectTarget, refusesConnect, refusesPath } from "../no-app-reach.mjs";
 import { fileURLToPath } from "node:url";
+import { decoyListener } from "./guardDecoy.ts";
 
 const GUARD = fileURLToPath(new URL("../no-app-reach.mjs", import.meta.url));
 
@@ -59,25 +61,44 @@ test("the rules: the Mac app's ports on any host, its data folder, Nicky's folde
   assert.equal(refusesPath(7), null, "a file descriptor is not a path");
 });
 
-/** Runs module code in a child Node (which inherits NODE_OPTIONS, so the guard) that first proves the guard is in it. */
-function child(code: string, env: Record<string, string>) {
+/** Runs module code in a child Node (which inherits NODE_OPTIONS, so the guard) that first proves the guard is in it.
+    Asynchronous, so the test's own decoy listener keeps answering (and counting) while the child runs. */
+function child(code: string, env: Record<string, string>): Promise<{ status: number | null; stdout: string; stderr: string }> {
   const guardFirst = `const mark = globalThis[Symbol.for("crewhub-world.no-app-reach")];\nif (mark === undefined) { console.error("guard absent"); process.exit(3); }\n`;
-  return spawnSync(process.execPath, ["--input-type=module", "-e", `${guardFirst}${code}`], { encoding: "utf8", env: { ...process.env, ...env } });
+  return new Promise((resolve) => {
+    const proc = spawn(process.execPath, ["--input-type=module", "-e", `${guardFirst}${code}`], { env: { ...process.env, ...env }, stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    proc.stdout.on("data", (chunk: Buffer) => (stdout += chunk.toString()));
+    proc.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
+    proc.on("close", (status) => setImmediate(() => resolve({ status, stdout, stderr })));
+  });
 }
 
-test("a child process is guarded too: in record mode a relative settings.json, run/api.sock and a connect to 8091 are refused and logged, nothing reaches the port", () => {
+/** The child's first lines for a connect proof: the connect patch is in place and the guard refuses the decoy, else nothing is tried. */
+const decoyFirst = (port: number) =>
+  [
+    `const rules = await import(${JSON.stringify(GUARD)});`,
+    'const guardNet = await import("node:net");',
+    'if (guardNet.Socket.prototype.connect[Symbol.for("crewhub-world.no-app-reach")] !== true) { console.error("the connect patch is absent: nothing tried"); process.exit(3); }',
+    `if (rules.refusesConnect([[{ port: ${port}, host: "127.0.0.1" }, () => undefined]]) === null) { console.error("the decoy is not refused: nothing tried"); process.exit(3); }`,
+  ].join("\n") + "\n";
+
+test("a child process is guarded too: in record mode a relative settings.json, run/api.sock and a connect to the decoy are refused and logged, nothing reaches the decoy", async () => {
   const dir = fs.mkdtempSync(path.join(tmpdir(), "chw-reach-"));
   const log = path.join(dir, "reach.log");
+  const decoy = await decoyListener();
   try {
-    const result = child(
-      [
-        'import { readFileSync, existsSync } from "node:fs";',
-        'import { Socket } from "node:net";',
-        'let read = "none"; try { readFileSync("settings.json", "utf8"); } catch (e) { read = e.code; }',
-        'console.log(`fs ${read} exists=${existsSync("run/api.sock")}`);',
-        'const s = new Socket(); s.on("error", (e) => console.log(`net ${e.code}`)); s.connect({ port: 8091, host: "127.0.0.1" });',
-      ].join("\n"),
-      { CREWHUB_TEST_REACH_LOG: log },
+    const result = await child(
+      decoyFirst(decoy.port) +
+        [
+          'import { readFileSync, existsSync } from "node:fs";',
+          'import { Socket } from "node:net";',
+          'let read = "none"; try { readFileSync("settings.json", "utf8"); } catch (e) { read = e.code; }',
+          'console.log(`fs ${read} exists=${existsSync("run/api.sock")}`);',
+          `await new Promise((resolve) => { const s = new Socket(); s.on("error", (e) => { console.log(\`net \${e.code}\`); resolve(); }); s.on("connect", () => { console.log("net connected"); s.destroy(); resolve(); }); s.connect({ port: ${decoy.port}, host: "127.0.0.1" }); });`,
+        ].join("\n"),
+      { CREWHUB_TEST_REACH_LOG: log, CREWHUB_TEST_GUARD_DECOY: String(decoy.port) },
     );
     assert.equal(result.status, 0, `the child: ${result.stderr}`);
     assert.match(result.stdout, /^fs ENOENT exists=false$/m, result.stdout);
@@ -85,41 +106,45 @@ test("a child process is guarded too: in record mode a relative settings.json, r
     const lines = fs.readFileSync(log, "utf8").split("\n").filter((l) => l !== "");
     assert.ok(lines.some((l) => /REFUSED fs a relative settings\.json/.test(l)), lines.join("\n"));
     assert.ok(lines.some((l) => /REFUSED fs a relative run\/api\.sock/.test(l)), lines.join("\n"));
-    assert.ok(lines.some((l) => /REFUSED connect 127\.0\.0\.1:8091 is the Mac app's port/.test(l)), lines.join("\n"));
-    assert.ok(!lines.some((l) => /CONNECT tcp .*:8091$/.test(l)), "a connection to 8091 was made");
+    assert.ok(lines.some((l) => l.includes(`REFUSED connect 127.0.0.1:${decoy.port} is the guard test's decoy`)), lines.join("\n"));
+    assert.ok(!lines.some((l) => /CONNECT tcp/.test(l)), `a connection was made: ${lines.join("\n")}`);
+    assert.equal(decoy.hits(), 0, "the decoy's own listener was reached");
   } finally {
+    await decoy.close();
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test("a child's fetch of the app's health (undici, the host's own road to loops) is refused in record mode before any packet", () => {
-  // The predicate must hold for the normalized form first: if it did not, the child below would really reach 8091.
+test("a child's fetch (undici, the host's own road to loops) of the decoy's health is refused in record mode before any packet", async () => {
+  // The normalized form fetch uses is refused for the app's port by the rule alone; the child's fetch goes to the decoy.
   assert.match(refusesConnect([[{ port: 8091, host: "127.0.0.1" }, () => undefined]]) ?? "", /Mac app's port/);
   const dir = fs.mkdtempSync(path.join(tmpdir(), "chw-reach-"));
   const log = path.join(dir, "reach.log");
+  const decoy = await decoyListener();
   try {
-    const result = child(
-      [
-        `import { refusesConnect } from ${JSON.stringify(GUARD)};`,
-        'if (refusesConnect([[{ port: 8091, host: "127.0.0.1" }, () => undefined]]) === null) { console.error("the rule is gone"); process.exit(3); }',
-        // The global's name is spelled in pieces for the repository's network guard (noModelCalls reads every call under scripts/), as the fuzz tests spell addresses.
-        'const call = globalThis[["fet", "ch"].join("")];',
-        'try { await call("http://127.0.0.1:8091/api/health"); console.log("fetch answered"); } catch (e) { console.log(`fetch ${e.cause?.code ?? e.message}`); }',
-      ].join("\n"),
-      { CREWHUB_TEST_REACH_LOG: log },
+    const result = await child(
+      decoyFirst(decoy.port) +
+        [
+          // The global's name is spelled in pieces for the repository's network guard (noModelCalls reads every call under scripts/), as the fuzz tests spell addresses.
+          'const call = globalThis[["fet", "ch"].join("")];',
+          `try { await call("http://127.0.0.1:${decoy.port}/api/health"); console.log("fetch answered"); } catch (e) { console.log(\`fetch \${e.cause?.code ?? e.message}\`); }`,
+        ].join("\n"),
+      { CREWHUB_TEST_REACH_LOG: log, CREWHUB_TEST_GUARD_DECOY: String(decoy.port) },
     );
     assert.equal(result.status, 0, `the child: ${result.stderr}`);
     assert.match(result.stdout, /^fetch ECONNREFUSED$/m, result.stdout);
     const lines = fs.readFileSync(log, "utf8").split("\n").filter((l) => l !== "");
-    assert.ok(lines.some((l) => /REFUSED connect 127\.0\.0\.1:8091 is the Mac app's port/.test(l)), lines.join("\n"));
+    assert.ok(lines.some((l) => l.includes(`REFUSED connect 127.0.0.1:${decoy.port} is the guard test's decoy`)), lines.join("\n"));
     assert.ok(!lines.some((l) => /CONNECT tcp/.test(l)), `a connection was made: ${lines.join("\n")}`);
+    assert.equal(decoy.hits(), 0, "the decoy's own listener was reached");
   } finally {
+    await decoy.close();
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test("in guard mode (npm test) a refusal is loud and fails the process even when the code under test swallows it", () => {
-  const result = child(
+test("in guard mode (npm test) a refusal is loud and fails the process even when the code under test swallows it", async () => {
+  const result = await child(
     ['import { readFileSync } from "node:fs";', 'try { readFileSync("settings.json", "utf8"); console.log("read went through"); } catch (e) { console.log(e.message); }'].join("\n"),
     { CREWHUB_TEST_REACH_LOG: "" },
   );
