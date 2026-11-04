@@ -3,6 +3,7 @@
 
    Usage:
      node tools/answers-replay.mjs <base> <tab|cookie+expiry|cookie> [q3] [q8] [q11] [q14] [q15] [--check]
+                                   [--use <key>=<ref>]...
 
    In the current git worktree, whose tree must be clean: a detached checkout of <base>, then the yes-branches among
    q3, q8, q11, q14 and q15 merged in that order, then question 1's branch last (`tab` is task/r27-tab-pairing,
@@ -17,7 +18,14 @@
    commit to look at, or to fast-forward feat/world-demo to by hand once the answers are in and the night's regress is
    green.
 
-   The pure parts (the rules, the restore, the keys fix) are exported for scripts/test/answersReplay.test.ts. No git
+   --use <key>=<ref> (round 59d, the architecture-deepening programme): a port merges in place of the answer branch
+   <key> stands for (q3, q8, q11, q14, q15, tab or cookie+expiry), at that branch's step and under the same rules. A
+   port is `port/<answer-branch>@<deepening head>`, a branch from a deepening's head carrying the answer branch's
+   behaviour change where the answer branch itself no longer merges cleanly (docs/proposals/architecture-deepening.md).
+   The answer branches are never edited; a --use for a step the run does not take, an answer branch's own name or a
+   ref that reads as an option is refused before anything runs.
+
+   The pure parts (the command line, the rules, the restore, the keys fix) are exported for scripts/test/answersReplay.test.ts. No git
    there: this file's main runs only when it is the program. */
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -35,6 +43,46 @@ export const BRANCHES = {
 };
 /** The order the yes-branches merge in; question 1's branch always comes after them. */
 export const ORDER = ["q3", "q8", "q11", "q14", "q15"];
+
+const USAGE = "node tools/answers-replay.mjs <base> <tab|cookie+expiry|cookie> [q3] [q8] [q11] [q14] [q15] [--check] [--use <key>=<ref>]...";
+
+/** A command line the tool will not run: the message says why, and main prints the usage under it. */
+export class UsageError extends Error {}
+
+/** The command line: { base, q1, chosen, check, uses }, where uses maps a key of BRANCHES to the port merged in its
+    place. Refuses (UsageError) anything that would merge something other than what the person asked for. */
+export function parseArgs(argv) {
+  const [base, q1, ...rest] = argv;
+  if (!base || !["tab", "cookie+expiry", "cookie"].includes(q1)) throw new UsageError("the base and question 1's answer are required");
+  let check = false;
+  const chosen = [];
+  const uses = {};
+  for (let i = 0; i < rest.length; i++) {
+    const a = rest[i];
+    if (a === "--check") check = true;
+    else if (ORDER.includes(a)) chosen.push(a);
+    else if (a === "--use") {
+      const spec = rest[++i] ?? "";
+      const eq = spec.indexOf("=");
+      const [key, ref] = eq < 0 ? [spec, ""] : [spec.slice(0, eq), spec.slice(eq + 1)];
+      if (key === "" || ref === "") throw new UsageError("--use needs <key>=<ref>");
+      if (!Object.hasOwn(BRANCHES, key)) throw new UsageError(`--use ${key}: not one of ${[...ORDER, "tab", "cookie+expiry"].join(", ")}`);
+      if (Object.hasOwn(uses, key)) throw new UsageError(`--use ${key}: named twice`);
+      if (ref.startsWith("-")) throw new UsageError(`--use ${key}: the ref may not start with a dash`);
+      if (Object.values(BRANCHES).includes(ref)) throw new UsageError(`--use ${key}: ${ref} is an answer branch, a port is its own branch`);
+      uses[key] = ref;
+    } else throw new UsageError(`unknown: ${a}`);
+  }
+  for (const key of Object.keys(uses)) {
+    if (!chosen.includes(key) && key !== q1) throw new UsageError(`--use ${key}: ${key} is not merged in this run`);
+  }
+  return { base, q1, chosen, check, uses };
+}
+
+/** The ref merged at a key's step: its port when --use named one, else the answer branch. */
+export function branchOf(key, uses) {
+  return Object.hasOwn(uses, key) ? uses[key] : BRANCHES[key];
+}
 
 /** What the plan does not know: the message names the file, and a person looks. */
 export class Refusal extends Error {}
@@ -151,31 +199,30 @@ export function healthKeys(testText, hostText) {
 // --- The program. ---
 
 function main(argv) {
-  const usage = "node tools/answers-replay.mjs <base> <tab|cookie+expiry|cookie> [q3] [q8] [q11] [q14] [q15] [--check]";
   const fail = (message) => {
-    console.error(`${message}\n\nusage: ${usage}`);
+    console.error(`${message}\n\nusage: ${USAGE}`);
     process.exit(2);
   };
-  const [base, q1, ...rest] = argv;
-  if (!base || !["tab", "cookie+expiry", "cookie"].includes(q1)) fail("the base and question 1's answer are required");
-  let check = false;
-  const chosen = [];
-  for (const a of rest) {
-    if (a === "--check") check = true;
-    else if (ORDER.includes(a)) chosen.push(a);
-    else fail(`unknown: ${a}`);
+  let args;
+  try {
+    args = parseArgs(argv);
+  } catch (error) {
+    if (!(error instanceof UsageError)) throw error;
+    fail(error.message);
   }
+  const { base, q1, chosen, check, uses } = args;
   const git = (...args) => execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
   const short = () => git("rev-parse", "--short", "HEAD");
   const repo = git("rev-parse", "--show-toplevel");
   if (git("status", "--porcelain") !== "") fail("the tree is not clean");
   const merge = (key) => {
-    const branch = BRANCHES[key];
+    const branch = branchOf(key, uses);
+    const named = branch === BRANCHES[key] ? branch : `${branch}, the port for ${BRANCHES[key]}`;
     let failure;
     try {
       // The plain two-sided markers the rules read, whatever merge.conflictStyle the person's git config sets.
       git("-c", "merge.conflictStyle=merge", "merge", "--no-ff", "--no-edit", branch);
-      console.log(`merged ${key} (${branch}): clean -> ${short()}`);
+      console.log(`merged ${key} (${named}): clean -> ${short()}`);
       return;
     } catch (error) {
       // A conflict: resolve what the plan knows, file by file; anything else stops here with the merge left open.
@@ -203,10 +250,11 @@ function main(argv) {
       console.log(`resolved ${file} (rule ${RULES[file].letter})`);
     }
     git("-c", "core.editor=true", "commit", "-q", "--no-edit");
-    console.log(`merged ${key} (${branch}): hand merge replayed on ${files.join(", ")} -> ${short()}`);
+    console.log(`merged ${key} (${named}): hand merge replayed on ${files.join(", ")} -> ${short()}`);
   };
   git("switch", "--detach", base);
   console.log(`base ${short()}`);
+  for (const [key, ref] of Object.entries(uses)) console.log(`--use ${key}: ${ref} merges in place of ${BRANCHES[key]}`);
   for (const key of ORDER) if (chosen.includes(key)) merge(key);
   if (q1 === "tab") {
     merge("tab");
