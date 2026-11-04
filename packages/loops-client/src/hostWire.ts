@@ -424,3 +424,201 @@ export function readHostMessage(value: unknown): Result<HostMessage> {
       return fail("$.type", `unknown message type ${JSON.stringify(raw.type)}`);
   }
 }
+
+// --- The town (`GET`/`PUT /world-api/town`, its backups) and connect (`POST`/`DELETE /world-api/connect`): the JSON answers. ---
+// Placed after the stream so that the pairing ports' hunks in the health section stay untouched (round 60, H2).
+
+/**
+ * A refusal, on any status that is not success: `error` is the host's one word for it (the page branches on it),
+ * `message` a sentence for a person, `reason` loops' own words on a key. The read type keeps whatever of the three a
+ * host wrote as strings; the `Sent` types below say which word each route writes.
+ */
+export interface HostRefusal {
+  error?: string;
+  message?: string;
+  reason?: string;
+}
+
+/** `GET /world-api/town` 200 from a host that holds the installation's town, or, fresh, revision 0 and no document. */
+export interface TownHeld {
+  installation?: string;
+  rev: number;
+  updatedAt?: string | null;
+  document: unknown;
+  canUndo?: boolean;
+  canRedo?: boolean;
+}
+/** `GET /world-api/town` 200 from a host that cannot name a town yet (no database, no loops found): a 200, so no console error; `reason` says which. */
+export interface TownUnready {
+  installation?: null;
+  rev: null;
+  document?: null;
+  reason?: string;
+}
+export type TownRead = TownHeld | TownUnready;
+/** What a current host writes for a town read: every field, and the two reasons it has. */
+export type TownReadSent = Required<TownHeld> | { installation: null; rev: null; document: null; reason: "no_world_db" | "no_loops" };
+
+/** `PUT /world-api/town` 200: the host's town after the move (`changed` false when the move did nothing, an undo with nothing to undo). */
+export interface TownWritten {
+  ok: true;
+  rev: number;
+  document: unknown;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  changed?: boolean;
+}
+export type TownWrittenSent = Required<TownWritten>;
+
+/** `PUT /world-api/town` 409: another browser wrote first; the town as the host has it rides along, never overwritten. */
+export interface TownConflict extends HostRefusal {
+  error: "town_conflict";
+  rev: number;
+  document: unknown;
+  canUndo?: boolean;
+  canRedo?: boolean;
+}
+export type TownConflictSent = Required<Omit<TownConflict, "reason">>;
+
+/** One backup copy beside the host's database (`world.db.bak-v<n>`). */
+export interface TownBackupInfo {
+  name: string;
+  version: number;
+  bytes?: number;
+  at?: string;
+}
+/** `GET /world-api/town/backups` 200: the copies, newest version first. */
+export interface TownBackups {
+  installation?: string;
+  backups: TownBackupInfo[];
+}
+export type TownBackupsSent = Required<TownBackups> & { backups: Required<TownBackupInfo>[] };
+
+/** `GET /world-api/town/backups/{name}` 200: this installation's town inside one copy. */
+export interface TownBackup {
+  installation?: string;
+  name?: string;
+  rev: number;
+  document: unknown;
+}
+export type TownBackupSent = Required<TownBackup>;
+
+/** `POST` or `DELETE /world-api/connect` 200: the host took (or forgot) the key; `connection` as health says it. */
+export interface ConnectDone {
+  ok: true;
+  connection?: HostConnection;
+}
+export type ConnectAnswer = ConnectDone | HostRefusal;
+export type ConnectDoneSent = Required<ConnectDone>;
+/** The refusals the host's connect route writes: loops not found or not answering, loops' no to the key, and the request's own faults. */
+export type ConnectRefusalSent =
+  | { error: "no_loops" | "loops_down" | "origin_required" | "unsupported_media_type" | "validation_error"; message: string }
+  | { error: "key_rejected"; reason: string };
+/** The town route's refusals: the request's faults, no database or no loops on a write, a copy without this town, a stored town that is not JSON. */
+export type TownRefusalSent = { error: "no_world_db" | "no_loops" | "origin_required" | "unsupported_media_type" | "validation_error" | "no_town" | "town_unreadable"; message: string } | { error: "not_found" } | { error: "no_town"; installation: string };
+
+const record = (value: unknown): Record<string, unknown> | null => (value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null);
+const isRev = (value: unknown): value is number => typeof value === "number" && Number.isInteger(value) && value >= 0;
+/** The history flags, when the answer carries both (an answer without them says nothing about the history). */
+const can = <T extends { canUndo?: boolean; canRedo?: boolean }>(out: T, raw: Record<string, unknown>): T => {
+  if (typeof raw.canUndo === "boolean" && typeof raw.canRedo === "boolean") {
+    out.canUndo = raw.canUndo;
+    out.canRedo = raw.canRedo;
+  }
+  return out;
+};
+
+/** The refusal in a body: its words, as strings; null for a body that is no object. */
+export function readHostRefusal(value: unknown): HostRefusal | null {
+  const raw = record(value);
+  if (raw === null) return null;
+  const out: HostRefusal = {};
+  if (typeof raw.error === "string") out.error = raw.error;
+  if (typeof raw.message === "string") out.message = raw.message;
+  if (typeof raw.reason === "string") out.reason = raw.reason;
+  return out;
+}
+
+/**
+ * A town read (`GET /world-api/town`): on 200, the town held (`rev` a whole number) or the host's reason for none yet
+ * (`rev` null); null for any other status or shape. `document` is passed on as it is: the page validates it as a town.
+ */
+export function readTownRead(status: number, value: unknown): TownRead | null {
+  const raw = status === 200 ? record(value) : null;
+  if (raw === null) return null;
+  if (raw.rev === null) {
+    const out: TownUnready = { rev: null };
+    if (raw.installation === null) out.installation = null;
+    if (raw.document === null) out.document = null;
+    if (typeof raw.reason === "string") out.reason = raw.reason;
+    return out;
+  }
+  if (!isRev(raw.rev)) return null;
+  const out: TownHeld = { rev: raw.rev, document: raw.document };
+  if (typeof raw.installation === "string") out.installation = raw.installation;
+  if (typeof raw.updatedAt === "string" || raw.updatedAt === null) out.updatedAt = raw.updatedAt;
+  return can(out, raw);
+}
+
+/** A town write's 200 (`PUT /world-api/town`): the revision now held and the document after the move; null for any other status or shape. */
+export function readTownWritten(status: number, value: unknown): TownWritten | null {
+  const raw = status === 200 ? record(value) : null;
+  if (raw === null || raw.ok !== true || !isRev(raw.rev)) return null;
+  const out: TownWritten = { ok: true, rev: raw.rev, document: raw.document };
+  if (typeof raw.changed === "boolean") out.changed = raw.changed;
+  return can(out, raw);
+}
+
+/** A town write's 409: the host's revision and its town; null for any other status, or a 409 that names no revision. */
+export function readTownConflict(status: number, value: unknown): TownConflict | null {
+  const raw = status === 409 ? record(value) : null;
+  if (raw === null || raw.error !== "town_conflict" || !isRev(raw.rev)) return null;
+  const out: TownConflict = { error: "town_conflict", rev: raw.rev, document: raw.document };
+  if (typeof raw.message === "string") out.message = raw.message;
+  return can(out, raw);
+}
+
+/** The backups list's 200: each copy with its name and version (the size and time when given); a row without them is dropped. */
+export function readTownBackups(status: number, value: unknown): TownBackups | null {
+  const raw = status === 200 ? record(value) : null;
+  if (raw === null || !Array.isArray(raw.backups)) return null;
+  const backups: TownBackupInfo[] = [];
+  for (const row of raw.backups as unknown[]) {
+    const r = record(row);
+    if (r === null || typeof r.name !== "string" || !isRev(r.version)) continue;
+    const info: TownBackupInfo = { name: r.name, version: r.version };
+    if (typeof r.bytes === "number") info.bytes = r.bytes;
+    if (typeof r.at === "string") info.at = r.at;
+    backups.push(info);
+  }
+  const out: TownBackups = { backups };
+  if (typeof raw.installation === "string") out.installation = raw.installation;
+  return out;
+}
+
+/** One backup's 200: the town inside it (`document` as it is) with its revision; null for any other status or shape. */
+export function readTownBackup(status: number, value: unknown): TownBackup | null {
+  const raw = status === 200 ? record(value) : null;
+  if (raw === null || !isRev(raw.rev)) return null;
+  const out: TownBackup = { rev: raw.rev, document: raw.document };
+  if (typeof raw.installation === "string") out.installation = raw.installation;
+  if (typeof raw.name === "string") out.name = raw.name;
+  return out;
+}
+
+/**
+ * A connect answer (`POST` or `DELETE /world-api/connect`): on 2xx with the host's own `ok: true`, done (with the
+ * connection when it reads); any other object body is the refusal's words. Null for a body that is no object (nothing
+ * answered, or the dev server's 204 while the host is down). Never the key.
+ */
+export function readConnectAnswer(status: number, value: unknown): ConnectAnswer | null {
+  const raw = record(value);
+  if (raw === null) return null;
+  if (status >= 200 && status < 300 && raw.ok === true) {
+    const out: ConnectDone = { ok: true };
+    const connection = readConnection(raw.connection);
+    if (connection !== null) out.connection = connection;
+    return out;
+  }
+  return readHostRefusal(raw);
+}
