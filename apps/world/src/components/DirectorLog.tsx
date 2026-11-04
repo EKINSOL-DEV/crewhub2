@@ -6,8 +6,7 @@
 import { useSyncExternalStore } from "react";
 import { noPlanLine } from "@crewhub/world-model";
 import { playedIntents, subscribeIntents } from "../world/intentPlayer";
-import { useDirector } from "../state/director";
-import { useWorld } from "../state/world";
+import { useDirector, useWorld } from "../state/runtimes";
 
 const SHOWN_PLANS = 8;
 

@@ -177,21 +177,6 @@ export interface HostSourceOptions {
    * caller (the e2e test, a tool) passes `{ cookie: "crewhub_world_pair=…" }` after pairing.
    */
   headers?: Record<string, string>;
-  /** The clocks of the source (tests make them short); see `HostSourceTimings` in `hostSource.ts`. */
-  timings?: {
-    staleMs?: number;
-    teamPollMs?: number;
-    retryMinMs?: number;
-    retryMaxMs?: number;
-    /** The retry's cap before the first snapshot and while unpaired (round 50: it was read but not in this type). */
-    firstRetryMaxMs?: number;
-  };
-  /**
-   * Re-snapshot when an event's `seq` skips past `cursor + 1`. Default false: loops filters the stream per
-   * principal (events.py), so gaps between the seqs a key may see are normal; continuity is the host's job (it
-   * resumes with `after=` and sends `reset` when it cannot prove it). Tests turn it on.
-   */
-  resnapshotOnGap?: boolean;
   /**
    * A first snapshot read ahead of the source (`prefetchSnapshot`, started by the page as soon as it knows it is live,
    * while the world's module still loads): the parsed body when it has arrived, applied synchronously in `start()`

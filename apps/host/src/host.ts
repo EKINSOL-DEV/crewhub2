@@ -20,7 +20,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
-import type { HostConnection } from "@crewhub/loops-client";
+import type { HostConnection, HostHealthSent, HostMessage } from "@crewhub/loops-client";
 import { WORLD_API_PREFIX, fillPattern, matchWorldRoute } from "./allowList.ts";
 import { DEV_ORIGINS_HEADER, devOriginAcceptedLine, devOriginVerdict } from "./devOrigin.ts";
 import type { ArchiveStore } from "./archiveStore.ts";
@@ -31,7 +31,6 @@ import type { KeyStore } from "./keyStore.ts";
 import { BACKUP_NAME, TOWN_BODY_LIMIT, TOWN_FORMAT, installationKey, listBackups, readBackupTown, type TownOp, type WorldDb, validateTownForHost } from "./worldDb.ts";
 import { isUnauthorized } from "./loops.ts";
 import { PAIR_PATH_PREFIX, PAIR_REFUSED_HTML, type Pairing, createPairing, pairCookieHeader } from "./pairing.ts";
-import type { HostMessage, LoopsState } from "./stream.ts";
 
 export { RECHECK_MS, STREAM_REFUSED_REASON, type ConnectionTimings, type HostStep } from "./connection.ts";
 
@@ -144,39 +143,6 @@ export interface Host {
   close(): Promise<void>;
 }
 
-/**
- * Health before pairing says the states and nothing else (the spec of the smooth connection; question 3, round 31):
- * `loops`, `pairing`, `paired`, `checkout`, the connection's states, and a blank `keyName` (the dev server's probe
- * needs a string there). The bot's name, loops' version, the cursor and the chat word come to a paired browser only,
- * and the dev origins to a paired browser or to a program (a request without an Origin: the dev server's proxy and
- * teller, the doctor), never to an unpaired page. Any local process can read health; it learns the states.
- */
-export interface HostHealth {
-  loops: LoopsState;
-  /** The key's agent name for a paired browser; `""` without a key, and `""` before pairing. */
-  keyName: string;
-  /** Always false: the builder-key fallback is gone. Kept for the world from before. */
-  sharedKey: boolean;
-  /** loops' version, for a paired browser. */
-  loopsCommit?: string;
-  /** The version the host read first this run, only when loops has answered another since: loops updated under the host. */
-  loopsCommitBefore?: string;
-  /** The stream's cursor, for a paired browser. */
-  cursor?: number;
-  /** The origin of the loops web app for the sign-in link (on the Mac the web app and the API share 8091). */
-  loopsWebUrl: string;
-  /** How the host reaches loops: over TCP (the URL) or over its Unix socket. Absent while nothing is found. */
-  transport?: "tcp" | "unix";
-  /** Whether THIS request carries a valid pairing cookie (always true with pairing off). */
-  paired: boolean;
-  pairing: "on" | "off";
-  /** Discovery, key and stream: the states always, the details (paths, names, cursor) for a paired browser only. */
-  connection: HostConnection;
-  /** The checkout id this host runs from (`checkout.ts`), when it was given one: a dev server of another checkout refuses this host. */
-  checkout?: string;
-  /** The loopback origins this checkout's dev server told the host this run (`devOrigin.ts`); absent when none, and absent to an unpaired page. */
-  devOrigins?: string[];
-}
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -377,13 +343,13 @@ export async function createHost(options: HostOptions): Promise<Host> {
   }
 
   async function passthrough(res: ServerResponse, loopsPath: string, query: URLSearchParams): Promise<void> {
-    const why = await conn.unavailable();
-    if (why !== null) {
-      sendJson(res, 503, { error: why });
-      return;
-    }
     try {
-      const upstreamResponse = await conn.read(loopsPath, Object.fromEntries(query));
+      const read = await conn.read(loopsPath, Object.fromEntries(query));
+      if (read.kind === "unavailable") {
+        sendJson(res, 503, { error: read.reason });
+        return;
+      }
+      const upstreamResponse = read.response;
       if (isUnauthorized(upstreamResponse.status)) {
         sendJson(res, 503, { error: "unauthorized" });
         return;
@@ -707,11 +673,15 @@ export async function createHost(options: HostOptions): Promise<Host> {
         // The states as they are, after a bounded wait for a link in the making: the page's probe gives the host
         // 1.5 s before it takes the host for silent, and a slow loops must never send the world into demo mode.
         await Promise.race([conn.settled(), new Promise<void>((resolve) => setTimeout(resolve, HEALTH_WAIT_MS).unref())]);
-        // Before pairing: the states and nothing else (question 3, round 31). The bot's name, loops' version, the
-        // cursor and the chat word are a paired browser's; `keyName` stays a string (blank) for the dev server's probe.
+        // Before pairing: the states and nothing else (question 3, round 31): `loops`, `pairing`, `paired`, `checkout`,
+        // the connection's states, and a blank `keyName` (the dev server's probe needs a string there). The bot's name,
+        // loops' version, the cursor and the chat word are a paired browser's, and the dev origins a paired browser's
+        // or a program's (no Origin: the dev server's proxy and teller, the doctor), never an unpaired page's. Any
+        // local process can read health; it learns the states. The shape is the wire's (`HostHealthSent`).
         const isPaired = paired(req);
         const words = conn.words();
-        const health: HostHealth = {
+        // The wire's health with every field a current host sends (loops-client `hostWire.ts`, round 59d C7).
+        const health: HostHealthSent = {
           loops: words.loops,
           keyName: isPaired ? words.keyName : "",
           sharedKey: false,
