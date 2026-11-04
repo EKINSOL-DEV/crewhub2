@@ -2875,8 +2875,12 @@ function loopsName() {
 function loopsSuffix() {
   return loopsName() === "dev" ? "" : `-${loopsName()}`;
 }
-/** The env file of the development loops: --loops-env and nothing else (round 57d; regressPlan refuses real without it). */
+/**
+ * The env file of the development loops: --loops-env and nothing else (round 57d). regressPlan refuses real without it;
+ * an empty one here would resolve to the working directory, so it fails instead of reading anything.
+ */
 function loopsEnvFile() {
+  if (plan.loopsEnv === "") opts.fail("the development loops' env file is --loops-env <file> only, and none was given: no file is searched for");
   return path.resolve(plan.loopsEnv);
 }
 /** The development loops' Unix socket: --loops-socket, else `tools/loops-dev.sh`'s `~/crewhub-loops-dev/run/api.sock`. */

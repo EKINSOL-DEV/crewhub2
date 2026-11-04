@@ -61,7 +61,8 @@ unless a script says otherwise; a phone is 375 x 812 with touch.
 starts itself (`lib/live.mjs`): an in-process fake (`packages/loops-fake`, a free port; `--fake-scenario <id>`, default
 `small-team`; `--fake-speed 0|1|4|16`, default 16: the fake's clock is the only playback) or the loops `--loops-url`
 names with `--key-file <file>` (the fake started with `npm run loops:fake -- --port <port>`, or the development loops
-on 8291 with your own key; loopback only, never 8091). In a dev run the host listens on `--host-port` (required: a port
+on 8291 with your own key and `--real`, the opt-in a `--loops-url` to 8291-8293 needs since round 57d; loopback only,
+never 8091). In a dev run the host listens on `--host-port` (required: a port
 of your own, never 5180) behind your Vite, so start Vite with `CREWHUB_WORLD_PORT=<host-port>`; with `--preview` the host serves
 `apps/world/dist` (run `npm run build` first) on `--host-port` (`0`: a free port) and the browser opens the host
 directly, so several production runs can go at once. Pairing stays on, as in production: every context opens a
@@ -171,8 +172,8 @@ node tools/perf.mjs --port 5385 stress-town stress-inside --cast potlings --json
 node tools/memory.mjs --port 5385 stress --minutes 5
 node tools/perf.mjs --port 5385 --source live --preview --fake-scenario studio --host-port 0   # production, the fake's studio at 16x
 node tools/memory.mjs --port 5385 live --preview --minutes 30 --every 60 --snapshots 0,10,30 --host-port 0 --fake-scenario studio
-node tools/memory.mjs --port 5385 live --preview --minutes 10 --host-port 0 --loops-url http://127.0.0.1:8291 --key-file ~/crewhub-loops-dev/agent-crewhub-world-<name>.key
-node tools/memory.mjs --port 5385 live --preview --minutes 120 --every 60 --snapshots 10,120 --host-port 0 --loops-url http://127.0.0.1:8291 --key-file ~/crewhub-loops-dev/agent-crewhub-world-<name>.key --json soak.json   # the soak (round 27): the stores, the upstream stream, the frame time, the growth an hour
+node tools/memory.mjs --port 5385 live --preview --minutes 10 --host-port 0 --loops-url http://127.0.0.1:8291 --real --key-file ~/crewhub-loops-dev/agent-crewhub-world-<name>.key
+node tools/memory.mjs --port 5385 live --preview --minutes 120 --every 60 --snapshots 10,120 --host-port 0 --loops-url http://127.0.0.1:8291 --real --key-file ~/crewhub-loops-dev/agent-crewhub-world-<name>.key --json soak.json   # the soak (round 27): the stores, the upstream stream, the frame time, the growth an hour
 node tools/memory.mjs --port 5385 demo --preview --cast potlings --minutes 60 --every 600 --snapshots 10,20,30,40,50,60 --json demo-potlings.json   # the per-cast demo hour with the drift on, behind `npx vite preview --port 5385 --strictPort` without CREWHUB_WORLD_PORT (docs/COST_POLICY.md, "What to soak and how")
 node tools/shots.mjs --port 5385 --tag before --views town,building,room --width 1440,375
 node tools/castshots.mjs --port 5385 --cast sprouts --only states --theme light
@@ -199,15 +200,19 @@ variables above. It never touches `~/Library/Application Support/be.ekinsol.crew
   own. The same scanner checks every address under `tools/`. No model call, as everywhere. The two exceptions are
   `loops-seed.mjs` and `road2proof.mjs`, which talk to the development crewhub-loops on loopback and are on the
   scanner's allowlist for it.
-- **Your own ports and folders** (round 36). A tool binds and opens only ports it was given: `--port`, `--host-port`,
-  `--stub-port`, `--other-port` and `--fake` are required where a tool needs them and are never 5180 (the host's default,
-  where Nicky's real `npm run world` listens and Nicky's Vite proxies) nor 8091, 8000 or 9443 (the Mac app's); 0, a free
-  port, only where the tool's own browser opens whatever came out (`--preview`, `connectstub.mjs`). A host a tool starts
+- **Your own ports and folders** (round 36, round 57d). A tool binds and opens only ports it was given: `--port`,
+  `--host-port`, `--stub-port`, `--other-port` and `--fake` are required where a tool needs them and are never a named
+  port. The named ports are one list, `scripts/named-ports.mjs`, each with its reason: 8091, 8000 and 9443 (the Mac
+  app's), 5180 (the host's default, where Nicky's real `npm run world` listens and Nicky's Vite proxies), 5173 (Vite's
+  default), 8291-8293 (the development loops) and 8391 (loops-fake's); so `timeworld.mjs --fake 8391` is refused as a
+  tool's own port like the rest. A target is another matter: a `--loops-url` to 8291-8293 (`perf.mjs`, `memory.mjs`,
+  `profile.mjs`, `road2proof.mjs`, `lib/live.mjs`) is allowed only with `--real`, and `regress.mjs`'s opt-in for the
+  development loops is `real` named in `--groups` (below), never a flag. 0, a free port, only where the tool's own browser opens whatever came out (`--preview`, `connectstub.mjs`). A host a tool starts
   in-process keeps its key, pairing secret and archive memory in memory or in a folder under `--out`; a real host a tool
   runs (`timeworld.mjs`) gets `CREWHUB_WORLD_CONFIG_DIR` under `--out` and `CREWHUB_WORLD_PORT` of its own; a folder a
   tool's host looks in for crewhub-loops (`--loops-app-data`, `--app-data`) is a development loops' own, never the Mac
   app's, and must hold a `settings.json` naming a port that is neither the app's nor 5180. The rules are
-  `tools/lib/toolGuard.ts` (`scripts/test/toolGuard.test.ts`); `npm run loops:fake` has the same port rule. The one
+  `tools/lib/toolGuard.ts` (`scripts/test/toolGuard.test.ts`), reading the list from `scripts/named-ports.mjs`; `npm run loops:fake` has the same port rule. The one
   road that may reach the Mac app is `npm run world` / `npm run host` without any of this: Nicky's own, by design.
 - **The development loops only when asked** (round 57d). No tool aims at a development crewhub-loops by default or
   searches for an env file that names one: `regress.mjs` runs `real` and the connect group's real half only with

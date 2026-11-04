@@ -63,4 +63,7 @@ test("regress.mjs asks regressPlan right after its command line and searches for
   assert.doesNotMatch(text, /"Documents"/, "no search of ~/Documents/GitHub");
   assert.doesNotMatch(text, /loops-dev\$\{[^}]*\}\.env|loops-dev\.env/, "no default env file name");
   assert.match(text, /if \(plan\.real\) await realHalf\(\);/, "the connect group's real half only with real");
+  const envFile = /function loopsEnvFile\(\) \{\n([\s\S]*?)\n\}/.exec(text)?.[1] ?? "";
+  assert.match(envFile, /^  if \(plan\.loopsEnv === ""\) opts\.fail\(/, "an empty --loops-env fails before path.resolve, which would answer the working directory");
+  assert.equal(envFile.split("\n").length, 2, "loopsEnvFile is the refusal and --loops-env's path, nothing else");
 });
