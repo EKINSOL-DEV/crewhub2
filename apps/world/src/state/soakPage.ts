@@ -8,7 +8,7 @@ import { getPageChat } from "./pageChat";
 import { getRecentAnswers, saidCount } from "./said";
 import type { StoreReads } from "./soak";
 import { getThreads } from "./threads";
-import { townRuntime } from "./town";
+import { townRuntime } from "./runtimes";
 
 export function pageReads(connection: () => unknown): StoreReads {
   return {

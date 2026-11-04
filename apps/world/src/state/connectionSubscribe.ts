@@ -1,4 +1,4 @@
-/* The subscribe function the connection hooks give `useSyncExternalStore` (state/world.ts). */
+/* The subscribe function the connection hooks give `useSyncExternalStore` (state/runtimes.ts). */
 
 interface Changes {
   onChange(listener: () => void): () => void;
