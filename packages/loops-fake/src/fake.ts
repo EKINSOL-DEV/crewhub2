@@ -17,7 +17,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from "node:net";
 import { type DemoSource, type ScenarioId, DEMO_PERSON, createDemoSource } from "@crewhub/demo";
 import type { CommentOut, Envelope, LoopsSnapshot, PlaybackSpeed, PrincipalRef, TicketStatus } from "@crewhub/loops-client";
-import { TICKET_STATUSES } from "@crewhub/loops-client";
+import { ADMIN_EVENT_TYPES, LOOPS_EVENT_TYPES, TICKET_STATUSES } from "@crewhub/loops-client";
 import { withKeyBot } from "./lanes.ts";
 
 export interface LoopsFakeOptions {
@@ -128,26 +128,7 @@ export interface LoopsFake {
 }
 
 /** `GET /api/events` and the stream accept these in `types=`; any other value is 400 `validation_error`. */
-export const EVENT_TYPES: readonly string[] = [
-  "ticket.created", "ticket.updated", "ticket.moved", "comment.created", "comment.updated", "comment.deleted",
-  "link.added", "link.updated", "link.removed", "attachment.added", "dm.created", "dm.answered", "delivery.created",
-  "delivery.updated", "team.updated", "agent_action.ambiguous", "agent_action.expired", "agent-action.updated",
-  "ticket.progress", "ticket.archived", "ticket.unarchived", "release.created", "release.updated", "release.published",
-  "release.deleted", "deploy.updated", "ticket.stalled", "ticket.resumed", "project.created", "project.updated",
-  "project.reordered", "project.archived", "project.restored", "label.created", "label.updated", "label.deleted",
-  "repo.created", "repo.updated", "repo.retired", "repo.unretired", "milestone.created", "milestone.updated",
-  "milestone.completed", "milestone.cancelled", "milestone.archived", "milestone.restored", "milestone.deleted",
-  "milestone.tickets_attached", "milestone.tickets_detached", "milestone.handoff", "milestone.handoff_withdrawn",
-  "lane.alert", "lane-watch.updated", "host.reported", "onboarding.updated", "agent.created", "agent.updated",
-  "agent-membership.updated", "agent-right.granted", "agent-right.revoked", "lane.updated", "profile.updated",
-  "policy.created", "feature.updated", "delegation.consumed", "automation.ran", "ticket.quiet", "owner-request.updated",
-];
-
-/** Written by the administration of agents and rights (CL-124): human admins only, never an agent key (`contracts/events.py`). */
-export const ADMIN_EVENT_TYPES: readonly string[] = [
-  "agent.created", "agent.updated", "agent-membership.updated", "agent-right.granted", "agent-right.revoked", "lane.updated",
-  "profile.updated", "policy.created", "feature.updated", "delegation.consumed",
-];
+const EVENT_TYPES: ReadonlySet<string> = new Set(LOOPS_EVENT_TYPES);
 /** Served to human admins only besides `ADMIN_EVENT_TYPES` (`api/stream.py` `event_visibility_sql`); a lead key never sees them. */
 export const ADMIN_ONLY_EVENT_TYPES: readonly string[] = [
   ...ADMIN_EVENT_TYPES, "agent_action.ambiguous", "agent_action.expired", "agent-action.updated", "host.reported",
@@ -320,7 +301,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
    */
   function visibleToKey(e: Envelope): boolean {
     if (visibility === "all") return true;
-    if (!EVENT_TYPES.includes(e.type) || ADMIN_ONLY_EVENT_TYPES.includes(e.type)) return false;
+    if (!EVENT_TYPES.has(e.type) || ADMIN_ONLY_EVENT_TYPES.includes(e.type)) return false;
     const p = e.payload;
     const chat = e.type.startsWith("dm.") || (p["dmThreadId"] ?? null) !== null;
     if (chat && !keyReadsChat && p["agentId"] !== keyName && p["recipientId"] !== keyName) return false;
@@ -469,7 +450,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
 
   function typesOf(url: URL): string[] {
     const types = url.searchParams.getAll("types").flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean);
-    for (const type of types) if (!EVENT_TYPES.includes(type)) throw invalid(`Unknown event type ${type}`);
+    for (const type of types) if (!EVENT_TYPES.has(type)) throw invalid(`Unknown event type ${type}`);
     return types;
   }
 

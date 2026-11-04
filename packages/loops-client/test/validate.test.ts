@@ -26,6 +26,7 @@ import {
 } from "../src/validate.ts";
 import type { Result } from "../src/validate.ts";
 import { groupOf, sortProjectGroups } from "../src/groups.ts";
+import { ADMIN_EVENT_TYPES, LOOPS_EVENT_TYPES } from "../src/types.ts";
 
 const fixture = (name: string): Record<string, unknown> =>
   JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8")) as Record<string, unknown>;
@@ -164,6 +165,18 @@ test("an event type events.md does not list warns once; a listed one the world s
   });
   assert.equal(warnings.length, 1, warnings.join("\n"));
   assert.match(warnings[0]!, /unknown event type "widget.spun"/);
+});
+
+test("every type of the catalogue is quiet, the three old agent-action rows and the admin types among them", () => {
+  const base = fixture("envelope-ticket-moved.json");
+  const warnings = capturingWarnings(() => {
+    for (const type of ["agent_action.ambiguous", "agent_action.expired", "agent-action.updated", ...LOOPS_EVENT_TYPES]) {
+      toWorldEvent(value(validateEnvelope({ ...base, type })));
+    }
+  });
+  assert.deepEqual(warnings, []);
+  assert.ok(ADMIN_EVENT_TYPES.every((type) => (LOOPS_EVENT_TYPES as readonly string[]).includes(type)));
+  assert.equal(new Set(LOOPS_EVENT_TYPES).size, LOOPS_EVENT_TYPES.length, "no name twice");
 });
 
 test("GET /api/delegations/pending (CL-240) validates", () => {

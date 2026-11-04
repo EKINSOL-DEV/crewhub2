@@ -32,7 +32,7 @@ import {
   TICKET_PRIORITIES,
   TICKET_STATUSES,
   WATCHDOG_MODES,
-  WORLD_EVENT_TYPES,
+  LOOPS_EVENT_TYPES,
   COMPUTER_KINDS,
   LANE_KINDS,
   LANE_LIFECYCLES,
@@ -807,43 +807,8 @@ const payloadValidators: { [T in WorldEventType]: Validator<WorldEventPayloads[T
 
 // Public entry points
 
-/**
- * Every type `contracts/events.py` lists at 4cdcd383 (`EVENT_TYPES`; events.md at 053b5f47 plus `automation.ran`,
- * `ticket.quiet` and `owner-request.updated`), the world's allowlist included. A type outside it is warned about once
- * and skipped: loops adds types; the world never breaks on one.
- */
-const KNOWN_EVENT_TYPES = [
-  ...WORLD_EVENT_TYPES,
-  "link.added",
-  "link.updated",
-  "link.removed",
-  "attachment.added",
-  "deploy.updated",
-  "label.created",
-  "label.updated",
-  "label.deleted",
-  "repo.created",
-  "repo.updated",
-  "repo.retired",
-  "repo.unretired",
-  "milestone.deleted",
-  "lane.alert",
-  "lane-watch.updated",
-  "host.reported",
-  "onboarding.updated",
-  "agent.created",
-  "agent.updated",
-  "agent-membership.updated",
-  "agent-right.granted",
-  "agent-right.revoked",
-  "lane.updated",
-  "profile.updated",
-  "policy.created",
-  "feature.updated",
-  "delegation.consumed",
-  // `owner-request.updated` (CL-298) is served to the owner person only; the world knows it, draws nothing, says nothing.
-  "owner-request.updated",
-] as const;
+/** A type outside the catalogue is warned about once and skipped: loops adds types; the world never breaks on one. */
+const KNOWN_EVENT_TYPES: ReadonlySet<string> = new Set(LOOPS_EVENT_TYPES);
 
 /** The envelope only; the payload stays a loose record. `v` other than 1 fails. */
 export const validateEnvelope = run(envelope);
@@ -855,7 +820,7 @@ export const validateEnvelope = run(envelope);
  */
 export function toWorldEvent(env: Envelope): Result<WorldEvent> | null {
   if (!isWorldEventType(env.type)) {
-    if (!(KNOWN_EVENT_TYPES as readonly string[]).includes(env.type)) {
+    if (!KNOWN_EVENT_TYPES.has(env.type)) {
       warnOnce(`event type:${env.type}`, `unknown event type ${JSON.stringify(env.type)} (seq ${env.seq}): skipped; crewhub-loops at 4cdcd383 does not list it`);
     }
     return null;

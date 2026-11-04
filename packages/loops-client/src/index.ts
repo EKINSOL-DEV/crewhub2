@@ -1,6 +1,7 @@
 export type * from "./types.ts";
 export type * from "./source.ts";
 export {
+  ADMIN_EVENT_TYPES,
   AGENT_ROLES,
   COMMENT_KINDS,
   DELIVERY_REASONS,
@@ -11,6 +12,7 @@ export {
   LANE_KINDS,
   LANE_LIFECYCLES,
   LANE_STATUSES,
+  LOOPS_EVENT_TYPES,
   OBSERVED_SOURCES,
   MILESTONE_STATES,
   PRINCIPAL_KINDS,
