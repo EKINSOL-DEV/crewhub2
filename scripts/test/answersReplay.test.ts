@@ -3,7 +3,7 @@
    the shapes of the real conflicts on the answer branches at the plan's heads, cut to the lines the rules read. No git. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { BRANCHES, ORDER, RULES, Refusal, conflictBlocks, healthKeys, resolveText, setupParagraphs } from "../../tools/answers-replay.mjs";
+import { BRANCHES, ORDER, RULES, Refusal, UsageError, branchOf, conflictBlocks, healthKeys, parseArgs, resolveText, setupParagraphs } from "../../tools/answers-replay.mjs";
 
 const block = (a: string, b: string) => `<<<<<<< ours\n${a}\n=======\n${b}\n>>>>>>> theirs`;
 const swapped = (text: string) => {
@@ -113,4 +113,51 @@ test("B. healthKeys: pairingIdleDays joins q3's list only when health has the fi
   assert.deepEqual(healthKeys(fixed.text, "pairingIdleDays"), { text: fixed.text, changed: false }, "already there");
   assert.deepEqual(healthKeys(list, "const health = { pairing: pairingMode };"), { text: list, changed: false }, "health without the field");
   refuses(() => healthKeys("no list here", "pairingIdleDays"), /q3's key list not found once/);
+});
+
+// --- The command line, and --use: a port stands in for an answer branch (round 59d, the deepening programme). ---
+
+const usageError = (argv: string[], words: RegExp) =>
+  assert.throws(() => parseArgs(argv), (e: unknown) => e instanceof UsageError && words.test(e.message));
+
+test("parseArgs: the base, question 1's answer, the yes-branches and --check, as before; no --use means the answer branches", () => {
+  assert.deepEqual(parseArgs(["fd2e184", "tab", "q3", "q8", "q11", "q14", "q15", "--check"]), {
+    base: "fd2e184",
+    q1: "tab",
+    chosen: ["q3", "q8", "q11", "q14", "q15"],
+    check: true,
+    uses: {},
+  });
+  assert.deepEqual(parseArgs(["HEAD", "cookie"]), { base: "HEAD", q1: "cookie", chosen: [], check: false, uses: {} });
+  usageError([], /the base and question 1's answer are required/);
+  usageError(["HEAD", "q3"], /the base and question 1's answer are required/);
+  usageError(["HEAD", "tab", "q9"], /unknown: q9/);
+  for (const key of [...ORDER, "tab", "cookie+expiry"]) assert.equal(branchOf(key, {}), BRANCHES[key as keyof typeof BRANCHES]);
+});
+
+test("--use: a port merges in its answer branch's place, at the answer branch's step; the others stay the answer branches", () => {
+  const port = "port/task/q14-dm-read-cap@1a2b3c4";
+  const args = parseArgs(["HEAD", "tab", "q3", "q14", "--use", `q14=${port}`, "--use", "tab=port/task/r27-tab-pairing@1a2b3c4", "--check"]);
+  assert.deepEqual(args.uses, { q14: port, tab: "port/task/r27-tab-pairing@1a2b3c4" });
+  assert.deepEqual(args.chosen, ["q3", "q14"], "a --use is no yes-branch of its own");
+  assert.equal(args.check, true);
+  assert.equal(branchOf("q14", args.uses), port);
+  assert.equal(branchOf("tab", args.uses), "port/task/r27-tab-pairing@1a2b3c4");
+  assert.equal(branchOf("q3", args.uses), "task/q3-health-less");
+  assert.deepEqual(parseArgs(["HEAD", "cookie+expiry", "--use", "cookie+expiry=abc1234"]).uses, { "cookie+expiry": "abc1234" }, "any ref, a sha too");
+  assert.deepEqual(parseArgs(["HEAD", "tab", "--use", "q3=p3", "q3"]).chosen, ["q3"], "the order on the line does not matter");
+});
+
+test("--use refuses what would merge the wrong thing: a step the run does not take, an unknown key, a twice-named key, an answer branch, an option", () => {
+  usageError(["HEAD", "tab", "q3", "--use", "q14=port/x"], /--use q14: q14 is not merged in this run/);
+  usageError(["HEAD", "cookie", "--use", "cookie+expiry=port/x"], /--use cookie\+expiry: cookie\+expiry is not merged in this run/);
+  usageError(["HEAD", "tab", "--use", "cookie+expiry=port/x"], /--use cookie\+expiry: cookie\+expiry is not merged in this run/);
+  usageError(["HEAD", "tab", "--use", "q9=port/x"], /--use q9: not one of q3, q8, q11, q14, q15, tab, cookie\+expiry/);
+  usageError(["HEAD", "tab", "q14", "--use", "q14=a", "--use", "q14=b"], /--use q14: named twice/);
+  usageError(["HEAD", "tab", "q14", "--use", "q14=task/q15-body-cap"], /--use q14: task\/q15-body-cap is an answer branch, a port is its own branch/);
+  usageError(["HEAD", "tab", "q14", "--use", "q14=task/q14-dm-read-cap"], /an answer branch/);
+  usageError(["HEAD", "tab", "q14", "--use", "q14=--strategy=ours"], /--use q14: the ref may not start with a dash/);
+  usageError(["HEAD", "tab", "q14", "--use", "q14="], /--use needs <key>=<ref>/);
+  usageError(["HEAD", "tab", "q14", "--use", "q14"], /--use needs <key>=<ref>/);
+  usageError(["HEAD", "tab", "q14", "--use"], /--use needs <key>=<ref>/);
 });
