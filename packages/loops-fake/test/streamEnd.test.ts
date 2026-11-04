@@ -25,7 +25,7 @@ async function waitFor(what: string, predicate: () => boolean, timeoutMs: number
 test("a stream that ends mid-storyline (streamMaxMs) loses no event: the host reconnects from its cursor after a short pause", async () => {
   const fake = await createLoopsFake({ speed: 0, heartbeatMs: 100, streamMaxMs: 400 });
   const host = await createHost({ loopsUrl: fake.url, key: fake.key, keyName: fake.keyName, pairing: "off", retryMs: { min: 50, max: 200 }, reconnectMs: { min: 30, max: 60 }, log: () => undefined });
-  const source = createHostSource({ baseUrl: host.url, timings: TIMINGS });
+  const source = createHostSource({ baseUrl: host.url }, { timings: TIMINGS });
   const connection = source.connection!;
   const received: Envelope[] = [];
   let snapshots = 0;
