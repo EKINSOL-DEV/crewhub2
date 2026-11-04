@@ -211,6 +211,16 @@ test("an agent's DM from a source that is not the dock's own demo (live, the str
   for (let i = 0; i < 60; i += 1) scheduler.advance(1_000);
   await settle(100);
   assert.deepEqual(got.said, []);
+  // A source that is another object than the dock's demo (here one in front of it) is not the dock's own: its agent
+  // DMs reach the projection only, though the dock is there.
+  const front = demoWorld({ source: (d) => withListener(d).source });
+  assert.ok(front.world.chat !== null && front.world.demo === null);
+  front.scheduler.advance(400_000);
+  await settle(300);
+  front.demo.sendDm("g-man", "Hello?", "c1");
+  for (let i = 0; i < 60; i += 1) front.scheduler.advance(1_000);
+  await settle(100);
+  assert.deepEqual(front.got.said, [], "a dock that is not the world's source reads nothing back");
   // The stress fixture keeps a separate demo for the dock: the world's source is not the chat.
   const stress = worldSources({ live: false, scenarioId: "small-team", stressSize: 12 }, { scheduler: createManualScheduler(0), epochMs: 0 });
   assert.ok(stress.chat !== null && stress.source !== stress.chat);

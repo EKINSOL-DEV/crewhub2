@@ -77,7 +77,7 @@ test("editAll: every edit applies on the one before as one revision (one undo st
 });
 
 test("the done prop tickets import into the town; the broken one stands as an error crate while it is listed, and goes when a seek undoes it", async () => {
-  const { scheduler, demo, town, said } = demoTown();
+  const { scheduler, demo, world, town, said } = demoTown();
   await until(() => town.state.loaded);
   let published = 0;
   town.subscribe(() => (published += 1));
@@ -91,6 +91,7 @@ test("the done prop tickets import into the town; the broken one stands as an er
   const shown = town.state.invalid;
   const count = published;
   scheduler.advance(100); // 1.6 s of demo time, before the script's end (5 s on) loops it
+  world.setRoleOverrides({}); // a new model: the town checks its requests again
   await settle(300);
   assert.equal(town.state.invalid, shown, "the same crates, the same array");
   assert.equal(published, count, "no publish while the crates are the same");
