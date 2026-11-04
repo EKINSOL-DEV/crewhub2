@@ -165,3 +165,39 @@ test("the agents list marks the key's own bot viewer only when the key may read 
     assert.deepEqual(body.agents.filter((a) => a.viewer === true).map((a) => a.id), keyReadsChat ? [fake.keyName] : [], `keyReadsChat ${keyReadsChat}`);
   }
 });
+
+test("the chat reads are the demo api's (W2): a thread's messages page newest-last by limit and before with a nextCursor, a non-lead is 403, an unknown agent 404, a bad limit 400; a key without keyReadsChat still reads none", async () => {
+  const fake = await createLoopsFake({ speed: 0, startAt: 300_000 });
+  fakes.push(fake);
+  const ok = await fetch(`${fake.url}/api/auth/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: fake.person.id, password: fake.person.password }) });
+  const cookie = (ok.headers.getSetCookie()[0] as string).split(";")[0] as string;
+  const asPerson = (p: string) => fetch(`${fake.url}${p}`, { headers: { cookie } });
+  type Page = { messages: { id: string }[]; nextCursor: string | null };
+  const threads = (await (await asPerson("/api/dm/threads")).json()) as { threads: { agentId: string }[] };
+  const read = async (agent: string, query = ""): Promise<Page> => (await (await asPerson(`/api/dm/threads/${agent}/messages${query}`)).json()) as Page;
+  const full = await Promise.all(threads.threads.map(async (t) => ({ agentId: t.agentId, ...(await read(t.agentId, "?limit=100")) })));
+  const longest = full.sort((a, b) => b.messages.length - a.messages.length)[0];
+  assert.ok(longest !== undefined && longest.messages.length >= 2, `a thread with two messages at startAt 300_000 (${longest?.messages.length ?? 0})`);
+  const all = longest.messages.map((m) => m.id);
+  assert.ok(all.length < 50, "the demo's threads are short: the default page holds a whole thread");
+  const whole = await read(longest.agentId);
+  assert.deepEqual({ ids: whole.messages.map((m) => m.id), next: whole.nextCursor }, { ids: all, next: null }, "no limit: the whole short thread, oldest first, no cursor");
+  const newest = await read(longest.agentId, "?limit=1");
+  assert.deepEqual({ ids: newest.messages.map((m) => m.id), next: newest.nextCursor }, { ids: [all[all.length - 1]], next: all[all.length - 1] }, "limit=1: the newest message; the cursor is the page's oldest id");
+  const earlier = await read(longest.agentId, `?limit=1&before=${encodeURIComponent(newest.nextCursor as string)}`);
+  assert.deepEqual({ ids: earlier.messages.map((m) => m.id), next: earlier.nextCursor }, { ids: [all[all.length - 2]], next: all.length > 2 ? all[all.length - 2] : null }, "before=<cursor>: the one before it");
+  const badLimit = await asPerson(`/api/dm/threads/${longest.agentId}/messages?limit=0`);
+  assert.equal(badLimit.status, 400);
+  assert.deepEqual(await badLimit.json(), { error: { code: "validation_error", message: "Invalid limit", detail: null } }, "loops' envelope");
+  const wrongThread = await asPerson(`/api/dm/threads/${longest.agentId}/messages?before=dm_nope`);
+  assert.equal(wrongThread.status, 400, "a cursor of another thread");
+  const router = await asPerson("/api/dm/threads/postman/messages");
+  assert.equal(router.status, 403, "the router is no lead: dm.py's 403");
+  assert.deepEqual(await router.json(), { error: { code: "forbidden", message: "Chat requires an enabled lead", detail: null } });
+  assert.equal((await asPerson("/api/dm/threads/nobody/messages")).status, 404, "an unknown agent");
+  // The key's gate stays the fake's: no thread of its own, 403 on a thread, whatever the agent.
+  const asKey = (p: string) => fetch(`${fake.url}${p}`, { headers: { authorization: `Bearer ${fake.key}` } });
+  assert.deepEqual(await (await asKey("/api/dm/threads")).json(), { threads: [] });
+  assert.equal((await asKey(`/api/dm/threads/${longest.agentId}/messages?limit=1`)).status, 403);
+  assert.deepEqual(await (await asKey("/api/dm/threads/nobody/messages")).json(), { error: { code: "forbidden", message: "Not a participant of this thread", detail: null } }, "the key's 403 comes before the agent lookup");
+});

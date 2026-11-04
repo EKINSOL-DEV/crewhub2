@@ -53,7 +53,7 @@ export interface Freshness {
   teamTs: string | null;
   /** Seconds between `teamTs` and the source's `now`; null when unknown. */
   ageSeconds: number | null;
-  /** True when the snapshot is missing or older than 300 s: every lane shows as unknown. */
+  /** True when the snapshot is missing or older than `STALE_AFTER_S` (freshness.ts, 300 s): every lane shows as unknown. */
   stale: boolean;
 }
 

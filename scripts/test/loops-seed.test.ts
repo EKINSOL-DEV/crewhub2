@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import type { TicketSeed } from "../../packages/demo/src/content.ts";
 import { DEMO_SEED, SMALL_TEAM_STORY, buildStory } from "../../packages/demo/src/script.ts";
 import { demoScenarios } from "../../packages/demo/src/scenarios.ts";
@@ -194,4 +196,12 @@ test("the author of an action is its demo actor; with that agent's own key the s
   assert.equal(writerFor("cl-lead", keys), null, "no key: the seed bot writes");
   assert.equal(writerFor("nicky", keys), null, "a person never writes through the seed");
   assert.equal(writerFor(null, keys), null);
+});
+
+test("an unknown --scenario stops the tool before anything is read or asked: exit 2, and the known ids named", () => {
+  const tool = fileURLToPath(new URL("../../tools/loops-seed.mjs", import.meta.url));
+  // Port 1: nothing listens there, and the check comes before any request.
+  const run = spawnSync(process.execPath, [tool, "--url", "http://127.0.0.1:1", "--scenario", "smal-team"], { encoding: "utf8", timeout: 20_000 });
+  assert.equal(run.status, 2, run.stderr.slice(0, 300));
+  assert.equal(run.stderr.trim().split("\n").at(-1), "loops-seed: unknown scenario smal-team; known: fresh, one, small-team, studio");
 });

@@ -1,7 +1,7 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type Ref } from "react";
 import { ArrowLeft, BookOpen, ChevronRight, CircleHelp, Eye, FlaskConical, Hammer, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Footprints, Scan, Search, Settings, Sun, Tags, X } from "lucide-react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { CIVIC_WORDS, describeTownDocument, describeWorld, roleWords, ruleProps, zoningOf, type AgentPlacement, type CivicWords, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomWording, type TextLine, type WorldModel } from "@crewhub/world-model";
+import { roleWords, ruleProps, zoningOf, type AgentPlacement, type CivicWords, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomWording, type TextLine, type WorldModel } from "@crewhub/world-model";
 import type { PropModel } from "@crewhub/world-engine";
 import { Bubbles } from "./components/bubbles/Bubbles";
 import { TownSettings } from "./components/TownSettings";
@@ -22,7 +22,7 @@ import type { AnswerTarget } from "./state/recentAnswers";
 import { useHealthNeed, useHostHealth, useLiveScreen } from "./state/health";
 import { installSoakProbe } from "./state/soak";
 import { pageReads } from "./state/soakPage";
-import { markWords, saidLines, saidMarks, type SaidMark } from "./world/saidText";
+import { markWords, saidMarks, type SaidMark } from "./world/saidText";
 import { JumpList } from "./components/JumpList";
 import { RecentAnswers } from "./components/RecentAnswers";
 import { IconSprite } from "./components/Icon";
@@ -35,8 +35,7 @@ import { shouldRetry } from "./api/client";
 import { useAmbient } from "./state/ambient";
 import { useCast } from "./state/cast";
 import { castRegistry } from "./world/cast";
-import { describeCasts } from "./world/castText";
-import { describeZones, townKeeping, townKeepingWords } from "./world/zoneText";
+import { textViewLines, textViewSections, type TextSection } from "./world/textView";
 import { styleRegistry } from "./world/style";
 import { crumbs, districtsOf, homeName, isRegion, jumpEntries, needsOf, needsWords, summarise, summaryWords, type Crumb, type DistrictPlace, type JumpEntry, type Place } from "./world/wayfinding";
 import { agentNameOf, hereOf, HOME_VIEW, insideOf, placeOf, stepView, type View, type ViewIntent, type ViewStep } from "./state/view";
@@ -60,7 +59,6 @@ import { WhereForm } from "./components/WhereForm";
 import { civicWords } from "./world/settlementDressing";
 import type { CameraAction } from "./world/TownScene";
 import { mmss } from "./world/townLayout";
-import { describePlan } from "./world/townPlan";
 import { useTownPlan } from "./state/plan";
 
 // Build mode and the prop editor are not needed for the first frame: they load when first opened.
@@ -196,31 +194,7 @@ function World() {
   // Only while the text view shows: describing a region on every model update is felt on a phone.
   const textShown = textOpen || graphicsFailed;
   const textLines = useMemo(
-    () => !textShown ? [] : [
-      ...(civic.hall === CIVIC_WORDS.hall && civic.post === CIVIC_WORDS.post && rooms === "classic" ? text : describeWorld(model, civic, { rooms })),
-      ...saidLines(model, said, Date.now(), civic, rooms),
-      ...describeCasts(castRegistry, {
-        viewer: cast,
-        town: town.doc.castId,
-        plots: town.doc.plots,
-        style: styleRegistry.getStyle(town.doc.styleId).manifest.defaultCast,
-        zones: model.zones,
-        buildings: model.buildings,
-      }),
-      ...describeZones({
-        mode: model.mode,
-        kept: townKeeping(town.storage, model.mode),
-        zones: model.zones,
-        buildings: model.buildings,
-        plots: town.doc.plots,
-        assignments: town.doc.assignments,
-        lookOf: (zone) => [...Object.values(zone.look.styleOptions ?? {}), ...(zone.look.castId ? [castRegistry.listCasts().find((m) => m.id === zone.look.castId)?.name ?? zone.look.castId] : [])].join(", "),
-      }),
-      ...describePlan(plan, (slug) => model.buildings.find((b) => b.slug === slug)?.name ?? slug),
-      ...describeTownDocument(town.doc, town.catalogue, { ruleProps: rules, invalidRequests: town.invalid, rooms }),
-      ...(model.mode === "live" ? [{ section: "Town document", text: `The town document is ${townKeepingWords(townKeeping(town.storage, model.mode)).charAt(0).toLowerCase()}${townKeepingWords(townKeeping(town.storage, model.mode)).slice(1)}`, kind: "fact" as const }] : []),
-      ...(town.storageNote ? [{ section: "Town document", text: town.storageNote, kind: "fact" as const }] : []),
-    ],
+    () => !textShown ? [] : textViewLines({ model, text, civic, rooms, viewerCast: cast, styleCast: styleRegistry.getStyle(town.doc.styleId).manifest.defaultCast, casts: castRegistry, town, rules, plan, said, nowMs: Date.now() }),
     [textShown, text, civic, rooms, cast, town.doc, town.catalogue, rules, town.invalid, model.zones, model.buildings, plan, said],
   );
   const undo = useCallback(() => {
@@ -982,22 +956,16 @@ function PlaybackPosition({ playback }: { playback: PlaybackControls }) {
 const KIND_WORD: Record<TextLine["kind"], string> = { fact: "fact", inference: "inference", cosmetic: "cosmetic", demo: "demo" };
 
 function TextView({ lines, civic, rooms, connection, chat, marks, answers, recentEmpty, targetOf, onAnswer, fallback, onClose, districts, onGo, ref }: { lines: TextLine[]; civic: CivicWords; rooms: RoomWording; connection: ConnectionState | null; /** Where chat lives (state/chatPanel `chatPlaceLine`). */ chat: string; /** The agents inside a building with a bubble in flight (world/saidText): a chip beside the building, as the mark over it. */ marks: SaidMark[]; /** The Recent answers section (round 16, components/RecentAnswers). */ answers: readonly Answer[]; recentEmpty: string; targetOf: (answer: Answer) => AnswerTarget; onAnswer: (answer: Answer, target: AnswerTarget) => void; fallback: boolean; onClose: (() => void) | null; districts: DistrictPlace[]; onGo: ((place: Place) => void) | null; ref: Ref<HTMLElement> }) {
-  const sections = new Map<string, TextLine[]>();
-  for (const line of lines) sections.set(line.section, [...(sections.get(line.section) ?? []), line]);
   // The town first, then every building's sections under its district, then the rest (casts, zones, the town document).
+  const view = textViewSections(lines, districts);
   const region = isRegion(districts);
-  const names = [...sections.keys()];
-  const owned = (b: { name: string; key: string }) => names.filter((n) => n === `${b.name} (${b.key})` || n.startsWith(`${b.name} (${b.key}): `));
-  const placed = new Set(districts.flatMap((d) => d.buildings.flatMap(owned)));
-  const before = names.filter((n) => !placed.has(n) && n === "Town"),
-    after = names.filter((n) => !placed.has(n) && n !== "Town");
-  const block = (section: string, level: 3 | 4) => {
+  const block = (section: TextSection, level: 3 | 4) => {
     const Heading = `h${level}` as "h3" | "h4";
     return (
-      <section key={section} className="text-section">
-        <Heading>{section}</Heading>
+      <section key={section.name} className="text-section">
+        <Heading>{section.name}</Heading>
         <ul>
-          {sections.get(section)!.map((line, i) => (
+          {section.lines.map((line, i) => (
             <li key={i}>
               <span className="text-kind" data-kind={line.kind}>
                 {KIND_WORD[line.kind]}
@@ -1026,8 +994,8 @@ function TextView({ lines, civic, rooms, connection, chat, marks, answers, recen
         <p className="text-note text-chat">{chat}</p>
         <RecentAnswers as="section" answers={answers} empty={recentEmpty} targetOf={targetOf} onOpen={onAnswer} />
         <WhereForm civic={civic} rooms={rooms} />
-        {before.map((section) => block(section, 3))}
-        {districts.map((d) => {
+        {view.before.map((section) => block(section, 3))}
+        {view.districts.map(({ district: d, buildings }) => {
           const summary = summarise(d.buildings);
           return (
             <section key={d.id} className="text-district" aria-label={d.name}>
@@ -1045,7 +1013,7 @@ function TextView({ lines, civic, rooms, connection, chat, marks, answers, recen
                 </span>
                 <span>{summaryWords(summary)}</span>
               </p>
-              {d.buildings.map((b) => {
+              {buildings.map(({ building: b, sections }) => {
                 const needs = needsWords(needsOf(b));
                 return (
                   <div key={b.slug} className="text-building">
@@ -1066,14 +1034,14 @@ function TextView({ lines, civic, rooms, connection, chat, marks, answers, recen
                           </Chip>
                         ))}
                     </p>
-                    {owned(b).map((section) => block(section, 4))}
+                    {sections.map((section) => block(section, 4))}
                   </div>
                 );
               })}
             </section>
           );
         })}
-        {after.map((section) => block(section, 3))}
+        {view.after.map((section) => block(section, 3))}
         <DirectorLog />
       </Card.Body>
     </Card>

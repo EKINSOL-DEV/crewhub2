@@ -6,7 +6,7 @@ import type { ProjectOut, TicketCard, TicketKind, TicketStatus } from "@crewhub/
 import { ticketKeys } from "./agents.ts";
 import type { ReduceContext } from "./agents.ts";
 import type { AgentKey, ObjectLook, RoomKind, WorkObject } from "./model.ts";
-import { drawnStatus, newStatusWord } from "./status.ts";
+import { drawn, drawnStatus } from "./status.ts";
 
 export const SPEECH_MARK_MS = 20_000;
 export const CELEBRATION_MS = 6_000;
@@ -143,8 +143,7 @@ function toObject(
     kind: card.kind,
     // A kind the validators let through with a warning (newer than this build) looks like a task.
     look: LOOKS[card.kind] ?? "folder",
-    status: drawnStatus(card.status),
-    newStatus: newStatusWord(card.status),
+    ...drawn(card.status),
     room: place.room,
     deskOf: place.deskOf,
     deskInferred: place.deskInferred,

@@ -10,7 +10,7 @@ import type { Result, SourceMessage } from "@crewhub/loops-client";
 import { Projection, describeWorld, emptyMemory, reduceWorld } from "@crewhub/world-model";
 import type { ProjectionSource, WorldModel } from "@crewhub/world-model";
 import { createManualScheduler } from "../src/scheduler.ts";
-import { type ScenarioId, DEFAULT_SCENARIO, SCENARIO_IDS, demoScenario, demoScenarios, parseScenarioId } from "../src/scenarios.ts";
+import { type ScenarioId, DEFAULT_SCENARIO, SCENARIO_IDS, demoScenario, demoScenarios, parseScenarioId, scenarioIdOf } from "../src/scenarios.ts";
 import { STUDIO_ARCHIVED } from "../src/scenarios/studio.ts";
 import { demoReply } from "../src/script.ts";
 import { type DemoSource, createDemoSource } from "../src/source.ts";
@@ -56,6 +56,9 @@ test("the picker lists every scenario once, smallest first, and Small team is th
   assert.equal(parseScenarioId("fresh"), "fresh");
   assert.equal(parseScenarioId("nonsense"), "small-team");
   assert.equal(parseScenarioId(null), "small-team");
+  // The strict read: a command line refuses what this answers null for; it never defaults.
+  for (const id of SCENARIO_IDS) assert.equal(scenarioIdOf(id), id);
+  for (const text of ["smal-team", "", "Fresh", " fresh", "__proto__"]) assert.equal(scenarioIdOf(text), null, JSON.stringify(text));
   // One town document per scenario; the default keeps the store the world always used.
   assert.equal(new Set(scenarios.map((s) => s.townKey)).size, scenarios.length);
   assert.equal(demoScenario("small-team").townKey, "crewhub-world");

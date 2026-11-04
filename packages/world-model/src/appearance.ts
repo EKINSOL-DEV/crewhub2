@@ -17,6 +17,7 @@
  * the raw lane (so a lane that has not yet held long enough to move the posture already lights the lamp). Statuses
  * are always words as well as colours.
  */
+import { freshnessWords } from "./freshness.ts";
 import type { AgentPlacement, Freshness, LaneStatus, Posture, WorldModel } from "./model.ts";
 
 /* ── The scene: the figure and its desk lamp ──────────────────────────── */
@@ -93,25 +94,13 @@ export interface LaneLook {
 
 /**
  * A stale snapshot overrides every lane status: it reads "stale since HH:MM", or "status unknown" before the first
- * snapshot (agents-and-states.md: older than 5 minutes is unknown).
+ * snapshot (agents-and-states.md: older than `STALE_AFTER_S` is unknown; the words are `freshnessWords`' `short`).
  */
 export function laneLook(status: LaneStatus, freshness: Freshness): LaneLook {
-  if (freshness.stale) return { words: staleWords(freshness), chip: "stalled" };
+  const stale = freshnessWords(freshness).short;
+  if (stale !== null) return { words: stale, chip: "stalled" };
   if (status === "unknown") return { words: "status unknown", chip: "stalled" };
   return { words: status, chip: status === "idle" ? "planned" : status };
-}
-
-function staleWords(freshness: Freshness): string {
-  const since = clockTime(freshness.teamTs);
-  return since ? `stale since ${since}` : "status unknown";
-}
-
-/** "HH:MM" in the viewer's local time, or null for a missing or unreadable timestamp. */
-function clockTime(iso: string | null): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 /* ── Every 2D surface ─────────────────────────────────────────────────── */
@@ -198,7 +187,8 @@ export function agentLook(agent: AgentPlacement, view: Pick<WorldModel, "freshne
 
 function tagOf(agent: AgentPlacement, freshness: Freshness, workingIn: string): string | null {
   if (agent.presence === "proxy") return `working in ${workingIn}${agent.locationInferred ? " (inferred)" : ""}`;
-  if (freshness.stale) return staleWords(freshness);
+  const stale = freshnessWords(freshness).short;
+  if (stale !== null) return stale;
   if (agent.posture === "greyed") return "status unknown";
   if (agent.posture === "raised-hand") return "blocked";
   return null;

@@ -750,6 +750,52 @@ export function isWorldEventType(type: string): type is WorldEventType {
   return (WORLD_EVENT_TYPES as readonly string[]).includes(type);
 }
 
+/** Written by the administration of agents and rights (CL-124): human admins only, never an agent key (`contracts/events.py`). */
+export const ADMIN_EVENT_TYPES = [
+  "agent.created",
+  "agent.updated",
+  "agent-membership.updated",
+  "agent-right.granted",
+  "agent-right.revoked",
+  "lane.updated",
+  "profile.updated",
+  "policy.created",
+  "feature.updated",
+  "delegation.consumed",
+] as const;
+
+/**
+ * Every type `contracts/events.py` lists at 4cdcd383 (`EVENT_TYPES`; events.md at 053b5f47 plus `automation.ran`,
+ * `ticket.quiet` and `owner-request.updated`), the world's allowlist and the admin types included. The order is not loops'.
+ */
+export const LOOPS_EVENT_TYPES = [
+  ...WORLD_EVENT_TYPES,
+  ...ADMIN_EVENT_TYPES,
+  "link.added",
+  "link.updated",
+  "link.removed",
+  "attachment.added",
+  "deploy.updated",
+  "label.created",
+  "label.updated",
+  "label.deleted",
+  "repo.created",
+  "repo.updated",
+  "repo.retired",
+  "repo.unretired",
+  "milestone.deleted",
+  "lane.alert",
+  "lane-watch.updated",
+  "host.reported",
+  "onboarding.updated",
+  // Still listed, and accepted by `types=`; their emitters are gone, so none arrives on a fresh install (LOOPS_GAP_ANALYSIS.md).
+  "agent_action.ambiguous",
+  "agent_action.expired",
+  "agent-action.updated",
+  // `owner-request.updated` (CL-298) is served to the owner person only; the world knows it, draws nothing, says nothing.
+  "owner-request.updated",
+] as const;
+
 // Payloads. Unknown extra keys are allowed by the validators and not typed here.
 // `reason`, `state` and `resolution` are `string` where stability.md says new values can appear.
 

@@ -15,9 +15,9 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
-import { type DemoSource, type ScenarioId, DEMO_PERSON, createDemoSource } from "@crewhub/demo";
+import { type DemoSource, type ScenarioId, DEMO_PERSON, createDemoApi, createDemoSource } from "@crewhub/demo";
 import type { CommentOut, Envelope, LoopsSnapshot, PlaybackSpeed, PrincipalRef, TicketStatus } from "@crewhub/loops-client";
-import { TICKET_STATUSES } from "@crewhub/loops-client";
+import { ADMIN_EVENT_TYPES, LOOPS_EVENT_TYPES, PAGE_CHAT_EVENTS_LIMIT, PAGE_CHAT_EVENT_TYPES, TICKET_STATUSES, isAgentName, isMessageId } from "@crewhub/loops-client";
 import { withKeyBot } from "./lanes.ts";
 
 export interface LoopsFakeOptions {
@@ -80,18 +80,23 @@ export interface LoopsFakeOptions {
   /**
    * Loops main's `CHL_WORLD_ORIGIN` (CL-494 step 4, round 28): the one page origin that may read the signed-in person's
    * chat from the browser. A request whose `Origin` equals it passes only as a GET without an authorization header on
-   * the four routes (`WORLD_ROUTES`), the events poll with its types forced to the two chat events and `limit` at most
-   * `WORLD_EVENTS_LIMIT`; the answer (a 401 included) carries the three CORS headers. Anything else from that origin,
+   * the four routes (`ORIGIN_ROUTES`), the events poll with its types forced to the two chat events and `limit` at most
+   * `ORIGIN_EVENTS_LIMIT`; the answer (a 401 included) carries the three CORS headers. Anything else from that origin,
    * and any other `Origin` while this is set, is 403 `origin_forbidden` with no CORS header. Unset (the default): the
    * fake ignores `Origin`, as before. `setWorldOrigin` changes it on a running fake (the page's port is known late).
    */
   worldOrigin?: string | null;
 }
 
-/** The four routes loops opens to the world's origin (`api/security.py` `WORLD_ROUTES`), exact paths. */
-export const WORLD_ROUTES: readonly RegExp[] = [/^\/api\/dm\/threads$/, /^\/api\/dm\/threads\/[a-z0-9][a-z0-9-]{0,31}\/messages$/, /^\/api\/dm\/messages\/[A-Za-z0-9_-]{1,64}$/, /^\/api\/events$/];
-export const WORLD_EVENT_TYPES: readonly string[] = ["dm.created", "dm.answered"];
-export const WORLD_EVENTS_LIMIT = 50;
+/** The four routes loops opens to the world's origin (`api/security.py` `WORLD_ROUTES`), exact paths; their segments are the page's own shapes. */
+const ORIGIN_ROUTES: readonly ((pathname: string) => boolean)[] = [
+  (pathname) => pathname === "/api/dm/threads",
+  (pathname) => isAgentName(/^\/api\/dm\/threads\/([^/]+)\/messages$/.exec(pathname)?.[1]),
+  (pathname) => isMessageId(/^\/api\/dm\/messages\/([^/]+)$/.exec(pathname)?.[1]),
+  (pathname) => pathname === "/api/events",
+];
+const ORIGIN_EVENT_TYPES: readonly string[] = PAGE_CHAT_EVENT_TYPES.split(",");
+const ORIGIN_EVENTS_LIMIT = PAGE_CHAT_EVENTS_LIMIT;
 
 export interface LoopsFake {
   readonly url: string;
@@ -128,26 +133,7 @@ export interface LoopsFake {
 }
 
 /** `GET /api/events` and the stream accept these in `types=`; any other value is 400 `validation_error`. */
-export const EVENT_TYPES: readonly string[] = [
-  "ticket.created", "ticket.updated", "ticket.moved", "comment.created", "comment.updated", "comment.deleted",
-  "link.added", "link.updated", "link.removed", "attachment.added", "dm.created", "dm.answered", "delivery.created",
-  "delivery.updated", "team.updated", "agent_action.ambiguous", "agent_action.expired", "agent-action.updated",
-  "ticket.progress", "ticket.archived", "ticket.unarchived", "release.created", "release.updated", "release.published",
-  "release.deleted", "deploy.updated", "ticket.stalled", "ticket.resumed", "project.created", "project.updated",
-  "project.reordered", "project.archived", "project.restored", "label.created", "label.updated", "label.deleted",
-  "repo.created", "repo.updated", "repo.retired", "repo.unretired", "milestone.created", "milestone.updated",
-  "milestone.completed", "milestone.cancelled", "milestone.archived", "milestone.restored", "milestone.deleted",
-  "milestone.tickets_attached", "milestone.tickets_detached", "milestone.handoff", "milestone.handoff_withdrawn",
-  "lane.alert", "lane-watch.updated", "host.reported", "onboarding.updated", "agent.created", "agent.updated",
-  "agent-membership.updated", "agent-right.granted", "agent-right.revoked", "lane.updated", "profile.updated",
-  "policy.created", "feature.updated", "delegation.consumed", "automation.ran", "ticket.quiet", "owner-request.updated",
-];
-
-/** Written by the administration of agents and rights (CL-124): human admins only, never an agent key (`contracts/events.py`). */
-export const ADMIN_EVENT_TYPES: readonly string[] = [
-  "agent.created", "agent.updated", "agent-membership.updated", "agent-right.granted", "agent-right.revoked", "lane.updated",
-  "profile.updated", "policy.created", "feature.updated", "delegation.consumed",
-];
+const EVENT_TYPES: ReadonlySet<string> = new Set(LOOPS_EVENT_TYPES);
 /** Served to human admins only besides `ADMIN_EVENT_TYPES` (`api/stream.py` `event_visibility_sql`); a lead key never sees them. */
 export const ADMIN_ONLY_EVENT_TYPES: readonly string[] = [
   ...ADMIN_EVENT_TYPES, "agent_action.ambiguous", "agent_action.expired", "agent-action.updated", "host.reported",
@@ -248,7 +234,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
   const emptyTeam = options.emptyTeam === true;
   const keyReadsChat = options.keyReadsChat === true;
   const principal: PrincipalRef = { id: keyName, kind: "agent", displayName: keyName };
-  const person = options.person ?? { id: "nicky", password: `demo-${randomBytes(9).toString("base64url")}`, displayName: "Nicky" };
+  const person = options.person ?? { id: DEMO_PERSON, password: `demo-${randomBytes(9).toString("base64url")}`, displayName: "Nicky" };
   const personPrincipal: PrincipalRef = { id: person.id, kind: "user", displayName: person.displayName };
   /** The session cookies handed out by `POST /api/auth/login` and still accepted (a logout removes one). */
   const sessions = new Set<string>();
@@ -312,6 +298,20 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     ...(options.speed === undefined ? {} : { speed: options.speed }),
     ...(options.startAt === undefined ? {} : { startAt: options.startAt }),
   });
+  /**
+   * The chat's reads are the demo api's (`packages/demo/src/api.ts`, loops' `dm.py` over the same source): the fake is
+   * its HTTP adapter, as the world's dock is its in-page one. The gate stays the fake's (`keyReadsChat`, below).
+   */
+  const demoApi = createDemoApi(source);
+  /** The demo api's answer as the fake's: the body, or its error envelope rethrown so the fake's headers and CORS apply. */
+  async function viaDemoApi(url: URL): Promise<unknown> {
+    const answer = await demoApi.handle("GET", `${url.pathname}${url.search}`);
+    if (answer.status >= 400) {
+      const { code, message } = (answer.body as { error: { code: string; message: string } }).error;
+      throw new ApiError(answer.status, code, message);
+    }
+    return answer.body;
+  }
 
   /**
    * Loops' per-principal visibility for a lead agent's key (`api/stream.py` `event_visibility_sql`, the rows of
@@ -320,7 +320,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
    */
   function visibleToKey(e: Envelope): boolean {
     if (visibility === "all") return true;
-    if (!EVENT_TYPES.includes(e.type) || ADMIN_ONLY_EVENT_TYPES.includes(e.type)) return false;
+    if (!EVENT_TYPES.has(e.type) || ADMIN_ONLY_EVENT_TYPES.includes(e.type)) return false;
     const p = e.payload;
     const chat = e.type.startsWith("dm.") || (p["dmThreadId"] ?? null) !== null;
     if (chat && !keyReadsChat && p["agentId"] !== keyName && p["recipientId"] !== keyName) return false;
@@ -469,7 +469,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
 
   function typesOf(url: URL): string[] {
     const types = url.searchParams.getAll("types").flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean);
-    for (const type of types) if (!EVENT_TYPES.includes(type)) throw invalid(`Unknown event type ${type}`);
+    for (const type of types) if (!EVENT_TYPES.has(type)) throw invalid(`Unknown event type ${type}`);
     return types;
   }
 
@@ -575,11 +575,13 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     if (caller === null) throw new ApiError(401, "unauthenticated", "Authentication required");
     const viewer: "key" | "person" = caller.kind === "user" ? "person" : "key";
     // The chat (dm.py): any principal reads, but a key reads only the threads it is part of; the fake's key is in none.
+    // A thread's messages page newest-last at 50 with `before` (`limit` 1 to 100), and the agent must be an enabled lead
+    // (404 unknown, 403 otherwise): the demo api's rules, as loops'.
     const readsChat = viewer === "person" || keyReadsChat;
-    if (at("dm", "threads")) return { threads: readsChat ? await source.getDmThreads() : [] };
+    if (at("dm", "threads")) return readsChat ? viaDemoApi(url) : { threads: [] };
     if (at("dm", "threads", "*", "messages")) {
       if (!readsChat) throw new ApiError(403, "forbidden", "Not a participant of this thread");
-      return { messages: await source.getDmMessages(parts[3] ?? ""), nextCursor: null };
+      return viaDemoApi(url);
     }
     if (at("dm", "messages", "*")) {
       if (!readsChat) throw new ApiError(403, "forbidden", "Not a participant of this thread");
@@ -746,16 +748,16 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
    * clamped); a refusal is the guard's own 403 with no CORS header.
    */
   function worldGate(req: IncomingMessage, url: URL): void {
-    const refused = (req.method !== "GET") || req.headers.authorization !== undefined || url.pathname.includes("%") || !WORLD_ROUTES.some((route) => route.test(url.pathname));
+    const refused = (req.method !== "GET") || req.headers.authorization !== undefined || url.pathname.includes("%") || !ORIGIN_ROUTES.some((route) => route(url.pathname));
     if (refused) throw new ApiError(403, "origin_forbidden", "Origin not allowed");
     if (url.pathname === "/api/events") {
       const wanted = url.searchParams.getAll("types").flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean);
-      if (wanted.some((type) => !WORLD_EVENT_TYPES.includes(type))) throw new ApiError(403, "origin_forbidden", "Origin not allowed");
+      if (wanted.some((type) => !ORIGIN_EVENT_TYPES.includes(type))) throw new ApiError(403, "origin_forbidden", "Origin not allowed");
       const limitRaw = url.searchParams.get("limit");
-      const limit = limitRaw !== null && /^\d{1,4}$/.test(limitRaw) ? Math.min(Number(limitRaw), WORLD_EVENTS_LIMIT) || WORLD_EVENTS_LIMIT : WORLD_EVENTS_LIMIT;
+      const limit = limitRaw !== null && /^\d{1,4}$/.test(limitRaw) ? Math.min(Number(limitRaw), ORIGIN_EVENTS_LIMIT) || ORIGIN_EVENTS_LIMIT : ORIGIN_EVENTS_LIMIT;
       url.searchParams.delete("types");
       url.searchParams.delete("limit");
-      url.searchParams.set("types", (wanted.length > 0 ? wanted : WORLD_EVENT_TYPES).join(","));
+      url.searchParams.set("types", (wanted.length > 0 ? wanted : ORIGIN_EVENT_TYPES).join(","));
       url.searchParams.set("limit", String(limit));
     }
   }
