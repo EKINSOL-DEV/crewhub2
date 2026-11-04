@@ -304,7 +304,8 @@ is kept with its reason until you paste another or press **Forget this key** (on
 Connection panel). `archived` says where the closed buildings came from: `list` (loops listed them, an admin key),
 `log` (loops' event log, read in this run), `remembered` (the host's own file `~/.config/crewhub-world/archived.json`
 from an earlier run, for a loops that will not read its log from the start; each slug confirmed with loops before it
-counts) or `none`. An unpaired browser gets the states only: no target, no name, no cursor, no slugs.
+counts) or `none`. An unpaired browser gets the states only: no target, no name, no cursor, no slugs, no loops version,
+no chat word, and no dev origins to a page (a program without an Origin, such as the dev server's proxy, still reads them).
 `npm run host -- doctor` prints the same in the terminal. `connection.session` says the host's half of the chat's road:
 `{ "state": "key" }` when this crewhub-loops lets the world's key read the chat (a viewer key, which reads only the chat
 of the person who made it), so that person's agents' answers come as speech bubbles over the key's own stream with no

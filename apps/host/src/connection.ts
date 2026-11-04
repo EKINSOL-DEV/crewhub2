@@ -536,17 +536,18 @@ export function createConnection(options: ConnectionOptions): Connection {
       archived: archive.state(detailed),
     };
     out.snapshot = snapshotState;
-    // The chat's road (round 19; round 29): `session: { state: "key" }` when this loops lets the world's key read the
-    // chat, so the bubbles come; `{ state: "unknown" }` while the host cannot say yet (no link, the key unchecked or
-    // being checked, the question not yet answered on this link); absent when it knows the key does not read it (an
-    // older loops, a plain external bot's key, the chat bubbles feature off). A rejected key or none: absent (no road).
-    if (keyReadsChat && link !== null) out.session = { state: "key" };
-    else if (!chatKnown && holder !== null && holder.state !== "rejected") out.session = { state: "unknown" };
     if (recheckAt !== undefined && holder?.state === "rejected") out.key.recheckAt = recheckAt;
     if (found !== null) out.discovery.via = found.via;
     const busy = link?.upstream.busy() ?? null;
     if (busy !== null) out.stream.reason = busy;
     if (!detailed) return out;
+    // The chat's road (round 19; round 29): `session: { state: "key" }` when this loops lets the world's key read the
+    // chat, so the bubbles come; `{ state: "unknown" }` while the host cannot say yet (no link, the key unchecked or
+    // being checked, the question not yet answered on this link); absent when it knows the key does not read it (an
+    // older loops, a plain external bot's key, the chat bubbles feature off). A rejected key or none: absent (no road).
+    // A paired browser only (round 31, question 3): before pairing the page shows the pairing screen and reads no road.
+    if (keyReadsChat && link !== null) out.session = { state: "key" };
+    else if (!chatKnown && holder !== null && holder.state !== "rejected") out.session = { state: "unknown" };
     if (found !== null) out.discovery.target = targetText(found.target);
     if (holder !== null) {
       out.key.name = holder.name;

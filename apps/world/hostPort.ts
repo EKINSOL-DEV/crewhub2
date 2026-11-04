@@ -65,20 +65,22 @@ export function devHostVerdict(input: { port: number; explicit: boolean; local: 
   const where = `127.0.0.1:${input.port}`;
   const named = input.explicit ? `${HOST_PORT_VAR}=${input.port}` : `the default, ${HOST_PORT_VAR}=<port> names another`;
   const head = `dev: /world-api and /pair go to the host on ${where} (${named})`;
-  const key = (name: string) => (name === "" ? "no key yet" : `key ${name}`);
+  // The key's name is a paired browser's (round 31, question 3) and the probe is never paired: a host with a key says
+  // a blank name and the key's state; a host without one says `none` (or, from before the states, nothing at all).
+  const key = (name: string, state: string | null) => (name !== "" ? `key ${name}` : state === null || state === "none" ? "no key yet" : `a key, ${state}`);
   switch (input.answer.kind) {
     case "silent":
       return { ok: true, line: `${head}: nothing answers there now, the page runs the demo until a host does.` };
     case "not-a-host":
       return { ok: true, line: `${head}: what answers there is not the world's host, the page runs the demo.` };
     case "host": {
-      const { checkout, keyName } = input.answer;
-      if (checkout === null) return { ok: true, line: `${head}: a host answers (${key(keyName)}) from before the checkout id in health, so whose it is cannot be told; going on.` };
-      if (checkout === input.local.id) return { ok: true, line: `${head}: this checkout's host (${key(keyName)}).` };
+      const { checkout, keyName, keyState } = input.answer;
+      if (checkout === null) return { ok: true, line: `${head}: a host answers (${key(keyName, keyState)}) from before the checkout id in health, so whose it is cannot be told; going on.` };
+      if (checkout === input.local.id) return { ok: true, line: `${head}: this checkout's host (${key(keyName, keyState)}).` };
       return {
         ok: false,
         line:
-          `The host on ${where} (${named}) belongs to another checkout: checkout id ${checkout}, ${key(keyName)}. ` +
+          `The host on ${where} (${named}) belongs to another checkout: checkout id ${checkout}, ${key(keyName, keyState)}. ` +
           `This checkout is ${input.local.root} (checkout id ${input.local.id}). The dev server does not start. ` +
           `Start this checkout's host on a port of yours (${HOST_PORT_VAR}=<port> npm run host) and this Vite with the same ${HOST_PORT_VAR}, or stop that host if it is yours.`,
       };

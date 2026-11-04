@@ -7,9 +7,9 @@ import { waitFor } from "./wait.ts";
 const read = async (url: string) => (await (await fetch(`${url}/world-api/health`)).json()) as Record<string, any>;
 
 describe("health", () => {
-  it("reports ok with the key name, loops' version, the cursor and the connection's states", async () => {
+  it("reports ok with the key name, loops' version, the cursor and the connection's states (to a paired browser: pairing off here; the unpaired shape is pinned in pairing.test.ts)", async () => {
     const stub = await createLoopsStub({ ...installation() });
-    const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", keySource: "env", retryMs: { min: 20, max: 100 } });
+    const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", keySource: "env", pairing: "off", retryMs: { min: 20, max: 100 } });
     try {
       // Health answers at once with the states as they are (it waits for a link in the making for HEALTH_WAIT_MS at
       // most); the shape below is the settled one, so the test waits for the stream, not for a second.
@@ -19,7 +19,7 @@ describe("health", () => {
       assert.equal(health.keyName, "crewhub-world");
       assert.equal(health.sharedKey, false);
       assert.equal(health.transport, "tcp");
-      assert.deepEqual(health.connection, { discovery: { state: "found", via: "env-url" }, key: { state: "ok" }, stream: { state: "ok", reconnects: 0 }, archived: { source: "none", count: 0 }, snapshot: { state: "idle" } }, "an unpaired request sees the states only (no archived slugs)");
+      assert.deepEqual(health.connection, { discovery: { state: "found", via: "env-url", target: stub.url }, key: { state: "ok", name: "crewhub-world", source: "env" }, stream: { state: "ok", reconnects: 0, cursor: 0 }, archived: { source: "none", count: 0, slugs: [] }, snapshot: { state: "idle" } }, "a paired browser sees the states and the details");
       assert.equal(health.cursor, 0);
       assert.equal(health.loopsWebUrl, stub.url, "the loops origin, for the sign-in link");
       assert.equal(health.checkout, undefined, "no checkout id unless the host was given one");

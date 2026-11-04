@@ -28,8 +28,12 @@ export function checkoutId(root: string, realpath: (p: string) => string = realp
   return createHash("sha256").update(normal).digest("hex").slice(0, CHECKOUT_ID_LENGTH);
 }
 
-/** What a port answered a dev server: nothing, not a host, or a host with what its health tells. */
-export type HostAnswer = { kind: "silent" } | { kind: "not-a-host" } | { kind: "host"; checkout: string | null; keyName: string };
+/**
+ * What a port answered a dev server: nothing, not a host, or a host with what its health tells. `keyName` is blank
+ * before pairing (the probe is never paired; round 31, question 3), so `keyState` (`connection.key.state`, always in
+ * health) says whether there is a key; null on a host from before the states.
+ */
+export type HostAnswer = { kind: "silent" } | { kind: "not-a-host" } | { kind: "host"; checkout: string | null; keyName: string; keyState: string | null };
 
 /** Health's body as an answer: a host's when it has the shape the page's probe accepts, else not a host. */
 export function answerFromHealth(body: unknown): HostAnswer {
@@ -37,7 +41,8 @@ export function answerFromHealth(body: unknown): HostAnswer {
   const health = body as Record<string, unknown>;
   if (!["ok", "down", "unauthorized"].includes(health["loops"] as string) || typeof health["keyName"] !== "string") return { kind: "not-a-host" };
   const checkout = typeof health["checkout"] === "string" && /^[0-9a-f]{6,64}$/.test(health["checkout"]) ? health["checkout"] : null;
-  return { kind: "host", checkout, keyName: health["keyName"] };
+  const key = (health["connection"] as { key?: { state?: unknown } } | undefined)?.key?.state;
+  return { kind: "host", checkout, keyName: health["keyName"], keyState: typeof key === "string" ? key : null };
 }
 
 /** Asks `127.0.0.1:port/world-api/health` once (loopback only, `timeoutMs`); silent on any failure. */
