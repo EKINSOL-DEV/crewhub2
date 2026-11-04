@@ -12,12 +12,13 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, it } from "node:test";
-import { type HostOptions, createHost } from "../src/host.ts";
+import type { HostOptions } from "../src/host.ts";
 import { PROBE_REASON, READER_REASON, UNKNOWN_REASON } from "../src/keyCheck.ts";
 import type { KeyStore } from "../src/keyStore.ts";
 import { BUSY_REASON } from "../src/stream.ts";
 import { createLoopsStub, installation } from "./loopsStub.ts";
 import { openSse } from "./sse.ts";
+import { testHost } from "./testHost.ts";
 import { waitFor } from "./wait.ts";
 
 async function freePort(): Promise<number> {
@@ -65,7 +66,7 @@ describe("the smooth connection", () => {
     const lines: string[] = [];
     const store = memoryStore();
     const { appData: folder, ...rest } = options;
-    const host = await createHost({ discovery: { appData: folder, intervalMs: 40 }, keyStore: store, pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, log: (line) => lines.push(line), ...rest });
+    const host = await testHost({ discovery: { appData: folder, intervalMs: 40 }, keyStore: store, pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, log: (line) => lines.push(line), ...rest });
     cleanup.push(() => host.close());
     const health = async () => (await (await fetch(`${host.url}/world-api/health`)).json()) as Record<string, any>;
     const connect = (body: unknown, init: RequestInit = {}) =>
