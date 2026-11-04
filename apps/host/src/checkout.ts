@@ -13,7 +13,7 @@
 import { createHash } from "node:crypto";
 import { realpathSync } from "node:fs";
 import path from "node:path";
-import type { HostHealth } from "@crewhub/loops-client";
+import type { HostHealth } from "../../../packages/loops-client/src/hostWire.ts";
 import { probe } from "./runningHost.ts";
 
 export const CHECKOUT_ID_LENGTH = 12;

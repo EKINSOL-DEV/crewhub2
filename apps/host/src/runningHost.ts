@@ -8,7 +8,9 @@
  * dead port: silence, "not a host", "free" or null are answers. The secret is never printed.
  */
 import { createConnection } from "node:net";
-import { type HostHealth, readHostHealth, worldApiPath } from "@crewhub/loops-client";
+// The wire by relative path, not `@crewhub/loops-client`: the Vite config (apps/world) imports this road, and Vite leaves a bare
+// package import to Node, which cannot load TypeScript on Node 22.12; a relative import is bundled with the config (round 60 N4).
+import { type HostHealth, readHostHealth, worldApiPath } from "../../../packages/loops-client/src/hostWire.ts";
 import { readRunFile } from "./runFile.ts";
 
 /** `GET /pair-mint` with the run file's secret in this header: a fresh pairing link from a host that already runs. */
