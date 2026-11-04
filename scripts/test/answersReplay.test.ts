@@ -132,7 +132,7 @@ test("parseArgs: the base, question 1's answer, the yes-branches and --check, as
   usageError([], /the base and question 1's answer are required/);
   usageError(["HEAD", "q3"], /the base and question 1's answer are required/);
   usageError(["HEAD", "tab", "q9"], /unknown: q9/);
-  for (const key of [...ORDER, "tab", "cookie+expiry"]) assert.equal(branchOf(key, {}), BRANCHES[key as keyof typeof BRANCHES]);
+  for (const key of [...ORDER, "tab", "cookie+expiry"]) assert.equal(branchOf(key, {}), BRANCHES[key]);
 });
 
 test("--use: a port merges in its answer branch's place, at the answer branch's step; the others stay the answer branches", () => {
