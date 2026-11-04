@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import * as THREE from "three";
 import { staticPartsOf } from "@crewhub/world-style";
 import { cloneLight, sameLight, toLight } from "../src/daylight.ts";
+import { environment } from "../src/environment.ts";
 import { plant } from "../src/furniture.ts";
 import { Kit, type GreenhouseManifestData } from "../src/kit.ts";
 import { PartsNode } from "../src/partsNode.ts";
@@ -101,4 +102,16 @@ test("a moved parts node's world matrix follows on an update without force (roun
   node.position.set(1, 2, 3);
   node.updateWorldMatrix(false, false);
   assert.deepEqual(new THREE.Vector3().setFromMatrixPosition(node.matrixWorld).toArray(), [1, 2, 3]);
+});
+
+test("the sun's shadow blurs 2.5 texels on the close 2048 map and 2 on the far 1024 one (round 54, r54-mut-style: environment.ts:62)", () => {
+  const scene = new THREE.Scene();
+  const renderer = { toneMapping: THREE.NoToneMapping, toneMappingExposure: 1 } as unknown as THREE.WebGLRenderer;
+  const env = environment(scene, renderer, manifest.lighting, "day", () => {}, () => {}, () => {});
+  const sun = scene.children.find((o): o is THREE.DirectionalLight => o instanceof THREE.DirectionalLight && o.castShadow);
+  assert.ok(sun);
+  env.setShadowReach(20);
+  assert.deepEqual([sun.shadow.mapSize.x, sun.shadow.radius], [2048, 2.5]);
+  env.setShadowReach(40);
+  assert.deepEqual([sun.shadow.mapSize.x, sun.shadow.radius], [1024, 2]);
 });
