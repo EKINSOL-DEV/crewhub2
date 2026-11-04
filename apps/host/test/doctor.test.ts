@@ -4,6 +4,7 @@
  */
 import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { createServer as createHttpServer } from "node:http";
 import { createServer } from "node:net";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -189,17 +190,38 @@ describe("the doctor", () => {
     cleanup.push(() => stub.close());
     const env = { CREWHUB_WORLD_LOOPS_URL: stub.url, CREWHUB_WORLD_KEY_FILE: path.join(dir, "k.key"), CREWHUB_WORLD_CONFIG_DIR: path.join(dir, "cw") };
     writeFileSync(env.CREWHUB_WORLD_KEY_FILE, stub.key, { mode: 0o600 });
-    const running = byId(await runDoctor({ env, probePort: () => Promise.resolve({ kind: "host", health: { loops: "ok", keyName: "crewhub-world", connection: { stream: { state: "ok" }, key: { state: "ok" } } } }) }));
+    // The port is asked on the program's road (runningHost.ts, `portState`, no probe injected): a hand server on a port of
+    // the test's own answers what a host would, and the doctor reads the wire's states.
+    const hostOn = async (health: unknown, type = "application/json") => {
+      const server = createHttpServer((_req, res) => {
+        res.writeHead(200, { "content-type": type });
+        res.end(type === "application/json" ? JSON.stringify(health) : String(health));
+      });
+      await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+      cleanup.push(() => new Promise<void>((resolve) => server.close(() => resolve())));
+      return { ...env, CREWHUB_WORLD_PORT: String((server.address() as { port: number }).port) };
+    };
+    const states = (stream: string, key: string, discovery = "found") => ({ discovery: { state: discovery }, key: { state: key }, stream: { state: stream, reconnects: 0 } });
+    const running = byId(await runDoctor({ env: await hostOn({ loops: "ok", keyName: "crewhub-world", sharedKey: false, connection: states("ok", "ok") }) }));
     assert.equal(running.port!.status, "ok");
-    assert.match(running.port!.text, /a host already runs .* asks it for a link/);
-    const keyless = byId(await runDoctor({ env, probePort: () => Promise.resolve({ kind: "host", health: { loops: "unauthorized", keyName: "", connection: { stream: { state: "idle" }, key: { state: "none" } } } }) }));
+    assert.match(running.port!.text, /a host already runs .* \(loops ok, key crewhub-world\); .* asks it for a link/);
+    const keyless = byId(await runDoctor({ env: await hostOn({ loops: "unauthorized", keyName: "", sharedKey: false, connection: states("idle", "none") }) }));
     assert.equal(keyless.port!.status, "ok", "no key is not a port problem: the paste fixes it without a restart");
     assert.match(keyless.port!.text, /waits for a key: paste it in the world's Connect screen/);
     assert.doesNotMatch(keyless.port!.text, /restart it/);
-    const searching = byId(await runDoctor({ env, probePort: () => Promise.resolve({ kind: "host", health: { loops: "down", keyName: "", connection: { discovery: { state: "searching" }, stream: { state: "idle" }, key: { state: "ok" } } } }) }));
+    const searching = byId(await runDoctor({ env: await hostOn({ loops: "down", keyName: "", sharedKey: false, connection: states("idle", "ok", "searching") }) }));
     assert.equal(searching.port!.status, "fix");
     assert.match(searching.port!.text, /open Crewhub.app; the host looks again every 5 s, no restart needed/);
-    const taken = byId(await runDoctor({ env, probePort: () => Promise.resolve({ kind: "taken" }) }));
+    const before = byId(await runDoctor({ env: await hostOn({ loops: "down", keyName: "x", sharedKey: false }) }));
+    assert.equal(before.port!.status, "fix", "a host from before the states: its loops word decides");
+    assert.match(before.port!.text, /but loops is down: the host retries by itself/);
+    // The wire's reader takes the states whole or not at all (round 60, review-h1 B1): a newer host with a stream word
+    // this checkout does not know is read like a host from before the states, its `loops` word deciding.
+    const newer = byId(await runDoctor({ env: await hostOn({ loops: "ok", keyName: "k", sharedKey: false, connection: states("paused", "rejected") }) }));
+    assert.equal(newer.port!.status, "ok");
+    assert.match(newer.port!.text, /\(loops ok, key k\)/);
+    const taken = byId(await runDoctor({ env: await hostOn("<html>", "text/html") }));
+    assert.equal(taken.port!.status, "fix");
     assert.match(taken.port!.text, /something else listens/);
   });
 });

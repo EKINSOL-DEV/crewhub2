@@ -65,7 +65,7 @@ file, loops at `127.0.0.1:1`, pairing off, port 0. The env has no `HOME` and no 
 
 | Line | Mutant | Road | Guarded |
 | --- | --- | --- | --- |
-| 58, 88 | the command parse (`world`/`open` instead of serve) | `mintFromRunning`: reads the run file of the port and asks that host for a pairing link with its mint secret (line 120) | no |
+| 58, 88 | the command parse (`world`/`open` instead of serve) | `mint` (`runningHost.ts`, round 60): reads the run file of the port and asks that host for a pairing link with its mint secret | no |
 | 141 to 151, 176, 284 | `--no-open` ignored, or `world` taken | **`open <link>`**: Nicky's browser opens a pairing link | no |
 | 185, 296 | `checkBuild`'s verdict | `buildWorld` spawns vite in the repository root and writes `apps/world/dist` | no (inside a scratch copy it is the copy's) |
 | 201, 202 | `mkdirSync`/`chmodSync` of the config folder | with config.ts line 55, Nicky's folder is made 0700 | yes |
@@ -78,7 +78,7 @@ file, loops at `127.0.0.1:1`, pairing off, port 0. The env has no `HOME` and no 
 
 | Line | Mutant | Road | Guarded |
 | --- | --- | --- | --- |
-| 125 | `io.probePort ?? probePortState` drops the injected probe | twelve `runDoctor` calls in `doctor.test.ts` (lines 128 to 202) name no port, so the doctor connects to **127.0.0.1:5180** and reads `GET /world-api/health` of the running host | no |
+| 125 | `io.probePort ?? portState` (`runningHost.ts`, round 60) drops the injected probe | twelve `runDoctor` calls in `doctor.test.ts` (lines 128 to 202) name no port, so the doctor connects to **127.0.0.1:5180** and reads `GET /world-api/health` of the running host | no |
 | 123, 124 | the injected `health`/`client` dropped | a real `GET /api/health` and the key's reads against the test's target (a stub); with config.ts line 13, 8091 | 8091 yes |
 | 121, 122 | the injected `statFile`/`readFile` dropped | the key files of `keyFilesOf`: the test's folder, and the old default under `~/.config/crewhub-loops` | yes |
 | 170 | `io.keyFiles ??` dropped | the stored key in the real config folder (with config.ts line 55) | yes |
@@ -92,13 +92,13 @@ file, loops at `127.0.0.1:1`, pairing off, port 0. The env has no `HOME` and no 
 | 69, 70 | the injected disk dropped | `statSync`/`readFileSync` of `/data/…` (absent: harmless), or of the app's folder with config.ts line 192 | yes |
 | 181 to 183, 205 | the retry timer not cleared on `stop` | probes keep going every `intervalMs` after the test (and against 8291 with line 128) | no |
 
-### `apps/host/src/checkout.ts`: low risk (no port literal; the caller's port only)
+### `apps/host/src/checkout.ts` and `runningHost.ts` (round 60: the road moved there): low risk (no port literal; the caller's port only)
 
 | Line | Mutant | Road | Guarded |
 | --- | --- | --- | --- |
-| 70 | the default `secret` (`readRunFile(port)`) | reads the run file of the port in the test process's **real `TMPDIR`**; a mutant cannot change the port, which is the test's own | no |
-| 44, 75 | the URL | loopback only; `http://127.0.0.1:${port}` with the caller's port | no |
-| 20 | `realpathSync(root)` | a read of the repository root | n/a |
+| `runningHost.ts`: `mint`'s and `tellOrigin`'s `readRunFile(port)` | the secret read | reads the run file of the port in the test process's **real `TMPDIR`**; a mutant cannot change the port, which is the test's own | no |
+| `runningHost.ts`: the URLs of `probe`, `mint`, `tellOrigin`; `portState`'s socket | the URL | loopback only; `http://127.0.0.1:${port}` with the caller's port | no |
+| `checkout.ts:20` | `realpathSync(root)` | a read of the repository root | n/a |
 
 ### `packages/loops-fake/src/main.ts`: medium-high risk (listen and a key file)
 

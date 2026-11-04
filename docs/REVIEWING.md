@@ -53,7 +53,8 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
   environment, one table), `host.ts` (about 790 lines since round 59d: every route, the Host and Origin guards, the
   pairing gate, the write gate) over `connection.ts` (about 670 lines: the discovery, the key's verdicts, the link,
   the snapshot and the tab feed, one interface), `pairing.ts`, `devOrigin.ts` with `checkout.ts` and
-  `runFile.ts`, `doctor.ts`, `build.ts`. The README beside them is the reference (308 lines).
+  `runFile.ts`, `runningHost.ts` (a program's road to a running host: `open`'s mint, the doctor's port, the dev
+  server's probe and dev origin, round 60), `doctor.ts`, `build.ts`. The README beside them is the reference (308 lines).
 - **What it does.** A Node 24 program with no third-party dependency (beside Node only the workspace's
   `loops-client` and `world-model`), on `127.0.0.1:5180`. It holds the one
   crewhub-loops key, answers the browser under `/world-api`, and in production serves the built page.
