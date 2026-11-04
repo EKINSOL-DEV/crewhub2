@@ -35,7 +35,8 @@ import type { TownLayer } from "../world/propLayer";
 import type { Ambient } from "../world/movement";
 import { keysDirection } from "../world/visitor";
 import { LaneChip } from "../world/lane";
-import { clockTime, countsLine, laneWords } from "../world/townLayout";
+import { countsLine } from "../world/townLayout";
+import { agentLook, type AgentBubble } from "@crewhub/world-model";
 import { civicLabel, civicWords } from "../world/settlementDressing";
 import { namesLine } from "../world/namesLine";
 import { freeLots, type TownPlan } from "../world/townPlan";
@@ -473,6 +474,7 @@ function TownFigures({ model, selection, card, said, onSaidTap }: { model: World
     <>
       {labelled.map((agent) => {
         const line = saidBy(agent.name, model.now, said);
+        const look = agentLook(agent, model);
         return (
           <div key={agent.key} className={`anchor agent-anchor${agent.key === shown ? " picked" : ""}`} data-anchor={`a:town:${agent.key}`}>
             <span className="agent-stack">
@@ -483,10 +485,10 @@ function TownFigures({ model, selection, card, said, onSaidTap }: { model: World
                 </button>
               )}
               {agent.key === shown && (
-                <span className="name-pill" title={`${agent.displayName}: ${laneWords(agent.laneStatus, model.freshness)}`}>
-                  <span className="pill-dot" data-tone={dotTone(agent, model)} aria-hidden="true" />
+                <span className="name-pill" title={`${agent.displayName}: ${look.words}`}>
+                  <span className="pill-dot" data-tone={look.tone} aria-hidden="true" />
                   {agent.displayName}
-                  <span className="sr-only">: {laneWords(agent.laneStatus, model.freshness)}</span>
+                  <span className="sr-only">: {look.words}</span>
                 </span>
               )}
             </span>
@@ -876,39 +878,8 @@ function TownLabels({ building: b, town, errors, shows }: { building: Building; 
 
 const CAPTION_ICON: Record<ProgressKind, typeof Play> = { start: Play, update: RefreshCw, done: Check, question: CircleHelp };
 
-
-function statusTag(agent: AgentPlacement, model: WorldModel, workingIn: string) {
-  if (agent.presence === "proxy") return `working in ${workingIn}${agent.locationInferred ? " (inferred)" : ""}`;
-  if (model.freshness.stale) {
-    const since = clockTime(model.freshness.teamTs);
-    return since ? `stale since ${since}` : "status unknown";
-  }
-  if (agent.posture === "greyed") return "status unknown";
-  if (agent.posture === "raised-hand") return "blocked";
-  return null;
-}
-
-/** The dot in a name pill: the lane status by colour, always with its words in the pill's title and the text view. */
-function dotTone(agent: AgentPlacement, model: WorldModel): string {
-  if (agent.presence === "proxy") return "proxy";
-  if (model.freshness.stale || agent.laneStatus === "unknown" || agent.posture === "greyed") return "unknown";
-  if (agent.posture === "raised-hand" || agent.laneStatus === "blocked") return "blocked";
-  return agent.laneStatus;
-}
-
-/** The one bubble a robot may carry by default: a question, a raised hand, a lit alert, or a fresh "done", in that order. */
-function bubbleFor(agent: AgentPlacement, model: WorldModel): { icon: typeof Play; text: string; tone: string; title: string } | null {
-  if (agent.presence !== "real") return null;
-  const caption = agent.caption;
-  if (caption?.kind === "question") return { icon: CircleHelp, text: "a little help?", tone: "ask", title: `${agent.displayName} asks on ${caption.ticketKey}: ${caption.text}` };
-  if (model.freshness.stale) return null;
-  if (agent.posture === "raised-hand") return { icon: Hand, text: "blocked", tone: "ask", title: `${agent.displayName} is blocked` };
-  const alert = agent.alerts[0];
-  if (alert) return { icon: TriangleAlert, text: alert, tone: "alert", title: agent.alerts.join("; ") };
-  if (caption?.kind === "done" && (caption.until == null || caption.until - model.now >= 4000))
-    return { icon: Check, text: "done", tone: "done", title: `${agent.displayName} on ${caption.ticketKey}: ${caption.text}` };
-  return null;
-}
+/** The icon of each bubble the appearance module (world-model `agentLook`) may give a figure. */
+const BUBBLE_ICON: Record<AgentBubble["kind"], typeof Play> = { question: CircleHelp, blocked: Hand, alert: TriangleAlert, done: Check };
 
 function AgentLabel({
   slug,
@@ -935,16 +906,17 @@ function AgentLabel({
   /** False on a phone outside a revealed room; the text view keeps every name. */
   pill: boolean;
 }) {
-  const tag = statusTag(agent, model, workingIn);
+  const look = agentLook(agent, model, workingIn);
+  const tag = look.tag;
   const caption = agent.presence === "real" && full ? agent.caption : null;
   const Icon = caption ? CAPTION_ICON[caption.kind] : null;
   const fading = caption?.until != null && caption.until - model.now < 4000;
   const alerts = full ? agent.alerts : [];
-  const bubble = full ? null : bubbleFor(agent, model);
-  const words = agent.presence === "proxy" ? (tag ?? "working elsewhere") : laneWords(agent.laneStatus, model.freshness);
+  const bubble = full || !look.bubble ? null : { ...look.bubble, icon: BUBBLE_ICON[look.bubble.kind] };
+  const words = look.words;
   const pill = showPill && !plate && (
     <span className={`name-pill${agent.presence === "proxy" ? " proxy" : ""}`} title={`${agent.displayName}: ${words}`}>
-      <span className="pill-dot" data-tone={dotTone(agent, model)} aria-hidden="true" />
+      <span className="pill-dot" data-tone={look.tone} aria-hidden="true" />
       {agent.displayName}
       <span className="sr-only">: {words}</span>
     </span>

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { civicCenter, laneWords, plotCenter, TOWN_CAPACITY, townBounds, mmss } from "../src/world/townLayout.ts";
+import { civicCenter, plotCenter, TOWN_CAPACITY, townBounds, mmss } from "../src/world/townLayout.ts";
 
 test("plots never overlap and the civic row stays behind the buildings", () => {
   const seen = new Set<string>();
@@ -16,14 +16,6 @@ test("plots never overlap and the civic row stays behind the buildings", () => {
     const p = plotCenter(i);
     assert.ok(p.x > all.minX && p.x < all.maxX && p.z > all.minZ && p.z < all.maxZ);
   }
-});
-
-test("a stale snapshot overrides every lane status", () => {
-  const fresh = { teamTs: "2026-10-01T09:00:00Z", ageSeconds: 30, stale: false };
-  assert.equal(laneWords("working", fresh), "working");
-  assert.equal(laneWords("unknown", fresh), "status unknown");
-  assert.equal(laneWords("working", { teamTs: null, ageSeconds: null, stale: true }), "status unknown");
-  assert.match(laneWords("working", { ...fresh, ageSeconds: 900, stale: true }), /^stale since \d\d:\d\d$/);
 });
 
 test("playback times read as mm:ss", () => {
