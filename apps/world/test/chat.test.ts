@@ -114,6 +114,9 @@ test("the demo opens an agent's card, never a panel; an answer row opens the car
   assert.equal(chat.api, chat.api, "made once");
   const gman = world.state.model.townHall.find((a) => a.name === "g-man")!;
   assert.deepEqual(chat.answerTarget({ agentId: "g-man", agentName: null }), { agent: { key: gman.key, name: "G-Man" }, action: "Open G-Man's card", note: null });
+  const worker = world.state.model.buildings.flatMap((b) => b.agents).find((a) => a.name === "cr-dev-1")!;
+  assert.notEqual(worker.key, "cr-dev-1", "a worker's key is not its id");
+  assert.deepEqual(chat.answerTarget({ agentId: "cr-dev-1", agentName: null }), { agent: { key: worker.key, name: worker.displayName }, action: `Open ${worker.displayName}'s card`, note: null }, "the card opens by the figure's key");
   assert.deepEqual(chat.answerTarget({ agentId: "gone", agentName: "Gone" }), { agent: { key: "gone", name: "Gone" }, action: "Open Gone's card", note: null }, "an agent the model no longer places");
   assert.deepEqual(chat.answerTarget({ agentId: "gone", agentName: null }), { agent: { key: "gone", name: "gone" }, action: "Open gone's card", note: null });
 });
