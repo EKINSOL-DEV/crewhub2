@@ -24,9 +24,10 @@ import type { HostConnection, HostHealthSent, HostMessage } from "@crewhub/loops
 import { WORLD_API_PREFIX, fillPattern, matchWorldRoute } from "./allowList.ts";
 import { DEV_ORIGINS_HEADER, devOriginAcceptedLine, devOriginVerdict } from "./devOrigin.ts";
 import type { ArchiveStore } from "./archiveStore.ts";
-import type { KeySource } from "./config.ts";
+import { KEY_SHAPE, type KeySource } from "./config.ts";
 import { type Connection, type ConnectionTimings, type HostStep, createConnection } from "./connection.ts";
 import type { DiscoveryInput } from "./discovery.ts";
+import { isJsonContentType } from "./devOrigin.ts";
 import type { KeyStore } from "./keyStore.ts";
 import { BACKUP_NAME, TOWN_BODY_LIMIT, TOWN_FORMAT, installationKey, listBackups, readBackupTown, type TownOp, type WorldDb, validateTownForHost } from "./worldDb.ts";
 import { isUnauthorized } from "./loops.ts";
@@ -127,8 +128,6 @@ export const BUILDING_HTML = `<!doctype html>
 <script>(async()=>{for(;;){await new Promise((r)=>setTimeout(r,250));try{const r=await fetch(location.href,{cache:"no-store"});if(r.ok&&r.headers.get("${BUILDING_HEADER}")===null){location.reload();return;}}catch{}}})();</script>
 </body></html>
 `;
-/** A pasted key: loops' keys are `chl_` and base64url; the fake's are hex. Bounded, one line, no spaces. */
-const KEY_SHAPE = /^chl_[A-Za-z0-9_-]{8,200}$/;
 const CONNECT_BODY_LIMIT = 4096;
 
 export interface Host {
@@ -414,7 +413,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
       sendJson(res, 200, { ok: true, connection: connection(true) });
       return;
     }
-    if (!/^application\/json\b/i.test(req.headers["content-type"] ?? "")) {
+    if (!isJsonContentType(req.headers["content-type"])) {
       req.resume();
       sendJson(res, 415, { error: "unsupported_media_type", message: "Send application/json: {\"key\": \"chl_…\"}" });
       return;
@@ -523,7 +522,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
       sendJson(res, 403, { error: "origin_required", message: "The town is written from the world's own page: send the Origin header" });
       return;
     }
-    if (!/^application\/json\b/i.test(req.headers["content-type"] ?? "")) {
+    if (!isJsonContentType(req.headers["content-type"])) {
       req.resume();
       sendJson(res, 415, { error: "unsupported_media_type", message: "Send application/json: {\"document\": {…}, \"baseRev\": n}" });
       return;

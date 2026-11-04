@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { DEV_ORIGIN_MAX, devOriginVerdict, loopbackOrigin } from "../src/devOrigin.ts";
 import { tellDevOrigin, tellOutcome } from "../src/checkout.ts";
 import { testHost } from "./testHost.ts";
+import { isJsonContentType } from "../src/devOrigin.ts";
 
 const program = { originHeader: undefined, contentType: "application/json", remoteAddress: "127.0.0.1", hostCheckout: "9f2c1a7b3d4e", known: new Set<string>(), sameUser: true, hasSecret: true };
 
@@ -105,5 +106,12 @@ describe("the dev origin at the host", () => {
     } finally {
       await bare.close();
     }
+  });
+});
+
+describe("a request that says its body is JSON (round 60, H7: one rule for connect, the town and the dev origin)", () => {
+  it("is application/json in any case, with or without parameters, and nothing else", () => {
+    for (const yes of ["application/json", "application/json; charset=utf-8", "APPLICATION/JSON", "Application/Json;charset=UTF-8", "application/json-patch+json"]) assert.equal(isJsonContentType(yes), true, yes);
+    for (const no of [undefined, "", "text/plain", "application/jsonp", " application/json", "text/application/json", "multipart/form-data"]) assert.equal(isJsonContentType(no), false, String(no));
   });
 });

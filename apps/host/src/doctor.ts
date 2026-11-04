@@ -10,8 +10,8 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { ARCHIVE_MEMORY_NAME, parseArchiveMemory, plainTime } from "./archiveStore.ts";
 import { belongsTo } from "./archiveMemory.ts";
-import { ConfigError, type KeyFiles, type LoadedKey, type PathKind, type ServerConfig, keyFilesOf, loadKey, loadServerConfig, statPath, configFolderLine } from "./config.ts";
-import { type DiscoveryInput, type Found, candidates, discoverOnce, loopsHealth, targetText } from "./discovery.ts";
+import { ConfigError, KEY_SHAPE, type KeyFiles, type LoadedKey, type PathKind, type ServerConfig, keyFilesOf, loadKey, loadServerConfig, statPath, configFolderLine } from "./config.ts";
+import { type DiscoveryInput, type Found, discoverOnce, loopsHealth, roadsOf, targetText } from "./discovery.ts";
 import { checkKey } from "./keyCheck.ts";
 import { type LoopsClient, type LoopsTarget, createLoopsClient } from "./loops.ts";
 import { nodeWarningLine, readNvmrc, runningNodeVersion } from "./nodeVersion.ts";
@@ -55,8 +55,6 @@ export interface DoctorIo {
   /** The Node version to judge against `.nvmrc` (tests fake one). Default: the running Node (`nodeVersion.ts`). */
   nodeVersion?: string;
 }
-
-export const KEY_SHAPE = /^chl_[A-Za-z0-9_-]{8,200}$/;
 
 function realStatFile(file: string): FileInfo | null {
   try {
@@ -145,7 +143,7 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
     ...(io.readFile === undefined ? {} : { readFile: io.readFile }),
     answers: async (target) => (await health(target))?.ok === true,
   };
-  const roads = candidates(input).map((c) => `${c.via} ${tilde(targetText(c.target), home)}`);
+  const roads = roadsOf(input, (target) => tilde(target, home));
   const found: Found | null = await discoverOnce(input);
   if (found === null) {
     fix(
