@@ -1,6 +1,6 @@
 /* The introduction inside the world (round 20): a first-run tour of six short steps over the real UI, for a person who
    opens the world for the first time, in demo and live mode. The words are docs/INTRODUCTION.md's, shorter (a test
-   checks the phrases against the document). Pure: the steps, when the tour may start, where its card goes, and the
+   checks the phrases against the document). No DOM: the steps, when the tour may start, where its card goes, and the
    per-browser flag that keeps it from coming back after Skip or Done. The component is components/Tour.tsx. */
 
 import { storedValue } from "./setting.ts";
@@ -85,8 +85,8 @@ export function tourSteps(mode: "demo" | "live"): TourStep[] {
   ];
 }
 
-/** Whether this browser has seen the tour through to Skip or Done. Storage may throw (a private window): then false, and the tour shows again, which is the honest fallback. */
 const tourDone = storedValue<boolean>({ key: TOUR_KEY, parse: (text) => text === "done", format: () => "done" });
+/** Whether this browser has seen the tour through to Skip or Done. Storage may throw (a private window): then false, and the tour shows again, which is the honest fallback. */
 export const readTourDone = tourDone.read;
 export const writeTourDone = (storage?: Parameters<typeof tourDone.write>[1]): void => tourDone.write(true, storage);
 

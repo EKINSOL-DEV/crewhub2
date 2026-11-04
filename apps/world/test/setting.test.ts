@@ -4,6 +4,7 @@
    on purpose: the tools set them too (tools/lib/world.mjs `castChoice`, perf.mjs, memory.mjs, regress.mjs). */
 import assert from "node:assert/strict";
 import test from "node:test";
+import React from "react";
 import { ambient } from "../src/state/ambient.ts";
 import { buildingPlan, DEFAULT_BUILDING_PLAN } from "../src/state/buildingPlan.ts";
 import { cast } from "../src/state/cast.ts";
@@ -148,6 +149,25 @@ test("the page's value: read once and kept; set keeps it, stores it and tells th
     assert.equal(none.now(), null);
     assert.equal(reads, 1, "a value of null is a value: read once, not on every render");
   });
+});
+
+test("use() hands React one subscribe for the setting's life, render after render, so a store never re-subscribes on a render (round 30's churn, state/media.ts)", () => {
+  // No DOM renderer here: React's own slot for the current renderer's hooks stands in for one. Its name says a React upgrade
+  // may move it; this test then fails loudly, and the fact needs a new pin.
+  const internals = (React as unknown as Record<string, { H: unknown }>)["__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE"]!;
+  const was = internals.H;
+  const given: unknown[] = [];
+  internals.H = { useSyncExternalStore: (subscribe: unknown, snapshot: () => unknown) => (given.push(subscribe), snapshot()) };
+  try {
+    const setting = createSetting<boolean>({ key: "u", ...onOff });
+    assert.equal(setting.use(), false);
+    setting.use();
+    setting.use();
+    assert.equal(given.length, 3);
+    assert.ok(given.every((subscribe) => subscribe === setting.subscribe), "the one subscribe, each render");
+  } finally {
+    internals.H = was;
+  }
 });
 
 test("the override wins over storage for the page, until the viewer sets the value; the Buildings setting's is the address bar's ?rooms=", () => {
