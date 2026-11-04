@@ -7,6 +7,7 @@
  * Pure functions of their inputs; `now` is the demo clock, so the same position gives the same answer.
  */
 import type { AgentLane, AgentOut, ComputerOut, LaneObserved, TeamSnapshot } from "@crewhub/loops-client";
+import { DEMO_SESSION } from "./content.ts";
 
 /** The machine the demo installation runs on, as the Mac app names it. */
 export const DEMO_COMPUTER: ComputerOut = { name: "This computer", kind: "this" };
@@ -80,7 +81,7 @@ export function laneOf(agent: Pick<AgentOut, "id" | "role" | "herdrSession">, pa
   return {
     id: `la_${agent.id}`,
     kind: script.kind,
-    session: agent.herdrSession ?? "ekinsol",
+    session: agent.herdrSession ?? DEMO_SESSION,
     name: agent.id,
     pane,
     desired,

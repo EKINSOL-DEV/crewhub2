@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { TICKET_STATUSES, type TicketStatus } from "@crewhub/loops-client";
-import { ticketFacts } from "../src/agentCard.ts";
+import { agentCardFacts } from "../src/agentCard.ts";
 import { describeWorld } from "../src/describe.ts";
 import { emptyMemory, type PresentationMemory } from "../src/memory.ts";
 import { Projection } from "../src/projection.ts";
@@ -90,6 +90,6 @@ test("round 48: a quiet stretch in a new status names the backlog's place, and t
   const model = reduce(T0);
   assert.equal(model.buildings[0]!.objects.find((o) => o.key === "CL-1")!.quiet?.status, "backlog");
   for (const l of lines(model)) assert.doesNotMatch(l, /undefined|NaN/);
-  const held = ticketFacts(projection.facts, "cl-lead").held;
+  const held = agentCardFacts(model, projection.facts, "cl-lead")!.tickets.held;
   assert.deepEqual(held.map((t) => [t.key, t.status, t.newStatus]), [["CL-4", "in_progress", null], ["CL-3", "backlog", "blocked"]]);
 });

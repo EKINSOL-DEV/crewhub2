@@ -25,10 +25,12 @@ import type {
   WatchdogResponse,
   WorldSource,
 } from "@crewhub/loops-client";
+import { TICKET_STATUSES } from "@crewhub/loops-client";
 import type { ProjectGroupSeed } from "./content.ts";
 import { mulberry32 } from "./prng.ts";
 import { type Timeline, createPlayer } from "./player.ts";
 import type { Scheduler } from "./scheduler.ts";
+import { DEMO_PERSON } from "./store.ts";
 import { DEMO_EPOCH_MS, MINUTE, SECOND, iso } from "./time.ts";
 
 export const STRESS_BUILDINGS = 12;
@@ -71,7 +73,6 @@ const DURATION_MS = 30 * MINUTE;
 const SESSION = "stress";
 const COLORS = ["coral", "tangerine", "circle", "mist", "ink"] as const;
 const ICONS = ["home", "inbox", "bot", "spark", "users", "star", "folder"] as const;
-const STATUSES: readonly TicketStatus[] = ["backlog", "planned", "in_progress", "review", "done"];
 
 export interface StressSourceOptions {
   scheduler: Scheduler;
@@ -100,7 +101,7 @@ interface State {
 const slugOf = (i: number) => `stress-${String(i + 1).padStart(2, "0")}`;
 const keyOf = (i: number) => `S${String.fromCharCode(65 + i)}`;
 const agentRef = (id: string): PrincipalRef => ({ id, kind: "agent", displayName: id });
-const PERSON: PrincipalRef = { id: "nicky", kind: "user", displayName: "Nicky" };
+const PERSON: PrincipalRef = { id: DEMO_PERSON, kind: "user", displayName: "Nicky" };
 
 /**
  * The workers of building `i`: a designer, an analyst and developers. Seven per building in the town of twelve (84
@@ -124,7 +125,7 @@ function initial(base: number, fixture: Fixture): State {
       lead = `${slug}-lead`;
     const cards: TicketCard[] = [];
     for (let n = 1; n <= TICKETS_PER_PROJECT; n++) {
-      const status = STATUSES[n % STATUSES.length]!;
+      const status = TICKET_STATUSES[n % TICKET_STATUSES.length]!;
       cards.push({
         id: `tk_${slug}_${n}`,
         key: `${key}-${n}`,
@@ -177,7 +178,7 @@ function initial(base: number, fixture: Fixture): State {
 }
 
 function renumber(cards: TicketCard[]): void {
-  for (const status of STATUSES) cards.filter((c) => c.status === status).forEach((c, i) => (c.position = i + 1));
+  for (const status of TICKET_STATUSES) cards.filter((c) => c.status === status).forEach((c, i) => (c.position = i + 1));
 }
 function counts(cards: TicketCard[]): Record<TicketStatus, number> {
   const out = { backlog: 0, planned: 0, in_progress: 0, review: 0, done: 0 };
@@ -251,7 +252,7 @@ function step(state: State, index: number, at: number): SourceMessage[] {
     // A ticket moves one column on (done goes back to the backlog: the stream never runs dry).
     const card = project.cards[Math.floor(random() * project.cards.length)]!;
     const from = card.status;
-    const to = from === "review" && random() < 0.4 ? "in_progress" : STATUSES[(STATUSES.indexOf(from) + 1) % STATUSES.length]!;
+    const to = from === "review" && random() < 0.4 ? "in_progress" : TICKET_STATUSES[(TICKET_STATUSES.indexOf(from) + 1) % TICKET_STATUSES.length]!;
     const byAgent = to === "in_progress" || to === "review";
     card.status = to;
     card.assignee = byAgent ? project.out.lead : to === "done" ? (card.assignee ?? null) : null;
@@ -329,7 +330,7 @@ export function createStressSource(options: StressSourceOptions): StressSource {
     state.now = player.now();
     const boards: Record<string, BoardResponse> = {};
     for (const p of state.projects)
-      boards[p.out.slug] = { columns: STATUSES.map((status) => ({ status, tickets: p.cards.filter((c) => c.status === status).map((c) => structuredClone(c)) })) };
+      boards[p.out.slug] = { columns: TICKET_STATUSES.map((status) => ({ status, tickets: p.cards.filter((c) => c.status === status).map((c) => structuredClone(c)) })) };
     const principals: PrincipalOut[] = [
       { id: PERSON.id, kind: "user", displayName: PERSON.displayName },
       ...agents(state).map((a) => ({ id: a.id, kind: "agent" as const, displayName: a.displayName })),
@@ -403,7 +404,7 @@ export function createStressSource(options: StressSourceOptions): StressSource {
     getProject: async (slug) => structuredClone(state.projects.find((p) => p.out.slug === slug)?.out ?? null),
     getBoard: async (slug) => {
       const p = state.projects.find((x) => x.out.slug === slug);
-      return p ? { columns: STATUSES.map((status) => ({ status, tickets: p.cards.filter((c) => c.status === status).map((c) => structuredClone(c)) })) } : null;
+      return p ? { columns: TICKET_STATUSES.map((status) => ({ status, tickets: p.cards.filter((c) => c.status === status).map((c) => structuredClone(c)) })) } : null;
     },
     getWatchdog: async () => ({ mode: "observe", open: [] }),
     getMilestones: async () => [],

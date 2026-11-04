@@ -12,7 +12,20 @@ export function drawnStatus(status: string): TicketStatus {
   return known(status) ? status : "backlog";
 }
 
-/** The status as loops sent it when this build does not know it; null for a known one. */
-export function newStatusWord(status: string): string | null {
-  return known(status) ? null : status;
+/** The pair every ticket carries: the status as drawn, and loops' word for a status newer than this build (null for a known one). */
+export function drawn(status: string): { status: TicketStatus; newStatus: string | null } {
+  return known(status) ? { status, newStatus: null } : { status: "backlog", newStatus: status };
+}
+
+const WORDS: Record<TicketStatus, string> = {
+  backlog: "backlog",
+  planned: "planned",
+  in_progress: "in progress",
+  review: "review",
+  done: "done",
+};
+
+/** A status in words: a known one as the world says it ("in progress"), a new one as loops sent it. */
+export function statusWords(status: string): string {
+  return known(status) ? WORDS[status] : status;
 }

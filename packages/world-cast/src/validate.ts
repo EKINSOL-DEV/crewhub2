@@ -2,12 +2,10 @@
    (crewhub-figure-patch/1). Pure and hand-written, like the prop validator: every problem is one line with its path. */
 import { PROP_SHAPES } from "@crewhub/world-engine";
 import type { CastManifest, FigurePatch, FigureSpec } from "./index.ts";
-import { CAST_ROLES, FIGURE_ACTIVITIES, WORK_POSES } from "./names.ts";
+import { CAST_ROLES, FIGURE_ACTIVITIES, MOTION_CHANNELS, MOTION_WAVES, WORK_POSES } from "./names.ts";
 
 export type CastValidation<T> = { ok: true; value: T } | { ok: false; errors: string[] };
 
-const WAVES = ["sine", "bounce", "lift", "blink", "glance"];
-const CHANNELS = ["rotation", "offset", "scale"].flatMap((c) => ["x", "y", "z"].map((axis) => `${c}.${axis}`));
 const POSE_KEYS = [...FIGURE_ACTIVITIES, "waiting", "carrying"];
 const MOTION_KEYS = [...FIGURE_ACTIVITIES, "waiting", "always"];
 const LOOK_KEYS = [...FIGURE_ACTIVITIES, "waiting", "alert", "near", "hover", "selected"];
@@ -206,8 +204,8 @@ function motions(r: Report, value: unknown, path: string, joints: ReadonlySet<st
       if (!isObject(motion)) return r.error(at, "must be an object");
       r.keys(motion, ["joint", "channel", "wave", "amplitude", "period", "phase", "seeded", "sided", "rests", "carrying"], at);
       if (!isText(motion.joint) || (joints && !joints.has(motion.joint))) r.error(`${at}.joint`, "must be a joint of the figure");
-      if (!CHANNELS.includes(motion.channel as string)) r.error(`${at}.channel`, `must be one of ${CHANNELS.join(", ")}`);
-      if (!WAVES.includes(motion.wave as string)) r.error(`${at}.wave`, `must be one of ${WAVES.join(", ")}`);
+      if (!(MOTION_CHANNELS as readonly unknown[]).includes(motion.channel)) r.error(`${at}.channel`, `must be one of ${MOTION_CHANNELS.join(", ")}`);
+      if (!(MOTION_WAVES as readonly unknown[]).includes(motion.wave)) r.error(`${at}.wave`, `must be one of ${MOTION_WAVES.join(", ")}`);
       if (!isNumber(motion.amplitude) || Math.abs(motion.amplitude) > 360) r.error(`${at}.amplitude`, "must be a number");
       if (!isNumber(motion.period) || motion.period < 0.1) r.error(`${at}.period`, "must be seconds, 0.1 or more");
       if ("phase" in motion && !isNumber(motion.phase)) r.error(`${at}.phase`, "must be a number of periods");

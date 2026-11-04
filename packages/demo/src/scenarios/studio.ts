@@ -12,7 +12,7 @@
  */
 import type { ProgressKind, ProjectColor, ProjectIcon } from "@crewhub/loops-client";
 import type { TownZone } from "@crewhub/world-model";
-import { type AgentSeed, type DemoContent, type LaneSeed, type ProjectGroupSeed, type ProjectSeed, type TicketSeed, WORLD_KEY_BOT } from "../content.ts";
+import { DEMO_SESSION, type AgentSeed, type DemoContent, type LaneSeed, type ProjectGroupSeed, type ProjectSeed, type TicketSeed, WORLD_KEY_BOT } from "../content.ts";
 import { mulberry32 } from "../prng.ts";
 import type { PropHome, ScriptBuilder, Story } from "../script.ts";
 import { DAY, MINUTE, SECOND, at } from "../time.ts";
@@ -193,7 +193,7 @@ export const STUDIO_TOWN_ZONES: TownZone[] = GROUPS.map((g) => ({
 const idle = (p: Plan, w: number) => (p.index + w) % 4 === 0;
 
 export const STUDIO_CONTENT: DemoContent = {
-  session: "ekinsol",
+  session: DEMO_SESSION,
   observer: WORLD_KEY_BOT.id,
   people: [
     { id: "nicky", displayName: "Nicky", role: "admin" },

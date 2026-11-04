@@ -6,7 +6,7 @@ export type { ReduceOptions, ReduceResult } from "./reducer.ts";
 export { emptyFacts } from "./facts.ts";
 export { emptyMemory } from "./memory.ts";
 export { Projection } from "./projection.ts";
-export { freshnessOf, reduceWorld } from "./reducer.ts";
+export { reduceWorld } from "./reducer.ts";
 export { CIVIC_WORDS, describeWorld, hallSummary } from "./describe.ts";
 export { agentLook, agentWords, figureLook, laneLook } from "./appearance.ts";
 export type { AgentBubble, AgentLook, AgentWords, DeskFacts, DotTone, FigureLook, FigurePose, LampLane, LaneChipKind, LaneLook, SceneAgent } from "./appearance.ts";
@@ -32,7 +32,7 @@ export {
   sameSign,
 } from "./halls.ts";
 export type { Hall, RackKind, RoomWording, WordingOptions } from "./halls.ts";
-export { RECENT_LIMIT, agentCardFacts, chatFacts, computerFacts, laneFacts, leadFacts, recentFacts, ticketFacts } from "./agentCard.ts";
+export { agentCardFacts } from "./agentCard.ts";
 export type { AgentCardFacts, AgentChatFacts, AgentLaneFacts, AgentLeadFacts, AgentLoopsFacts, AgentProgress, AgentTeamSession, AgentTicketFacts, ComputerFacts, RecentFact, TicketBrief } from "./agentCard.ts";
 export type { CivicWords } from "./describe.ts";
 export { DEFAULT_ZONE_ID, resolveZones, zoneById, zoningOf } from "./zones.ts";
@@ -40,7 +40,7 @@ export type { TownZone, TownZoning, ZoneProject, ZoneReason, ZoneResolution } fr
 export { flightMs, FLIGHT_MAX_MS, FLIGHT_MIN_MS, PERSON_CARRY_MS, PERSON_LANDED_MS, PERSON_QUEUE_MAX } from "./flights.ts";
 export { CLOSING_MS, archivedSince, archivedWords, closingOf } from "./archive.ts";
 export { BOARD_CARD_MS, BOARD_LINES, BOARD_QUEUE_MAX, boardOf, outcomeWords, pinnedCard, quietWords, runWords } from "./board.ts";
-export { drawnStatus, newStatusWord } from "./status.ts";
+export { drawn, drawnStatus, statusWords } from "./status.ts";
 export type * from "./townDocument.ts";
 export type * from "./history.ts";
 export type * from "./catalogue.ts";
