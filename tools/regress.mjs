@@ -2953,7 +2953,7 @@ const closing = closingCheck(problems, { loopsOrigins: [...allLoopsOrigins()], r
 const refusals = closing.probeRefusals;
 const errors = problemLines(closing.failing);
 ok(`no external requests beyond road 2's own (${road2Asks.length} GET(s) of the four chat routes at the loops web origins the hosts named: the page's probe and, where the origin is set, its poll)`, external.length === 0, [...new Set(external)].slice(0, 5).join(" "));
-ok(`no page errors or console errors beyond the probe's CORS refusal where the fake does not name the page's origin (${refusals.length} line(s), the browser's own two for ${new Set(refusals.map((x) => x.pageOrigin)).size} page(s))`, errors.length === 0, errors.slice(0, 5).join(" | "));
+ok(`no page errors or console errors beyond the probe's CORS refusal where the fake does not name the page's origin (${refusals.length} line(s), the browser's own two for ${new Set(refusals.map((x) => x.pageOrigin)).size} page(s)) and a health read refused inside one of the town group's host restarts (${closing.restartRefusals.length} line(s), ${restarts.length} restart(s))`, errors.length === 0, errors.slice(0, 5).join(" | "));
 await browser.close();
 
 const passed = results.filter((r) => r.pass).length;
