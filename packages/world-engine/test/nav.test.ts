@@ -449,3 +449,20 @@ test("round 54: a destination changed during that last step is where the offscre
   assert.deepEqual([...cells].sort(), ["0,0", "4,1"]);
   assert.equal(sim.stats.teleports, 1);
 });
+
+test("round 54: a destination given while the room was offscreen still counts when the room is full again before the step ends", () => {
+  const graph = new NavGraph(stressDefinitions);
+  graph.addRoom({ id: "A", layout: room(9, 2) });
+  const sim = new NavSimulation(graph, [{ id: "a", location: at("A", 0, 0) }]);
+  sim.setDestination("a", at("A", 8, 0));
+  for (let i = 0; i < 3; i++) sim.tick(1 / 30);
+  // Offscreen for one tick (the step under way does not end in it), a new destination meanwhile, then full again:
+  // the route asked for while offscreen is planned once the step ends in the full room.
+  sim.setDetail(["A"], "offscreen");
+  sim.setDestination("a", at("A", 0, 1));
+  sim.tick(1 / 30);
+  sim.setDetail(["A"], "full");
+  for (let i = 0; i < 150 && sim.actor("a")!.status !== "arrived"; i++) sim.tick(1 / 30);
+  assert.deepEqual([sim.actor("a")!.location, sim.actor("a")!.status], [at("A", 0, 1), "arrived"]);
+  assert.equal(sim.stats.teleports, 0, "it walked: the room was full when the step ended");
+});
