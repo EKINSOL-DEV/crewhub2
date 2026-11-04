@@ -15,6 +15,11 @@
  * CREWHUB_TEST_REACH_LOG=<file> the guard records instead (every connect and every refusal, one line each, with the
  * pid) and the refusal looks like a closed port, a port in use or a missing file: that is how `npm test` is measured.
  *
+ * CREWHUB_TEST_GUARD_DECOY=<port> (round 56, for the guard's own tests only): the guard refuses that one port too, on the
+ * same path (connect and listen, logged in record mode, thrown in guard mode). A guard test picks a port of its own and
+ * proves a refusal on it: no test aims at a named port, not even to show it is refused. Only a whole number in
+ * 49152-65535 (the ephemeral range, where a test's own port-0 listener lands) counts; anything else is ignored.
+ *
  * Not guarded (round 55's docs/proposals/mutation-harness.md, a day round's work): the folders follow $HOME, the real
  * TMPDIR (the hosts' run files), node:sqlite (it opens past node:fs), spawn and exec, and process.kill.
  *
@@ -41,6 +46,15 @@ export const OTHER_PORTS = new Map([
   [5180, "the world host's default port, where somebody's npm run world listens"],
   [5173, "the Vite dev server's port"],
 ]);
+/** The decoy port of `CREWHUB_TEST_GUARD_DECOY`, or null: a whole number in 49152-65535, else ignored. */
+export function decoyOf(text) {
+  if (typeof text !== "string" || !/^\d+$/.test(text)) return null;
+  const port = Number(text);
+  return port >= 49152 && port <= 65535 ? port : null;
+}
+export const DECOY_PORT = decoyOf(process.env.CREWHUB_TEST_GUARD_DECOY);
+const DECOY_WORDS = "the guard test's decoy (CREWHUB_TEST_GUARD_DECOY)";
+
 /** Ports a test listens on never (round 55): somebody's process holds them, or a host's discovery would take a test's listener for loops. */
 export const LISTEN_PORTS = [...APP_PORTS, 8291, 8292, 8293, 8391, 5180];
 export const MARK = Symbol.for("crewhub-world.no-app-reach");
@@ -80,12 +94,13 @@ export function connectTarget(args) {
   return {};
 }
 
-/** Why a connection may not be made by a test, or null. */
-export function refusesConnect(args) {
+/** Why a connection may not be made by a test, or null. `decoy` is the guard test's own port (`DECOY_PORT`). */
+export function refusesConnect(args, decoy = DECOY_PORT) {
   const target = connectTarget(args);
   if (target.path !== undefined) return refusesPath(target.path);
   if (target.port !== undefined && APP_PORTS.includes(target.port)) return `${target.host}:${target.port} is the Mac app's port`;
   if (target.port !== undefined && OTHER_PORTS.has(target.port)) return `${target.host}:${target.port} is ${OTHER_PORTS.get(target.port)}`;
+  if (decoy !== null && target.port === decoy) return `${target.host}:${target.port} is ${DECOY_WORDS}`;
   return null;
 }
 
@@ -100,10 +115,12 @@ export function listenTarget(args) {
   return {};
 }
 
-/** Why a test may not listen there, or null. */
-export function refusesListen(args) {
+/** Why a test may not listen there, or null. `decoy` is the guard test's own port (`DECOY_PORT`). */
+export function refusesListen(args, decoy = DECOY_PORT) {
   const target = listenTarget(args);
-  if (target.port === undefined || !LISTEN_PORTS.includes(target.port)) return null;
+  if (target.port === undefined) return null;
+  if (decoy !== null && target.port === decoy) return `listening on ${target.host}:${target.port}, ${DECOY_WORDS}`;
+  if (!LISTEN_PORTS.includes(target.port)) return null;
   const whose = APP_PORTS.includes(target.port) ? "the Mac app's port" : OTHER_PORTS.get(target.port);
   return `listening on ${target.host}:${target.port}, ${whose}`;
 }
