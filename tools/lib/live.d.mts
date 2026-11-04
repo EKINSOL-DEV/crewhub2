@@ -1,5 +1,6 @@
 /** Types for `live.mjs` (a plain-Node module, so the TypeScript test can import it): the parts a test reaches. */
 export const LIVE_OPTIONS: Record<string, string>;
+export const LIVE_FLAGS: string[];
 export const LIVE_USAGE: string;
 
 export interface HostLog {

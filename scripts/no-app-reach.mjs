@@ -6,7 +6,8 @@
  *     so is one to 8291 to 8293 (the development crewhub-loops), 8391 (a running loops-fake), 5180 (somebody's
  *     `npm run world`) or 5173 (a Vite dev server) (round 55);
  *   - a listen on 8091, 8000, 9443, 8291 to 8293, 8391 or 5180 is refused before the port is taken (round 55); a test
- *     listens on port 0;
+ *     listens on port 0. These ports and their words come from scripts/named-ports.mjs, the one named-port list, which
+ *     the tools' rule (tools/lib/toolGuard.ts) reads as well (round 57d);
  *   - a file under the app's data folder (~/Library/Application Support/be.ekinsol.crewhub), under ~/.config/crewhub-world
  *     or ~/.config/crewhub-loops (Nicky's folders), or a relative `settings.json` / `run/api.sock` (what `createHost`
  *     reads when a test leaves the app data folder empty) is refused before it is opened. `~` is $HOME and also the
@@ -40,6 +41,7 @@ import net from "node:net";
 import { homedir, tmpdir, userInfo } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { APP_PORTS, NAMED_PORTS, VITE_PORT } from "./named-ports.mjs";
 
 const HOME = homedir();
 export const APP_DATA = path.join(HOME, "Library", "Application Support", "be.ekinsol.crewhub");
@@ -87,16 +89,10 @@ export function isRealRunFile(file, tmpDirs = TMP_DIRS) {
   const port = Number(match[1]);
   return port >= 1024 && port <= 32767 && tmpDirs.includes(path.dirname(file));
 }
-export const APP_PORTS = [8091, 8000, 9443];
+// The ports come from the one named-port list (scripts/named-ports.mjs, round 57d), which the tools' rule reads too.
+export { APP_PORTS };
 /** Ports a test connects to never, each with whose it is (round 55): every connect of `npm test` goes to a port 0 listener. */
-export const OTHER_PORTS = new Map([
-  [8291, "the development crewhub-loops' port (tools/loops-dev.sh)"],
-  [8292, "a development crewhub-loops' port"],
-  [8293, "a development crewhub-loops' port (crewhub-loops main)"],
-  [8391, "a running loops-fake's default port"],
-  [5180, "the world host's default port, where somebody's npm run world listens"],
-  [5173, "the Vite dev server's port"],
-]);
+export const OTHER_PORTS = new Map(NAMED_PORTS.filter(({ port }) => !APP_PORTS.includes(port)).map(({ port, why }) => [port, why]));
 /** The decoy port of `CREWHUB_TEST_GUARD_DECOY`, or null: a whole number in 1024-65535, else ignored. */
 export function decoyOf(text) {
   if (typeof text !== "string" || !/^\d+$/.test(text)) return null;
@@ -106,8 +102,8 @@ export function decoyOf(text) {
 export const DECOY_PORT = decoyOf(process.env.CREWHUB_TEST_GUARD_DECOY);
 const DECOY_WORDS = "the guard test's decoy (CREWHUB_TEST_GUARD_DECOY)";
 
-/** Ports a test listens on never (round 55): somebody's process holds them, or a host's discovery would take a test's listener for loops. */
-export const LISTEN_PORTS = [...APP_PORTS, 8291, 8292, 8293, 8391, 5180];
+/** Ports a test listens on never (round 55): somebody's process holds them, or a host's discovery would take a test's listener for loops. Vite's stays open, as round 55's brief listed it. */
+export const LISTEN_PORTS = NAMED_PORTS.map(({ port }) => port).filter((port) => port !== VITE_PORT);
 export const MARK = Symbol.for("crewhub-world.no-app-reach");
 
 const under = (file, dir) => file === dir || file.startsWith(dir + path.sep);

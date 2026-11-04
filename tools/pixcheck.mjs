@@ -1,6 +1,6 @@
 /* pixcheck.mjs: the proof that a change is pixel-identical, as a tool anyone can rerun (round 24; the scratch rig of
    rounds 15 and 23 made a repository tool). Two builds, each served by `vite preview` on a port of its own (never
-   5180; the preview proxies to nothing without CREWHUB_WORLD_PORT, round 16), the same pictures of each, every pair
+   a named port, lib/toolGuard.ts; the preview proxies to nothing without CREWHUB_WORLD_PORT, round 16), the same pictures of each, every pair
    diffed on every channel at any delta, one line per pair, a diff image per pair, and `pixcheck: <identical>/<pairs>`
    last; the exit code is 0 only when every pair is 0.
 
@@ -39,6 +39,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { cli, dressed, launch, seek } from "./lib/world.mjs";
 import { describeDiff, diffPngFiles } from "./lib/pixdiff.ts";
+import { ownPort } from "./lib/toolGuard.ts";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const USAGE = "node tools/pixcheck.mjs --port <base preview port> --head-port <head preview port> --before <commit|dist> --after <commit|dist> [--casts] [--labels] [--theme light,dark] [--width 1440,375] [--seek 120000] [--rooms 3] [--cast-ids <ids>] [--cast-states <ids>] [--cast-views near,far] [--tag pixcheck] [--out <dir>]";
@@ -58,10 +59,11 @@ const opts = cli(USAGE, {
   },
   flags: ["casts", "labels"],
 });
-const headPort = Number(opts["head-port"]);
-if (!Number.isInteger(headPort) || headPort <= 0) opts.fail("--head-port <port> is required: the port the head build's preview listens on");
+// --port went through cli()'s ownPort; --head-port the same (round 57d: no named port, the one list in scripts/named-ports.mjs).
+const headVerdict = ownPort(opts["head-port"], "--head-port");
+if (!headVerdict.ok) opts.fail(`${headVerdict.reason} (--head-port is the port the head build's preview listens on)`);
+const headPort = headVerdict.value;
 if (headPort === opts.port) opts.fail("--head-port must differ from --port");
-if ([opts.port, headPort].some((p) => [5180, 8091, 8000, 9443].includes(p))) opts.fail("never 5180 (the Lead's host) or the Mac app's ports");
 if (!opts.before || !opts.after) opts.fail("--before and --after are required: a commit each, or a folder with a built world");
 const themes = opts.theme.split(",").map((s) => s.trim()).filter(Boolean);
 const widths = opts.width.split(",").map(Number);

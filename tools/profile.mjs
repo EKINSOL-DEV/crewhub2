@@ -3,7 +3,7 @@
 
    Usage:
      node tools/profile.mjs --port <port> [--runs 1] [--stacks <ms>] [--enter] [--throttle 1] [--viewport 1440x900] [--tag profile] [--out <dir>]
-                            [--fake-scenario <id>] [--loops-url <url> --key-file <file>] [--host-port <port>] [--swiftshader]
+                            [--fake-scenario <id>] [--loops-url <url> --key-file <file> [--real]] [--host-port <port>] [--swiftshader]
 
    What it does: a production run of live mode (lib/live.mjs with --preview: the host serves apps/world/dist on a free
    port against an in-process fake crewhub-loops at speed 0, or the loops of --loops-url; the browser is paired through
@@ -42,13 +42,13 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { cli, launch } from "./lib/world.mjs";
-import { LIVE_OPTIONS, startLive } from "./lib/live.mjs";
+import { LIVE_FLAGS, LIVE_OPTIONS, startLive } from "./lib/live.mjs";
 import { SourceMap } from "./lib/sourcemap.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DIST = path.join(REPO, "apps", "world", "dist");
-const USAGE = "node tools/profile.mjs --port <port> [--runs 1] [--stacks <ms>] [--enter] [--throttle 1] [--viewport 1440x900] [--tag profile] [--out <dir>] [--fake-scenario <id>] [--loops-url <url> --key-file <file>] [--host-port <port>] [--swiftshader]";
-const opts = cli(USAGE, { options: { runs: "1", tag: "profile", stacks: "0", throttle: "1", viewport: "1440x900", ...LIVE_OPTIONS, source: "live", "fake-speed": "0", "host-port": "0" }, flags: ["enter"] });
+const USAGE = "node tools/profile.mjs --port <port> [--runs 1] [--stacks <ms>] [--enter] [--throttle 1] [--viewport 1440x900] [--tag profile] [--out <dir>] [--fake-scenario <id>] [--loops-url <url> --key-file <file> [--real]] [--host-port <port>] [--swiftshader]";
+const opts = cli(USAGE, { options: { runs: "1", tag: "profile", stacks: "0", throttle: "1", viewport: "1440x900", ...LIVE_OPTIONS, source: "live", "fake-speed": "0", "host-port": "0" }, flags: ["enter", ...LIVE_FLAGS] });
 const throttle = Number(opts.throttle);
 if (!(throttle >= 1)) opts.fail("--throttle <rate> must be 1 or more");
 const [viewWidth, viewHeight] = opts.viewport.split("x").map(Number);
