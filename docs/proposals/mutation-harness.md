@@ -244,27 +244,34 @@ A first version of the JS layer refused every read outside the root. `config.tes
 - **Never:** the worktree itself (the fake's key file is `tools/out/loops-fake.key` relative to the source), a root
   under the real home, or a run without the kernel layer.
 
-## 5b. Roads outside the tests (round 56's sweep, for a day round)
+## 5b. Roads outside the tests (round 56's sweep; all six done in round 57d)
 
 Round 56 read every test, tool and script for a socket, fetch or listen that could reach a named port (8091, 8000,
 9443, 5180, 5173, 8291 to 8293, 8391) when run as written. In the tests only the two guard tests did, and round 56 moved
 them onto decoys; the socket tests' `loopsUrl` is now a closed port. Left for a day round:
 1. **`tools/regress.mjs`:** `real` and connect's real half opt-in only (`--real`), the default groups the eight that use
    fakes and stubs; `loopsEnvFile` reads only `--loops-env`, with no search of the main checkout or `~/Documents/GitHub`.
-   *Done in round 57d, `task/r57d-tool-defaults` (merge to come): the default is the nine groups without `real` (eight
+   *Done in round 57d, `task/r57d-tool-defaults`, merged as `39f883d`: the default is the nine groups without `real` (eight
    was a miscount), the opt-in is `real` named in `--groups` (`--real` is refused with a sentence), `real` without
    `--loops-env` is refused; `tools/lib/regressArgs.ts`.*
 2. **`tools/timeworld.mjs`:** `--fake <port>` or an explicit `--loops-env` required, with no search.
-   *Done in round 57d, `task/r57d-tool-defaults` (merge to come): neither or both refused before anything starts;
+   *Done in round 57d, `task/r57d-tool-defaults`, merged as `39f883d`: neither or both refused before anything starts;
    `tools/lib/timeworldArgs.ts`.*
 3. **`tools/loops-seed.mjs` and `tools/lib/seed.ts`:** `--url` required, no 8291 default.
-   *Done in round 57d, `task/r57d-tool-defaults` (merge to come): `DEFAULT_URL` gone, `checkUrl` refuses a missing `--url`.*
+   *Done in round 57d, `task/r57d-tool-defaults`, merged as `39f883d`: `DEFAULT_URL` gone, `checkUrl` refuses a missing `--url`.*
 4. **One named-port list, shared** by `toolGuard.ownPort`, `pixcheck.mjs`, `tools/lib/live.mjs` and `road2proof.mjs`: a
    tool's own ports may be none of them, and a `--loops-url` to 8291 to 8293 only with the same opt-in as item 1.
+   *Done in round 57d, `task/r57d-port-list`, merged as `554a068`: `scripts/named-ports.mjs` is the one list, read by the
+   test preload (`no-app-reach.mjs`) and `tools/lib/toolGuard.ts`; `ownPort` refuses all nine as a tool's own port
+   (`pixcheck`'s `--head-port` too), and `ownLoopsUrl` takes 8291 to 8293 only with `{ real: true }`, which `road2proof`,
+   `lib/live.mjs` (`perf`, `memory`, `profile`) give from their own `--real` flag and `regress` from `real` in `--groups`.*
 5. **`tools/README.md`:** examples with a port of one's own, not `--port 5173`.
-   *Done in round 57d, `task/r57d-tool-defaults` (merge to come): every example on 5385/5386, the opt-ins and refusals described.*
+   *Done in round 57d, `task/r57d-tool-defaults`, merged as `39f883d`: every example on 5385/5386, the opt-ins and refusals described.*
 6. **The host tests' helpers:** a shared `testHost()` that refuses to build a host without a target or an app data
    folder with a `settings.json`, so a forgotten `discovery` is a test error, not a probe of 8091 left to the guard.
+   *Done in round 57d: `apps/host/test/testHost.ts` (`task/r57d-test-host`, merged as `1d06304`), and 42 of the 55
+   hosts built through it (`task/r57d-test-host-sweep`, `717e9b0`; none was unaimed). A lint allows `createHost(` only
+   in the files `CREATE_HOST_ALLOWED` names: four whose calls an answer branch changes, and two an answer branch adds.*
 
 ## 6. Limits
 

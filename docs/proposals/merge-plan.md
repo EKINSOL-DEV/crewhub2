@@ -246,6 +246,13 @@ order, then question 1's branch last; every hand merge then happens in that last
   Linux (CI run 41773120767); `task/r56b-linux-ports` takes any port from 1024 and keeps the run-file rule below 32768.
   The replays on its merge `1050fd7`: `tab` `410a901`, 1382 / 1382; `cookie+expiry` `d8c50bb`, 1380 / 1380. No rule of
   the plan changed.
+- **Round 57d, a day round: the tools' defaults.** Only tools, scripts, tests and docs changed; no host or page
+  behaviour. Four merges on `fbf52cf`: `554a068` (one named-port list), `1d06304` (`testHost()`), `39f883d` (regress,
+  timeworld and loops-seed reach the development loops only when asked) and `717e9b0` (the host tests on `testHost`,
+  with a lint whose allow-list names `dmReadCap.test.ts` (q14) and `bodyCap.test.ts` (q15), which those branches add with
+  `createHost(` calls, and four files whose calls `q3`, `r27` and `q1` change). The seven merge cleanly onto every
+  head. The replays on `717e9b0`: `tab` `86c5481`, 1406 / 1406; `cookie+expiry` `f85a702`, 1404 / 1404. No rule of the
+  plan changed.
 - **The `cookie+expiry` and `cookie` rows, rehearsed in round 37** (detached checkouts; the five independent branches
   then the question-1 branch): the five alone on `e55ef42`, check 1070 of 1070; the five then `q1-cookie-expiry` (A,
   then B), check 1075 of 1075 on `e55ef42` and again on `761db9f` (`769434a`); the five then `r27-tab-pairing`, check
