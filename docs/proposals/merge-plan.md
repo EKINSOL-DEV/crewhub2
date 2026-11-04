@@ -242,6 +242,10 @@ order, then question 1's branch last; every hand merge then happens in that last
   - **The replays on `5b262ec`:** `tab q3 q8 q11 q14 q15`, result `c0ec5d6`, 1382 / 1382; and `cookie+expiry q3 q8 q11
     q14 q15`, result `614b7ad`, 1380 / 1380. Both were also green on `281e5b0`, `716ef35` and `ece505e`. No rule of
     the plan changed.
+- **Round 56b, CI's Linux runner.** The guard's decoy knob took only macOS's ephemeral ports, so its tests failed on
+  Linux (CI run 41773120767); `task/r56b-linux-ports` takes any port from 1024 and keeps the run-file rule below 32768.
+  The replays on its merge `1050fd7`: `tab` `410a901`, 1382 / 1382; `cookie+expiry` `d8c50bb`, 1380 / 1380. No rule of
+  the plan changed.
 - **The `cookie+expiry` and `cookie` rows, rehearsed in round 37** (detached checkouts; the five independent branches
   then the question-1 branch): the five alone on `e55ef42`, check 1070 of 1070; the five then `q1-cookie-expiry` (A,
   then B), check 1075 of 1075 on `e55ef42` and again on `761db9f` (`769434a`); the five then `r27-tab-pairing`, check
