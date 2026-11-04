@@ -50,7 +50,9 @@ export interface ChatPath {
   /**
    * Asks loops once whether the key reads the chat (`GET /api/agents`, then `GET /api/dm/threads` for a viewer) and
    * says the verdict in the log; the threads go to `onThreads` where it does. Asked already: the same answer, no
-   * second read. Disposed before the answer: nothing is kept or said.
+   * second read. A read loops did not answer (a throw, a status other than 200, 401, 403 or 409) is no verdict: the
+   * road stays unknown, one line says so, and the next check asks again (round 62, P2-1). Disposed before the
+   * answer: nothing is kept or said.
    */
   check(): Promise<void>;
   /**
@@ -63,7 +65,14 @@ export interface ChatPath {
   dispose(): void;
 }
 
-type Asked = { reads: boolean; threads: ChatThreadFact[]; viewer: boolean; status: number | null };
+/**
+ * The answer to the question, or no answer: `transient` says loops did not answer it (a read that threw, a status
+ * outside the four loops answers about a key with), so nothing is known and the question stands (round 62, P2-1).
+ */
+type Asked = { reads: boolean; threads: ChatThreadFact[]; viewer: boolean; status: number | null; transient: false } | { transient: true; why: string };
+
+/** The statuses that are loops' answer about the key: 200 (it reads), 401 and 403 (it may not), 409 (the feature is off). Anything else says nothing. */
+const VERDICT_STATUSES: ReadonlySet<number> = new Set([200, 401, 403, 409]);
 
 export function createChatPath(options: ChatPathOptions): ChatPath {
   const { client, keyName, log, onThreads, onLine } = options;
@@ -77,17 +86,20 @@ export function createChatPath(options: ChatPathOptions): ChatPath {
   async function ask(): Promise<Asked> {
     try {
       const agents = await client.getJson("/api/agents");
+      if (!VERDICT_STATUSES.has(agents.status)) return { transient: true, why: `GET /api/agents answered ${agents.status}` };
       // The key's own entry says what kind of bot it is (keyBot.ts, the one reader; the doctor prints the same fact).
-      if (agents.status !== 200 || readKeyBot(agents.body, keyName).kind !== "viewer") return { reads: false, threads: [], viewer: false, status: null };
+      if (agents.status !== 200 || readKeyBot(agents.body, keyName).kind !== "viewer") return { reads: false, threads: [], viewer: false, status: null, transient: false };
       const threads = await client.getJson("/api/dm/threads");
-      return { reads: threads.status === 200, threads: threads.status === 200 ? readThreads(threads.body) : [], viewer: true, status: threads.status };
+      if (!VERDICT_STATUSES.has(threads.status)) return { transient: true, why: `GET /api/dm/threads answered ${threads.status}` };
+      return { reads: threads.status === 200, threads: threads.status === 200 ? readThreads(threads.body) : [], viewer: true, status: threads.status, transient: false };
     } catch {
-      return { reads: false, threads: [], viewer: false, status: null };
+      // A read that threw (a timeout, a refused connection): nothing reached loops, so nothing is known.
+      return { transient: true, why: "the read failed" };
     }
   }
 
   /** The host's one line on the key's chat road, after the question was asked. */
-  function tell(chat: Asked): void {
+  function tell(chat: Exclude<Asked, { transient: true }>): void {
     if (chat.reads) log(`the key reads the chat on this crewhub-loops: only the chat of the person who made the key; their agents' answers come over its stream, no sign-in needed; ${chat.threads.length} chat thread(s)${chat.threads.length === 0 ? " (none yet is no error: the maker has not written to an agent)" : ""}`);
     // Loops' chat bubbles feature switched off (Settings > Features) answers 409 feature_off to every chat read (round
     // 29, Medium 3): a viewer key that reads nothing until it is switched on, said as that and not as "no viewer key".
@@ -99,6 +111,14 @@ export function createChatPath(options: ChatPathOptions): ChatPath {
   function check(): Promise<void> {
     asked ??= ask().then((chat) => {
       if (disposed) return;
+      if (chat.transient) {
+        // No verdict (round 62, P2-1): loops did not answer (a timeout, a 5xx, a loops half up after a restart). The
+        // road stays unknown, said once; the memo is cleared so the next check asks again (the ear's, when the
+        // stream opens; the next link's). Before, this was recorded as the definitive no, blaming the key or the maker.
+        asked = null;
+        log(`the key's chat road is not known yet: crewhub-loops did not answer the chat reads (${chat.why}); asked again when the stream opens or at the next link`);
+        return;
+      }
       verdict = chat.reads ? "yes" : "no";
       threadFacts = chat.reads ? chat.threads : null;
       tell(chat);

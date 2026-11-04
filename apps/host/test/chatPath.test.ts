@@ -4,7 +4,8 @@
  * on a viewer whose threads answer 200, 403 or 409 and on a plain key; the threads at the check and again, once, after
  * a burst of dm events; an agent's dm.created read by id as one line, the person's own never read. New here: the
  * verdict unknown before the check and after a dispose in flight, a second check that asks nothing, no timer and no
- * line after dispose, a failed read as no line.
+ * line after dispose, a failed read as no line. Round 62 (P2-1): a read loops did not answer (a throw, a 5xx) is no
+ * verdict: unknown, said once, and the next check asks again; 401, 403 and 409 stay verdicts.
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
@@ -100,14 +101,47 @@ describe("the viewer key's chat path", () => {
     assert.ok(!/no viewer key/.test(off.lines[0]!));
   });
 
-  it("loops not answering the question (a read that throws, a non-200 agents list) is no, not unknown, with the no-viewer-key line", async () => {
-    const down = build({ "/api/agents": new Error("ECONNREFUSED") });
-    await down.chat.check();
-    assert.equal(down.chat.reads(), "no");
-    assert.match(down.lines[0]!, /no viewer key/);
+  it("loops not answering the question (a read that throws, a 5xx on the agents or the threads) is no verdict: unknown, one line that says so and blames nobody, and the next check asks again (round 62, P2-1)", async () => {
+    // rv-page's proof adopted: the first answer fails, every later one is a viewer with threads. Before the fix each of
+    // the three was recorded as the definitive no with the no-viewer-key (or the maker's) line, and never asked again.
+    const once = <T>(first: Answer, then: Answer) => {
+      let calls = 0;
+      return () => (calls++ === 0 ? first : then) as T;
+    };
+    const cases: [string, Parameters<typeof build>[0]][] = [
+      ["a timeout on GET /api/agents", { "/api/agents": once(new Error("read timed out"), { status: 200, body: VIEWER }), "/api/dm/threads": { status: 200, body: THREADS } }],
+      ["a 503 on GET /api/agents", { "/api/agents": once({ status: 503, body: null }, { status: 200, body: VIEWER }), "/api/dm/threads": { status: 200, body: THREADS } }],
+      ["a 502 on GET /api/dm/threads", { "/api/agents": { status: 200, body: VIEWER }, "/api/dm/threads": once({ status: 502, body: null }, { status: 200, body: THREADS }) }],
+    ];
+    for (const [name, answers] of cases) {
+      const { chat, asked, lines, threads } = build(answers);
+      await chat.check();
+      assert.equal(chat.reads(), "unknown", `${name}: no verdict on a read loops did not answer`);
+      assert.equal(chat.threads(), null, name);
+      assert.equal(lines.length, 1, `${name}: one line`);
+      assert.match(lines[0]!, /^the key's chat road is not known yet: crewhub-loops did not answer the chat reads \((GET \/api\/(agents|dm\/threads) answered 50[23]|the read failed)\); asked again when the stream opens or at the next link$/, name);
+      assert.ok(!/no viewer key|maker/.test(lines[0]!), `${name}: nobody blamed`);
+      const before = asked.length;
+      await chat.check();
+      assert.ok(asked.length > before, `${name}: the next check asks again`);
+      assert.equal(chat.reads(), "yes", `${name}: loops answers now`);
+      assert.equal(lines.length, 2, `${name}: the verdict's line`);
+      assert.equal(threads.length, 1, `${name}: the threads handed on once`);
+    }
+    // A 401, 403 or 409 is loops' answer about the key: a verdict, kept, never asked again.
     const refused = build({ "/api/agents": { status: 403, body: null } });
     await refused.chat.check();
     assert.equal(refused.chat.reads(), "no");
+    assert.match(refused.lines[0]!, /no viewer key/);
+    const unauthorized = build({ "/api/agents": { status: 401, body: null } });
+    await unauthorized.chat.check();
+    assert.equal(unauthorized.chat.reads(), "no");
+    const off = build({ "/api/agents": { status: 200, body: VIEWER }, "/api/dm/threads": { status: 409, body: { error: { code: "feature_off" } } } });
+    await off.chat.check();
+    assert.equal(off.chat.reads(), "no");
+    const before = off.asked.length;
+    await off.chat.check();
+    assert.equal(off.asked.length, before, "a verdict is not asked again");
   });
 
   it("where the key reads the chat: a burst of dm events has the threads read again once, after refreshMs, and handed on; an agent's dm.created becomes one line read by id, the person's own is never read", async () => {
