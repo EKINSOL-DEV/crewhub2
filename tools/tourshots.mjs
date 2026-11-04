@@ -4,7 +4,8 @@
 
    Usage: node tools/tourshots.mjs --port <vite port> [--steps 1,2] [--theme light,dark] [--width 1440,375] [--out <dir>] [--swiftshader]
    Output in --out: tour-step<N>-<theme>-<width>.png. Prints `tourshots: <passed>/<total>` last; exit 0 at full marks. */
-import { cli, dressed, launch, list, problemLines, watch } from "./lib/world.mjs";
+import { cli, dressed, launch, list, problemLines } from "./lib/world.mjs";
+import { openPage } from "./lib/page.mjs";
 
 const opts = cli("node tools/tourshots.mjs --port <vite port> [--steps 1,2] [--theme light,dark] [--width 1440,375] [--out <dir>] [--swiftshader]", { options: { steps: "1,2", theme: "light,dark", width: "1440,375" } });
 const steps = list(opts.steps).map(Number);
@@ -24,10 +25,8 @@ const ok = (name, condition, detail = "") => {
 
 for (const theme of themes)
   for (const width of widths) {
-    const ctx = await browser.newContext({ viewport: { width, height: width <= 480 ? 812 : 900 }, ...(width <= 480 ? { isMobile: true, hasTouch: true } : {}), deviceScaleFactor: 1, colorScheme: theme });
-    const p = await ctx.newPage();
-    watch(p, opts.origin, problems, `${theme} ${width}`);
-    await p.goto(`${opts.base}?tour=on`, { waitUntil: "load" });
+    const p = await openPage(browser, { origin: opts.origin, width, theme, problems, tag: `${theme} ${width}`, url: `${opts.base}?tour=on`, waitUntil: "load" });
+    const ctx = p.context();
     await dressed(p, 60000).catch(() => undefined);
     const card = p.locator(".tour-card");
     const came = await card.waitFor({ timeout: 10000 }).then(() => true).catch(() => false);

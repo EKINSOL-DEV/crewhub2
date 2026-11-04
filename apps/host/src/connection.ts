@@ -1,6 +1,7 @@
 /**
  * The host's connection to crewhub-loops as one module (round 59d, C1): the discovery (where loops is), the key and
- * loops' verdict on it (checked at every link, re-checked slowly when rejected, the stream's 401 as a second opinion),
+ * loops' verdict on it (checked at every link, re-checked slowly when rejected, the stream's 401 as a second opinion;
+ * the key's word is written by keyHolder.ts alone),
  * the link (one client, one upstream stream, the chat path of chatPath.ts) and its relink on every change, the
  * memory of the closed buildings (archiveMemory.ts), loops' versions, the shared snapshot assembly and the tab feed
  * (every browser tab subscribed at its cursor, the host's own heartbeat while no link stands). host.ts keeps the HTTP:
@@ -17,16 +18,18 @@ import { createArchiveMemory } from "./archiveMemory.ts";
 import type { ArchiveStore } from "./archiveStore.ts";
 import { type ChatPath, createChatPath } from "./chatPath.ts";
 import { DEFAULT_LOOPS_URL, type KeySource } from "./config.ts";
-import { type Discovery, type DiscoveryInput, type Found, createDiscovery, loopsAnswers, targetText } from "./discovery.ts";
+import { type Discovery, type DiscoveryInput, type Found, createDiscovery, targetText } from "./discovery.ts";
 import { checkKey } from "./keyCheck.ts";
+import { type HeldKey, checked, checking, holdKey, secondOpinion } from "./keyHolder.ts";
 import type { KeyStore } from "./keyStore.ts";
 import type { UpstreamTooLarge } from "./bodyCap.ts";
 import { type LoopsClient, type LoopsResponse, createLoopsClient } from "./loops.ts";
+import { loopsAnswers } from "./loopsHealth.ts";
 import { type ArchiveReport, type AssembledSnapshot, SnapshotError, type SnapshotStats, assembleSnapshot } from "./snapshot.ts";
 import { type Upstream, createUpstream } from "./stream.ts";
 
-/** What the stream's 401 or 403 means for a key that was accepted before: health's `connection.key.reason`. */
-export const STREAM_REFUSED_REASON = "crewhub-loops refused the key on the event stream (401 or 403): it was revoked or its bot disabled meanwhile. Paste a new access key, or forget this one.";
+/** The stream's reason on a key it refused (keyHolder.ts writes it): health's `connection.key.reason`, as host.ts re-exports it. */
+export { STREAM_REFUSED_REASON } from "./keyHolder.ts";
 /** How long a rejected key waits before the host re-checks it with loops (a health probe first). */
 export const RECHECK_MS = 5 * 60_000;
 
@@ -151,17 +154,6 @@ export interface Connection {
   close(): Promise<void>;
 }
 
-/** The host's key and what loops said about it. The text of the key lives here and in the client's closure only. */
-interface KeyHolder {
-  key: string;
-  /** The agent name from the file, or the principal loops answered. */
-  name: string;
-  source: KeySource;
-  /** `unchecked` until loops answered about it; `checking` only while a check runs. */
-  state: HostKeyState["state"];
-  reason?: string;
-}
-
 /** The link to loops: a client and the one upstream stream, for one target and one key, with the chat path on it. */
 interface Link {
   found: Found;
@@ -203,7 +195,7 @@ export function createConnection(options: ConnectionOptions): Connection {
   const appRoads = discoveryInput.loopsUrl === null && discoveryInput.loopsSocket === null;
 
   // --- The key. ---
-  let holder: KeyHolder | null = options.key === undefined ? null : { ...options.key, state: "unchecked" };
+  let holder: HeldKey | null = options.key === undefined ? null : holdKey(options.key.key, options.key.name, options.key.source, "unchecked");
   const readTimeoutMs = timings.readTimeoutMs;
   const clientFor = (found: Found, key: string): LoopsClient =>
     createLoopsClient(found.target, key, {
@@ -217,11 +209,8 @@ export function createConnection(options: ConnectionOptions): Connection {
   // every link; the stream's archive events and every snapshot's report keep it.
   const archive = createArchiveMemory({
     ...(options.archiveStore === undefined ? {} : { store: options.archiveStore }),
-    targetNow: () => {
-      const found = discovery.current();
-      return found === null ? null : targetText(found.target);
-    },
-    log,
+    // Scrubbed, as the upstream's lines are: an envelope's `type` is text from loops.
+    log: (line) => log(scrub(line)),
   });
 
   // --- loops' version: the first one this run read and the last one, so an upgrade under the host is said (health's
@@ -270,7 +259,7 @@ export function createConnection(options: ConnectionOptions): Connection {
     recheckTimer = null;
     recheckAt = undefined;
   }
-  function scheduleRecheck(mine: KeyHolder): void {
+  function scheduleRecheck(mine: HeldKey): void {
     clearRecheck();
     recheckAt = new Date(Date.now() + recheckMs).toISOString();
     recheckTimer = setTimeout(() => {
@@ -280,7 +269,7 @@ export function createConnection(options: ConnectionOptions): Connection {
     }, recheckMs);
     recheckTimer.unref?.();
   }
-  async function recheck(mine: KeyHolder): Promise<void> {
+  async function recheck(mine: HeldKey): Promise<void> {
     if (closed || holder !== mine || mine.state !== "rejected") return;
     const found = discovery.current();
     if (found === null) return; // the discovery's change relinks by itself
@@ -325,6 +314,17 @@ export function createConnection(options: ConnectionOptions): Connection {
     void link.upstream.start();
   }
 
+  /** The link taken down: no link stands from here, its chat path is disposed, every tab is off its upstream, the upstream is stopped. */
+  async function unlink(old: Link): Promise<void> {
+    link = null;
+    old.chat.dispose();
+    for (const tab of tabs.values()) {
+      tab.unsubscribe?.();
+      tab.unsubscribe = null;
+    }
+    await old.upstream.stop();
+  }
+
   /** Builds the link for the current target and key, after stopping the old one: one upstream stream per host, always. */
   function relink(healthKnown = false): Promise<void> {
     relinking = relinking.then(async () => {
@@ -332,15 +332,7 @@ export function createConnection(options: ConnectionOptions): Connection {
       clearRecheck();
       const found = discovery.current();
       const old = link;
-      if (old !== null) {
-        link = null;
-        old.chat.dispose();
-        for (const tab of tabs.values()) {
-          tab.unsubscribe?.();
-          tab.unsubscribe = null;
-        }
-        await old.upstream.stop();
-      }
+      if (old !== null) await unlink(old);
       if (found !== null) archive.linked(targetText(found.target));
       if (found === null || holder === null) {
         for (const tab of tabs.values()) attach(tab);
@@ -350,15 +342,13 @@ export function createConnection(options: ConnectionOptions): Connection {
       // `healthKnown`: the re-check probed health a moment ago; a 401 now needs no second probe (the budget).
       const healthy = healthKnown ? async () => true : () => loopsAnswers(found.target);
       const mine = holder;
-      const before = mine.state;
-      mine.state = "checking";
+      checking(mine);
       snapshotState = { state: "idle" };
       const keyStarted = performance.now();
       const verdict = await checkKey(client, healthy);
       if (closed || holder !== mine || discovery.current() !== found) return;
+      checked(mine, verdict);
       if (verdict.state === "rejected") {
-        mine.state = "rejected";
-        mine.reason = verdict.reason;
         step("key", false, `key ${mine.name} (${mine.source}) rejected by loops at ${targetText(found.target)}: ${scrub(verdict.reason)} (the key is kept; paste a new one or forget it)`, performance.now() - keyStarted);
         for (const tab of tabs.values()) attach(tab);
         scheduleRecheck(mine);
@@ -366,9 +356,6 @@ export function createConnection(options: ConnectionOptions): Connection {
       }
       let chat: ChatPath;
       if (verdict.state === "ok") {
-        mine.state = "ok";
-        delete mine.reason;
-        mine.name = verdict.name;
         step("key", true, `key ${mine.name} (${mine.source}) accepted by loops at ${targetText(found.target)}`, performance.now() - keyStarted);
         // Does this loops let the key read the chat (a viewer key, round 12)? Then the bubbles come over the key's own
         // stream; a loops that answers anything else (an older loops, a plain external bot's key) shows no bubbles, and
@@ -381,7 +368,6 @@ export function createConnection(options: ConnectionOptions): Connection {
         }
       } else {
         // Nothing is known about the key: it keeps the state it had (a fresh key stays unchecked), never rejected.
-        mine.state = before === "checking" ? "unchecked" : before;
         log(`key ${mine.name} (${mine.source}) ${mine.state}: ${scrub(verdict.reason)}; the stream keeps trying`);
         chat = chatPathFor(client, mine.name);
       }
@@ -395,40 +381,23 @@ export function createConnection(options: ConnectionOptions): Connection {
       // The connection's own ear on its stream, for as long as this link lives: the stream is the second opinion on
       // the key (a confirmed 401/403 is rejected, ok is ok, down says nothing), loops going away sends the discovery
       // looking again on the app's roads, the dm events feed the chat path and the archive events the memory of the
-      // closed buildings. Subscribed with no cursor, so the first message is the stream's current status, not a
-      // change: skipped.
-      let first = true;
-      upstream.subscribe(null, (message) => {
-        if (first) {
-          first = false;
-          return;
-        }
+      // closed buildings. An observer, not a tab: it hears the changes from now on, no status at once and no replay.
+      // Its stop is the upstream's own (`stop()` ends every listener): the way to stop it alone is not kept.
+      upstream.observe((message) => {
         if (link?.upstream !== upstream) return;
         if (message.type === "status") {
           if (message.loops === "unauthorized") {
-            if (mine.state !== "rejected") {
-              mine.state = "rejected";
-              mine.reason = STREAM_REFUSED_REASON;
-              log(`key ${mine.name} (${mine.source}) rejected on the stream (the key is kept; paste a new one or forget it)`);
-            }
+            if (secondOpinion(mine, "unauthorized")) log(`key ${mine.name} (${mine.source}) rejected on the stream (the key is kept; paste a new one or forget it)`);
             // The stream stops here: no retry with a key loops refused. The tabs hear "unauthorized" and the slow
             // re-check takes over (see above).
             relinking = relinking.then(async () => {
               if (closed || link?.upstream !== upstream) return;
-              link = null;
-              chat.dispose();
-              for (const tab of tabs.values()) {
-                tab.unsubscribe?.();
-                tab.unsubscribe = null;
-              }
-              await upstream.stop();
+              await unlink(link);
               for (const tab of tabs.values()) attach(tab);
               if (holder === mine && mine.state === "rejected") scheduleRecheck(mine);
             });
           } else if (message.loops === "ok") {
-            if (mine.state !== "ok") {
-              mine.state = "ok";
-              delete mine.reason;
+            if (secondOpinion(mine, "ok")) {
               log(`key ${mine.name} (${mine.source}) accepted on the stream`);
               // The key was never checked with a 200 (loops was not up at the host's start, round 29 High 1): the
               // check's own tail runs now, so health says whether the key reads the chat and the dm gate opens.
@@ -440,8 +409,7 @@ export function createConnection(options: ConnectionOptions): Connection {
         if (message.type !== "event") return;
         // A `dm.*` event the key's stream sees (round 24): the chat path reads the threads again and an agent's message as a line.
         chat.onEvent(message.envelope);
-        if (message.envelope.project === null) return;
-        archive.heard(message.envelope.type, message.envelope.project.slug);
+        archive.heard(message.envelope);
       });
       for (const tab of tabs.values()) attach(tab);
       // The first attempt decides the states a connect answers with; it is bounded by the read timeout. A first
@@ -484,8 +452,7 @@ export function createConnection(options: ConnectionOptions): Connection {
     snapshotState = { state: "reading", reads: 0 };
     const out = await assembleSnapshot(client, {
       cursor: upstream.cursor(),
-      knownArchivedSlugs: archive.seen(),
-      rememberedSlugs: archive.slugs(),
+      archived: archive.forSnapshot(),
       observer: holder === null ? null : holder.name,
       onArchive: (report: ArchiveReport) => archive.reported(report),
       onProgress: (progress) => {
@@ -609,7 +576,7 @@ export function createConnection(options: ConnectionOptions): Connection {
         log(`cannot store the key in ${options.keyStore.file}: ${error instanceof Error ? error.message : "unknown error"} (it is used for this run only)`);
       }
     }
-    holder = { key: pasted, name: verdict.name, source: stored ? "stored" : "env", state: "ok" };
+    holder = holdKey(pasted, verdict.name, stored ? "stored" : "env", "ok");
     log(`key ${verdict.name} accepted from the browser${stored ? `, stored in ${options.keyStore?.file}` : ""}`);
     await relink();
     return { state: "ok", name: verdict.name, stored };

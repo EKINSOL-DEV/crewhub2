@@ -3,7 +3,7 @@
    rule props. An invalid import shows its precise error and changes nothing. */
 import { useEffect, useState, type ChangeEvent } from "react";
 import { Download } from "lucide-react";
-import { readHostTownBackup, readHostTownBackups } from "@crewhub/loops-client";
+import { type TownBackupInfo, readHostTownBackup, readHostTownBackups, readTownBackup, readTownBackups } from "@crewhub/loops-client";
 import { exportTownDocument, RULE_IDS, type RuleId, type TownDocument } from "@crewhub/world-model";
 import { RestoreDialog, type RestorePreview } from "./RestoreDialog";
 import { townKeepingWords } from "../world/zoneText";
@@ -43,15 +43,15 @@ export function TownSettings({ town }: { town: TownState }) {
   const [importNote, setImportNote] = useState<{ ok: boolean; text: string } | null>(null);
   // Round 21: a restore (a file or a backup) is previewed and confirmed, never silent.
   const [pending, setPending] = useState<(RestorePreview & { doc: TownDocument }) | null>(null);
-  const [backups, setBackups] = useState<{ name: string; version: number; at: string }[]>([]);
+  const [backups, setBackups] = useState<TownBackupInfo[]>([]);
   const [backup, setBackup] = useState("");
   const hosted = town.storage === "host";
   useEffect(() => {
     if (!hosted) return;
     let live = true;
     void readHostTownBackups().then((answer) => {
-      const list = (answer.body as { backups?: { name: string; version: number; at: string }[] } | null)?.backups;
-      if (live && Array.isArray(list)) setBackups(list);
+      const list = readTownBackups(answer.status, answer.body);
+      if (live && list !== null) setBackups(list.backups);
     });
     return () => {
       live = false;
@@ -79,8 +79,8 @@ export function TownSettings({ town }: { town: TownState }) {
   const previewBackup = async () => {
     if (!backup) return;
     const answer = await readHostTownBackup(backup);
-    const document = (answer.body as { document?: unknown } | null)?.document;
-    if (answer.status !== 200 || document === undefined || document === null) {
+    const document = readTownBackup(answer.status, answer.body)?.document;
+    if (document === undefined || document === null) {
       setImportNote({ ok: false, text: answer.status === 404 ? `${backup} holds no town for this crewhub-loops; nothing changed.` : `The host did not answer with ${backup}; nothing changed.` });
       return;
     }
@@ -220,7 +220,7 @@ export function TownSettings({ town }: { town: TownState }) {
               <option value="">{backups.length ? "Choose a copy" : "None yet"}</option>
               {backups.map((b) => (
                 <option key={b.name} value={b.name}>
-                  {b.name} (schema {b.version}, {b.at.slice(0, 16).replace("T", " ")})
+                  {b.name} (schema {b.version}{b.at === undefined ? "" : `, ${b.at.slice(0, 16).replace("T", " ")}`})
                 </option>
               ))}
             </Field>

@@ -53,7 +53,8 @@ smooth connection" below):
   such a body means a broken loops or something else answering at its URL.
 - **The chat over the key** (round 12; road 1 of the two roads since round 28): on a crewhub-loops whose viewer key may read the chat (L1,
   crewhub-loops main since #959: the key's own entry in `GET /api/agents` says `viewer: true` and `GET /api/dm/threads` answers 200), the host
-  reads an agent's `dm.created` on its own stream by id with the key (`src/chatPath.ts`, one module per link, with the dm readers of
+  reads an agent's `dm.created` on its own stream by id with the key (`src/chatPath.ts`, one module per link, the key's own entry read
+  by `src/keyBot.ts`, the one reader of what kind of bot the key is, which the doctor's agents line prints too; with the dm readers of
   `@crewhub/loops-client`: the first line, at most 140 characters) and hands the
   tabs a `chat` stream message, the speech bubble; `connection.session` says `{ "state": "key" }`. A viewer key reads only the chat of the
   person who made it (`agent_keys.made_by`, #964): that person's messages and the agents' answers to them; a key with no maker reads no chat,
@@ -205,7 +206,9 @@ The host starts with neither loops nor a key and reports the honest states; the 
   memory belongs to one loops: the file names the target it was learnt from, the host uses it only for that target (a
   file without a target, the old format, is taken as is), another loops' memory is said in the log and ignored and
   stays on disk until this loops' own set is learnt (a snapshot that read the list or the whole log, or an archive
-  event on the stream); a run that found nothing never writes an empty list over it. Health says where the list came
+  event on the stream); a run that found nothing never writes an empty list over it. The memory hears the stream's
+  envelopes as they are (`heard(envelope)`, round 60): one with no `project` key at all is ignored by the memory, said
+  in the log, never an error in the stream's broadcast (the tabs still hear it). Health says where the list came
   from: `connection.archived: { source: "list" | "log" | "remembered" | "none", count, at? }` (`slugs` for a paired
   browser).
 - **`POST /world-api/connect`** `{"key": "chl_…"}` from a paired browser on an allowed origin, `application/json`, at
@@ -274,7 +277,7 @@ All from the repository root; the env of the table above applies to each.
 | --- | --- |
 | `npm run world` | The morning: starts the host in production mode with pairing on, opens the default browser on a one-time pairing link, builds `apps/world/dist` beside it when it is missing or stale, prints the step list. `-- --no-open` prints the link instead. A second run finds the running host and only mints a new link. The pairing secret is kept in `<config dir>/pairing-secret`. |
 | `npm run host -- doctor` | The preflight: one line per check (the Node version, the config folder, loops found, its health, the key file, what loops says about the key, the projects, agents and team reads, the event log, the remembered archive, the host's port, pairing), `ok` or the fix; exit 0 only when all pass. Reads only, never the stream. |
-| `npm run host -- open` | Prints a one-time pairing link: asks a host already running on the port (a loopback-only `GET /pair-mint` guarded by a per-run mint secret in a 0600 run file), else starts one. The run file is the host's while it runs: it goes at any exit of the host process (Ctrl-C, SIGTERM, a failed `world` build, an uncaught error; `src/runFile.ts`); only a hard kill (SIGKILL, a power loss) leaves it behind, and then the next `open` gets no answer from that port and starts a host. `--origin <url>` mints the link on another origin (the Vite dev server, which proxies `/pair`). It prints and never opens a browser; the whole usage is `node apps/host/src/main.ts [--loops-socket <path>] [open [--origin <url>] \| world [--no-open] \| doctor]`. |
+| `npm run host -- open` | Prints a one-time pairing link: asks a host already running on the port (a loopback-only `GET /pair-mint` guarded by a per-run mint secret in a 0600 run file; `src/runningHost.ts`, the program's road to a running host), else starts one. The run file is the host's while it runs: it goes at any exit of the host process (Ctrl-C, SIGTERM, a failed `world` build, an uncaught error; `src/runFile.ts`); only a hard kill (SIGKILL, a power loss) leaves it behind, and then the next `open` gets no answer from that port and starts a host. `--origin <url>` mints the link on another origin (the Vite dev server, which proxies `/pair`). It prints and never opens a browser; the whole usage is `node apps/host/src/main.ts [--loops-socket <path>] [open [--origin <url>] \| world [--no-open] \| doctor]`. |
 | `npm run host` | Serve mode for development: the data from the host, the world from Vite (`npm run dev`, opened with `?source=live`); the pairing secret is per run. `-- --loops-socket <path>` reads loops over that Unix socket. |
 | `npm run host:start` | Production serve mode: builds the world, then serves `apps/world/dist` on `127.0.0.1:5180` with pairing on. `-- open` also prints the link. |
 

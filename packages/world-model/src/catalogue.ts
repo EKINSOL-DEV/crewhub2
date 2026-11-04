@@ -6,7 +6,7 @@
  * Semantics come from the engine record only: `definitionFor` returns the `PropDefinition` (via world-engine's
  * `toPropDefinition` for parts props), so placement blocks exactly the declared footprint and never the parts.
  */
-import { PROP_CATEGORIES, WorldSimulation, toPropDefinition } from "@crewhub/world-engine";
+import { PROP_CATEGORIES, toPropDefinition } from "@crewhub/world-engine";
 import type {
   Cell,
   Definitions,
@@ -15,7 +15,6 @@ import type {
   PropDefinition,
   PropModel,
   PropProvenance,
-  Rotation,
   WorldLayout,
 } from "@crewhub/world-engine";
 import type { PlacedProp, PlacementSite, TownDocument } from "./townDocument.ts";
@@ -49,7 +48,7 @@ export interface Catalogue {
   readonly entries: readonly CatalogueEntry[];
   get(propId: string): CatalogueEntry | null;
   definitionFor(propId: string): PropDefinition | null;
-  /** Every engine record by catalogue id, for world-engine `occupancy`, `validateLayout` and `WorldSimulation`. */
+  /** Every engine record by catalogue id, for world-engine `occupancy`, `validateLayout` and `placementRules`. */
   readonly definitions: Definitions;
   /** "Mine" (user props) first, then one group per category that has entries. */
   groups(): CatalogueGroup[];
@@ -137,7 +136,7 @@ export const takesFootprint = (p: PlacedProp): boolean =>
 /**
  * The engine layout of one site: its footprint-taking placements on the grid the renderer uses for that room (or
  * the town), plus any fixed props the room template already has. Feed it to world-engine `validateLayout`,
- * `occupancy` or `WorldSimulation.placement` to check an edit before `applyEdit`. The catalogue's `definitions`
+ * `occupancy` or `placementRules` to check an edit before `applyEdit`. The catalogue's `definitions`
  * cover every placement's `definitionId`.
  */
 export function siteLayout(
@@ -153,28 +152,3 @@ export function siteLayout(
   return { version: 1, grid: { ...grid }, entrance: { ...entrance }, props: [...fixed, ...placed] };
 }
 
-/**
- * The first cell (row by row from the grid's origin) where the engine accepts `propId` with `rotation`: in bounds,
- * no overlap, the entrance and every approach cell still reachable. Null when the site is full or its layout is
- * already invalid. Used to drop an imported prop into a room's storage.
- */
-export function findFreeCell(
-  layout: WorldLayout,
-  definitions: Definitions,
-  propId: string,
-  rotation: Rotation = 0,
-): Cell | null {
-  if (!definitions[propId]) return null;
-  let simulation: WorldSimulation;
-  try {
-    simulation = new WorldSimulation(layout, definitions, []);
-  } catch {
-    return null;
-  }
-  for (let z = 0; z < layout.grid.depth; z++)
-    for (let x = 0; x < layout.grid.width; x++) {
-      const probe = { id: "free-cell-probe", definitionId: propId, cell: { x, z }, rotation };
-      if (simulation.placement(probe).ok) return { x, z };
-    }
-  return null;
-}

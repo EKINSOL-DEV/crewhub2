@@ -87,19 +87,41 @@ deepening merges. "Clean" means `git merge-tree` is clean.
 more one-caller extractions, the shallow kind that C3 folds back in. The Lead's recommendation is not to merge it.
 C3's runtime tests cover its facts through the runtime's interface instead; the demo DM read-back is the first of them.
 
+## Left for later
+
+Round 60 takes up the first seven (A1 to A7 of crewy's round 60 direction); each row says when it is done. The second
+architecture review is [its own page](architecture-review-2.md).
+
+What the merged deepenings deliberately do not do, and what each waits on. A later slice takes each one up. Taking
+some of these up would change behaviour or would meet an answer branch, so none of them was done as part of a
+deepening.
+
+| Item (raised by) | State | Waits on |
+| --- | --- | --- |
+| One injected clock on the connection, feeding the archive memory's `now` and the pairing's (review-c5 1, review-c4 5) | `recheckAt` reads `Date.now()`; `ArchiveMemoryOptions.now` and `ChatPathOptions.refreshMs` are test-only | a slice that touches `HostOptions.now`, which r27 and q1 keep as context |
+| `heard(envelope)` in place of `heard(type, slug)` (review-c5 2) | **done in round 60 (A3, `139dce5`)**: `heard(envelope)`; an envelope without a `project` key is ignored by the memory with a scrubbed warning (a bug fix, red first) | |
+| One archive option for the snapshot (review-c5 3) | **done in round 60 (A1, `d41c82e`)**: `SnapshotOptions.archived`, a getter the memory makes (`forSnapshot`) | |
+| Save the memory under the link's judged target (review-c5 5) | **done in round 60 (A5, `a49264a`)**: the memory saves under `judgedFor`; `targetNow` gone (a bug fix, red first at the module's seam). The larger second race, a late report after the new link, waits for a per-link handle slice | |
+| The connection's ear subscribes like a tab and skips its first message (C1's candidate) | **done in round 60 (A2, `e377f53`)**: `Upstream.observe`, no welcome status and no replay | |
+| The flat test-only timings on `HostOptions`, and `recheckMs` with no caller (C1's candidate) | kept on purpose | r27, q1 and q3, or their ports: their test hunks pass `retryMs`, and q1's README names `recheckMs` |
+| The overlays (text view, build mode) reach C2's view module as `open` flags and come back as `close` (review-c2 5) | a decision: the page's dialogs keep their DOM focus returns | none; recorded |
+| `townLayout.laneWords`, a one-line pass-through kept by name for `App.tsx` (review-c8 6) | **done in round 60 (A6, `0b93d20`)**: folded into its callers through `laneLook` | |
+| The memory-only town store's first `load()` can recurse when a listener amends at once (arch-page, review-c3 7) | **done in round 60 (A4, `73640ff`)**: the load is remembered before it says loaded (a bug fix, red first) | |
+| regress's whole-run console check counts the page's health reads refused while the town group restarts its host | **done in round 60 (A7, `162d480`)**: the closing check is one module (`tools/lib/closingCheck.ts`) that admits a refused or reset health read on the served host's origin only inside a restart the town group made (plus one second), and the connect stub's 503 on the forgetting tab until it is live again; every other line still fails. Five consecutive full runs and a sixth on T1 and T2, all 184/184 | |
+
 ## Where it stands
 
-As of 12:56 on 4 November (59d). The branch head is the one reviewed or merged.
+As of 15:03 on 4 November (59d): **all nine are merged** (`f65cfcc`), each reviewed by a fresh reviewer and merged by the safe order. The branch head is the one merged.
 
 
 | Candidate | Branch head | State | Answer branches | Merge |
 | --- | --- | --- | --- | --- |
 | C4 | `58947920` | merged (reviewed: review-c4) | q14 by port `port/task/q14-dm-read-cap@5894792`; six clean | `53c46ad` |
 | C5 | `b5a8b73d` | merged (reviewed: review-c5) | all clean (q14 through C4's port) | `29261f5` |
-| C1 | `c83bae11` | in review (review-c1) | r27, q1, q3, q14, q15 by ports, after C7's | |
-| C7 | `8a0f9c50` | reviewed (review-c7: merge); merging the head in | q15, q3, r27, q1 by ports (being carried to its new head) | |
+| C1 | `f2276dba` | merged (reviewed: review-c1, two unused knobs dropped and the 'left for later' list written; regress connect,live,ops,town,chat 78/78, a11y 189/189) | r27, q1 by ports `@e5f79a9`; q3, q14, q15 by ports `@f2276db` | `2072e9a` |
+| C7 | `f336f0c0` | merged (reviewed: review-c7, a lenient `reset` restored; regress connect,live,chat,ops,town 78/78, a11y 188/188) | q15, q3, r27, q1 by ports `@f336f0c`; q14 through C4's | `8ff4368` |
 | C3 | `e6c5a347` | merged (reviewed: review-c3; regress 139/140 with the known town console flake, a11y 188/188, pixcheck 74/74 identical) | q1 by port `port/task/q1-cookie-expiry@e6c5a34`; six clean | `e3e21f8` |
-| C6 | | in progress | r27 by port; q1 import clash being avoided | |
-| C8 | `d3bb76f2` | reviewed (review-c8: merge, one table row added) | all clean | |
-| C2 | `2811b59` | reviewed (review-c2: merge after the Escape focus fix, re-checked) | all clean | |
-| C9 | | waits on C2 and C6 | | |
+| C6 | `780d6454` | merged (reviewed: review-c6; regress nine groups 183/184 with the known town console flake, a11y 189/189, pixcheck 74/74 identical) | r27 and q1 by ports `@780d645` (r27's tab step moved into the health module's probe) | `78880fe` |
+| C8 | `54e0577f` | merged (reviewed: review-c8, one table row added; regress 139/140 with the known town console flake, a11y 189/189, pixcheck 74/74 identical) | all clean | `36f8e1b` |
+| C2 | `4cd23a5` | merged (reviewed: review-c2, the Escape focus fix re-checked; regress 160/160, a11y 189/189 with the new focus assert, pixcheck 74/74 identical) | all clean | `2e2df46` |
+| C9 | `619080dd` | merged (reviewed: review-c9, three small fixes; regress eight groups 177/177, a11y 189/189, pixcheck 74/74 identical) | clean against the five ports standing | `f65cfcc` |

@@ -77,12 +77,14 @@ export const castChoice = (cast) => ({ "crewhub-world.cast": cast });
 
 /**
  * Listens to a page for what must never happen: a page error, a console error, a request that leaves the page's own
- * origin. Every one lands in `problems` as { kind: "pageerror" | "console" | "external", text, pageOrigin }, an
+ * origin. Every one lands in `problems` as { kind: "pageerror" | "console" | "external", text, pageOrigin, at }, an
  * external one with its `url` and `method`, a console one with the `url` the browser blames (its location), so a
- * closing check can tell an expected ask (road 2's probe at the loops web origin) from a stray one.
+ * closing check can tell an expected ask (road 2's probe at the loops web origin) from a stray one. `at` is when the
+ * tool heard it (`Date.now()`), so a closing check can also tell a refusal inside a host restart the tool made itself
+ * from one outside it (round 60, A7).
  */
 export function watch(page, origin, problems, tag = "") {
-  const push = (kind, text, more = {}) => problems.push({ kind, text: tag ? `[${tag}] ${text}` : text, pageOrigin: origin, ...more });
+  const push = (kind, text, more = {}) => problems.push({ kind, text: tag ? `[${tag}] ${text}` : text, pageOrigin: origin, at: Date.now(), ...more });
   // The same origin, not the same first characters (round 52, r51-review T1): `http://127.0.0.1:5389` is no prefix
   // licence for :53891 (a fake's free port) or for `http://127.0.0.1:5389@another.host/`.
   const own = (url) => URL.canParse(url) && new URL(url).origin === origin;

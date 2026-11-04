@@ -45,10 +45,10 @@ within 1.5 s, else demo; `?source=live|demo` overrides).
 
 | Package | Role |
 | --- | --- |
-| `packages/loops-client` | crewhub-loops types, hand-written runtime validators, the host-to-page wire defined once (`hostWire.ts`, round 59d: the `/world-api` route table, the health answer, the stream's message kinds and their readers; the host writes through it, the page and the stubs read through it), the event allowlist (`ticket.quiet` and `automation.ran` with typed payloads since round 7; `owner-request.updated` known and skipped), the `WorldSource` seam, and the live source `createHostSource` (snapshot, then SSE events by `seq`; `ConnectionState` for the chip; `probeHost`, `connectHost`, `forgetHostKey`), and road 2's reads of the person's own chat from the page (`pageChat.ts`: four `GET` routes, the person's cookie, no header of the page's own, never through the host) |
+| `packages/loops-client` | crewhub-loops types, hand-written runtime validators, the host-to-page wire defined once (`hostWire.ts`, round 59d: the `/world-api` route table, the health answer, the stream's message kinds and their readers; round 60 H2: the town's and connect's answers too, each with the `Sent` type the host writes and the reader the page uses; the host writes through it, the page and the stubs read through it), the event allowlist (`ticket.quiet` and `automation.ran` with typed payloads since round 7; `owner-request.updated` known and skipped), the `WorldSource` seam, and the live source `createHostSource` (snapshot, then SSE events by `seq`; `ConnectionState` for the chip; `probeHost`, `connectHost`, `forgetHostKey`), and road 2's reads of the person's own chat from the page (`pageChat.ts`: four `GET` routes, the person's cookie, no header of the page's own, never through the host) |
 | `packages/demo` | `DemoSource`: a deterministic, in-memory crewhub-loops with a 16-minute storyline, four scenarios, its own lanes, the world's key as its observer and a CI bot (as loops answers external bots), the quiet and automation events in the storyline, playback controls and the chat API the bubbles call |
 | `packages/loops-fake` | The same storyline served over HTTP the way crewhub-loops `4cdcd383` serves it (bearer keys, `from=tail`, sealed cursors, per-key visibility, 429, archived projects): the host's end-to-end test and the live browser checks run against it ([LOOPS_REAL_VS_FAKE.md](LOOPS_REAL_VS_FAKE.md)) |
-| `packages/world-model` | Projection, `reduceWorld`, `describeWorld` (text view), town document, catalogue, director intents, `where`, the agent card's facts, the quiet facts and the board cards (`board.ts`); it never knows which source feeds it |
+| `packages/world-model` | Projection, `reduceWorld`, `describeWorld` (text view), town document, catalogue, director intents, `where`, the agent card's facts, the quiet facts and the board cards (`board.ts`), an agent's appearance (`appearance.ts`: the figure at rest, its desk lamp, the pill, tag, bubble and lane chip, and the sentences, one module every surface reads); it never knows which source feeds it |
 | `packages/world-engine` | Grid, footprints, placement, pathfinding, the prop format (`crewhub-prop/1`) and its validator |
 | `packages/world-style`, `packages/style-greenhouse`, `packages/world-cast`, `packages/cast-*` | The style and cast seams and their data ("World styles" below) |
 | `apps/world` | The browser app: Three.js town and building scenes, the minimal UI, the chat bubbles mirrored from crewhub-loops, the `useWorld` seam, the Connect screens and the Connection panel, the dust on a quiet package (`dust.ts`, the object layer), the chat's road (`state/chatRoad.ts`: the host's key, else the page's probe, else the honest words) and the page's own poll (`state/pageChat.ts`) |
@@ -89,7 +89,8 @@ One Node process, no third-party dependency (beside Node only the workspace's `l
   app's data folder is read (never written): its Unix socket `run/api.sock`, then the
   port in `settings.json`, each probed with the public `GET /api/health`, the two in
   parallel; nothing found: again every 5 s. Loops going away later makes it look again.
-- **The key** (`config.ts`, `keyStore.ts`, `keyCheck.ts`): read from `CREWHUB_WORLD_KEY_FILE`,
+- **The key** (`config.ts`, `keyStore.ts`, `keyCheck.ts`; its word `unchecked`, `checking`, `ok` or
+  `rejected` written by `keyHolder.ts` alone): read from `CREWHUB_WORLD_KEY_FILE`,
   else the stored key `<config dir>/loops-key`, else the old default file; none: the host
   starts keyless. Every key is checked with `GET /api/auth/me` and one board read; a probe
   key, a Read-only bot, the builder key and an unknown key are rejected with the reason in
@@ -139,7 +140,9 @@ One Node process, no third-party dependency (beside Node only the workspace's `l
   `Retry-After` on 429, a reset on 410 or a restored log; an upstream connection silent for 45 s is dropped and
   reopened (`stream.ts`, `idleMs`; the browser's `hostSource.ts` heals its own stream to the host after 40 s of
   silence, at once when the tab comes back into view, round 27); a ring buffer of 2000 envelopes
-  catches a tab up; the tabs get Server-Sent Events, one JSON message each (`status`, `event`, `heartbeat`,
+  catches a tab up (`subscribe` at a cursor); the connection's own ear is an observer (`observe`, round 60): it hears
+  the changes from now on, no status at once and no replay; the tabs get Server-Sent Events, one JSON message each
+  (`status`, `event`, `heartbeat`,
   `reset`, `chat`, `town`, `threads`: `HostMessage`, defined once with the page's reader in loops-client's
   `hostWire.ts`). The transport seam makes TCP (`fetch`) and the Unix socket (`node:http` with
   `socketPath`) indistinguishable above it.
@@ -211,6 +214,14 @@ arrives and the answer to a pasted key, the panel's facts are a definition list 
 ticking "Updated" line not live, and the page's own status region says a connection change
 over the town once ("Connection: Stream busy. Another host or tab uses this key…"), never on
 load; links that open a new tab say so; `tools/a11y.mjs` asks a headless browser for all of it.
+
+Every read of the host's health in the page goes through one module, `apps/world/src/state/health.ts`
+(round 59d). Its callers declare a freshness need instead of polling: a screen (2.5 s), the Connection panel (5 s),
+the first snapshot loading (0.5 s), or a glance (the text view or the Chat panel opening: one read). It asks at the
+fastest need's pace, with one read in flight at a time. It takes the stream's word, so it reads again when the
+stream goes live or the key word changes, and it polls a host that leaves the key unsaid. It keeps one health value,
+starting with the gate's read, and derives from it the screen over the town, the chat road's input and the first
+snapshot's progress. Its tests drive it with a fake probe and a fake clock (`apps/world/test/hostHealth.test.ts`).
 The runbook's chip and screen table is [LOOPS_SETUP.md](LOOPS_SETUP.md), section 5.
 
 ## World styles

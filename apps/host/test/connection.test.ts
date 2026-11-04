@@ -14,6 +14,7 @@ import { afterEach, describe, it } from "node:test";
 import { type ConnectionTimings, STREAM_REFUSED_REASON } from "../src/connection.ts";
 import { UNKNOWN_REASON } from "../src/keyCheck.ts";
 import type { KeyStore } from "../src/keyStore.ts";
+import type { HostMessage } from "@crewhub/loops-client";
 import { createLoopsStub, installation } from "./loopsStub.ts";
 import { testConnection } from "./testHost.ts";
 import { waitFor } from "./wait.ts";
@@ -139,7 +140,15 @@ describe("the connection to loops", () => {
     assert.equal((await loops()), "down", "never unauthorized");
     assert.ok(lines.some((l) => /answered 401 but crewhub-loops' health does not answer: restarting\?/.test(l)), lines.join("\n"));
     assert.ok(lines.some((l) => /refused the key \(401 or 403\) but its health does not answer: down/.test(l)), "the stream's own guard");
-    stub.outage(null);
+    // Loops comes back as the next attempt's first ask arrives (the tail read before the stream; the stub hears it
+    // first), never between an ask's 401 and the health probe that judges it: there a health that answers makes the
+    // 401 a verdict, rightly, and that is the first test's road, not this one's. Ended from here, the moment never
+    // depends on how fast the connection retries.
+    stub.onRequest((request) => {
+      if (!request.path.startsWith("/api/events")) return;
+      stub.onRequest(null);
+      stub.outage(null);
+    });
     await waitFor("the recovery", async () => (await stream()) === "ok");
     assert.equal((await key()).state, "ok");
   });
@@ -320,5 +329,24 @@ describe("the connection to loops", () => {
     // The threads' re-read waits THREADS_REFRESH_MS (1 s) after a dm event.
     await soak(1300);
     assert.deepEqual(stub.requests.slice(reads).map((r) => r.path), [], "the connection read loops after it was closed");
+  });
+
+  it("an event with no project key reaches the tabs and is ignored by the memory, said in the log, never thrown in the broadcast (round 54's fuzz finding)", async () => {
+    const stub = await createLoopsStub({ ...installation() });
+    cleanup.push(() => stub.close());
+    const { conn, lines } = start({ loopsUrl: stub.url, key: stub.key });
+    const heard: HostMessage[] = [];
+    const detach = conn.feed({ send: (m) => heard.push(m), cursor: null, end: () => undefined });
+    cleanup.push(async () => detach());
+    await waitFor("the tab's status ok", () => heard.some((m) => m.type === "status" && m.loops === "ok"));
+    // The stub writes the line without the key (`undefined` is no JSON): what a loops that broke its contract would send.
+    const bare = { type: "project.archived", project: undefined, ticket: null, actor: { id: "x", kind: "user" }, recipientIds: [], payload: {} } as unknown as Parameters<typeof stub.emit>[0];
+    const first = stub.emit(bare);
+    const second = stub.emit({ type: "ticket.updated", project: null, ticket: null, actor: { id: "x", kind: "user" }, recipientIds: [], payload: {} });
+    await waitFor("the second event at the tab", () => heard.some((m) => m.type === "event" && m.envelope.seq === second.seq));
+    assert.ok(heard.some((m) => m.type === "event" && m.envelope.seq === first.seq), "the tab heard the event without a project key: the ear is after it, not in its way");
+    assert.ok(lines.some((l) => new RegExp(`the archive memory ignores event ${first.seq} \\(project\\.archived\\): it has no project key`).test(l)), lines.join("\n"));
+    assert.ok(!lines.some((l) => /unreadable line skipped/.test(l)), "the line was readable; nothing threw in the broadcast");
+    assert.deepEqual(conn.state(true).archived, { source: "none", count: 0, slugs: [] }, "nothing entered the memory");
   });
 });

@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { WORLD_API_PREFIX, WORLD_ROUTES, isSegment, readHostHealth, readHostMessage, worldApiPath } from "../src/hostWire.ts";
+import { type ConnectDoneSent, type TownConflictSent, type TownReadSent, type TownWrittenSent, WORLD_API_PREFIX, WORLD_ROUTES, isSegment, readConnectAnswer, readHostHealth, readHostMessage, readHostRefusal, readTownBackup, readTownBackups, readTownConflict, readTownRead, readTownWritten, worldApiPath } from "../src/hostWire.ts";
 
 test("worldApiPath builds the page's path from the one table: the prefix, the segments encoded, the query the route takes", () => {
   assert.equal(worldApiPath("/health"), `${WORLD_API_PREFIX}/health`);
@@ -101,4 +101,61 @@ test("readHostMessage: lenient on a loops word or a key word it does not know, s
   assert.equal(read({}), "$.type: unknown message type undefined");
   assert.equal(read(null), "$: expected a message object");
   assert.equal(read([]), "$: expected a message object");
+});
+
+test("the town's readers keep a host's whole answer: a held town, a fresh host, a host with none yet, a write, a conflict, the backups", () => {
+  const held: TownReadSent = { installation: "i", rev: 3, updatedAt: "2026-11-04T10:00:00.000Z", document: { format: "crewhub-town/1", plots: [] }, canUndo: true, canRedo: false };
+  assert.deepEqual(readTownRead(200, held), held);
+  const fresh: TownReadSent = { installation: "i", rev: 0, updatedAt: null, document: null, canUndo: false, canRedo: false };
+  assert.deepEqual(readTownRead(200, fresh), fresh);
+  const none: TownReadSent = { installation: null, rev: null, document: null, reason: "no_world_db" };
+  assert.deepEqual(readTownRead(200, none), none);
+  const written: TownWrittenSent = { ok: true, rev: 4, document: { format: "crewhub-town/1", plots: [] }, canUndo: true, canRedo: false, changed: true };
+  assert.deepEqual(readTownWritten(200, written), written);
+  const conflict: TownConflictSent = { error: "town_conflict", message: "Another browser changed the town", rev: 5, document: null, canUndo: false, canRedo: false };
+  assert.deepEqual(readTownConflict(409, conflict), conflict);
+  const backups = { installation: "i", backups: [{ name: "world.db.bak-v2", version: 2, bytes: 4096, at: "2026-11-04T10:00:00.000Z" }, { name: "world.db.bak-v1", version: 1, bytes: 2048, at: "2026-11-03T10:00:00.000Z" }] };
+  assert.deepEqual(readTownBackups(200, backups), backups);
+  const backup = { installation: "i", name: "world.db.bak-v2", rev: 7, document: { format: "crewhub-town/1", plots: [] } };
+  assert.deepEqual(readTownBackup(200, backup), backup);
+});
+
+test("the town's readers: lenient on what the page never read (the history flags, the stamp, the installation), strict on the status, the revision and the one word", () => {
+  // A host from before the history (round 21) says no flags: the page then knows nothing about undo, as before.
+  assert.deepEqual(readTownRead(200, { rev: 2, document: null }), { rev: 2, document: null });
+  assert.deepEqual(readTownRead(200, { rev: 2, document: null, canUndo: true }), { rev: 2, document: null }, "one flag without the other says nothing");
+  assert.deepEqual(readTownRead(200, { rev: null }), { rev: null }, "no reason given: the page says 'no revision' itself");
+  assert.equal(readTownRead(200, { rev: "3", document: null }), null, "a revision that is no whole number");
+  assert.equal(readTownRead(200, { rev: -1, document: null }), null);
+  assert.equal(readTownRead(404, { rev: 1, document: null }), null, "not a 200");
+  assert.equal(readTownRead(200, null), null);
+  assert.equal(readTownRead(200, []), null);
+  assert.deepEqual(readTownWritten(200, { ok: true, rev: 1, document: null }), { ok: true, rev: 1, document: null });
+  assert.equal(readTownWritten(200, { rev: 1, document: null }), null, "a write's 200 carries the host's own ok");
+  assert.equal(readTownWritten(409, { ok: true, rev: 1, document: null }), null);
+  assert.deepEqual(readTownConflict(409, { error: "town_conflict", rev: 2, document: null }), { error: "town_conflict", rev: 2, document: null });
+  assert.equal(readTownConflict(409, { error: "other", rev: 2, document: null }), null, "a 409 with another word is not a town conflict");
+  assert.equal(readTownConflict(409, { error: "town_conflict", document: null }), null, "a conflict names the revision");
+  assert.equal(readTownConflict(200, { error: "town_conflict", rev: 2, document: null }), null);
+  assert.deepEqual(readTownBackups(200, { backups: [{ name: "x", version: 1 }, { name: 3, version: 1 }, { version: 2 }] }), { backups: [{ name: "x", version: 1 }] }, "a row without a name or a version is dropped");
+  assert.equal(readTownBackups(200, { backups: "none" }), null);
+  assert.equal(readTownBackups(503, { backups: [] }), null);
+  assert.equal(readTownBackup(404, { error: "no_town" }), null);
+  assert.equal(readTownBackup(200, { document: {} }), null, "a backup's town names its revision");
+});
+
+test("readConnectAnswer: done on a 2xx with the host's own ok (the connection when it reads), the refusal's words otherwise, null for no object", () => {
+  const done: ConnectDoneSent = { ok: true, connection: { discovery: { state: "found", via: "env-url", target: "http://127.0.0.1:1" }, key: { state: "ok", name: "crewhub-world", source: "stored" }, stream: { state: "ok", reconnects: 0 }, archived: { source: "none", count: 0, slugs: [] }, snapshot: { state: "idle" } } };
+  assert.deepEqual(readConnectAnswer(200, done), done);
+  assert.deepEqual(readConnectAnswer(200, { ok: true }), { ok: true }, "a stub without a connection");
+  assert.deepEqual(readConnectAnswer(200, { ok: true, connection: "later" }), { ok: true }, "a connection that does not read is left out, not invented");
+  assert.deepEqual(readConnectAnswer(403, { error: "key_rejected", reason: "crewhub-loops does not know this key" }), { error: "key_rejected", reason: "crewhub-loops does not know this key" });
+  assert.deepEqual(readConnectAnswer(503, { error: "no_loops", message: "open Crewhub.app" }), { error: "no_loops", message: "open Crewhub.app" });
+  assert.deepEqual(readConnectAnswer(401, { error: "not_paired" }), { error: "not_paired" });
+  assert.deepEqual(readConnectAnswer(200, { ok: false }), {}, "a 200 without ok is no success: the refusal has no words");
+  assert.deepEqual(readConnectAnswer(500, { error: 7, message: ["x"] }), {}, "words that are not strings are dropped");
+  assert.equal(readConnectAnswer(204, null), null, "the dev server's 204 while the host is down");
+  assert.equal(readConnectAnswer(0, null), null);
+  assert.deepEqual(readHostRefusal({ error: "validation_error", message: "baseRev must be…" }), { error: "validation_error", message: "baseRev must be…" });
+  assert.equal(readHostRefusal("no"), null);
 });

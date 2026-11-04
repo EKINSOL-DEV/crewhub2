@@ -182,7 +182,8 @@ test("connect outcome: the host's answer in words, never the key", () => {
   assert.deepEqual(connectOutcome(200, null), { kind: "failed", reason: null });
   assert.deepEqual(connectOutcome(200, { ok: false }), { kind: "failed", reason: null });
   assert.deepEqual(connectOutcome(401, { error: "not_paired" }), { kind: "not-paired" });
-  assert.deepEqual(connectOutcome(401, { error: "rejected", reason: "crewhub-loops does not know this key" }), { kind: "rejected", reason: "crewhub-loops does not know this key" });
+  assert.deepEqual(connectOutcome(403, { error: "key_rejected", reason: "crewhub-loops does not know this key" }), { kind: "rejected", reason: "crewhub-loops does not know this key" }, "the host's word and loops' reason (host.ts connect)");
+  assert.deepEqual(connectOutcome(401, { error: "rejected", reason: "crewhub-loops does not know this key" }), { kind: "rejected", reason: "crewhub-loops does not know this key" }, "the status decides, whatever the word");
   assert.deepEqual(connectOutcome(403, { error: "rejected", message: "a read-only key cannot read the team" }), { kind: "rejected", reason: "a read-only key cannot read the team" });
   assert.deepEqual(connectOutcome(422, { error: "rejected" }), { kind: "rejected", reason: null });
   assert.deepEqual(connectOutcome(400, { error: "bad_request", message: "key missing" }), { kind: "failed", reason: "key missing" });

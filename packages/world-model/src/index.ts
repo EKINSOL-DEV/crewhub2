@@ -7,7 +7,9 @@ export { emptyFacts } from "./facts.ts";
 export { emptyMemory } from "./memory.ts";
 export { Projection } from "./projection.ts";
 export { freshnessOf, reduceWorld } from "./reducer.ts";
-export { CIVIC_WORDS, agentStateWords, describeWorld, doneWord, hallSummary } from "./describe.ts";
+export { CIVIC_WORDS, describeWorld, hallSummary } from "./describe.ts";
+export { agentLook, agentWords, figureLook, laneLook } from "./appearance.ts";
+export type { AgentBubble, AgentLook, AgentWords, DeskFacts, DotTone, FigureLook, FigurePose, LampLane, LaneChipKind, LaneLook, SceneAgent } from "./appearance.ts";
 export { roleInferred, roleNoun, roleWords } from "./roleWords.ts";
 export type { RoleVoice } from "./roleWords.ts";
 export {
@@ -19,6 +21,8 @@ export {
   HALL_PLACES,
   RACK_KINDS,
   RACK_NAMES,
+  ROOM_KINDS,
+  doneWord,
   hallOf,
   isRackKind,
   placeWords,
@@ -46,7 +50,6 @@ export type { InvalidPropRequest } from "./describeTown.ts";
 export {
   ATTACHMENT_KINDS,
   DEFAULT_STYLE_ID,
-  ROOM_KINDS,
   RULE_IDS,
   TOWN_FORMAT,
   TOWN_LIMITS,
@@ -72,7 +75,7 @@ export {
   restoreHistory,
   undoHistory,
 } from "./history.ts";
-export { builtinIds, createCatalogue, findFreeCell, sameSite, siteLayout, takesFootprint } from "./catalogue.ts";
+export { builtinIds, createCatalogue, sameSite, siteLayout, takesFootprint } from "./catalogue.ts";
 export {
   PROP_LABEL,
   extractPropRequest,

@@ -58,6 +58,11 @@ export interface Upstream {
    * or a `reset` is sent when the buffer no longer reaches back that far. Returns unsubscribe.
    */
   subscribe(cursor: number | null, listener: (message: HostMessage) => void): () => void;
+  /**
+   * The connection's own ear: hears what the tabs hear from now on (a status change, an event, a reset, a heartbeat),
+   * nothing at once and no replay. Returns the way to stop listening; `stop()` ends every ear too.
+   */
+  observe(listener: (message: HostMessage) => void): () => void;
   /** Starts following loops (idempotent). Resolves once the first connection attempt finished, either way. */
   start(): Promise<void>;
   stop(): Promise<void>;
@@ -250,15 +255,12 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
   }
 
   async function readVersion(): Promise<void> {
-    try {
-      // Keyless (round 29): `GET /api/health` is public, and crewhub-loops main answers 403 to a viewer key on it.
-      const { status, body } = await client.getPublicJson<{ version?: unknown }>("/api/health");
-      if (status === 200 && typeof body?.version === "string") {
-        version = body.version;
-        options.onVersion?.(version);
-      }
-    } catch {
-      // health is information only
+    // Keyless (round 29): `GET /api/health` is public, and crewhub-loops main answers 403 to a viewer key on it. Health
+    // is information only: nothing answering is nothing said.
+    const health = await client.health();
+    if (health !== null && health.status === 200 && health.version !== undefined) {
+      version = health.version;
+      options.onVersion?.(version);
     }
   }
 
@@ -416,6 +418,12 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
       return () => {
         listeners.delete(listener);
         pending.delete(listener);
+      };
+    },
+    observe(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
       };
     },
     start() {

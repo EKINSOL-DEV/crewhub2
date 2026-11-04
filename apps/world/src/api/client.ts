@@ -4,7 +4,7 @@
    routes from the demo source with loops' status codes and error envelope. The future live mode (the person's own loops
    session, plan section 3.5) replaces `send` and nothing else. */
 import type { ApiErrorCode } from "./types";
-import { demoChatApi } from "../state/chatApi";
+import { chatRuntime } from "../state/runtimes";
 
 export class ApiError extends Error {
   status: number;
@@ -27,7 +27,10 @@ export function shouldRetry(failures: number, e: unknown): boolean {
 /* JSON in and out, as loops' `request` would see it: the body is copied both ways, so no caller shares objects with the
    demo store. */
 async function send<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const response = await demoChatApi().handle(method, path, body === undefined ? undefined : structuredClone(body));
+  // The page's chat (state/chat.ts) has the dock's api in the demo; a live page has no dock, so nothing asks.
+  const dock = chatRuntime().api;
+  if (dock === null) throw new Error("The copied chat's api has no demo source on a live page (the live chat is crewhub-loops' own, in the Chat panel).");
+  const response = await dock.handle(method, path, body === undefined ? undefined : structuredClone(body));
   if (response.status >= 400) {
     const err = (response.body as { error?: { code?: ApiErrorCode; message?: string; detail?: unknown } } | null)?.error;
     throw new ApiError(response.status, err?.code ?? "internal_error", err?.message ?? "Error", err?.detail ?? null);

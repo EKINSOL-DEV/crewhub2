@@ -16,6 +16,20 @@ export interface WordingOptions {
   rooms?: RoomWording;
 }
 
+/** Every model room, in the order the town document's validator names them. */
+export const ROOM_KINDS: readonly RoomKind[] = [
+  "lobby",
+  "lead-office",
+  "workers",
+  "analyst",
+  "design",
+  "storage",
+  "planning",
+  "review",
+  "dispatch",
+  "meeting",
+];
+
 /** The halls in building order: the way in first. */
 export const HALLS: readonly Hall[] = ["administration", "floor", "office"];
 
@@ -47,12 +61,28 @@ export const HALL_LABELS: Record<Hall, string> = {
 /** The hall's own model kind: the template room that stands for the hall carries this kind. */
 export const HALL_KINDS: Record<Hall, RoomKind> = { administration: "lobby", floor: "workers", office: "lead-office" };
 
+/** A place with the word before it: "in" Administration, "on" the floor. */
+export interface PlacePhrase {
+  preposition: "in" | "on";
+  place: string;
+}
+
+const HALL_PHRASES: Record<Hall, PlacePhrase> = {
+  administration: { preposition: "in", place: "Administration" },
+  floor: { preposition: "on", place: "the floor" },
+  office: { preposition: "in", place: "the lead's office" },
+};
+
 /** The hall as a place in a sentence: "in Administration", "on the floor", "in the lead's office". */
 export const HALL_PLACES: Record<Hall, string> = {
-  administration: "in Administration",
-  floor: "on the floor",
-  office: "in the lead's office",
+  administration: phraseWords(HALL_PHRASES.administration),
+  floor: phraseWords(HALL_PHRASES.floor),
+  office: phraseWords(HALL_PHRASES.office),
 };
+
+function phraseWords(phrase: PlacePhrase): string {
+  return `${phrase.preposition} ${phrase.place}`;
+}
 
 export type RackKind = "storage" | "planning" | "review" | "dispatch";
 export const RACK_KINDS: readonly RackKind[] = ["storage", "planning", "review", "dispatch"];
@@ -108,12 +138,26 @@ export function placeWords(place: TransitPlace, rooms: RoomWording = "classic"):
 }
 
 /**
+ * Where a model room is, the place and the word before it apart, for a sentence that puts more after the place
+ * ("on the floor of CR product"): classic {in, "the workers room"}; three-rooms {on, "the floor"}, {in,
+ * "Administration"}, {in, "the lead's office"}.
+ */
+export function placePhrase(kind: RoomKind, rooms: RoomWording = "classic"): PlacePhrase {
+  if (rooms === "classic") return { preposition: "in", place: `the ${roomLabel(kind).toLowerCase()}` };
+  return HALL_PHRASES[hallOf(kind)];
+}
+
+/**
  * Where a model room is, as "in the …" words: classic "in the workers room"; three-rooms "on the floor", "in
  * Administration", "in the lead's office".
  */
 export function roomPlaceWords(kind: RoomKind, rooms: RoomWording = "classic"): string {
-  if (rooms === "classic") return `in the ${roomLabel(kind).toLowerCase()}`;
-  return HALL_PLACES[hallOf(kind)];
+  return phraseWords(placePhrase(kind, rooms));
+}
+
+/** Where a person puts the package, as a name after "to": Dispatch in the classic building, Done in three-rooms. */
+export function doneWord(rooms: RoomWording): string {
+  return rooms === "classic" ? roomLabel("dispatch") : RACK_NAMES.dispatch;
 }
 
 /** The sign over a model room's place: classic its label; three-rooms its hall's. */

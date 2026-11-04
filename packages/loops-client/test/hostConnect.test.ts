@@ -5,7 +5,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net";
 import test from "node:test";
 import { connectHost, forgetHostKey } from "../src/hostSource.ts";
-import { worldApiPath } from "../src/hostWire.ts";
+import { readConnectAnswer, worldApiPath } from "../src/hostWire.ts";
 
 interface Seen {
   method: string | undefined;
@@ -50,10 +50,12 @@ test("connectHost posts the key as JSON to /world-api/connect and answers the st
   }
 });
 
-test("connectHost hands back a refusal's JSON body for the world to put into words", async () => {
-  const host = await stub(() => ({ status: 403, body: JSON.stringify({ error: "rejected", reason: "a read-only key" }) }));
+test("connectHost hands back a refusal's JSON body for the world to put into words, as readConnectAnswer reads it", async () => {
+  const host = await stub(() => ({ status: 403, body: JSON.stringify({ error: "key_rejected", reason: "a read-only key" }) }));
   try {
-    assert.deepEqual(await connectHost("chl_x", host.url, 1000), { status: 403, body: { error: "rejected", reason: "a read-only key" } });
+    const answer = await connectHost("chl_x", host.url, 1000);
+    assert.deepEqual(answer, { status: 403, body: { error: "key_rejected", reason: "a read-only key" } });
+    assert.deepEqual(readConnectAnswer(answer.status, answer.body), { error: "key_rejected", reason: "a read-only key" });
   } finally {
     await host.close();
   }

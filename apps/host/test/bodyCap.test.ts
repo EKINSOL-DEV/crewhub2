@@ -12,6 +12,7 @@ import { afterEach, describe, it } from "node:test";
 import { UPSTREAM_BODY_LIMIT, UpstreamTooLarge, createRepeatLog, declaredLength, readCapped } from "../src/bodyCap.ts";
 import { createHost } from "../src/host.ts";
 import { createLoopsClient } from "../src/loops.ts";
+import { loopsHealth } from "../src/loopsHealth.ts";
 import { SnapshotError, readTail } from "../src/snapshot.ts";
 import { createTcpTransport } from "../src/transport.ts";
 import { envelope, createLoopsStub, installation } from "./loopsStub.ts";
@@ -135,7 +136,7 @@ describe("question 15: a size cap on an upstream body", () => {
     await assert.rejects(client.get("/api/health"), (e: unknown) => e instanceof UpstreamTooLarge && e.declared && e.bytes === UPSTREAM_BODY_LIMIT + 1);
   });
 
-  it("the client: get throws, getJson and getPublicJson answer the status with a null body and say the path once; the tail reads as loops down", async () => {
+  it("the client: get throws, getJson answers the status with a null body, health() an answer without ok, and each says the path once; the tail reads as loops down", async () => {
     const { server, queue, url } = answering();
     await listen(server);
     const said: string[] = [];
@@ -143,13 +144,24 @@ describe("question 15: a size cap on an upstream body", () => {
     queue.push({ body: jsonOf(LIMIT + 5), status: 207 });
     assert.deepEqual(await client.getJson("/api/health"), { status: 207, body: null });
     queue.push({ body: jsonOf(LIMIT + 5), mode: "chunked" });
-    assert.deepEqual(await client.getPublicJson("/api/health"), { status: 200, body: null });
+    assert.deepEqual(await client.health(), { status: 200, ok: false });
     queue.push({ body: jsonOf(LIMIT) });
     assert.deepEqual(await client.getJson("/api/health"), { status: 200, body: { pad: "x".repeat(LIMIT - 10) } }, "at the cap: parsed");
     assert.deepEqual(said, ["/api/health 207 1005", `/api/health 200 ${LIMIT + 5}`]);
     queue.push({ body: jsonOf(LIMIT + 1) });
     await assert.rejects(readTail(client), (e: unknown) => e instanceof SnapshotError && e.reason === "loops_down", "the tail: a SnapshotError, as for any body that is no tail");
     assert.equal(said.length, 3);
+  });
+
+  it("the discovery's road: a health page past the default cap is no loops, at the cap it is read", async () => {
+    const { server, queue, url } = answering();
+    await listen(server);
+    // The same healthy words either side of the cap: only the cap can make the first one read as no loops.
+    const healthy = (bytes: number): string => `{"ok":true,"version":"v1","pad":"${"x".repeat(bytes - 35)}"}`;
+    queue.push({ body: healthy(UPSTREAM_BODY_LIMIT + 1) });
+    assert.deepEqual(await loopsHealth({ transport: "tcp", url: url() }, 5000), { status: 200, ok: false });
+    queue.push({ body: healthy(UPSTREAM_BODY_LIMIT) });
+    assert.deepEqual(await loopsHealth({ transport: "tcp", url: url() }, 5000), { status: 200, ok: true, version: "v1" });
   });
 
   it("through the host: the relay answers 502 upstream_too_large and the page hears the size; a body at the cap passes; the log says it once per path", async () => {

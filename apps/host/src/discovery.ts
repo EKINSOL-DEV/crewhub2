@@ -9,9 +9,9 @@
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { UPSTREAM_BODY_LIMIT, readCapped } from "./bodyCap.ts";
 import { DEFAULT_LOOPS_URL, type PathKind, statPath } from "./config.ts";
-import { type LoopsTarget, createTransport } from "./transport.ts";
+import { loopsAnswers } from "./loopsHealth.ts";
+import type { LoopsTarget } from "./transport.ts";
 
 export type DiscoveryVia = "env-url" | "env-socket" | "app-socket" | "app-port";
 
@@ -82,37 +82,8 @@ export function candidates(input: DiscoveryInput): Candidate[] {
 /** What a target is called in a log line or a health answer: the URL or the socket path. */
 export const targetText = (target: LoopsTarget): string => (target.transport === "tcp" ? target.url : target.socketPath);
 
-export interface LoopsHealth {
-  status: number;
-  ok: boolean;
-  /** loops' `version` (the app says `0.1.0`; a checkout says its commit). */
-  version?: string;
-}
-
-/** `GET /api/health` without a key (it is public on crewhub-loops); null when nothing answers within `timeoutMs`. */
-export async function loopsHealth(target: LoopsTarget, timeoutMs = 1500): Promise<LoopsHealth | null> {
-  try {
-    const response = await createTransport(target, {}).request("/api/health", {}, { accept: "application/json", timeoutMs });
-    type HealthBody = { ok?: unknown; version?: unknown } | null;
-    let body: HealthBody = null;
-    try {
-      // Capped like every other body from loops' URL (question 15): a huge health page is no loops.
-      body = JSON.parse(await readCapped(response, UPSTREAM_BODY_LIMIT)) as HealthBody;
-    } catch {
-      body = null;
-    }
-    const out: LoopsHealth = { status: response.status, ok: response.status === 200 && body?.ok === true };
-    if (typeof body?.version === "string") out.version = body.version;
-    return out;
-  } catch {
-    return null;
-  }
-}
-
-/** True for `200 {"ok":true,…}`: crewhub-loops is there. */
-export async function loopsAnswers(target: LoopsTarget, timeoutMs = 1500): Promise<boolean> {
-  return (await loopsHealth(target, timeoutMs))?.ok === true;
-}
+/** The roads a pass looks at, as they are said ("`<via> <target>`"), for the log line and the doctor; `say` words the target (the doctor's `~`). */
+export const roadsOf = (input: DiscoveryInput, say: (target: string) => string = (target) => target): string[] => candidates(input).map((c) => `${c.via} ${say(targetText(c.target))}`);
 
 function readFileOrNull(file: string): string | null {
   try {
@@ -142,8 +113,6 @@ export async function discoverOnce(input: DiscoveryInput): Promise<Found | null>
 export interface Discovery {
   /** What was found, or null while searching. */
   current(): Found | null;
-  /** The roads looked at in the last pass, for the log and the doctor ("what was looked for"). */
-  lookedFor(): string[];
   /** Starts looking; resolves after the first pass. Keeps looking every `intervalMs` until something is found. */
   start(): Promise<Found | null>;
   /** Looks again now (and keeps looking when nothing is found): the host calls it when the stream reports loops down. */
@@ -162,7 +131,6 @@ export function createDiscovery(input: DiscoveryInput, options: DiscoveryOptions
   const intervalMs = options.intervalMs ?? 5000;
   const log = options.log ?? (() => {});
   let current: Found | null = null;
-  let looked: string[] = [];
   let timer: ReturnType<typeof setTimeout> | null = null;
   let stopped = false;
   let pass: Promise<Found | null> | null = null;
@@ -171,7 +139,7 @@ export function createDiscovery(input: DiscoveryInput, options: DiscoveryOptions
   const same = (a: Found | null, b: Found | null) => (a === null || b === null ? a === b : a.via === b.via && targetText(a.target) === targetText(b.target));
 
   async function look(): Promise<Found | null> {
-    looked = candidates(input).map((c) => `${c.via} ${targetText(c.target)}`);
+    const looked = roadsOf(input);
     const found = await discoverOnce(input);
     if (stopped) return current;
     if (!same(found, current) || (first && found === null)) {
@@ -199,7 +167,6 @@ export function createDiscovery(input: DiscoveryInput, options: DiscoveryOptions
 
   return {
     current: () => current,
-    lookedFor: () => looked,
     start: refresh,
     refresh,
     stop() {

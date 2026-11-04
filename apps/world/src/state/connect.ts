@@ -2,7 +2,7 @@
    panel. `connectScreen` maps the host's health to the one screen the world shows instead of the town; the key helpers
    handle a pasted access key (trimmed, shaped, only its tail ever shown); `connectOutcome` turns the host's answer to
    `POST /world-api/connect` into words. Nothing here keeps a key, logs or touches the DOM. */
-import type { ConnectionState, HostArchiveState, HostHealth, HostKeyState } from "@crewhub/loops-client";
+import { type ConnectionState, type HostArchiveState, type HostHealth, type HostKeyState, readConnectAnswer } from "@crewhub/loops-client";
 import { needsPairing, type SourceDecision } from "./source.ts";
 
 /** The screens between the demo decision and the town, in the order the person meets them. `null` is the town. */
@@ -141,13 +141,16 @@ export type ConnectOutcome = { kind: "ok" } | { kind: "not-paired" } | { kind: "
  * r53-review S2).
  */
 export function connectOutcome(status: number, body: unknown): ConnectOutcome {
-  const record = body !== null && typeof body === "object" ? (body as Record<string, unknown>) : {};
-  const words = typeof record["reason"] === "string" ? (record["reason"] as string) : typeof record["message"] === "string" ? (record["message"] as string) : null;
-  if (status >= 200 && status < 300) return record["ok"] === true ? { kind: "ok" } : { kind: "failed", reason: null };
-  if (status === 401 && record["error"] === "not_paired") return { kind: "not-paired" };
+  // Read through the wire (loops-client `readConnectAnswer`): done, or the refusal's words; null for no object at all.
+  const answer = readConnectAnswer(status, body);
+  if (answer !== null && "ok" in answer) return { kind: "ok" };
+  const refusal = answer ?? {};
+  const words = refusal.reason ?? refusal.message ?? null;
+  if (status >= 200 && status < 300) return { kind: "failed", reason: null };
+  if (status === 401 && refusal.error === "not_paired") return { kind: "not-paired" };
   if (status === 401 || status === 403 || status === 422) return { kind: "rejected", reason: words };
   if (status === 0) return { kind: "failed", reason: null };
-  return { kind: "failed", reason: words ?? (typeof record["error"] === "string" ? (record["error"] as string) : String(status)) };
+  return { kind: "failed", reason: words ?? refusal.error ?? String(status) };
 }
 
 /** "now", "in 40 s", "in 4 min", "in 2 h"; null for no time or one that does not parse. For the host's next re-check of a rejected key. */

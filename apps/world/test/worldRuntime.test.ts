@@ -1,7 +1,8 @@
 /* The world runtime (state/world.ts) through its interface: built from a config over `createDemoSource` with a manual
    demo scheduler and a fake frame clock, read through `state`, `subscribe` and its outlets (said, threads, the host's
-   reconnect, the first snapshot). Round 59d, C3: the facts once pinned on reduceGap.ts and agentName.ts (folded in) are
-   here (agentName's null case too: a reply from an agent the model does not place carries no name), with the start listener's routing (the held round 58d branch's routeMessage facts) and the demo DM read-back. */
+   reconnect, the first snapshot). Round 59d, C3: the facts once pinned on reduceGap.ts (folded in) are here, with the
+   start listener's routing (the held round 58d branch's routeMessage facts). C9 moved the demo DM read-back (and
+   agentName's facts with it) to the demo chat adapter: test/chat.test.ts. */
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createDemoSource, createManualScheduler, type DemoSource } from "@crewhub/demo";
@@ -58,22 +59,13 @@ function outlets() {
 
 const settle = (ms = 20) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Waits (real time, for the demo's answered promises) until `check` holds, at most `limit` ms. */
-async function until(check: () => boolean, limit = 5_000): Promise<void> {
-  const end = Date.now() + limit;
-  while (!check()) {
-    if (Date.now() > end) throw new Error("timed out");
-    await settle(10);
-  }
-}
-
-function demoWorld(options: { buildingLimit?: number; chat?: "own" | "none"; source?: (demo: DemoSource) => WorldSource } = {}) {
+function demoWorld(options: { buildingLimit?: number; source?: (demo: DemoSource) => WorldSource } = {}) {
   const scheduler = createManualScheduler(0);
   const demo = createDemoSource({ scheduler, epochMs: 0 });
   const { clock, api } = fakeClock();
   const { got, outlets: out } = outlets();
   const source = options.source ? options.source(demo) : demo;
-  const world = createWorldRuntime({ source, chat: options.chat === "none" ? null : demo, epochMs: 0, clock: api, buildingLimit: options.buildingLimit ?? NaN, outlets: out });
+  const world = createWorldRuntime({ source, chat: demo, epochMs: 0, clock: api, buildingLimit: options.buildingLimit ?? NaN, outlets: out });
   return { world, demo, scheduler, clock, got };
 }
 
@@ -173,79 +165,6 @@ test("the building limit shows only the first N buildings; NaN shows them all", 
   assert.ok(names.length > 1, `the demo has several buildings by then: ${names.join(", ")}`);
   assert.deepEqual(one.world.state.model.buildings.map((b) => b.slug), names.slice(0, 1));
   assert.deepEqual(one.world.state.text.length > 0, true, "the text view describes the limited model");
-});
-
-test("the demo's own dock answers: an agent's reply is read back into the said outlet with its display name, in a building, the town hall or the post office", async () => {
-  const { world, demo, scheduler, clock, got } = demoWorld();
-  scheduler.advance(400_000);
-  await settle(300);
-  world.setRoleOverrides({});
-  drain(clock);
-  assert.equal(world.demo, demo);
-  const model = world.state.model;
-  assert.ok(model.townHall.some((a) => a.name === "g-man"), "G-Man stands in the town hall");
-  assert.ok(model.buildings.some((b) => b.agents.some((a) => a.name === "cr-lead")), "CR Lead in a building");
-  assert.ok(model.postOffice.some((a) => a.name === "postman"), "the postman at the post office");
-  const asked = [demo.sendDm("g-man", "How is it going?", "c1"), demo.sendDm("cr-lead", "Anything blocked?", "c2"), demo.sendDm("postman", "Any letters?", "c3")];
-  const answered = (agentId: string) => got.said.some((l) => l.agentId === agentId);
-  for (let i = 0; i < 60 && !(answered("g-man") && answered("cr-lead") && answered("postman")); i += 1) {
-    scheduler.advance(1_000);
-    await settle(5);
-  }
-  await until(() => answered("g-man") && answered("cr-lead") && answered("postman"));
-  const byAgent = new Map(got.said.map((l) => [l.agentId, l]));
-  assert.equal(byAgent.get("g-man")?.agentName, "G-Man");
-  assert.equal(byAgent.get("cr-lead")?.agentName, "CR Lead");
-  assert.equal(byAgent.get("postman")?.agentName, "Postman");
-  for (const line of got.said) assert.ok(line.text !== "" && !line.text.includes("\n"), "one line");
-  assert.ok(!got.said.some((l) => asked.some((m) => m.id === l.messageId)), "the person's own messages are never read back");
-});
-
-test("a reply from an agent the model does not place is read back without a name (here the building limit hides CR Lead's building)", async () => {
-  const { world, demo, scheduler, clock, got } = demoWorld({ buildingLimit: 0 });
-  scheduler.advance(400_000);
-  await settle(300);
-  world.setRoleOverrides({});
-  drain(clock);
-  assert.equal(world.state.model.buildings.length, 0);
-  assert.ok(!world.state.model.townHall.some((a) => a.name === "cr-lead"), "CR Lead is placed nowhere in this model");
-  demo.sendDm("cr-lead", "Anything blocked?", "c1");
-  for (let i = 0; i < 60 && !got.said.some((l) => l.agentId === "cr-lead"); i += 1) {
-    scheduler.advance(1_000);
-    await settle(5);
-  }
-  await until(() => got.said.some((l) => l.agentId === "cr-lead"));
-  const line = got.said.find((l) => l.agentId === "cr-lead")!;
-  assert.equal("agentName" in line, false, "no agentName at all, not a null one");
-  assert.ok(line.text !== "");
-});
-
-test("an agent's DM from a source that is not the dock's own demo (live, the stress fixture) is never read back", async () => {
-  const { world, demo, scheduler, clock, got } = demoWorld({ chat: "none" });
-  assert.equal(world.demo, null);
-  scheduler.advance(400_000);
-  await settle(300);
-  drain(clock);
-  demo.sendDm("g-man", "Hello?", "c1");
-  for (let i = 0; i < 60; i += 1) scheduler.advance(1_000);
-  await settle(100);
-  assert.deepEqual(got.said, []);
-  // A source that is another object than the dock's demo (here one in front of it) is not the dock's own: its agent
-  // DMs reach the projection only, though the dock is there.
-  const front = demoWorld({ source: (d) => withListener(d).source });
-  assert.ok(front.world.chat !== null && front.world.demo === null);
-  front.scheduler.advance(400_000);
-  await settle(300);
-  front.demo.sendDm("g-man", "Hello?", "c1");
-  for (let i = 0; i < 60; i += 1) front.scheduler.advance(1_000);
-  await settle(100);
-  assert.deepEqual(front.got.said, [], "a dock that is not the world's source reads nothing back");
-  // The stress fixture keeps a separate demo for the dock: the world's source is not the chat.
-  const stress = worldSources({ live: false, scenarioId: "small-team", stressSize: 12 }, { scheduler: createManualScheduler(0), epochMs: 0 });
-  assert.ok(stress.chat !== null && stress.source !== stress.chat);
-  const sw = createWorldRuntime({ ...stress, epochMs: 0, clock: fakeClock().api, buildingLimit: NaN, outlets: outlets().outlets });
-  assert.equal(sw.demo, null);
-  assert.equal(sw.chat, stress.chat);
 });
 
 test("worldSources: the scenario's demo is also the dock's; live has no dock and a connection", () => {

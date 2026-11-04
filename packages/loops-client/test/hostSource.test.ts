@@ -1,13 +1,15 @@
 /**
  * HostSource against a small in-test host that speaks the team map's `/world-api` on 127.0.0.1 port 0
  * (loopback to a server the test starts: not a network call). The timings are injected so a test runs in
- * tens of milliseconds where the browser waits seconds.
+ * tens of milliseconds where the browser waits seconds. The clock decides nothing here (round 59d, test-timing): a
+ * test waits for the fake's events (a message delivered, an ask received) under a ceiling only a broken test reaches,
+ * and where a test is about the source's own clocks they run under mock timers (`mockClock`) and the test ticks them.
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
-import { after, test } from "node:test";
+import { after, type TestContext, test } from "node:test";
 import { type HostSourceTuning, createHostSource, prefetchSnapshot, probeHost } from "../src/hostSource.ts";
 import { worldApiPath } from "../src/hostWire.ts";
 import type { ConnectionState, HostSourceOptions, LoopsSnapshot, SourceMessage } from "../src/source.ts";
@@ -15,7 +17,14 @@ import type { ConnectionState, HostSourceOptions, LoopsSnapshot, SourceMessage }
 const fixture = (name: string): Record<string, unknown> =>
   JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8")) as Record<string, unknown>;
 
-const TIMINGS = { staleMs: 150, teamPollMs: 60_000, retryMinMs: 10, retryMaxMs: 20 };
+/**
+ * The source's clocks for a test. Stale is a minute: a real 150 ms made the source stale, and heal (the stream read
+ * ended, the test's pushes lost on it), whenever the loaded machine stalled between two messages. The tests about
+ * staleness set it short and tick it under `mockClock`.
+ */
+const TIMINGS = { staleMs: 60_000, teamPollMs: 60_000, retryMinMs: 10, retryMaxMs: 20 };
+/** The ceiling of a wait: far above anything a working source needs on a loaded machine, so that only a real failure reaches it. */
+const CEILING_MS = 30_000;
 
 function snapshotAt(cursor: number): LoopsSnapshot {
   const projects = (fixture("projects.json") as { projects: LoopsSnapshot["projects"] }).projects;
@@ -76,13 +85,39 @@ after(async () => {
   }
 });
 
-/** Polls on real I/O turns only (no timers, so it works under mock timers too) until `check` holds, within `ms` of wall time. */
-async function settle(check: () => boolean, what: string, ms = 5000): Promise<void> {
+/** Polls on real I/O turns only (no timers, so it works under mock timers too) until `check` holds, under the ceiling. */
+async function settle(check: () => boolean, what: string, ms = CEILING_MS): Promise<void> {
   const deadline = Date.now() + ms;
   while (!check()) {
     if (Date.now() > deadline) assert.fail(`timed out waiting for ${what}`);
     await new Promise((resolve) => setImmediate(resolve));
   }
+}
+
+/**
+ * The source's clocks in the test's hand: `setTimeout` is mocked (node:test), so the stale timer and the back-off fire
+ * when the test ticks, never because the machine was slow. A spy on the mocked setTimeout records every pause the
+ * source asks for (`pauses`: its own timers under a second, the run's stale timer `staleMs` left out; fetch keeps timers
+ * of its own on setTimeout too), so a test waits for the pause to be asked, then ticks exactly that long. Ticks stay
+ * under a second in all: fetch's own tick is a second, and nothing here should wake it.
+ */
+function mockClock(t: TestContext, staleMs = TIMINGS.staleMs) {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const pauses: number[] = [];
+  const mocked = globalThis.setTimeout;
+  const spy = (fn: (...args: unknown[]) => void, ms?: number, ...args: unknown[]) => {
+    if (typeof ms === "number" && ms < 1000 && ms !== staleMs && (new Error().stack ?? "").includes("/src/hostSource.ts")) pauses.push(ms);
+    return mocked(fn, ms, ...args);
+  };
+  globalThis.setTimeout = spy as unknown as typeof setTimeout;
+  return {
+    pauses,
+    tick: (ms: number): void => t.mock.timers.tick(ms),
+    restore(): void {
+      globalThis.setTimeout = mocked;
+      t.mock.timers.reset();
+    },
+  };
 }
 
 async function startHost(): Promise<FakeHost> {
@@ -173,7 +208,7 @@ function observe(url: string, extra: HostSourceOptions = {}, tuning: HostSourceT
   source.connection!.onChange(() => states.push(source.connection!.state()));
   const stop = source.start((message) => messages.push(message));
   stops.push(stop);
-  const until = async (check: () => boolean, what: string, ms = 2000): Promise<void> => {
+  const until = async (check: () => boolean, what: string, ms = CEILING_MS): Promise<void> => {
     const deadline = Date.now() + ms;
     while (!check()) {
       if (Date.now() > deadline) assert.fail(`timed out waiting for ${what}; messages ${messages.map((m) => m.type).join(",")}; states ${states.join(",")}`);
@@ -285,27 +320,42 @@ test("by default a seq gap is normal (loops filters the stream per key): the eve
   await host.close();
 });
 
-test("heartbeats keep it live; silence past staleMs → stale, and the stream is healed: the silent read ended, the stream reopened at the cursor, live again (review F3)", async () => {
+test("heartbeats keep it live; silence past staleMs → stale, and the stream is healed: the silent read ended, the stream reopened at the cursor, live again (review F3)", async (t) => {
+  // The stale clock (150 here) runs under the mocked setTimeout: six heartbeats 100 ms apart are 600 ms without 150 of
+  // silence, so the source stays live however slowly the machine delivers them; then 150 of silence, ticked, is stale.
   const host = await startHost();
-  const run = observe(host.url);
-  await run.until(() => host.cursors.length === 1, "the stream");
-  for (let i = 0; i < 6; i += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    host.push({ type: "heartbeat", seq: 100, ts: "2026-10-07T12:00:00Z" });
+  const clock = mockClock(t, 150);
+  const run = observe(host.url, {}, { timings: { ...TIMINGS, staleMs: 150 } });
+  try {
+    await settle(() => run.state() === "live" && host.cursors.length === 1, "live, the stream open");
+    for (let i = 1; i <= 6; i += 1) {
+      clock.tick(100);
+      host.push({ type: "heartbeat", seq: 100, ts: "2026-10-07T12:00:00Z" });
+      await settle(() => count(run.messages, "heartbeat") === i, `heartbeat ${i}`);
+      assert.equal(run.state(), "live", `live after heartbeat ${i}`);
+    }
+    host.push({ type: "event", envelope: envelope(101) });
+    await settle(() => count(run.messages, "event") === 1, "the event");
+    // The stream stays open and goes silent (a dead leg): the source does not wait on it for ever.
+    clock.tick(149);
+    assert.equal(run.state(), "live", "not yet stale one ms short of staleMs");
+    clock.tick(1);
+    assert.equal(run.state(), "stale", "stale at staleMs of silence");
+    // Healed: the silent read is ended and the run reopens the stream at its cursor after its back-off (retryMinMs).
+    await settle(() => clock.pauses.length === 1, "the back-off before the reopen");
+    assert.equal(clock.pauses[0], TIMINGS.retryMinMs);
+    clock.tick(TIMINGS.retryMinMs);
+    await settle(() => host.cursors.length === 2, "the stream reopened after stale");
+    assert.equal(host.cursors[1], "101", "reopened at the last seq, no snapshot asked again");
+    await settle(() => run.state() === "live", "live again on the new stream");
+    assert.equal(host.snapshots, 1, "the cursor was kept: the host replays, no new snapshot");
+    assert.ok(run.states.includes("stale"), "the chip said Stale meanwhile");
+  } finally {
+    run.stop();
+    clock.restore();
+    host.endStreams();
+    await host.close();
   }
-  assert.equal(run.state(), "live");
-  assert.ok(count(run.messages, "heartbeat") >= 5);
-  host.push({ type: "event", envelope: envelope(101) });
-  await run.until(() => count(run.messages, "event") === 1, "the event");
-  // The stream stays open and goes silent (a dead leg): the source does not wait on it for ever.
-  await run.until(() => run.state() === "stale", "stale", 1000);
-  await run.until(() => host.cursors.length === 2, "the stream reopened after stale", 1000);
-  assert.equal(host.cursors[1], "101", "reopened at the last seq, no snapshot asked again");
-  await run.until(() => run.state() === "live", "live again on the new stream");
-  assert.equal(host.snapshots, 1, "the cursor was kept: the host replays, no new snapshot");
-  assert.ok(run.states.includes("stale"), "the chip said Stale meanwhile");
-  run.stop();
-  await host.close();
 });
 
 test("the page coming back into view while stale heals at once: the hanging read is ended and the stream asked again, not after the back-off (review F3)", async () => {
@@ -329,7 +379,8 @@ test("the page coming back into view while stale heals at once: the hanging read
     host.hang = false;
     page.visibilityState = "visible";
     page.dispatchEvent(new Event("visibilitychange"));
-    await run.until(() => host.cursors.length === 3, "a new ask right after the page came into view", 500);
+    // While the ask hangs no back-off can run, so without the heal a third ask never comes: the wait proves it, not its length.
+    await run.until(() => host.cursors.length === 3, "a new ask right after the page came into view");
     await run.until(() => run.state() === "live", "live again");
     assert.equal(host.cursors[2], "100", "at the cursor");
     run.stop();
@@ -366,7 +417,9 @@ test("the status's key: the host's own word kept and exposed, null from a host t
   host.push({ type: "status", loops: "ok", key: "ok" });
   host.push({ type: "status", loops: "ok", key: "banana" });
   host.push({ type: "status", loops: "ok" });
-  await new Promise((resolve) => setTimeout(resolve, 60));
+  // The stream keeps its order: the heartbeat delivered means the three statuses before it were read.
+  host.push({ type: "heartbeat", seq: 100, ts: "2026-10-07T12:00:00Z" });
+  await run.until(() => count(run.messages, "heartbeat") === 1, "the heartbeat sent after the three statuses");
   assert.equal(run.key(), "ok", "the same word, an unknown word and a status without one leave it");
   assert.equal(changes, before, "and nothing fires for them");
   // Forget this key in another tab: the host says unauthorized (its legacy word for no key) with key none.
@@ -538,30 +591,21 @@ test("probeHost reads loops' version and the one the host saw first when loops w
 });
 
 test("before the first snapshot the retry is capped at firstRetryMaxMs; after it the full backoff applies", async (t) => {
-  // The retry pause is a setTimeout. Under mock timers it fires only when the test ticks, and a spy on the mocked
-  // setTimeout records the delay the source asked for: the check is on that state (the exact pause, then the ask
-  // after a tick of that length and none after a shorter one), not on measured gaps, which under load grew past
-  // any wall-clock bound. Only the source's own timers count, and not its stale timer (a minute here): fetch keeps
-  // its own on setTimeout too (a keep-alive refresh, the parser's timeouts).
+  // The retry pause is a setTimeout. Under `mockClock` it fires only when the test ticks, and the spy records the delay
+  // the source asked for: the check is on that state (the exact pause, then the ask after a tick of that length and
+  // none after a shorter one), not on measured gaps, which under load grew past any wall-clock bound.
   const host = await startHost();
   host.snapshotStatus = 503;
-  t.mock.timers.enable({ apis: ["setTimeout"] });
-  const pauses: number[] = [];
-  const mocked = globalThis.setTimeout;
-  const spy = (fn: (...args: unknown[]) => void, ms?: number, ...args: unknown[]) => {
-    if (typeof ms === "number" && ms < 1000 && (new Error().stack ?? "").includes("/src/hostSource.ts")) pauses.push(ms);
-    return mocked(fn, ms, ...args);
-  };
-  globalThis.setTimeout = spy as unknown as typeof setTimeout;
+  const clock = mockClock(t);
   const run = observe(host.url, {}, { timings: { ...TIMINGS, staleMs: 60_000, retryMinMs: 10, retryMaxMs: 400, firstRetryMaxMs: 30 } });
   let taken = 0; // the pauses checked so far: each call takes the next one (a reset asks at once, without a pause)
   const askAfterPause = async (n: number, delay: number): Promise<void> => {
-    await settle(() => pauses.length > taken, `the pause before ask ${n}`);
-    assert.equal(pauses[taken++], delay, `the pause before ask ${n}: ${pauses.join(",")}`);
-    t.mock.timers.tick(delay - 1);
+    await settle(() => clock.pauses.length > taken, `the pause before ask ${n}`);
+    assert.equal(clock.pauses[taken++], delay, `the pause before ask ${n}: ${clock.pauses.join(",")}`);
+    clock.tick(delay - 1);
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(host.snapshots, n - 1, `no ask ${n} before its ${delay} ms`);
-    t.mock.timers.tick(1);
+    clock.tick(1);
     await settle(() => host.snapshots === n, `ask ${n} after ${delay} ms`);
   };
   try {
@@ -581,8 +625,7 @@ test("before the first snapshot the retry is capped at firstRetryMaxMs; after it
     await settle(() => run.state() === "live", "live again");
   } finally {
     run.stop();
-    globalThis.setTimeout = mocked;
-    t.mock.timers.reset();
+    clock.restore();
     host.endStreams();
     await host.close();
   }
@@ -593,19 +636,12 @@ test("unpaired after a back-off that grew while the host was away: the next ask 
   // seconds in life), then the new host answers 401 not_paired. The person is opening the new link now, so the
   // pauses must shrink at once, not ride the grown back-off (it kept the Pair screen and then the town waiting ~5 s).
   const host = await startHost();
-  t.mock.timers.enable({ apis: ["setTimeout"] });
-  const pauses: number[] = [];
-  const mocked = globalThis.setTimeout;
-  const spy = (fn: (...args: unknown[]) => void, ms?: number, ...args: unknown[]) => {
-    if (typeof ms === "number" && ms < 1000 && (new Error().stack ?? "").includes("/src/hostSource.ts")) pauses.push(ms);
-    return mocked(fn, ms, ...args);
-  };
-  globalThis.setTimeout = spy as unknown as typeof setTimeout;
+  const clock = mockClock(t);
   const run = observe(host.url, {}, { timings: { ...TIMINGS, staleMs: 60_000, retryMinMs: 10, retryMaxMs: 400, firstRetryMaxMs: 30 } });
   const pauseThenTick = async (n: number, delay: number, what: string): Promise<void> => {
-    await settle(() => pauses.length >= n, `pause ${n} (${what})`);
-    assert.equal(pauses[n - 1], delay, `pause ${n} (${what}): ${pauses.join(",")}`);
-    t.mock.timers.tick(delay);
+    await settle(() => clock.pauses.length >= n, `pause ${n} (${what})`);
+    assert.equal(clock.pauses[n - 1], delay, `pause ${n} (${what}): ${clock.pauses.join(",")}`);
+    clock.tick(delay);
   };
   try {
     await settle(() => run.state() === "live" && host.cursors.length === 1, "live, the stream open");
@@ -631,11 +667,10 @@ test("unpaired after a back-off that grew while the host was away: the next ask 
     host.paired = true;
     await pauseThenTick(8, 30, "the ask that meets the new cookie");
     await settle(() => run.state() === "live", "live again");
-    assert.ok(pauses.slice(4).every((p) => p <= 30), `every pause while unpaired under the cap: ${pauses.join(",")}`);
+    assert.ok(clock.pauses.slice(4).every((p) => p <= 30), `every pause while unpaired under the cap: ${clock.pauses.join(",")}`);
   } finally {
     run.stop();
-    globalThis.setTimeout = mocked;
-    t.mock.timers.reset();
+    clock.restore();
     host.endStreams();
     await host.close();
   }
@@ -684,20 +719,26 @@ test("a town message hands its rev to onTown; a rev that is no whole number from
   await host.close();
 });
 
-test("a host that said loops is down and then goes quiet stays loops-down: only a live stream goes stale and is healed (round 54, r54-mut-client)", async () => {
+test("a host that said loops is down and then goes quiet stays loops-down: only a live stream goes stale and is healed (round 54, r54-mut-client)", async (t) => {
   const host = await startHost();
-  const run = observe(host.url);
-  await run.until(() => host.cursors.length === 1, "the stream");
-  host.push({ type: "status", loops: "down" });
-  await run.until(() => run.state() === "loops-down", "loops-down");
-  // The status armed the stale timer (staleMs 150) before this wait began; a timer due later fires after it whatever
-  // the load, so this wait outlasts it without the clock deciding anything.
-  await new Promise((resolve) => setTimeout(resolve, TIMINGS.staleMs * 4));
-  assert.equal(run.state(), "loops-down");
-  assert.ok(!run.states.includes("stale"), `states ${run.states.join(",")}`);
-  assert.equal(host.cursors.length, 1, "the stream was left open, not healed");
-  run.stop();
-  await host.close();
+  const clock = mockClock(t, 150);
+  const run = observe(host.url, {}, { timings: { ...TIMINGS, staleMs: 150 } });
+  try {
+    await settle(() => host.cursors.length === 1, "the stream");
+    host.push({ type: "status", loops: "down" });
+    await settle(() => run.state() === "loops-down", "loops-down");
+    // The status armed the stale timer (150 here); four times that of silence, ticked, and it fires into loops-down.
+    clock.tick(150 * 4);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(run.state(), "loops-down");
+    assert.ok(!run.states.includes("stale"), `states ${run.states.join(",")}`);
+    assert.equal(host.cursors.length, 1, "the stream was left open, not healed");
+  } finally {
+    run.stop();
+    clock.restore();
+    host.endStreams();
+    await host.close();
+  }
 });
 
 test("round 55: stop clears the stale timer: a source started again is not made stale by the stopped run's silence", async (t) => {

@@ -29,8 +29,11 @@ await api.handle("GET", "/api/dm/threads"); // { status: 200, body: { threads: [
 - `src/actions.ts`: loops-level changes that append the envelopes of `events.md`.
   They also enforce loops' rules; for example, agents never move a ticket to Done.
 - `src/script.ts`: Small team's 16-minute storyline with seeded jitter, and `buildStory` for any scenario.
+- `src/player.ts`: `createPlayer(timeline, options)`, playback on the injected scheduler: position, speed, the
+  demo clock, the wall tick, seek, the loop end, the listeners. Two adapters give it a `Timeline`: the storyline
+  (`source.ts`) and the stress stream (`stress.ts`).
 - `src/stress.ts`: the synthetic stress fixtures (12 buildings, or 20 in four groups).
-- `src/source.ts`: `createDemoSource`, with playback, loops, seek, heartbeats,
+- `src/source.ts`: `createDemoSource`, the storyline on the player, with heartbeats,
   prop requests and the person's chat (`sendDm`, `markDmRead`). A sent message
   gets its `dm` delivery at once, the postman claims and forwards it, and a
   scripted reply that starts with "(demo reply)" follows eight demo seconds later,

@@ -20,6 +20,7 @@
 import type { ChatLine, ChatThreadFact, Envelope } from "@crewhub/loops-client";
 import { readAgentDm, readDmLine, readThreads } from "@crewhub/loops-client";
 import type { LoopsClient } from "./loops.ts";
+import { readKeyBot } from "./keyBot.ts";
 
 /** Whether the key reads the chat on this link: `unknown` until loops was asked (health says `session: unknown` then). */
 export type ChatVerdict = "yes" | "no" | "unknown";
@@ -75,9 +76,9 @@ export function createChatPath(options: ChatPathOptions): ChatPath {
 
   async function ask(): Promise<Asked> {
     try {
-      const agents = await client.getJson<{ agents?: { id?: unknown; viewer?: unknown }[] }>("/api/agents");
-      const mine = agents.status === 200 ? agents.body?.agents?.find((a) => a.id === keyName) : undefined;
-      if (mine?.viewer !== true) return { reads: false, threads: [], viewer: false, status: null };
+      const agents = await client.getJson("/api/agents");
+      // The key's own entry says what kind of bot it is (keyBot.ts, the one reader; the doctor prints the same fact).
+      if (agents.status !== 200 || readKeyBot(agents.body, keyName).kind !== "viewer") return { reads: false, threads: [], viewer: false, status: null };
       const threads = await client.getJson("/api/dm/threads");
       return { reads: threads.status === 200, threads: threads.status === 200 ? readThreads(threads.body) : [], viewer: true, status: threads.status };
     } catch {

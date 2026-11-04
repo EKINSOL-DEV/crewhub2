@@ -2,21 +2,19 @@
  * The hidden text view: every fact the scene shows as a sentence, grouped by section (Town, one
  * section per building, one per room). Inferences say so; statuses are always words.
  */
+import { agentWords } from "./appearance.ts";
 import { archivedWords } from "./archive.ts";
 import { pinnedCard, quietWords, runWords } from "./board.ts";
 import { roleInferred, roleWords } from "./roleWords.ts";
 import { roomLabel } from "./rooms.ts";
-import { DESK_WORDS, HALL_LABELS, HALL_PLACES, RACK_KINDS, RACK_NAMES, ROLE_DESK_WORDS, hallOf, isRackKind, placeWords as placeWordsOf, type Hall, type RoomWording, type WordingOptions } from "./halls.ts";
+import { DESK_WORDS, HALL_LABELS, RACK_KINDS, RACK_NAMES, ROLE_DESK_WORDS, doneWord, hallOf, isRackKind, placeWords, roomPlaceWords, type Hall, type RoomWording, type WordingOptions } from "./halls.ts";
 import type {
   AgentPlacement,
   Building,
-  LaneStatus,
   PersonVisit,
-  Posture,
   Room,
   TextLine,
   TicketStatus,
-  TransitPlace,
   WorkObject,
   WorldModel,
 } from "./model.ts";
@@ -27,21 +25,6 @@ const STATUS_WORDS: Record<TicketStatus, string> = {
   in_progress: "in progress",
   review: "review",
   done: "done",
-};
-
-const LANE_WORDS: Record<LaneStatus, string> = {
-  working: "working",
-  idle: "idle",
-  done: "done (herdr's pane status, not a finished ticket)",
-  blocked: "blocked on a prompt",
-  unknown: "status unknown",
-};
-
-const POSTURE_WORDS: Record<Posture, string> = {
-  focused: "focused",
-  relaxed: "relaxed",
-  "raised-hand": "hand raised",
-  greyed: "greyed out",
 };
 
 const LOOK_WORDS: Record<WorkObject["look"], string> = {
@@ -113,9 +96,9 @@ export function describeWorld(model: WorldModel, civic: CivicWords = CIVIC_WORDS
     if (!building.closing) continue;
     add("Town", building.closing.kind === "closing" ? `${buildingSection(building)} is closing: the lights go out and the boards come down.` : `${buildingSection(building)} opens again: the boards come off and the lights come on.`);
   }
-  for (const agent of model.postOffice) add("Town", `${agent.displayName} is the postman, at the ${civic.post}: ${agentState(agent)}.`);
+  for (const agent of model.postOffice) add("Town", `${agent.displayName} is the postman, at the ${civic.post}: ${agentWords(agent).state}.`);
   for (const agent of model.townHall) {
-    add("Town", `${agent.displayName} is in the ${civic.hall}, active in no building: ${agentState(agent)}.`);
+    add("Town", `${agent.displayName} is in the ${civic.hall}, active in no building: ${agentWords(agent).state}.`);
     describeCaption("Town", agent, add);
   }
   if (model.observer !== null) add("Town", `${model.observer} (this world's key) is not shown: it is the observer, not a worker.`);
@@ -131,15 +114,6 @@ export function describeWorld(model: WorldModel, civic: CivicWords = CIVIC_WORDS
 }
 
 type Add = (section: string, text: string, kind?: TextLine["kind"]) => void;
-
-function agentState(agent: AgentPlacement): string {
-  return `${LANE_WORDS[agent.laneStatus]}, posture ${POSTURE_WORDS[agent.posture]}`;
-}
-
-/** The text view's sentence for an agent's state (lane status and posture, in words); the agent card shows the same. */
-export function agentStateWords(agent: AgentPlacement): string {
-  return agentState(agent);
-}
 
 function describeCaption(section: string, agent: AgentPlacement, add: Add): void {
   if (!agent.caption) return;
@@ -166,7 +140,7 @@ function describeBuilding(building: Building, add: Add, buildingName: (slug: str
     add(
       section,
       r.publishedAt
-        ? `${name}: published at ${r.publishedAt}; a banner hangs in ${rooms === "classic" ? "the lobby" : "Administration"}.`
+        ? `${name}: published at ${r.publishedAt}; a banner hangs in ${placeWords("lobby", rooms)}.`
         : `${name}: ${r.state}.`,
     );
   }
@@ -177,23 +151,15 @@ function describeBuilding(building: Building, add: Add, buildingName: (slug: str
   for (const run of building.automationRuns) add(section, `${runWords(run)}.`);
   if (building.archivedCount > 0) {
     const n = `${building.archivedCount} ${building.archivedCount === 1 ? "ticket" : "tickets"}`;
-    add(
-      section,
-      rooms === "classic"
-        ? `${n} archived from Dispatch; the truck took them away and the lobby keeps the count.`
-        : `${n} archived from the Done rack; the truck took them away and the archive counter in Administration keeps the count.`,
-    );
+    // The classic lobby keeps the count itself; in three-rooms its archive counter does.
+    const counter = rooms === "classic" ? placeWords("lobby", rooms) : `the archive counter ${roomPlaceWords("lobby", rooms)}`;
+    add(section, `${n} archived from ${placeWords("dispatch", rooms)}; the truck took them away and ${counter} keeps the count.`);
   }
 
   for (const agent of building.agents) describeAgent(section, agent, add, buildingName, rooms);
   for (const visit of building.visits) describeVisit(section, visit, add, rooms);
   if (rooms === "classic") for (const room of building.rooms) describeRoom(building, room, add);
   else describeHalls(building, add);
-}
-
-/** Where a person puts the package: the Done rack, or Dispatch in the classic building. */
-export function doneWord(rooms: RoomWording): string {
-  return rooms === "classic" ? "Dispatch" : "Done";
 }
 
 /**
@@ -217,7 +183,7 @@ function describeAgent(section: string, agent: AgentPlacement, add: Add, buildin
     if (agent.locationInferred) {
       add(section, `${agent.displayName} is working in ${buildingName(agent.building)}, inferred from recent events.`, "inference");
     }
-    add(section, `${agent.displayName}: ${agentState(agent)}.`);
+    add(section, `${agent.displayName}: ${agentWords(agent).state}.`);
     describeCaption(section, agent, add);
   }
   if (agent.deskTicketKey) add(section, `${agent.displayName} has ${agent.deskTicketKey} on its desk.`);
@@ -226,8 +192,8 @@ function describeAgent(section: string, agent: AgentPlacement, add: Add, buildin
 
 /** Three-rooms: "on the floor, at a worker desk", "in the lead's office", "in Administration". */
 function homePlace(agent: AgentPlacement): string {
-  const hall = hallOf(agent.room!);
-  return hall === "floor" ? `${HALL_PLACES.floor}, at ${DESK_WORDS[agent.role]}` : HALL_PLACES[hall];
+  const words = roomPlaceWords(agent.room!, "three-rooms");
+  return hallOf(agent.room!) === "floor" ? `${words}, at ${DESK_WORDS[agent.role]}` : words;
 }
 
 function describeRoom(building: Building, room: Room, add: Add): void {
@@ -270,7 +236,7 @@ function huddleKey(building: Building): string | null {
  * about CH-12", "Lead's office: Lin (working); beacon: …". `laneWords` says an agent's state in brackets; the text
  * view uses its own words, the app the status line's.
  */
-export function hallSummary(building: Building, hall: Hall, laneWords: (agent: AgentPlacement) => string = (a) => LANE_WORDS[a.laneStatus]): string {
+export function hallSummary(building: Building, hall: Hall, laneWords: (agent: AgentPlacement) => string = (a) => agentWords(a).lane): string {
   const name = HALL_LABELS[hall];
   const parts: string[] = [];
   const seat = (a: AgentPlacement) => {
@@ -321,10 +287,6 @@ function describeHalls(building: Building, add: Add): void {
   const office = sectionOf("office");
   add(office, `${hallSummary(building, "office")}.`);
   for (const object of inHall("office")) describeObject(office, object, building, add, "three-rooms");
-}
-
-function placeWords(place: TransitPlace, rooms: RoomWording): string {
-  return placeWordsOf(place, rooms);
 }
 
 function describeObject(section: string, object: WorkObject, building: Building, add: Add, rooms: RoomWording): void {

@@ -7,12 +7,16 @@
    closing checks of regress.mjs and a11y.mjs admit exactly those two lines, for the loops origins of their run, and
    nothing broader. Tested by scripts/test/probeRefusal.test.ts. */
 
-/** A problem as `watch` in lib/world.mjs records it: the console line, the page's origin, the URL the browser blames. */
+/**
+ * A problem as `watch` in lib/world.mjs records it: the console line, the page's origin, the URL the browser blames,
+ * and when the tool heard it (ms; lib/closingCheck.ts reads it against a host restart's window).
+ */
 export interface PageProblem {
   kind: string;
   text: string;
   pageOrigin: string;
   url?: string;
+  at?: number;
 }
 
 const THREADS = "/api/dm/threads";

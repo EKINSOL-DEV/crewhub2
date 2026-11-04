@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { createLoopsClient } from "../src/loops.ts";
-import { archivedSlugsFromEvents, assembleSnapshot, readArchivedSlugsFromEvents } from "../src/snapshot.ts";
+import { type ArchiveReport, assembleSnapshot, readArchivedSlugsFromEvents } from "../src/snapshot.ts";
 import { type LoopsStub, createLoopsStub, envelope, installation } from "./loopsStub.ts";
 
 /** A `project.archived` or `project.restored` envelope at `seq` for `slug`. */
@@ -30,7 +30,7 @@ describe("archived projects from the event log", () => {
 
   it("keeps the last archive or restore per slug and pages past loops' 500", async () => {
     const client = createLoopsClient(stub.url, stub.key);
-    const slugs = await archivedSlugsFromEvents(client);
+    const { slugs } = await readArchivedSlugsFromEvents(client);
     assert.deepEqual(slugs.sort(), ["flip", "old"], "atlas was restored, flip was archived last");
     const reads = stub.requests.filter((r) => r.path.startsWith("/api/events?"));
     assert.ok(reads.length >= 2, `pages: ${reads.map((r) => r.path).join(" ")}`);
@@ -43,13 +43,50 @@ describe("archived projects from the event log", () => {
   it("the snapshot reads each archived project the list left out, once, marked archived", async () => {
     const client = createLoopsClient(stub.url, stub.key);
     stub.requests.length = 0;
-    const { snapshot } = await assembleSnapshot(client, { cursor: 999, knownArchivedSlugs: ["old", "flip"] });
+    const { snapshot } = await assembleSnapshot(client, { cursor: 999, archived: () => ({ slugs: ["old", "flip"], remembered: false }) });
     assert.deepEqual(snapshot.projects.map((p) => p.slug), ["atlas", "beacon"]);
     assert.deepEqual(snapshot.archivedProjects.map((p) => p.slug).sort(), ["flip", "old"]);
     assert.ok(snapshot.archivedProjects.every((p) => typeof p.archivedAt === "string"));
     const one = stub.requests.filter((r) => r.path === "/api/projects/old" || r.path === "/api/projects/flip");
     assert.equal(one.length, 2, "each archived project is read once, although the log and the stream both named it");
     assert.ok(!stub.requests.some((r) => r.path === "/api/projects/atlas"), "a restored project is not read one by one");
+  });
+
+  it("the snapshot asks for the archived projects the host knows once, after the project list and the log's archive read and before the boards; the host's remembered set names the source when neither told it whole (round 60, A1)", async () => {
+    // The list refuses includeArchived (an agent key) and the log's archive read answers 410: only the host knows.
+    const flip = { id: "pr_flip", slug: "flip", key: "FLIP", name: "flip", lead: { id: "lead-1", kind: "agent", displayName: "Lead One" }, counts: { backlog: 0, planned: 0, in_progress: 0, review: 0, done: 0 }, effectiveRoute: { agent: "lead-1" }, archivedAt: "2026-10-20T22:14:27Z", archivedBy: { id: "nicky", kind: "user", displayName: "Nicky" } };
+    const shut = await createLoopsStub({
+      ...installation(),
+      routes: {
+        ...installation().routes,
+        "/api/projects/flip": { project: flip },
+      },
+      logMinAfter: 1,
+    });
+    try {
+      for (const remembered of [true, false]) {
+        shut.requests.length = 0;
+        const asked: string[][] = [];
+        const reports: ArchiveReport[] = [];
+        const { snapshot } = await assembleSnapshot(createLoopsClient(shut.url, shut.key), {
+          cursor: 0,
+          archived: () => {
+            asked.push(shut.requests.map((r) => r.path));
+            return { slugs: ["flip", "atlas"], remembered };
+          },
+          onArchive: (report) => reports.push(report),
+        });
+        assert.equal(asked.length, 1, "asked once");
+        const [before] = asked as [string[]];
+        assert.ok(before.some((p) => p.startsWith("/api/projects?")) && before.some((p) => p.startsWith("/api/events?") && p.includes("types=project.archived%2Cproject.restored")), before.join(" "));
+        assert.ok(!before.some((p) => p.startsWith("/api/board/")), `before the boards: ${before.join(" ")}`);
+        assert.deepEqual(snapshot.archivedProjects.map((p) => p.slug), ["flip"], "read one by one and kept as loops confirms; a listed project is not read again");
+        assert.ok(!shut.requests.some((r) => r.path === "/api/projects/atlas"));
+        assert.deepEqual(reports, [{ source: remembered ? "remembered" : "none", slugs: ["flip"] }]);
+      }
+    } finally {
+      await shut.close();
+    }
   });
 
   it("a log whose pages never run short is read for 1000 pages and no more, and the read says it is incomplete (round 54, r54-mut-host2: snapshot.ts:165)", async () => {
