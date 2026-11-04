@@ -19,3 +19,8 @@ export function visibleInvalid(invalid: ReadonlyMap<string, InvalidRequest>, lis
   if (!invalid.size) return [];
   return [...invalid.values()].filter((r) => listed.has(r.ticketKey));
 }
+
+/** Whether the visible error crates differ from the ones shown: another count, or another request at any place. */
+export function invalidChanged(visible: readonly InvalidRequest[], shown: readonly InvalidRequest[]): boolean {
+  return visible.length !== shown.length || visible.some((r, i) => r !== shown[i]);
+}

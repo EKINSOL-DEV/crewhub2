@@ -5,7 +5,7 @@ import { useEffect } from "react";
 import { shouldRetry } from "../api/client";
 import { dmKeys } from "../components/bubbles/queries";
 import { setNavigator } from "../shims/react-router-dom";
-import { chatInvalidations } from "./chatInvalidations";
+import { chatInvalidations, opensSettings, snapshotInvalidations } from "./chatInvalidations";
 import { demoChatApi } from "./chatApi";
 import { worldRuntime } from "./world";
 
@@ -27,7 +27,7 @@ export function useChatEvents(): void {
     if (!chat) return;
     return chat.start((message) => {
       if (message.type === "snapshot") {
-        for (const key of [["dm-threads"], ["dm-messages"], ["dm-summary"], ["agents"]]) void qc.invalidateQueries({ queryKey: key });
+        for (const key of snapshotInvalidations()) void qc.invalidateQueries({ queryKey: key });
       } else if (message.type === "event") {
         for (const key of chatInvalidations(message.envelope)) void qc.invalidateQueries({ queryKey: key });
       }
@@ -49,7 +49,7 @@ export function useChatView(leadId: string | null): void {
 export function useChatNavigation(openSettings: () => void): void {
   useEffect(() => {
     setNavigator((to) => {
-      if (to.startsWith("/settings")) openSettings();
+      if (opensSettings(to)) openSettings();
     });
     return () => setNavigator(null);
   }, [openSettings]);

@@ -8,13 +8,14 @@
    world's own figures through the walk runtime. It never reads or writes crewhub-loops: the intent player and the walks
    are its only outlet, and the text view labels everything it does "scripted". */
 import { useEffect, useSyncExternalStore } from "react";
-import { createDirectorFeed, DEMO_SEED, type FeedUsage, type PlanRecord, type PropTags } from "@crewhub/demo";
+import { createDirectorFeed, DEMO_SEED, type PlanRecord, type PropTags } from "@crewhub/demo";
 import { effectivePresence, normalizePresence, type AgentKey, type PresenceSettings, type Reachable, type WorldModel } from "@crewhub/world-model";
 import { clearIntents, playIntent } from "../world/intentPlayer";
 import { VISIT_TAGS } from "../world/movement";
 import { NavWorld } from "../world/navigation";
 import { buildingPlanNow } from "./buildingPlan";
 import { logPlans } from "./planLog";
+import { sameDirectorState, type DirectorState } from "./directorState";
 import { loadPresence, savePresence } from "./presenceStore";
 import { worldRuntime } from "./world";
 
@@ -50,16 +51,7 @@ const reachable: Reachable = (query) => {
 /** The tags the script may choose in a room: visitable props (not desks) with an approach reachable from the lobby. */
 const propTags: PropTags = (slug, room) => nav().tags(slug, room).filter((tag) => VISIT_TAGS.includes(tag) && nav().reachableSpots(slug, tag, room).length > 0);
 
-export interface DirectorState {
-  settings: PresenceSettings;
-  /** The mode of the last model seen, which decides which switch counts; "demo" before the first model. */
-  mode: WorldModel["mode"];
-  /** Whether the feed runs now: the switch of the current mode (`effectivePresence`). */
-  enabled: boolean;
-  /** Newest first. */
-  plans: readonly PlanRecord[];
-  usage: FeedUsage;
-}
+export type { DirectorState };
 
 class DirectorRuntime {
   #settings = loadPresence();
@@ -132,8 +124,7 @@ class DirectorRuntime {
   #publish() {
     const next = this.#snapshot();
     const prev = this.#state;
-    const same = prev.settings === next.settings && prev.mode === next.mode && prev.enabled === next.enabled && prev.plans === next.plans && JSON.stringify(prev.usage) === JSON.stringify(next.usage);
-    if (same) return;
+    if (sameDirectorState(prev, next)) return;
     this.#state = next;
     for (const listener of this.#listeners) listener();
   }

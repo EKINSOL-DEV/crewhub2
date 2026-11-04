@@ -1,5 +1,5 @@
-/* Which chat queries an event refreshes (state/chat.ts's live updates). Pure, so a node test can pin it: chat.ts itself
-   reaches the world runtime and React. */
+/* Which chat queries an event or a snapshot refreshes, and where the chat's navigations go (state/chat.ts). Pure, so a
+   node test can pin them: chat.ts itself reaches the world runtime and React. */
 import type { QueryKey } from "@tanstack/react-query";
 import type { Envelope } from "@crewhub/loops-client";
 
@@ -7,4 +7,14 @@ import type { Envelope } from "@crewhub/loops-client";
 export function chatInvalidations(e: Pick<Envelope, "type" | "payload">): QueryKey[] {
   if (e.type.startsWith("dm.") || typeof e.payload["dmThreadId"] === "string") return [["dm-messages"], ["dm-threads"]];
   return [];
+}
+
+/** A new snapshot (a seek or a new loop of the demo) rewinds the store: everything the chat shows is read again. */
+export function snapshotInvalidations(): QueryKey[] {
+  return [["dm-threads"], ["dm-messages"], ["dm-summary"], ["agents"]];
+}
+
+/** `/settings/...` opens the world's Settings card; there is nothing else to open. */
+export function opensSettings(to: string): boolean {
+  return to.startsWith("/settings");
 }

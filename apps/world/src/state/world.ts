@@ -11,13 +11,9 @@ import {
   browserScheduler,
   createDemoSource,
   createStressSource,
-  DEFAULT_SCENARIO,
   demoScenario,
-  demoScenarios,
   parseScenarioId,
   parseStressSize,
-  STRESS_FIXTURES,
-  STRESS_SIZES,
   type DemoScenario,
   type DemoSource,
   type StressSize,
@@ -37,6 +33,8 @@ import {
 import { sourceDecision, takeFirstSnapshot, townCopySource, townKeyFor, type SourceDecision } from "./source";
 import { hostConnected, hostTownChanged } from "./townBus";
 import { reduceWait } from "./reduceGap";
+import { agentDisplayName } from "./agentName";
+import { scenarioChoicesFor, type ScenarioChoice } from "./scenarioChoices";
 
 export interface WorldState {
   model: WorldModel;
@@ -76,42 +74,11 @@ export const TOWN_KEY = townKeyFor({ source: SOURCE.source, scenarioTownKey: SCE
 /** A live town made before the key carried the installation (the plain live key) is copied once into TOWN_KEY; null for a demo page. */
 export const TOWN_COPY_FROM = townCopySource({ source: SOURCE.source, townKey: TOWN_KEY });
 
-export interface ScenarioChoice {
-  id: string;
-  name: string;
-  summary: string;
-  current: boolean;
-  /** Where choosing it goes: this page with the scenario in the URL. */
-  href: string;
-}
+export type { ScenarioChoice };
 
 /** The Demo chip's picker: every scenario, and in dev builds the stress fixtures. Choosing one reloads the page. */
 export function scenarioChoices(): ScenarioChoice[] {
-  const href = (set: (params: URLSearchParams) => void) => {
-    const params = new URLSearchParams(PARAMS);
-    params.delete("scenario");
-    params.delete("stress");
-    set(params);
-    const query = params.toString();
-    return `${globalThis.location?.pathname ?? "/"}${query ? `?${query}` : ""}`;
-  };
-  const choices: ScenarioChoice[] = demoScenarios().map((s) => ({
-    id: s.id,
-    name: s.name,
-    summary: s.summary,
-    current: !STRESS && s.id === SCENARIO.id,
-    href: href((params) => s.id !== DEFAULT_SCENARIO && params.set("scenario", s.id)),
-  }));
-  if (import.meta.env.DEV)
-    for (const size of STRESS_SIZES)
-      choices.push({
-        id: `stress-${size}`,
-        name: `Stress ${size}`,
-        summary: `${STRESS_FIXTURES[size].agents} agents`,
-        current: STRESS_SIZE === size,
-        href: href((params) => params.set("stress", String(size))),
-      });
-  return choices;
+  return scenarioChoicesFor({ params: PARAMS, pathname: globalThis.location?.pathname ?? "/", scenarioId: SCENARIO.id, stressSize: STRESS_SIZE, dev: import.meta.env.DEV });
 }
 
 type DemoLike = WorldSource & { readonly mode: "demo"; readonly playback: Playback };
@@ -212,9 +179,7 @@ class WorldRuntime {
 
   /** The display name of an agent in the current model (a figure anywhere), or null for one the model does not place. */
   #agentName(agentId: string): string | null {
-    const model = this.#state.model;
-    for (const a of [...model.buildings.flatMap((b) => b.agents), ...model.townHall, ...model.postOffice]) if (a.name === agentId) return a.displayName;
-    return null;
+    return agentDisplayName(this.#state.model, agentId);
   }
 
   /** The scripted demo behind the world, or null when the world runs the stress fixture or the live host. */
