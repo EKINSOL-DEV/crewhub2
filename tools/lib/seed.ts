@@ -15,13 +15,16 @@ import type { ScriptEntry } from "../../packages/demo/src/script.ts";
 export type Status = "backlog" | "planned" | "in_progress" | "review" | "done";
 export const STATUSES: readonly Status[] = ["backlog", "planned", "in_progress", "review", "done"];
 
-export const DEFAULT_URL = "http://127.0.0.1:8291";
 /** The Mac app, `make dev-api` and the nginx https port: never a target, whatever `--url` says. */
 export const REFUSED_PORTS: readonly number[] = [8091, 8000, 9443];
 const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost"]);
 
-/** The origin the seed may talk to: plain http, this machine, an explicit port that is not a reserved one. */
-export function checkUrl(raw: string): { ok: true; origin: string } | { ok: false; reason: string } {
+/**
+ * The origin the seed may talk to: given (there is no default, round 57d), plain http, this machine, an explicit port
+ * that is not a reserved one.
+ */
+export function checkUrl(raw: string | undefined): { ok: true; origin: string } | { ok: false; reason: string } {
+  if (raw === undefined || raw.trim() === "") return { ok: false, reason: "--url <origin> is required: the development loops' origin (http://127.0.0.1:<its port>); there is no default" };
   let url: URL;
   try {
     url = new URL(raw);

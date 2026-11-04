@@ -3,6 +3,7 @@ import { test } from "node:test";
 import type { TicketSeed } from "../../packages/demo/src/content.ts";
 import { DEMO_SEED, SMALL_TEAM_STORY, buildStory } from "../../packages/demo/src/script.ts";
 import { demoScenarios } from "../../packages/demo/src/scenarios.ts";
+import * as seedLib from "../../tools/lib/seed.ts";
 import {
   type Resolve,
   type TicketRef,
@@ -54,6 +55,15 @@ test("the URL guard admits the development loops and nothing reserved or remote"
     const verdict = checkUrl(url);
     assert.equal(verdict.ok, false, url);
     if (!verdict.ok) assert.match(verdict.reason, new RegExp(word), url);
+  }
+});
+
+test("--url is required: there is no default target, and a missing one is refused with one sentence (round 57d)", () => {
+  assert.equal("DEFAULT_URL" in seedLib, false, "no DEFAULT_URL: the seed never aims at 8291 unasked");
+  for (const raw of [undefined, "", "  "]) {
+    const verdict = checkUrl(raw);
+    assert.equal(verdict.ok, false, String(raw));
+    assert.match(verdict.ok ? "" : verdict.reason, /^--url <origin> is required: the development loops' origin \(http:\/\/127\.0\.0\.1:<its port>\); there is no default$/, String(raw));
   }
 });
 

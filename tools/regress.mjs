@@ -1,9 +1,13 @@
 /* regress.mjs: the browser regression pass of the integrated world, in ten groups.
 
    Usage:
-     node tools/regress.mjs --port <port> [--groups connect,walk,demo,tour,live,town,ops,chat,rooms,real] --host-port <port> [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]
+     node tools/regress.mjs --port <port> [--groups connect,walk,demo,tour,live,town,ops,chat,rooms] --host-port <port> [--loops dev|main] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]
+     node tools/regress.mjs --port <port> --groups connect,real --host-port <port> --loops-env <file> [...]
 
-   Groups (--groups, default all ten, in this order; connect first, the connection being the first priority):
+   Groups (--groups, in this order; connect first, the connection being the first priority). The default is the nine
+   that use fakes and stubs; real and the connect group's real half aim at the development loops and run only when real
+   is named in --groups (round 57d: --real is refused with the way to say it, and real without --loops-env is refused
+   before anything starts; lib/regressArgs.ts):
      connect the connect flow (spec addendum "a smooth connection"), 25 checks in two halves, both behind your Vite
            (started with CREWHUB_WORLD_PORT=<host-port>; apps/world/dist is never looked at here, whatever the live
            group does with it). Against the stub host of lib/connectStub.mjs, on --host-port, always: one page meets
@@ -13,7 +17,7 @@
            Live chip and no reload), the key in no DOM, storage or URL, the Connection panel's facts and Escape, the
            stub's `unpaired` state (a host that no longer knows the browser: Pair this browser over the live tab,
            and the town back by itself once paired again) and, on a second page, the Stream busy chip over the town
-           (loops' 429); every screen asks the host's health every 2.5 s, not back to back (round 48). Against the REAL development loops (the env file and the skip rules of `real`, plus
+           (loops' 429); every screen asks the host's health every 2.5 s, not back to back (round 48). Against the REAL development loops, only when real is named in --groups (the env file and the skip rules of `real`, plus
            --loops-app-data, default ~/crewhub-loops-dev, which must hold a settings.json): a keyless host the tool
            starts on --host-port with the discovery through that folder, a fresh config folder under --out (removed at
            the end), pairing on with the secret kept in <config>/pairing-secret as `npm run world` keeps it; the
@@ -88,12 +92,11 @@
            floor, steered stop by stop (`walkTo`: the keys push on screen, so the wanted direction is turned through
            the camera's yaw and held in bounded bursts; --cpu-throttle 16 is the slow machine it must hold on). About 45 s.
      real  live mode against the REAL development crewhub-loops (tools/loops-dev.sh, 127.0.0.1:8291 by default; --loops main
-           or CREWHUB_REGRESS_LOOPS=main picks the instance from crewhub-loops main, 8293: its env file is
-           tools/out/loops-dev-main.env, its folder ~/crewhub-loops-dev-main, its socket there; any other name the same
+           or CREWHUB_REGRESS_LOOPS=main picks the instance from crewhub-loops main, 8293: its folder
+           ~/crewhub-loops-dev-main and its socket there, with --loops-env naming its env file; any other name the same
            way with that suffix; the connect group's real half follows the same choice): it reads
-           --loops-env (default: the first tools/out/loops-dev<-name>.env of this worktree, the main checkout or
-           ~/Documents/GitHub/crewhub2-world-demo; LOOPS_DEV_URL and LOOPS_DEV_KEY_FILE, the admin lines are never
-           read), skips cleanly with one INFO line when that loops does not answer (counted as neither pass nor fail),
+           --loops-env (required with real, and the only place it looks: no env file is searched for; LOOPS_DEV_URL and
+           LOOPS_DEV_KEY_FILE, the admin lines are never read), skips cleanly with one INFO line when that loops does not answer (counted as neither pass nor fail),
            else starts its own host on --host-port against it with that key (so Vite must have been started with
            CREWHUB_WORLD_PORT=<host-port>) and checks in the browser: the chip says Live, the town shows the real
            projects by name, a building shows its real tickets, the text view names them, and when a ticket moves
@@ -116,25 +119,28 @@
    `regress: <passed>/<total>`; the exit code is 0 only when every check passed.
 
    Run it against a dev server (Vite): some checks read the scene through `window.__town`, which only dev builds set. */
-import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { cli, dressed, launch, list, problemLines, seek, speed, watch } from "./lib/world.mjs";
+import { cli, dressed, launch, problemLines, seek, speed, watch } from "./lib/world.mjs";
 import { createConnectStub } from "./lib/connectStub.mjs";
 import { createLoopsWebStub } from "./lib/loopsWebStub.mjs";
 import { isProbeRefusal } from "./lib/probeRefusal.ts";
+import { regressPlan } from "./lib/regressArgs.ts";
 import { appDataPort, ownAppData, ownLoopsUrl, ownPort } from "./lib/toolGuard.ts";
 
-// The known groups, in --groups' default order. The groups run in the order they stand in this file (walk, demo, tour,
-// live, chat, town, ops, connect, rooms, real), whatever --groups lists (round 54, r54-review).
-const GROUPS = ["connect", "walk", "demo", "tour", "live", "town", "ops", "chat", "rooms", "real"];
-const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,tour,live,town,ops,chat,connect,rooms,real] --host-port <port> [--loops dev|main] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]";
-const opts = cli(USAGE, { options: { tag: "pass", groups: GROUPS.join(","), "host-port": "", loops: "", "loops-env": "", "loops-socket": "", "loops-app-data": "", "cpu-throttle": "1" } });
+// The known groups are lib/regressArgs.ts' GROUPS. The groups run in the order they stand in this file (walk, demo,
+// tour, live, chat, town, ops, connect, rooms, real), whatever --groups lists (round 54, r54-review).
+const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,tour,live,town,ops,chat,connect,rooms (the default), or with real] --host-port <port> [--loops dev|main] [--loops-env <file> (required with real)] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]";
+const opts = cli(USAGE, { options: { tag: "pass", groups: "", "host-port": "", loops: "", "loops-env": "", "loops-socket": "", "loops-app-data": "", "cpu-throttle": "1" }, flags: ["real"] });
+// First thing after the command line (round 57d): the groups, and the real development loops only when real is named in
+// --groups, read from --loops-env alone (lib/regressArgs.ts). A refusal stops here, before a browser, host or fake starts.
+const plan = regressPlan({ groups: opts.groups, real: opts.real, loopsEnv: opts["loops-env"] });
+if (!plan.ok) opts.fail(plan.reason);
+const groups = plan.groups;
 const cpuThrottle = Number(opts["cpu-throttle"]);
 if (!(cpuThrottle >= 1)) opts.fail("--cpu-throttle <rate> must be 1 (none) or more");
-const groups = list(opts.groups, GROUPS, opts.fail, "group");
 // The host port every group binds behind your Vite (round 36): named, and never 5180 (the host's default, somebody's
 // real npm run world) nor the Mac app's. Checked here, before a browser opens; the groups read opts["host-port"] as before.
 const hostPortVerdict = ownPort(opts["host-port"], "--host-port");
@@ -2207,8 +2213,9 @@ await group("connect", async () => {
       info(`connect: the real half skipped, no loopback LOOPS_DEV_URL and LOOPS_DEV_KEY_FILE in ${envFile}`);
       return;
     }
-    // Never the Mac app's port nor 5180, even when the env file names it (a typo of 8291 is 8091).
-    const urlVerdict = ownLoopsUrl(loopsUrl);
+    // Never the Mac app's port nor 5180, even when the env file names it (a typo of 8291 is 8091). `real` is the
+    // development loops' opt-in (round 57d, §5b.4): only real in --groups reaches here.
+    const urlVerdict = ownLoopsUrl(loopsUrl, { real: plan.real });
     if (!urlVerdict.ok) opts.fail(`${envFile}: LOOPS_DEV_URL ${urlVerdict.reason}`);
     const appData = loopsAppData();
     if (!existsSync(path.join(appData, "settings.json"))) {
@@ -2348,7 +2355,9 @@ await group("connect", async () => {
 
   try {
     await stubHalf();
-    await realHalf();
+    // The real half aims at the development loops: only when real is named in --groups, as the real group (round 57d).
+    if (plan.real) await realHalf();
+    else info("connect: the real half not run, real is not in --groups");
   } finally {
     problems.push(...own.filter((x) => !expected(x)));
   }
@@ -2700,8 +2709,9 @@ await group("real", async () => {
     info(`real: skipped, no loopback LOOPS_DEV_URL and LOOPS_DEV_KEY_FILE in ${envFile}`);
     return;
   }
-  // Never the Mac app's port nor 5180, even when the env file names it (a typo of 8291 is 8091).
-  const urlVerdict = ownLoopsUrl(loopsUrl);
+  // Never the Mac app's port nor 5180, even when the env file names it (a typo of 8291 is 8091). `real` is the
+  // development loops' opt-in (round 57d, §5b.4): this group runs only when real is in --groups.
+  const urlVerdict = ownLoopsUrl(loopsUrl, { real: plan.real });
   if (!urlVerdict.ok) opts.fail(`${envFile}: LOOPS_DEV_URL ${urlVerdict.reason}`);
   const loopsPort = parsed.port;
   // Every read of this group goes through the browser's request context (a tool makes no network call of its own).
@@ -2855,31 +2865,19 @@ await group("real", async () => {
   }
 });
 
-/**
- * The env file of the development loops: --loops-env, else the first `tools/out/loops-dev.env` that exists in this
- * worktree, in the main checkout (through the common git dir) or in ~/Documents/GitHub/crewhub2-world-demo (where
- * the night's phase 0 wrote it); when none exists, this worktree's path, so the skip line names a real place.
- */
 /** Which real development loops: --loops, else CREWHUB_REGRESS_LOOPS, else `dev` (8291, tools/loops-dev.sh's folder); `main` is the instance from crewhub-loops main (8293). */
 function loopsName() {
   const name = (opts.loops || process.env.CREWHUB_REGRESS_LOOPS || "dev").trim();
   if (!/^[a-z0-9-]+$/.test(name)) opts.fail(`--loops <name> is a short lower-case name (dev, main), not ${JSON.stringify(name)}`);
   return name;
 }
-/** The suffix of that instance's files: none for `dev`, `-<name>` otherwise (loops-dev-main.env, ~/crewhub-loops-dev-main). */
+/** The suffix of that instance's folders: none for `dev`, `-<name>` otherwise (~/crewhub-loops-dev-main and its socket). */
 function loopsSuffix() {
   return loopsName() === "dev" ? "" : `-${loopsName()}`;
 }
+/** The env file of the development loops: --loops-env and nothing else (round 57d; regressPlan refuses real without it). */
 function loopsEnvFile() {
-  if (opts["loops-env"]) return path.resolve(opts["loops-env"]);
-  const candidates = [REPO];
-  try {
-    const common = execFileSync("git", ["rev-parse", "--git-common-dir"], { cwd: REPO, encoding: "utf8" }).trim();
-    candidates.push(path.dirname(path.resolve(REPO, common)));
-  } catch {}
-  candidates.push(path.join(process.env.HOME ?? "~", "Documents", "GitHub", "crewhub2-world-demo"));
-  const files = candidates.map((dir) => path.join(dir, "tools", "out", `loops-dev${loopsSuffix()}.env`));
-  return files.find((file) => existsSync(file)) ?? files[0];
+  return path.resolve(plan.loopsEnv);
 }
 /** The development loops' Unix socket: --loops-socket, else `tools/loops-dev.sh`'s `~/crewhub-loops-dev/run/api.sock`. */
 function loopsSocketPath() {
