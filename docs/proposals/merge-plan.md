@@ -384,6 +384,7 @@ head by merging that head into it, never by a rebase; the answer branch itself s
 | `4c43f15` to `162d480` | round 60: T1 and T2 of the second review, A7 | `tab` → `port/task/r27-tab-pairing@ccbf0ed` (one port for T1 and T2); q3 `@8a1ae94`, q1 `@e5f79a9`, q14 and q15 `@f2276db` as before | on `0b3f4ae`: 1659 / 1656; on `162d480`: 1665 / 1662 |
 | `b8ba179` to `1923c70` | round 61: W1 to W11, H5, H6, P3, P4, S1, S3, S5 | q11 → `port/task/q11-recent-since@a2faadd` from P4 on (q11's first port: one import line in `recentAnswers.test.ts`); the five others as round 60 left them | on `1923c70`: 1729 / 1726 |
 | `d2e1b27` to `20cda0c` | round 61: S4, A5's second race, T3 | `tab` → `port/task/r27-tab-pairing@50c712c` from T3 on; q11 `@a2faadd`, q3 `@8a1ae94`, q1 `@e5f79a9`, q14 and q15 `@f2276db` | on `20cda0c`: 1736 / 1733 |
+| `e3da2c1` | round 61: H4, loops' health read by one reader | q15 → `port/task/q15-body-cap@2aad37d` from H4 on; `tab` `@50c712c`, q11 `@a2faadd`, q3 `@8a1ae94`, q1 `@e5f79a9`, q14 `@f2276db` | on `e3da2c1`: 1746 / 1743 |
 
 To replay Nicky's answers on such a head, pass each port named on its row: for example, on `2072e9a`,
 `node tools/answers-replay.mjs 2072e9a cookie+expiry q3 q8 q11 q14 q15 --check --use q14=port/task/q14-dm-read-cap@f2276db --use q15=port/task/q15-body-cap@f2276db --use q3=port/task/q3-health-less@f2276db --use cookie+expiry=port/task/q1-cookie-expiry@e5f79a9`
