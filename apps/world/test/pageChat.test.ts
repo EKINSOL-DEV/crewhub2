@@ -7,7 +7,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { ChatLine, ChatThreadFact, FetchLike, HostHealth, HostSessionState } from "@crewhub/loops-client";
 import { POLL_HIDDEN_MS, POLL_MS, REPROBE_MS, REPROBE_SLOW_MS } from "@crewhub/loops-client";
-import { createPageChatRunner, hostKeyReadsChat, loopsOriginOf, type PageChatState } from "../src/state/pageChat.ts";
+import { hostKeyReadsChatOf } from "../src/state/chatRoad.ts";
+import { createPageChatRunner, loopsOriginOf, type PageChatState } from "../src/state/pageChat.ts";
 
 const ORIGIN = "http://127.0.0.1:8293";
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -234,14 +235,14 @@ test("a failure backs off (10 s, 20 s, …) and the state says why; the next ans
 test("the host's word and the origin: the key's state in health, the loops web origin (the API is on it)", () => {
   const health = (session: HostSessionState | undefined, loopsWebUrl?: string): HostHealth =>
     ({ loops: "ok", keyName: "k", sharedKey: false, ...(loopsWebUrl ? { loopsWebUrl } : {}), connection: { discovery: { state: "found" }, key: { state: "ok" }, stream: { state: "ok", reconnects: 0 }, ...(session ? { session } : {}) } }) as HostHealth;
-  assert.equal(hostKeyReadsChat(health({ state: "key" })), true);
-  assert.equal(hostKeyReadsChat(health(undefined)), false, "a host whose connection names no session: its key does not read the chat (as state/chatRoadStore reads it)");
-  assert.equal(hostKeyReadsChat(null), null);
+  assert.equal(hostKeyReadsChatOf(health({ state: "key" })), true);
+  assert.equal(hostKeyReadsChatOf(health(undefined)), false, "a host whose connection names no session: its key does not read the chat (as state/chatRoadStore reads it)");
+  assert.equal(hostKeyReadsChatOf(null), null);
   assert.equal(loopsOriginOf(health(undefined, "http://127.0.0.1:8293/")), "http://127.0.0.1:8293");
   assert.equal(loopsOriginOf(health(undefined, "http://127.0.0.1:8293/some/path")), "http://127.0.0.1:8293", "the origin only");
   assert.equal(loopsOriginOf(null), null, "no loops web origin named: no runner (round 29, Low 7); the Chat panel's link alone falls back to the app's own");
   assert.equal(loopsOriginOf(health(undefined)), null);
-  assert.equal(hostKeyReadsChat(health({ state: "unknown" })), null, "the host has not said yet (round 29)");
+  assert.equal(hostKeyReadsChatOf(health({ state: "unknown" })), null, "the host has not said yet (round 29)");
 });
 
 test("round 29 (Medium 2, the page's half): while the host has not said whether its key reads the chat, the runner asks loops nothing and the road is none (the health re-read when the stream goes live or the key word changes is the host health module's, test/hostHealth.test.ts)", async () => {

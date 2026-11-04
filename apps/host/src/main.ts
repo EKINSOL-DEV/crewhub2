@@ -49,10 +49,11 @@ import { formatDoctor, runDoctor } from "./doctor.ts";
 import { createArchiveStore } from "./archiveStore.ts";
 import { removeLeftoverSession } from "./leftovers.ts";
 import { nodeWarningLine, runningNodeVersion } from "./nodeVersion.ts";
-import { type HostStep, MINT_HEADER, MINT_PATH, createHost } from "./host.ts";
+import { type HostStep, createHost } from "./host.ts";
 import { createStepPrinter, instructionLine, seconds, stepLine as formatStep } from "./steps.ts";
 import { createKeyStore } from "./keyStore.ts";
 import { runFilePath, writeRunFile } from "./runFile.ts";
+import { mint } from "./runningHost.ts";
 import { explainSqliteWarning, openWorldDb, type WorldDb } from "./worldDb.ts";
 import { loadPairingSecret } from "./pairing.ts";
 
@@ -106,28 +107,6 @@ function parseArgs(argv: string[]): Args {
 /** The run file: the mint secret of the host on this port, mode 0600, in the user's temp folder; removed at exit (runFile.ts). */
 const runFile = runFilePath;
 
-/** Asks a host that already runs on the port for a link; null when none answers with that secret. */
-async function mintFromRunning(port: number, origin: string | null): Promise<string | null> {
-  const text = readFileOrNull(runFile(port));
-  if (text === null) return null;
-  let secret: string;
-  try {
-    secret = (JSON.parse(text) as { mintSecret?: string }).mintSecret ?? "";
-  } catch {
-    return null;
-  }
-  if (secret === "") return null;
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}${MINT_PATH}`, { headers: { [MINT_HEADER]: secret }, signal: AbortSignal.timeout(1500) });
-    if (!response.ok) return null;
-    const body = (await response.json()) as { link?: string };
-    if (typeof body.link !== "string") return null;
-    return origin === null ? body.link : body.link.replace(/^https?:\/\/[^/]+/, origin);
-  } catch {
-    return null;
-  }
-}
-
 const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const distDir = path.join(repoRoot, "apps", "world", "dist");
 
@@ -172,7 +151,8 @@ try {
   config = loadServerConfig(env);
   folderLine = configFolderLine(env);
   if (args.command === "open" || args.command === "world") {
-    const link = await mintFromRunning(config.port, args.origin);
+    // A host that already runs on the port mints the link (runningHost.ts: the run file's secret, loopback only).
+    const link = await mint(config.port, args.origin);
     if (link !== null) {
       if (args.command === "world" && !args.noOpen && openBrowser(link)) log(`a host already runs on ${config.port}; opened the browser on a new link`);
       else {

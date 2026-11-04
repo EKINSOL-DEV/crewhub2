@@ -2,7 +2,8 @@ import { fileURLToPath } from "node:url";
 import { defineConfig, type HtmlTagDescriptor, type Plugin, type ProxyOptions, type Rollup } from "vite";
 import react from "@vitejs/plugin-react";
 import { realpathSync } from "node:fs";
-import { checkoutId, probeCheckout, tellDevOrigin } from "../host/src/checkout.ts";
+import { checkoutId, probeCheckout } from "../host/src/checkout.ts";
+import { tellOrigin } from "../host/src/runningHost.ts";
 import { devHostVerdict, devOriginLine, devOriginsOf, hostPortPlan } from "./hostPort.ts";
 
 /**
@@ -28,7 +29,7 @@ function devOriginTeller(port: number, checkout: string, logger: { info: (text: 
     lastAt = Date.now();
     try {
       for (const origin of origins) {
-        const outcome = await tellDevOrigin(port, origin, checkout);
+        const outcome = await tellOrigin(port, origin, checkout);
         if (outcome.kind !== "accepted") {
           accepted = false;
           say(devOriginLine(port, origins, outcome));
