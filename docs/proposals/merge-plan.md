@@ -356,3 +356,10 @@ does B as a follow-up and the check C, prints the result's sha and, with `--chec
 `feat/world-demo`: a conflict it does not know, or a side whose content is not what a rule expects, stops it with the
 file named and the merge left open, which is the sign that a resolution needs a fresh look. The rules' pure parts are
 unit-tested in `scripts/test/answersReplay.test.ts`.
+
+**Ports (round 59d).** Where a deepening of the architecture programme (`docs/proposals/architecture-deepening.md`)
+makes an answer branch conflict, a port `port/<answer-branch>@<deepening head>` carries the same behaviour change on
+the deepening's head, and `--use <key>=<ref>` (repeatable; key `q3`, `q8`, `q11`, `q14`, `q15`, `tab` or
+`cookie+expiry`) merges that port at the answer branch's step, under the same rules. The command line is pure and
+tested (`parseArgs`, `branchOf`): a `--use` for a step the run does not take, a key named twice, an answer branch's own
+name or a ref that starts with a dash is refused before anything runs. The answer branches stay untouched.
