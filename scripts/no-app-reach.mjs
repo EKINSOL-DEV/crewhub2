@@ -1,7 +1,8 @@
 /* no-app-reach: no unit test may reach the Mac app (round 35).
  *
  * Preloaded into every test process by `npm test` (`node --import ./scripts/no-app-reach.mjs --test …`) and, through
- * NODE_OPTIONS, into every Node process a test spawns. It patches `node:net` and `node:fs` in that process so that:
+ * NODE_OPTIONS, into every Node process a test spawns. It patches `node:net`, `node:fs`, `node:child_process`,
+ * `process.kill` and `node:sqlite` in that process so that:
  *   - a connection to port 8091, 8000 or 9443 on any host (the Mac app's ports) is refused before a packet leaves, and
  *     so is one to 8291 to 8293 (the development crewhub-loops), 8391 (a running loops-fake), 5180 (somebody's
  *     `npm run world`) or 5173 (a Vite dev server) (round 55);
@@ -22,6 +23,10 @@
  *   - process.kill reaches only the test's own process and its own live children (the pids its child_process calls
  *     returned, each forgotten when it exits, since a reaped pid may be anybody's); any other pid, signal 0 included,
  *     and a process group (pid 0 or below) is refused before a signal is sent (round 58d);
+ *   - a node:sqlite database (new DatabaseSync(path), even with { open: false }) opens only in the test's temp folders
+ *     (os.tmpdir() and the real TMPDIR) and in none of the guarded folders, or in :memory: (round 58d). An ES module
+ *     import of node:sqlite resolves (module.registerHooks) to a module that re-exports it with the guard's
+ *     DatabaseSync, since syncBuiltinESMExports skips the scheme-only builtins.
  * A refusal throws an Error whose message starts with "no-app-reach:" and sets the process's exit code to 1, so the test
  * file fails even when the code under test swallows the error (a discovery probe reports "down" and goes on). With
  * CREWHUB_TEST_REACH_LOG=<file> the guard records instead (every connect and every refusal, one line each, with the
@@ -36,16 +41,19 @@
  * CREWHUB_TEST_GUARD_HOME=<absolute folder> (round 56, the guard's own tests only) adds a decoy home whose three folders
  * are refused as well; it never replaces $HOME or the user's home. CREWHUB_TEST_REAL_TMPDIR adds, never replaces, too.
  *
- * Not guarded (round 55's docs/proposals/mutation-harness.md, a day round's work): node:sqlite (it opens past node:fs).
+ * Not guarded: node:sqlite's backup() and a database a SQL ATTACH names (SQLite opens those itself), and a process a
+ * child of a child starts with an explicit env from a non-Node program (only Node children carry the preload).
  *
  * It changes nothing for a real host: only the test scripts preload it. The predicates are exported for the unit test
- * in scripts/test/no-app-reach.test.ts, which also checks that the preload is active, and noAppReachPorts.test.ts. */
+ * in scripts/test/no-app-reach.test.ts, which also checks that the preload is active, noAppReachPorts.test.ts,
+ * noAppReachHome.test.ts and noAppReachRoads.test.ts (the three roads of round 58d). */
 import childProcess from "node:child_process";
 import fs from "node:fs";
-import { syncBuiltinESMExports } from "node:module";
+import { registerHooks, syncBuiltinESMExports } from "node:module";
 import net from "node:net";
 import { homedir, tmpdir, userInfo } from "node:os";
 import path from "node:path";
+import sqlite from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { APP_PORTS, NAMED_PORTS, VITE_PORT } from "./named-ports.mjs";
@@ -179,6 +187,27 @@ export function refusesPath(input, folders = FOLDERS, tmpDirs = TMP_DIRS) {
   for (const folder of folders) if (under(p, folder.dir)) return `${p} ${folder.why}`;
   if (isRealRunFile(p, tmpDirs)) return `${p} is a real host's run file (its mint secret) in the real TMPDIR`;
   return null;
+}
+
+/**
+ * Why a test may not open a node:sqlite database there, or null (round 58d). `:memory:` and `""` (SQLite's anonymous
+ * database) are no file; a path (a string, a Buffer or a file: URL) must not be refused by `refusesPath` (a guarded
+ * folder, even one in a temp folder) and must lie in one of the test's temp folders (`tmpDirs`: os.tmpdir() and the
+ * real TMPDIR handed down). node:sqlite opens past node:fs, so its own constructor is the one place to ask.
+ */
+export function refusesDatabase(location, folders = FOLDERS, tmpDirs = TMP_DIRS) {
+  let p = location;
+  if (p instanceof URL) {
+    if (p.protocol !== "file:") return null;
+    p = fileURLToPath(p);
+  }
+  if (Buffer.isBuffer(p)) p = p.toString("utf8");
+  if (typeof p !== "string" || p === ":memory:" || p === "") return null;
+  const file = path.resolve(p);
+  const reason = refusesPath(file, folders, tmpDirs);
+  if (reason !== null) return reason;
+  if (tmpDirs.some((dir) => under(file, dir))) return null;
+  return `${file} is outside the test's temp folders (${tmpDirs.join(", ")}): a test's database lives in its own temp folder or in :memory:`;
 }
 
 /** The target of `socket.connect(...args)` as { port, host } or { path }, whatever form the call took. */
@@ -350,6 +379,31 @@ if (globalThis[MARK] === undefined) {
     wrapped[MARK] = true;
     childProcess[name] = wrapped;
   }
+  // node:sqlite (round 58d): DatabaseSync asks refusesDatabase before anything is opened (even with { open: false }).
+  const Database = sqlite.DatabaseSync;
+  const GuardedDatabaseSync = class DatabaseSync extends Database {
+    constructor(location, ...rest) {
+      const reason = refusesDatabase(location);
+      if (reason !== null) {
+        refuse("sqlite", reason);
+        throw fail("sqlite", reason, "open", location);
+      }
+      super(location, ...rest);
+    }
+  };
+  GuardedDatabaseSync[MARK] = true;
+  sqlite.DatabaseSync = GuardedDatabaseSync;
+  // require("node:sqlite") reads the exports object, changed above; syncBuiltinESMExports skips the scheme-only builtins,
+  // so an ES module import of node:sqlite resolves to a module that re-exports it with the guard's DatabaseSync (its
+  // own import of node:sqlite goes past this hook).
+  state.sqlite = sqlite;
+  const SQLITE_MODULE = `data:text/javascript,${encodeURIComponent('const guard = globalThis[Symbol.for("crewhub-world.no-app-reach")]; export * from "node:sqlite"; export const DatabaseSync = guard.sqlite.DatabaseSync; export default guard.sqlite;')}`;
+  registerHooks({
+    resolve(specifier, context, nextResolve) {
+      if (specifier === "node:sqlite" && context.parentURL !== SQLITE_MODULE) return { url: SQLITE_MODULE, shortCircuit: true };
+      return nextResolve(specifier, context);
+    },
+  });
   syncBuiltinESMExports();
 
   // process.kill (round 58d): only the test's own process and its own live children (refusesKill), refused before any

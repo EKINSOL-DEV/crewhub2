@@ -24,3 +24,4 @@ export function handDownEnv(env: Record<string, string | undefined>, parent?: Re
 export function guardedArgs(args: unknown[], parent?: Record<string, string | undefined>, guardFile?: string): unknown[];
 export const OWN_CHILDREN: Set<number>;
 export function refusesKill(pid: number, signal?: string | number, own?: Set<number>, self?: number): string | null;
+export function refusesDatabase(location: unknown, folders?: { dir: string; why: string }[], tmpDirs?: string[]): string | null;

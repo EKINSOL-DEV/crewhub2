@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import * as cp from "node:child_process";
 import fs from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -194,6 +195,78 @@ test("in a child of the test's own (record mode): its own child is signalled; th
     const lines = fs.readFileSync(log, "utf8").split("\n");
     assert.equal(lines.filter((l) => / REFUSED kill pid \d+ is not a live child this test started/.test(l)).length, 2, `the reaped pid and the made-up one, refused by the guard (not by the kernel): ${lines.join("\n")}`);
     assert.ok(lines.some((l) => l.includes(`REFUSED kill pid ${NO_SUCH_PID} is not a live child this test started (signal 0)`)), lines.join("\n"));
+  } finally {
+    done();
+  }
+});
+
+test("refusesDatabase: :memory: and a path in the test's temp folders pass; elsewhere, and a guarded folder even in a temp folder, are refused", () => {
+  const tmp = ["/tmp/run", "/private/tmp/run"];
+  const folders = guard.guardedFolders(["/tmp/run/decoy-home"]);
+  const refuses = (location: unknown) => guard.refusesDatabase(location, folders, tmp);
+  assert.equal(refuses(":memory:"), null);
+  assert.equal(refuses(""), null, "an anonymous database SQLite keeps to itself");
+  assert.equal(refuses("/tmp/run/chw-x/world.db"), null);
+  assert.equal(refuses(Buffer.from("/private/tmp/run/chw-x/world.db")), null);
+  assert.equal(refuses(new URL("file:///tmp/run/chw-x/world.db")), null);
+  assert.match(refuses("/srv/data/world.db") ?? "", /^\/srv\/data\/world\.db is outside the test's temp folders/);
+  assert.match(refuses("/tmp/running/world.db") ?? "", /outside the test's temp folders/, "a sibling folder is not the temp folder");
+  assert.match(refuses("relative.db") ?? "", new RegExp(`^${path.resolve("relative.db").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} is outside`), "a relative path is the cwd's");
+  assert.match(refuses("/tmp/run/decoy-home/.config/crewhub-world/world.db") ?? "", /crewhub-world/, "a guarded folder is refused even in a temp folder");
+  assert.equal(refuses(7), null, "not a path: SQLite's own error");
+});
+
+test("node:sqlite's DatabaseSync is the guard's (marked, also as an ES module import); :memory: and the test's temp folder open as before", () => {
+  assert.equal((DatabaseSync as unknown as Record<symbol, unknown>)[MARK], true);
+  const memory = new DatabaseSync(":memory:");
+  assert.deepEqual({ ...memory.prepare("select 1 + 1 as two").get() }, { two: 2 });
+  memory.close();
+  const { dir, done } = tempDir();
+  try {
+    const db = new DatabaseSync(path.join(dir, "world.db"));
+    db.exec("create table t (x)");
+    db.close();
+    assert.ok(fs.existsSync(path.join(dir, "world.db")));
+    assert.ok(new DatabaseSync(path.join(dir, "world.db"), { readOnly: true }) instanceof DatabaseSync);
+  } finally {
+    done();
+  }
+});
+
+test("in a child of the test's own (record mode, its TMPDIR and real TMPDIR two of the test's folders): a database under a decoy home or outside both is refused; in its TMPDIR it opens", async () => {
+  const { dir, done } = tempDir();
+  try {
+    const own = path.join(dir, "tmp");
+    const real = path.join(dir, "real");
+    const home = path.join(dir, "home");
+    for (const d of [own, real, path.join(home, ".config", "crewhub-world"), path.join(dir, "elsewhere")]) fs.mkdirSync(d, { recursive: true });
+    const log = path.join(dir, "reach.log");
+    const homeDb = path.join(home, ".config", "crewhub-world", "world.db");
+    const outside = path.join(dir, "elsewhere", "x.db");
+    const script = path.join(dir, "db.mjs");
+    fs.writeFileSync(
+      script,
+      [
+        `import { DatabaseSync } from "node:sqlite";`,
+        // open: false, so a guard that let these through still creates nothing.
+        `const tryOpen = (file) => { try { new DatabaseSync(file, { open: false }); return "made"; } catch (e) { return e.code ?? e.message; } };`,
+        `console.log("home " + tryOpen(${JSON.stringify(homeDb)}));`,
+        `console.log("outside " + tryOpen(${JSON.stringify(outside)}));`,
+        `const ok = new DatabaseSync(${JSON.stringify(path.join(own, "ok.db"))}); ok.exec("create table t (x)"); ok.close();`,
+        `console.log("own opened");`,
+      ].join("\n") + "\n",
+    );
+    const env = { ...process.env, CREWHUB_TEST_REACH_LOG: log, CREWHUB_TEST_GUARD_HOME: home, TMPDIR: own, CREWHUB_TEST_REAL_TMPDIR: real };
+    const result = await closed(cp.spawn(process.execPath, [script], { env, stdio: ["ignore", "pipe", "pipe"] }));
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /^home ENOENT$/m, result.stdout);
+    assert.match(result.stdout, /^outside ENOENT$/m, result.stdout);
+    assert.match(result.stdout, /^own opened$/m, result.stdout);
+    const lines = fs.readFileSync(log, "utf8").split("\n");
+    assert.ok(lines.some((l) => l.includes(`REFUSED sqlite ${homeDb}`) && /crewhub-world/.test(l)), lines.join("\n"));
+    assert.ok(lines.some((l) => l.includes(`REFUSED sqlite ${outside} is outside the test's temp folders`)), lines.join("\n"));
+    assert.ok(!fs.existsSync(homeDb) && !fs.existsSync(outside), "nothing was made where it was refused");
+    assert.ok(fs.existsSync(path.join(own, "ok.db")));
   } finally {
     done();
   }
