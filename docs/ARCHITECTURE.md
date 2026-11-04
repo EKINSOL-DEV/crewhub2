@@ -89,7 +89,8 @@ One Node process, no third-party dependency (beside Node only the workspace's `l
   app's data folder is read (never written): its Unix socket `run/api.sock`, then the
   port in `settings.json`, each probed with the public `GET /api/health`, the two in
   parallel; nothing found: again every 5 s. Loops going away later makes it look again.
-- **The key** (`config.ts`, `keyStore.ts`, `keyCheck.ts`): read from `CREWHUB_WORLD_KEY_FILE`,
+- **The key** (`config.ts`, `keyStore.ts`, `keyCheck.ts`; its word `unchecked`, `checking`, `ok` or
+  `rejected` written by `keyHolder.ts` alone): read from `CREWHUB_WORLD_KEY_FILE`,
   else the stored key `<config dir>/loops-key`, else the old default file; none: the host
   starts keyless. Every key is checked with `GET /api/auth/me` and one board read; a probe
   key, a Read-only bot, the builder key and an unknown key are rejected with the reason in
