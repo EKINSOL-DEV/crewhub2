@@ -414,3 +414,37 @@ test("round 54: an offscreen actor set down beside its blocked destination goes 
   sim.tick(1 / 30);
   assert.deepEqual(sim.actor("a")!.location, at("A", 3, 3));
 });
+
+test("round 54: a walker whose room goes offscreen finishes its step and is moved straight to its destination", () => {
+  const graph = new NavGraph(stressDefinitions);
+  graph.addRoom({ id: "A", layout: room(9, 1) });
+  const sim = new NavSimulation(graph, [{ id: "a", location: at("A", 0, 0) }]);
+  sim.setDestination("a", at("A", 8, 0));
+  for (let i = 0; i < 3; i++) sim.tick(1 / 30);
+  assert.equal(sim.actor("a")!.status, "moving");
+  sim.setDetail(["A"], "offscreen");
+  // The step under way ends within a second (one cell at walking speed); then the actor jumps.
+  for (let i = 0; i < 30; i++) sim.tick(1 / 30);
+  assert.deepEqual(sim.actor("a")!.location, at("A", 8, 0));
+  assert.equal(sim.stats.teleports, 1);
+});
+
+test("round 54: a destination changed during that last step is where the offscreen walker goes, never along the old path", () => {
+  const graph = new NavGraph(stressDefinitions);
+  graph.addRoom({ id: "A", layout: room(9, 2) });
+  const sim = new NavSimulation(graph, [{ id: "a", location: at("A", 0, 0) }]);
+  sim.setDestination("a", at("A", 8, 0));
+  for (let i = 0; i < 3; i++) sim.tick(1 / 30);
+  sim.setDetail(["A"], "offscreen");
+  // Off the old path (row 0) and not the cell the step under way enters.
+  sim.setDestination("a", at("A", 4, 1));
+  const cells = new Set<string>();
+  for (let i = 0; i < 30; i++) {
+    sim.tick(1 / 30);
+    const { x, z } = sim.actor("a")!.location.cell;
+    cells.add(`${x},${z}`);
+  }
+  assert.deepEqual(sim.actor("a")!.location, at("A", 4, 1));
+  assert.deepEqual([...cells].sort(), ["0,0", "1,0", "4,1"], "the step under way, then the jump: no other cell of the old path");
+  assert.equal(sim.stats.teleports, 1);
+});
