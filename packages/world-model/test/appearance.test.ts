@@ -47,6 +47,8 @@ const ROWS: Row[] = [
   { name: "blocked", agent: { posture: "raised-hand", laneStatus: "blocked" }, figure: ["blocked", false, false, false, "waiting"], label: ["blocked", "blocked", "blocked", "blocked", "blocked"], words: ["blocked on a prompt", "Asks for help.", true] },
   { name: "blocked lane, posture not yet", agent: { posture: "focused", laneStatus: "blocked" }, figure: ["working", false, false, false, "waiting"], label: ["blocked", null, "blocked", null, "blocked"], words: ["blocked on a prompt", "Asks for help.", true] },
   { name: "unknown, fresh snapshot", agent: unknown, figure: ["stale", false, false, false, "idle"], label: ["unknown", "status unknown", "status unknown", null, "stalled"], words: ["status unknown", "Status unknown.", false] },
+  // A greyed posture over a lane that still says something: the figure, the dot and the tag go by the posture.
+  { name: "greyed over a known lane", agent: { posture: "greyed", laneStatus: "idle" }, figure: ["stale", false, false, false, "idle"], label: ["unknown", "status unknown", "idle", null, "planned"], words: ["idle", "Idle.", false] },
   { name: "stale snapshot", agent: unknown, freshness: STALE, figure: ["stale", false, false, false, "idle"], label: ["unknown", since, since, null, "stalled"], words: ["status unknown", "Status unknown.", false] },
   { name: "no snapshot yet", agent: unknown, freshness: NONE, figure: ["stale", false, false, false, "idle"], label: ["unknown", "status unknown", "status unknown", null, "stalled"], words: ["status unknown", "Status unknown.", false] },
   // A stale snapshot overrides the lane's words even where the placement still says a lane (the old laneWords facts).
