@@ -36,6 +36,7 @@ import {
 } from "@crewhub/world-model";
 import { sourceDecision, takeFirstSnapshot, townCopySource, townKeyFor, type SourceDecision } from "./source";
 import { hostConnected, hostTownChanged } from "./townBus";
+import { reduceWait } from "./reduceGap";
 
 export interface WorldState {
   model: WorldModel;
@@ -47,13 +48,6 @@ export interface WorldState {
 const TIME_TICK_MS = 1000;
 /** While a ticket drone is in the air, re-reduce faster so the model lands the package on time at 16x. */
 const FLIGHT_TICK_MS = 250;
-/**
- * Under a heavy stream (the stress town at 16x) a reduction and what follows it (React, the scene's sync) cost several
- * milliseconds, many times a second. Reductions are spaced by this many times the last one's cost, so the pipeline
- * keeps to a small share of the main thread: no wait at 1x, a few frames at 16x. Never longer than REDUCE_GAP_MAX_MS.
- */
-const REDUCE_GAP_PER_MS = 20;
-const REDUCE_GAP_MAX_MS = 200;
 
 const PARAMS = new URLSearchParams(globalThis.location?.search ?? "");
 
@@ -257,7 +251,7 @@ class WorldRuntime {
   /** Coalesce a burst of applied messages into one reduction per animation frame, spaced by the reductions' cost. */
   #schedule() {
     if (this.#frame || this.#wait) return;
-    const wait = this.#lastReduce + Math.min(REDUCE_GAP_MAX_MS, this.#cost * REDUCE_GAP_PER_MS) - performance.now();
+    const wait = reduceWait(this.#lastReduce, this.#cost, performance.now());
     if (wait > 0) {
       this.#wait = setTimeout(() => {
         this.#wait = 0;
