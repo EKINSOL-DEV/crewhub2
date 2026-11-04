@@ -98,9 +98,11 @@ test("chatGlance: the Chat panel's one line to act on, per road and per none cas
 });
 
 test("recent answers and the card: the empty state per road and per none case, and the demo's own dock", () => {
-  assert.match(recentEmptyWords("demo", null), /^No answers yet: write to an agent in the demo's chat dock .* its scripted reply shows as a bubble and stays here/);
-  assert.equal(recentEmptyWords("live", KEY), "No answers yet: this crewhub-loops lets the world's key read the chat of the person who made the key, so an agent's answer to them shows as a bubble and stays here.");
-  assert.equal(recentEmptyWords("live", PAGE), "No answers yet: this page reads your own chat from crewhub-loops, so an agent's answer to you shows as a bubble and stays here.");
+  // Round 31 (question 11): the empty line opens with "since this page opened" wherever an answer could arrive.
+  assert.match(recentEmptyWords("demo", null), /^No answers since this page opened: write to an agent in the demo's chat dock .* its scripted reply shows as a bubble and stays here/);
+  assert.equal(recentEmptyWords("live", KEY), "No answers since this page opened: this crewhub-loops lets the world's key read the chat of the person who made the key, so an agent's answer to them shows as a bubble and stays here.");
+  assert.equal(recentEmptyWords("live", PAGE), "No answers since this page opened: this page reads your own chat from crewhub-loops, so an agent's answer to you shows as a bubble and stays here.");
+  for (const words of [recentEmptyWords("demo", null), recentEmptyWords("live", KEY), recentEmptyWords("live", PAGE), cardAnswersEmpty("live", KEY), cardAnswersEmpty("live", PAGE)]) assert.ok(words.includes("since this page opened"), words);
   for (const p of NONE_PROBES) {
     const { reason, way } = noneWords(NONE(p));
     assert.equal(recentEmptyWords("live", NONE(p)), `No answers can arrive: ${reason}. For bubbles, ${way}.`, p);

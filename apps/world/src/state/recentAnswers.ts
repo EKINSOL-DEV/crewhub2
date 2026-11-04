@@ -10,7 +10,24 @@ import { chatCardNote, chatTargetOf } from "./chatPanel.ts";
 import { joinSentences, RECENT_ANSWERS, type Answer } from "./said.ts";
 
 /** What the list is: the text view's section opens with it; the Chat panel keeps it behind "About this chat" (round 18). */
-export const RECENT_NOTE = `The last ${RECENT_ANSWERS} answers this page saw, newest first; a bubble shows each for a moment, this list keeps them while the page is open and nothing longer.`;
+export const RECENT_NOTE = `The last ${RECENT_ANSWERS} answers this page saw, newest first; a bubble shows each for a moment, this list keeps them while the page is open and nothing longer, so an answer that came while no world page was open is not here.`;
+
+/**
+ * On the block itself (round 31, question 11): both chat roads read nothing from before the page opened, so an answer
+ * that landed while no world page was open is not in the list, and without these words that reads as a bug. The
+ * heading carries them after the count, muted; the empty line opens with them (`recentEmptyWords`).
+ */
+export const RECENT_SINCE = "since this page opened";
+
+/** The heading's first words: "Recent answers", with the count when there are rows. */
+export function recentHead(count: number): string {
+  return `Recent answers${count > 0 ? ` (${count})` : ""}`;
+}
+
+/** The whole heading as a reader hears it: "Recent answers (2) since this page opened". */
+export function recentTitle(count: number): string {
+  return `${recentHead(count)} ${RECENT_SINCE}`;
+}
 
 /** The answer's time as loops wrote it, local, HH:MM:SS (24 h); the page's own clock when `at` does not parse. */
 export function answerTime(answer: Pick<Answer, "at" | "shownAt">): string {

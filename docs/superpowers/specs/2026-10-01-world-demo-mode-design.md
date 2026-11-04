@@ -1201,6 +1201,15 @@ own dock). The regress `chat` group proves the empty state signed out, the answe
 the session with its row opening the panel, the text view's section with both answers newest first, and the block on a
 phone.
 
+**Round 31 (answer branch `task/q11-recent-since`, question 11).** Both chat roads read nothing from before the page
+opened, so an answer that landed while no world page was open is not in Recent answers, which read as a bug while the
+words that say so sat behind "About this chat". Now the block says it itself: the heading "Recent answers (2) since
+this page opened" (the count first, the rest muted; `recentHead`, `RECENT_SINCE`, `recentTitle` in
+`state/recentAnswers.ts`), the empty line "No answers since this page opened: …" on every road where one could arrive
+(`recentEmptyWords`), and the note behind About ends "so an answer that came while no world page was open is not
+here". The card's Answers already said "No answer from it since this page opened" on both roads (round 22) and keeps
+its words. The glance's two lines are untouched.
+
 **Round 17 (the Chat panel in one glance; the demo's dock feeds Recent answers).** The panel opens on two short lines
 above the list: what this is ("crewhub-loops' own chat, framed here.", with the agent's name from a card) and the one
 thing to do on this road (`chatGlance` in `state/chatPanel.ts`, one story with `chatWords`: "Sign in to crewhub-loops
