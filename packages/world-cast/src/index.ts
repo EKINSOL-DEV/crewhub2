@@ -15,9 +15,9 @@
 import type * as THREE from "three";
 import type { PropShape, Vec3 } from "@crewhub/world-engine";
 import type { PaletteName, StaticPart, StyleTheme } from "@crewhub/world-style";
-import { CAST_ROLES, FIGURE_ACTIVITIES, WORK_POSES } from "./names.ts";
+import { CAST_ROLES, FIGURE_ACTIVITIES, MOTION_CHANNELS, MOTION_WAVES, RESERVED_COLORS, WORK_POSES } from "./names.ts";
 
-export { CAST_ROLES, FIGURE_ACTIVITIES, WORK_POSES };
+export { CAST_ROLES, FIGURE_ACTIVITIES, MOTION_CHANNELS, MOTION_WAVES, RESERVED_COLORS, WORK_POSES };
 
 /* ── What a figure stands for ───────────────────────────────────────────── */
 
@@ -236,13 +236,17 @@ export type FigureExtension = (figure: {
 
 /* ── What the style gives a cast ────────────────────────────────────────── */
 
+/** A colour name every kit resolves; see `FigureKit`. */
+export type ReservedColor = (typeof RESERVED_COLORS)[number];
+
 /**
  * The style's drawing kit for figures. Colours are a cast colour name (from the cast manifest's `colors`), a style
  * palette name, or `soft:<name>` (that colour half-way to the style's cream: a lead's gentle project tint). Materials
  * are shared and follow the theme, the day-night drift's glow and the cloud shadows, like the style's own.
  *
- * Two names are reserved and resolve in every kit, unless the cast gives its own colour of that name: `alert` (the
- * style's alert colour, the halo of a stalled building) and `stale` (the grey a stale figure fades towards).
+ * Two names are reserved (`RESERVED_COLORS`) and resolve in every kit, unless the cast gives its own colour of that
+ * name: `alert` (the style's alert colour, the halo of a stalled building) and `stale` (the grey a stale figure fades
+ * towards).
  */
 export interface FigureKit {
   readonly theme: StyleTheme;
@@ -349,7 +353,7 @@ export interface JointPose {
 }
 
 /** The animatable channels of a joint. */
-export type MotionChannel = "rotation.x" | "rotation.y" | "rotation.z" | "offset.x" | "offset.y" | "offset.z" | "scale.x" | "scale.y" | "scale.z";
+export type MotionChannel = (typeof MOTION_CHANNELS)[number];
 
 /**
  * A wave over time, `period` seconds long, added to the pose (degrees for rotations, units for offsets, a factor
@@ -357,7 +361,7 @@ export type MotionChannel = "rotation.x" | "rotation.y" | "rotation.z" | "offset
  * or a step. blink: a short dip, about a tenth of a second, once per period (eyes). glance: a soft swell, about 1.6 s,
  * once per period (a look round).
  */
-export type MotionWave = "sine" | "bounce" | "lift" | "blink" | "glance";
+export type MotionWave = (typeof MOTION_WAVES)[number];
 
 export interface Motion {
   joint: string;

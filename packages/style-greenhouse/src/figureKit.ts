@@ -2,13 +2,13 @@
    rounded boxes and shared materials, so they take the theme, the evening's glow and the cloud shadows, and the
    renderer's crowd batches them. A cast's own colours (cast.json) live in the kit under `cast:<id>:<name>`. */
 import * as THREE from "three";
-import type { CastManifest, FigureHalo, FigureKit } from "@crewhub/world-cast";
+import type { CastManifest, FigureHalo, FigureKit, ReservedColor } from "@crewhub/world-cast";
 import type { Kit } from "./kit.ts";
 import { partMesh, staticPart } from "./parts.ts";
 import { haloMaterial } from "./shaders.ts";
 
 /** The reserved names every kit resolves, as Greenhouse swatches; a cast's own colour of that name wins. */
-const RESERVED: Record<string, string> = { alert: "beacon", stale: "grey-bot" };
+const RESERVED: Record<string, string> = { alert: "beacon", stale: "grey-bot" } satisfies Record<ReservedColor, string>;
 /** The contact shadow and the halo, as shares of the figure's ground radius. */
 const SHADOW = { halfX: 0.5, halfZ: 0.4, soft: 0.75 };
 const HALO = 3.625;
