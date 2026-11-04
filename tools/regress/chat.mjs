@@ -11,7 +11,7 @@ import { speed } from "../lib/world.mjs";
 import { startRig } from "../lib/rig.mjs";
 
 export async function run({ pass, page, check, out }) {
-  const { browser, opts, origin, dist: DIST, problems, noteLoops } = pass;
+  const { browser, opts, origin, dist: DIST, problems, noteLoops, road2Routes: ROAD2_ROUTES } = pass;
   const { open, town, canvas } = page;
   const { ok, info } = check;
   const { tag, shot } = out;

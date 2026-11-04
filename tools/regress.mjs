@@ -313,7 +313,7 @@ async function walkTo(p, stop, seconds, within = 0.35) {
  * of the real halves. `page` opens a page of this run and reads the scene through it. `check` records one check
  * (PASS/FAIL), an INFO line or a bare line of the log. `out` is the output folder, this run's tag and a screenshot there.
  */
-const pass = { browser, opts, plan, groups, origin, base: BASE, repo: REPO, dist: DIST, distServed: DIST_SERVED, distFresh, problems, restarts, forgets, loopsOriginGetters, noteLoops, noteLoopsUrl, loopsEnvFile, loopsSocketPath, loopsAppData, readEnvFile, isUnixSocket, waitForMove };
+const pass = { browser, opts, plan, groups, origin, base: BASE, repo: REPO, dist: DIST, distServed: DIST_SERVED, distFresh, problems, restarts, forgets, loopsOriginGetters, noteLoops, noteLoopsUrl, road2Routes: ROAD2_ROUTES, loopsEnvFile, loopsSocketPath, loopsAppData, readEnvFile, isUnixSocket, waitForMove };
 const page = { open, town, canvas, crumbs, demoChip, entered, walkersWalking, visitor, walkTo };
 const note = (line) => log.push(line);
 const check = { ok, info, note };
