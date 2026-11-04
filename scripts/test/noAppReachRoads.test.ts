@@ -40,6 +40,8 @@ function childScript(dir: string, decoy: number | null): string {
   return file;
 }
 
+const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 /** The env a test hands a child explicitly: no NODE_OPTIONS, no CREWHUB_TEST_REAL_TMPDIR, only what it names. */
 const bareEnv = (extra: Record<string, string>) => ({ PATH: process.env.PATH ?? "", ...extra });
 
@@ -106,7 +108,7 @@ for (const form of ["spawn", "execFile", "exec", "fork"] as const) {
       const result = await closed(child);
       assert.equal(result.status, 0, result.stderr);
       assert.match(result.stdout, /^guard on$/m, result.stdout);
-      assert.match(result.stdout, new RegExp(`^real-tmpdir ${process.env.CREWHUB_TEST_REAL_TMPDIR}$`, "m"), "the real TMPDIR is handed down too");
+      assert.match(result.stdout, new RegExp(`^real-tmpdir ${escape(process.env.CREWHUB_TEST_REAL_TMPDIR ?? "")}$`, "m"), "the real TMPDIR is handed down too");
       assert.match(result.stdout, /^net ECONNREFUSED$/m, result.stdout);
       assert.equal(decoy.hits(), 0, "the decoy's own listener was reached");
     } finally {
@@ -128,7 +130,7 @@ test("a child started by spawnSync, execFileSync or execSync with a bare env car
     ];
     for (const out of outs) {
       assert.match(out, /^guard on$/m, out);
-      assert.match(out, new RegExp(`^real-tmpdir ${process.env.CREWHUB_TEST_REAL_TMPDIR}$`, "m"));
+      assert.match(out, new RegExp(`^real-tmpdir ${escape(process.env.CREWHUB_TEST_REAL_TMPDIR ?? "")}$`, "m"));
     }
   } finally {
     done();
@@ -211,7 +213,7 @@ test("refusesDatabase: :memory: and a path in the test's temp folders pass; else
   assert.equal(refuses(new URL("file:///tmp/run/chw-x/world.db")), null);
   assert.match(refuses("/srv/data/world.db") ?? "", /^\/srv\/data\/world\.db is outside the test's temp folders/);
   assert.match(refuses("/tmp/running/world.db") ?? "", /outside the test's temp folders/, "a sibling folder is not the temp folder");
-  assert.match(refuses("relative.db") ?? "", new RegExp(`^${path.resolve("relative.db").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} is outside`), "a relative path is the cwd's");
+  assert.match(refuses("relative.db") ?? "", new RegExp(`^${escape(path.resolve("relative.db"))} is outside`), "a relative path is the cwd's");
   assert.match(refuses("/tmp/run/decoy-home/.config/crewhub-world/world.db") ?? "", /crewhub-world/, "a guarded folder is refused even in a temp folder");
   assert.equal(refuses(7), null, "not a path: SQLite's own error");
 });
