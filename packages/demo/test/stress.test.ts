@@ -77,3 +77,30 @@ test("the stress snapshot: each column numbered 1 to n, groups in the region of 
     assert.ok(second.length > before, `size ${size}: the tab that stayed still hears the stream`);
   }
 });
+
+test("round 60, pk-P1: the stress stream's clock moves with each line, as the storyline's does: a listener reading it during a line hears that line's time", () => {
+  const scheduler = createManualScheduler();
+  const source = createStressSource({ scheduler });
+  source.playback.setSpeed(16);
+  const read: { ts: number; now: number }[] = [];
+  source.start((m) => {
+    if (m.type === "event") read.push({ ts: Date.parse(m.envelope.ts), now: source.now() });
+  });
+  scheduler.advance(1_000);
+  assert.ok(read.length > 5);
+  for (const line of read) assert.equal(line.now, line.ts);
+});
+
+test("round 60, pk-P1: a stress seek clamps as the storyline's does: not a finite number is the start, and a listener hears a snapshot, not a RangeError", () => {
+  for (const to of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+    const scheduler = createManualScheduler();
+    const source = createStressSource({ scheduler });
+    const heard: SourceMessage[] = [];
+    source.start((m) => heard.push(m));
+    source.playback.seek(60_000);
+    source.playback.seek(to);
+    assert.equal(source.playback.positionMs(), 0, `seek ${to}`);
+    assert.equal(heard.at(-1)?.type, "snapshot");
+    assert.equal(source.now(), Date.parse("2026-10-01T08:00:00Z"));
+  }
+});
