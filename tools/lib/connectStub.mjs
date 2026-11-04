@@ -157,7 +157,8 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
     if (key.startsWith("chl_bad")) {
       current = "rejected";
       log(`connect: a key ending in …${key.slice(-4)} rejected`);
-      return send(res, 403, { error: "rejected", reason: REJECT_REASON });
+      // The host's own word for loops' no (host.ts connect, `ConnectRefusalSent`): the page meets one wire.
+      return send(res, 403, { error: "key_rejected", reason: REJECT_REASON });
     }
     log(`connect: a key ending in …${key.slice(-4)} accepted; checking for ${checkMs} ms`);
     current = "checking";
