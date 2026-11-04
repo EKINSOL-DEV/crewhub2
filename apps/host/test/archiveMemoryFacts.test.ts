@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { type ArchiveMemory, belongsTo, createArchiveMemory } from "../src/archiveMemory.ts";
 import type { ArchiveRecord, ArchiveStore } from "../src/archiveStore.ts";
+import type { Envelope } from "@crewhub/loops-client";
 
 const A = "http://127.0.0.1:41001";
 const B = "/tmp/loops-b.sock";
@@ -51,7 +52,29 @@ function memory(store?: ArchiveStore) {
   return { m, lines };
 }
 
+/** An event on the link's stream as the ear hands it over: `project` as given, which may be anything on the wire. */
+const heard = (type: string, project: unknown): Envelope => ({ v: 1, seq: 1, ts: T0, type, project: project as Envelope["project"], ticket: null, actor: { id: "x", kind: "user" }, recipientIds: [], payload: {} });
+/** The line loops would have to send to leave the key out: `undefined` is no JSON, so the key is gone after a round trip. */
+const bare = (type: string): Envelope => JSON.parse(JSON.stringify({ ...heard(type, "gone"), project: undefined })) as Envelope;
+
 describe("the archive memory, fed facts", () => {
+  it("ignores an event with no project key and says so: nothing changes, nothing throws (round 54's fuzz finding)", () => {
+    const { m, lines } = memory(memoryStore());
+    m.linked(A);
+    assert.equal("project" in bare("project.archived"), false, "the vehicle: no key at all");
+    m.heard(bare("project.archived"));
+    m.heard(bare("ticket.updated"));
+    assert.deepEqual(lines, ["the archive memory ignores event 1 (project.archived): it has no project key", "the archive memory ignores event 1 (ticket.updated): it has no project key"]);
+    assert.deepEqual([...m.seen()], []);
+    assert.deepEqual(m.state(true), { source: "none", count: 0, slugs: [] });
+    m.heard(heard("project.archived", null));
+    assert.equal(m.state(false).at, undefined, "null is nothing: not even a time learnt, no file written");
+    m.heard(heard("project.archived", 5));
+    m.heard(heard("project.archived", { slug: "atlas", key: "AT" }));
+    assert.equal(lines.filter((l) => /has no project key/.test(l)).length, 2, "a project that is null or no object is no warning, as before");
+    assert.deepEqual([...m.seen()], ["atlas"]);
+  });
+
   it("knows nothing before a fact: source none, no time, no slugs", () => {
     const { m, lines } = memory(memoryStore());
     assert.deepEqual(m.state(false), { source: "none", count: 0 });
@@ -64,10 +87,10 @@ describe("the archive memory, fed facts", () => {
     // Moved from stream.test.ts ("knows the slugs archived over its own stream"), where the upstream kept this set.
     const { m } = memory(memoryStore());
     m.linked(A);
-    m.heard("ticket.created", "beacon");
-    m.heard("project.archived", "atlas");
-    m.heard("project.archived", "old");
-    m.heard("project.restored", "old");
+    m.heard(heard("ticket.created", { slug: "beacon", key: "K" }));
+    m.heard(heard("project.archived", { slug: "atlas", key: "K" }));
+    m.heard(heard("project.archived", { slug: "old", key: "K" }));
+    m.heard(heard("project.restored", { slug: "old", key: "K" }));
     assert.deepEqual([...m.seen()], ["atlas"]);
     assert.deepEqual([...m.slugs()], ["atlas"]);
     assert.deepEqual(m.state(true), { source: "none", count: 1, at: "2026-11-04T12:00:02.000Z", slugs: ["atlas"] });
@@ -77,8 +100,8 @@ describe("the archive memory, fed facts", () => {
     // Replaces fuzzStream.test.ts's "slugs stay slugs" on the upstream's set: the fuzz now feeds this module.
     const { m } = memory(memoryStore());
     m.linked(A);
-    for (const slug of ["a/b", "x y", "", "s".repeat(129), 7, undefined, null]) m.heard("project.archived", slug);
-    m.heard("project.archived", "old");
+    for (const slug of ["a/b", "x y", "", "s".repeat(129), 7, undefined, null]) m.heard(heard("project.archived", { slug, key: "K" }));
+    m.heard(heard("project.archived", { slug: "old", key: "K" }));
     assert.deepEqual([...m.seen()], ["old"]);
     assert.deepEqual([...m.slugs()], ["old"]);
     m.reported({ source: "log", slugs: ["c/d", "old", "old"] });
@@ -88,13 +111,13 @@ describe("the archive memory, fed facts", () => {
   it("starts the link's own set empty on every link, and hands out a new set rather than emptying the old one", () => {
     const { m } = memory(memoryStore());
     m.linked(A);
-    m.heard("project.archived", "atlas");
+    m.heard(heard("project.archived", { slug: "atlas", key: "K" }));
     const before = m.seen();
     m.linked(A); // the same loops again (a new key, a stream refused): a new link, the set kept
     assert.deepEqual([...m.seen()], []);
     assert.deepEqual([...before], ["atlas"], "a snapshot of the old link keeps the set it was given");
     assert.deepEqual([...m.slugs()], ["atlas"], "the same target keeps what it learnt");
-    m.heard("project.archived", "beacon");
+    m.heard(heard("project.archived", { slug: "beacon", key: "K" }));
     assert.deepEqual([...before], ["atlas"]);
     assert.deepEqual([...m.seen()], ["beacon"]);
   });
@@ -104,7 +127,7 @@ describe("the archive memory, fed facts", () => {
     m.linked(A);
     const slugs = m.slugs();
     const seen = m.seen();
-    m.heard("project.archived", "atlas");
+    m.heard(heard("project.archived", { slug: "atlas", key: "K" }));
     assert.deepEqual([...slugs], [], "a snapshot keeps the set it started with");
     assert.deepEqual([...seen], ["atlas"], "a snapshot under way reads the link's set when it gets to the archived projects");
   });
@@ -113,9 +136,9 @@ describe("the archive memory, fed facts", () => {
     const { m } = memory(memoryStore());
     m.linked(A);
     m.reported({ source: "log", slugs: ["old"] });
-    m.heard("project.archived", "atlas");
+    m.heard(heard("project.archived", { slug: "atlas", key: "K" }));
     const archived = m.forSnapshot();
-    m.heard("project.archived", "beacon"); // heard during the assembly: the stream set counts it
+    m.heard(heard("project.archived", { slug: "beacon", key: "K" })); // heard during the assembly: the stream set counts it
     m.reported({ source: "log", slugs: [] }); // another snapshot's report: this assembly keeps the set it started with
     assert.deepEqual(asked(archived), { slugs: ["atlas", "beacon", "old"], remembered: true });
     assert.deepEqual(asked(m.forSnapshot()), { slugs: ["atlas", "beacon"], remembered: false }, "an assembly starting now: the set is empty");
@@ -125,10 +148,10 @@ describe("the archive memory, fed facts", () => {
     const { m } = memory(memoryStore());
     m.linked(A);
     m.reported({ source: "log", slugs: ["old"] });
-    m.heard("project.archived", "atlas");
+    m.heard(heard("project.archived", { slug: "atlas", key: "K" }));
     const archived = m.forSnapshot();
     m.linked(B);
-    m.heard("project.archived", "beacon");
+    m.heard(heard("project.archived", { slug: "beacon", key: "K" }));
     assert.deepEqual(asked(archived), { slugs: ["atlas", "old"], remembered: true }, "B's archive is not A's assembly's");
   });
 
@@ -166,7 +189,7 @@ describe("the archive memory, fed facts", () => {
     const store = memoryStore({ slugs: ["other"], at: T0, target: B });
     const { m, lines } = memory(store);
     m.linked(A);
-    m.heard("project.archived", "beacon");
+    m.heard(heard("project.archived", { slug: "beacon", key: "K" }));
     assert.deepEqual(store.saves, [{ slugs: ["beacon"], at: "2026-11-04T12:00:00.000Z", target: A }]);
     assert.equal(lines.at(-1), "remembered 1 archived project in /config/archived.json");
   });
@@ -188,10 +211,10 @@ describe("the archive memory, fed facts", () => {
     m.linked(A);
     m.reported({ source: "log", slugs: ["old"] });
     m.reported({ source: "log", slugs: ["old"] });
-    m.heard("project.archived", "old");
+    m.heard(heard("project.archived", { slug: "old", key: "K" }));
     assert.equal(store.saves.length, 1);
     assert.equal(m.state(false).at, "2026-11-04T12:00:00.000Z");
-    m.heard("project.restored", "old");
+    m.heard(heard("project.restored", { slug: "old", key: "K" }));
     assert.deepEqual(store.saves.map((r) => r.slugs), [["old"], []]);
     assert.equal(m.state(false).source, "log", "an event keeps the source the last report gave");
   });
@@ -205,7 +228,7 @@ describe("the archive memory, fed facts", () => {
     const store = memoryStore();
     const { m } = memory(store);
     m.linked(A);
-    m.heard("project.archived", "atlas");
+    m.heard(heard("project.archived", { slug: "atlas", key: "K" }));
     m.reported({ source: "log", slugs: ["atlas", "old"] });
     m.linked(B);
     m.reported({ source: "list", slugs: ["b-own"] });
@@ -227,7 +250,7 @@ describe("the archive memory, fed facts", () => {
     const store = memoryStore();
     const { m, lines } = memory(store);
     m.linked(A);
-    m.heard("project.archived", "new-a");
+    m.heard(heard("project.archived", { slug: "new-a", key: "K" }));
     assert.deepEqual(store.disk, { slugs: ["new-a"], at: "2026-11-04T12:00:00.000Z", target: A });
     m.linked(B);
     assert.deepEqual(m.state(true), { source: "none", count: 0, slugs: [] }, "nothing of A's under B");
@@ -250,7 +273,7 @@ describe("the archive memory, fed facts", () => {
     const { m, lines } = memory();
     m.linked(A);
     m.reported({ source: "log", slugs: ["old"] });
-    m.heard("project.archived", "atlas");
+    m.heard(heard("project.archived", { slug: "atlas", key: "K" }));
     assert.deepEqual(m.state(true), { source: "log", count: 2, at: "2026-11-04T12:00:01.000Z", slugs: ["atlas", "old"] });
     assert.deepEqual(lines, []);
   });

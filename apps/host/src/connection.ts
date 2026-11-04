@@ -205,7 +205,8 @@ export function createConnection(options: ConnectionOptions): Connection {
   // every link; the stream's archive events and every snapshot's report keep it.
   const archive = createArchiveMemory({
     ...(options.archiveStore === undefined ? {} : { store: options.archiveStore }),
-    log,
+    // Scrubbed, as the upstream's lines are: an envelope's `type` is text from loops.
+    log: (line) => log(scrub(line)),
   });
 
   // --- loops' version: the first one this run read and the last one, so an upgrade under the host is said (health's
@@ -418,8 +419,7 @@ export function createConnection(options: ConnectionOptions): Connection {
         if (message.type !== "event") return;
         // A `dm.*` event the key's stream sees (round 24): the chat path reads the threads again and an agent's message as a line.
         chat.onEvent(message.envelope);
-        if (message.envelope.project === null) return;
-        archive.heard(message.envelope.type, message.envelope.project.slug);
+        archive.heard(message.envelope);
       });
       for (const tab of tabs.values()) attach(tab);
       // The first attempt decides the states a connect answers with; it is bounded by the read timeout. A first

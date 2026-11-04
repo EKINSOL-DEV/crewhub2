@@ -16,15 +16,15 @@ branch's files (H1 meets q3; H2, H3, T1 and T2 meet r27 and q1), a port carries 
 | Candidate | Strength | Owner tonight | Answer branches |
 | --- | --- | --- | --- |
 | H1 a program's road to a running host, one module | Strong | arch-c2 (Fable) | q3 by port |
-| H2 the town's and connect's answers on the wire | Strong | arch-c7 (Fable) | r27, q1 by ports |
+| H2 the town's and connect's answers on the wire | Strong | arch-c7 (Fable): **merged `b0af686`** | none needed (the five ports merge cleanly) |
 | H3 `snapshot.ts`'s unused options | Strong, small | arch-c5 (Opus), after A5 | r27, q1 (leave `pending()` alone) |
 | H7 seven one-line facts in two files each | Strong, small | arch-c5, with H3 | mostly clean |
 | P1 (packages) one playback engine for the demo and the stress fixture | Strong | arch-c8 (Opus) | clean |
-| P2 (packages) the demo's unused exports | Strong, minutes | arch-c8 | clean |
+| P2 (packages) the demo's unused exports | Strong, minutes | arch-c8: **merged `fd39490`** | clean |
 | P3 (packages) the seed tool's second named-port list | Strong, ten lines | arch-c7, after H2 | clean |
 | P4 (packages) greenhouse's code keys written twice | Strong | arch-c8 | clean |
 | P5 (packages) `WorldSimulation`'s one production use | Strong | arch-host (Fable), after A2/A3 | clean |
-| P6 (packages) place words in five files | Strong | arch-c8 | clean |
+| P6 (packages) place words in five files | Strong | arch-c8: **merged `b758d10`** | clean |
 | P1 (page) the viewer's browser-kept settings | Strong | arch-page (Opus), after A4/A6 | clean |
 | P2 (page) the page's overlays | Strong | arch-page, after its P1 | clean |
 | T1 (tools) a tool's rig | Strong | arch-c6 (Opus), after A7 | r27 by port |
