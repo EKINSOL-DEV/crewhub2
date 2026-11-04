@@ -1,4 +1,4 @@
-/* The connection hooks' subscribe function (state/world.ts `useConnection`, `useConnectionKey`; round 50, r48-live N3):
+/* The connection hooks' subscribe function (state/runtimes.ts `useConnection`, `useConnectionKey`; round 50, r48-live N3):
    one function per connection, so `useSyncExternalStore` does not unsubscribe and subscribe again on every App render.
    Pure, no React. */
 import assert from "node:assert/strict";

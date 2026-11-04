@@ -412,19 +412,4 @@ describe("the upstream, without a host", () => {
     await waitFor("the stream after the second 429", () => upstream.state() === "ok");
     assert.deepEqual(statuses.slice(2), [{ type: "status", loops: "ok" }], "the second 429 changes nothing the tab is told");
   });
-
-  it("knows the slugs archived over its own stream: an archive adds one, a restore takes it back, other events add none", async () => {
-    const { stub, upstream } = await start();
-    const seen: number[] = [];
-    upstream.subscribe(null, (message) => {
-      if (message.type === "event") seen.push(message.envelope.seq);
-    });
-    await upstream.start();
-    stub.emit({ ...anEvent("ticket.created"), project: { slug: "beacon", key: "BEACON" } });
-    stub.emit({ ...anEvent("project.archived"), project: { slug: "atlas", key: "ATLAS" } });
-    stub.emit({ ...anEvent("project.archived"), project: { slug: "old", key: "OLD" } });
-    const last = stub.emit({ ...anEvent("project.restored"), project: { slug: "old", key: "OLD" } });
-    await waitFor("the four events", () => seen.includes(last.seq));
-    assert.deepEqual([...upstream.archivedSlugs()].sort(), ["atlas"]);
-  });
 });

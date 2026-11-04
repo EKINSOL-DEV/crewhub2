@@ -3,9 +3,9 @@
    (`connection.session`: `key`, or absent), so every place that speaks of the chat tells one story without a read of its own. */
 import { useSyncExternalStore } from "react";
 import type { HostHealth } from "@crewhub/loops-client";
-import { SOURCE } from "./world";
+import { pageConfig } from "./page";
 
-let current: HostHealth | null = SOURCE.health ?? null;
+let current: HostHealth | null = pageConfig().source.health ?? null;
 const listeners = new Set<() => void>();
 
 /** A fresh health read: kept for everyone who shows it. */
