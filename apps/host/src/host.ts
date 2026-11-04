@@ -22,6 +22,7 @@ import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import type { HostConnection } from "@crewhub/loops-client";
 import { WORLD_API_PREFIX, fillPattern, matchWorldRoute } from "./allowList.ts";
+import { UPSTREAM_BODY_LIMIT, UpstreamTooLarge, createRepeatLog } from "./bodyCap.ts";
 import { DEV_ORIGINS_HEADER, devOriginAcceptedLine, devOriginVerdict } from "./devOrigin.ts";
 import type { ArchiveStore } from "./archiveStore.ts";
 import type { KeySource } from "./config.ts";
@@ -58,6 +59,12 @@ export interface HostOptions {
   worldDb?: WorldDb;
   /** How long one read of loops may take before it counts as not answering. Default 10 s; tests shorten it. */
   readTimeoutMs?: number;
+  /**
+   * The most bytes one body from loops may carry, and one line of its stream (question 15, `bodyCap.ts`): past it the
+   * body is cut off, the relay answers 502 `upstream_too_large`, the host's own reads see null and say so once. Default
+   * `UPSTREAM_BODY_LIMIT`, 4 MB; tests shorten it.
+   */
+  upstreamBodyLimit?: number;
   /** 0 (the default) picks a free port. */
   port?: number;
   /** Serve this folder (the built world) for every path outside `/world-api`, with `index.html` as the fallback. */
@@ -108,6 +115,8 @@ export const MINT_HEADER = "x-crewhub-world-mint";
  */
 export const HTML_HEADERS: Readonly<Record<string, string>> = { "content-security-policy": "frame-ancestors 'self'", "x-frame-options": "SAMEORIGIN" };
 
+/** A body past the cap on the same path is said at most this often (question 15). */
+const TOO_LARGE_LOG_MS = 5_000;
 /** How many tabs may hold the stream at once (review N3); the next one is answered 503 with a reason. */
 export const MAX_TABS = 64;
 /** How long health waits for a link in the making before it answers with the states as they are. */
@@ -254,6 +263,11 @@ export async function createHost(options: HostOptions): Promise<Host> {
   if (options.retryMs !== undefined) timings.retryMs = options.retryMs;
   if (options.recheckMs !== undefined) timings.recheckMs = options.recheckMs;
   if (options.reconnectMs !== undefined) timings.reconnectMs = options.reconnectMs;
+  const bodyLimit = options.upstreamBodyLimit ?? UPSTREAM_BODY_LIMIT;
+  // A body past the cap on one of the connection's reads (connection.ts) or the relay's, said once per path and then at
+  // most every 5 s (the same read fails on every attempt until loops is right again); never the body, never the key.
+  const sayTooLarge = createRepeatLog(log, TOO_LARGE_LOG_MS);
+  const onTooLarge = (path: string, error: UpstreamTooLarge) => sayTooLarge(path, `loops answered GET ${path} ${error.status} with a body past ${bodyLimit} bytes (${error.declared ? "declared" : "read"} ${error.bytes}): cut off, read as no body`);
   const conn: Connection = createConnection({
     discovery: {
       loopsUrl: options.loopsUrl ?? null,
@@ -268,6 +282,9 @@ export async function createHost(options: HostOptions): Promise<Host> {
     ...(options.key === undefined ? {} : { key: { key: options.key, name: options.keyName ?? "crewhub-world", source: options.keySource ?? "env" } }),
     ...(options.keyStore === undefined ? {} : { keyStore: options.keyStore }),
     ...(options.archiveStore === undefined ? {} : { archiveStore: options.archiveStore }),
+    // Question 15: the cap on every body from loops, and the one line per path that says a body past it.
+    bodyLimit,
+    onTooLarge,
     timings,
     log,
     ...(options.onStep === undefined ? {} : { onStep: options.onStep }),
@@ -386,7 +403,13 @@ export async function createHost(options: HostOptions): Promise<Host> {
       }
       res.writeHead(upstreamResponse.status, { "content-type": upstreamResponse.contentType, "cache-control": "no-store" });
       res.end(upstreamResponse.text);
-    } catch {
+    } catch (error) {
+      // A body past the cap (question 15): the browser hears what and how big, never the body; said once per path.
+      if (error instanceof UpstreamTooLarge) {
+        sayTooLarge(loopsPath, `loops answered GET ${loopsPath} ${error.status} with a body past ${bodyLimit} bytes (${error.declared ? "declared" : "read"} ${error.bytes}): cut off, 502 to the page`);
+        sendJson(res, 502, { error: "upstream_too_large", limit: error.limit, bytes: error.bytes });
+        return;
+      }
       sendJson(res, 503, { error: "loops_down" });
     }
   }

@@ -20,6 +20,7 @@ import { DEFAULT_LOOPS_URL, type KeySource } from "./config.ts";
 import { type Discovery, type DiscoveryInput, type Found, createDiscovery, loopsAnswers, targetText } from "./discovery.ts";
 import { checkKey } from "./keyCheck.ts";
 import type { KeyStore } from "./keyStore.ts";
+import type { UpstreamTooLarge } from "./bodyCap.ts";
 import { type LoopsClient, type LoopsResponse, createLoopsClient } from "./loops.ts";
 import { type ArchiveReport, type AssembledSnapshot, SnapshotError, type SnapshotStats, assembleSnapshot } from "./snapshot.ts";
 import { type HostMessage, type LoopsState, type Upstream, createUpstream } from "./stream.ts";
@@ -68,6 +69,12 @@ export interface ConnectionOptions {
   keyStore?: KeyStore;
   /** The memory of the closed buildings on disk. Absent: remembered for this run only. */
   archiveStore?: ArchiveStore;
+  /**
+   * The most bytes one body from loops may carry, and one line of its stream (question 15, `bodyCap.ts`); `onTooLarge`
+   * hears a body past it on the connection's own reads (the host says it once per path). Absent: the client's default.
+   */
+  bodyLimit?: number;
+  onTooLarge?: (path: string, error: UpstreamTooLarge) => void;
   timings?: ConnectionTimings;
   /** Server-side log line; never the key. */
   log: (line: string) => void;
@@ -198,7 +205,12 @@ export function createConnection(options: ConnectionOptions): Connection {
   // --- The key. ---
   let holder: KeyHolder | null = options.key === undefined ? null : { ...options.key, state: "unchecked" };
   const readTimeoutMs = timings.readTimeoutMs;
-  const clientFor = (found: Found, key: string): LoopsClient => createLoopsClient(found.target, key, readTimeoutMs === undefined ? {} : { readTimeoutMs });
+  const clientFor = (found: Found, key: string): LoopsClient =>
+    createLoopsClient(found.target, key, {
+      ...(readTimeoutMs === undefined ? {} : { readTimeoutMs }),
+      ...(options.bodyLimit === undefined ? {} : { bodyLimit: options.bodyLimit }),
+      ...(options.onTooLarge === undefined ? {} : { onTooLarge: options.onTooLarge }),
+    });
   const scrub = (text: string): string => (holder !== null && holder.key.length > 0 && text.includes(holder.key) ? text.split(holder.key).join("[redacted]") : text);
 
   // --- The closed buildings the host knows (archiveMemory.ts): the memory on disk belongs to one loops, judged at
@@ -378,6 +390,7 @@ export function createConnection(options: ConnectionOptions): Connection {
       if (timings.bufferSize !== undefined) upstreamOptions.bufferSize = timings.bufferSize;
       if (timings.retryMs !== undefined) upstreamOptions.retryMs = timings.retryMs;
       if (timings.reconnectMs !== undefined) upstreamOptions.reconnectMs = timings.reconnectMs;
+      if (options.bodyLimit !== undefined) upstreamOptions.lineLimit = options.bodyLimit;
       const upstream = createUpstream(client, upstreamOptions);
       link = { found, client, upstream, chat };
       // The connection's own ear on its stream, for as long as this link lives: the stream is the second opinion on
