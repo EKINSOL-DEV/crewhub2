@@ -11,7 +11,6 @@
 import type {
   BoardResponse,
   CommentOut,
-  Envelope,
   MilestoneSummary,
   ProgressItem,
   ProjectGroup,
@@ -21,12 +20,11 @@ import type {
   WatchdogResponse,
 } from "./types.ts";
 import type { ConnectionState, ConnectionStatus, HostSourceOptions, LoopsSnapshot, SourceMessage, WorldSource } from "./source.ts";
-import { type HostHealth, type HostKeyState, type HostStreamState, readChatLine, readHostHealth, readThreadFacts, worldApiPath } from "./hostWire.ts";
+import { type HostHealth, type HostKeyState, readHostHealth, readHostMessage, worldApiPath } from "./hostWire.ts";
 import {
   type Result,
   validateBoardResponse,
   validateCommentsResponse,
-  validateEnvelope,
   validateLoopsSnapshot,
   validateMilestonesResponse,
   validateProgressResponse,
@@ -53,22 +51,6 @@ export interface HostSourceTimings {
 }
 
 const DEFAULT_TIMINGS: HostSourceTimings = { staleMs: 40_000, teamPollMs: 30_000, retryMinMs: 500, retryMaxMs: 10_000, firstRetryMaxMs: 2000 };
-
-const oneOf = <T extends string>(value: unknown, values: readonly T[]): T | undefined => (values.includes(value as T) ? (value as T) : undefined);
-
-/** What the host puts on the stream (ready-team-map: "Host → browser"). */
-type StreamMessage =
-  /** `key`: the host's own word on its key (round 11); a host from before sends none. */
-  | { type: "status"; loops: HostHealth["loops"]; stream?: HostStreamState["state"]; reason?: string; key?: unknown }
-  | { type: "event"; envelope: unknown }
-  | { type: "heartbeat"; seq: number; ts: string }
-  | { type: "reset"; reason: string }
-  /** An agent's message to the person (round 12), read by the host as the signed-in person. */
-  | { type: "chat"; chat: unknown }
-  /** The chat threads' facts (round 24), where the key reads the chat. */
-  | { type: "threads"; threads: unknown }
-  /** The installation's town document changed on the host (round 20): the town runtime refetches it. */
-  | { type: "town"; rev: unknown };
 
 /** Asks the host for its health. `null` when nothing answers within `timeoutMs` or the answer is not a host's. */
 export async function probeHost(baseUrl = "", timeoutMs = 1500): Promise<HostHealth | null> {
@@ -338,20 +320,25 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
 
   /** One `data:` payload. Never throws. */
   function handleMessage(text: string): "resnapshot" | "ok" {
-    let message: StreamMessage;
+    let parsed: unknown;
     try {
-      message = JSON.parse(text) as StreamMessage;
+      parsed = JSON.parse(text);
     } catch {
       warnOnce("stream:json", "a stream message is not JSON; skipped");
       return "ok";
     }
-    if (message === null || typeof message !== "object") return "ok";
+    if (parsed === null || typeof parsed !== "object") return "ok";
     touched();
+    const result = readHostMessage(parsed);
+    if (!result.ok) {
+      warnOnce(`stream:${result.path}`, `a stream message does not validate at ${result.path}: ${result.message}; skipped`);
+      return "ok";
+    }
+    const message = result.value;
     switch (message.type) {
       case "status": {
         // The host's own word on its key, when the status carries one (a host from before says nothing: null stays).
-        const key = oneOf(message.key, ["none", "unchecked", "checking", "rejected", "ok"]);
-        if (key !== undefined) setKeyWord(key);
+        if (message.key !== undefined) setKeyWord(message.key);
         // A 429 on the host's stream: loops answers reads, so the host says `loops: "down"` for a world from before and
         // `stream: "busy"` for us. Events are missed meanwhile, so `ok` again re-snapshots, as after loops-down.
         if (message.stream === "busy") {
@@ -367,37 +354,25 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
         return "ok";
       }
       case "heartbeat": {
-        if (typeof message.seq === "number" && typeof message.ts === "string") {
-          if (message.seq > cursor) cursor = message.seq;
-          send({ type: "heartbeat", seq: message.seq, ts: message.ts });
-        }
+        if (message.seq > cursor) cursor = message.seq;
+        send({ type: "heartbeat", seq: message.seq, ts: message.ts });
         return "ok";
       }
       case "reset": {
         setState("catching-up");
         return "resnapshot";
       }
-      case "chat": {
-        const chat = readChatLine(message.chat);
-        if (chat !== null) send({ type: "chat", chat });
+      case "chat":
+        send({ type: "chat", chat: message.chat });
         return "ok";
-      }
-      case "threads": {
-        const threads = readThreadFacts(message.threads);
-        if (threads !== null) send({ type: "threads", threads });
+      case "threads":
+        send({ type: "threads", threads: message.threads });
         return "ok";
-      }
-      case "town": {
-        if (typeof message.rev === "number" && Number.isInteger(message.rev) && message.rev >= 0) options.onTown?.(message.rev);
+      case "town":
+        options.onTown?.(message.rev);
         return "ok";
-      }
       case "event": {
-        const result: Result<Envelope> = validateEnvelope(message.envelope);
-        if (!result.ok) {
-          warnOnce(`envelope:${result.path}`, `an envelope does not validate at ${result.path}: ${result.message}; skipped`);
-          return "ok";
-        }
-        const envelope = result.value;
+        const envelope = message.envelope;
         if (envelope.seq <= cursor) return "ok"; // replayed
         if (resnapshotOnGap && cursor >= 0 && envelope.seq > cursor + 1) {
           console.warn(`[loops-client] seq gap: had ${cursor}, got ${envelope.seq}; re-snapshotting`);
@@ -409,8 +384,6 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
         if (envelope.type === "team.updated") void readTeam();
         return "ok";
       }
-      default:
-        return "ok";
     }
   }
 

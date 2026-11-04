@@ -1,4 +1,6 @@
+import type { Envelope } from "./types.ts";
 import type { ChatLine, ChatThreadFact } from "./source.ts";
+import { type Result, knownOr, lenientOneOf, validateEnvelope } from "./validate.ts";
 
 /**
  * The wire between the world's host (`apps/host`) and the page, defined once: the browser routes under `/world-api`,
@@ -87,6 +89,10 @@ export function worldApiPath(pattern: WorldRoutePattern, params: Record<string, 
 
 // --- Health: `GET /world-api/health`. ---
 
+/** The host's old tri-state word on loops: `unauthorized` for no key and for a rejected key alike (`HostKeyState` tells them apart). */
+export type LoopsState = "ok" | "down" | "unauthorized";
+export const LOOPS_STATES = ["ok", "down", "unauthorized"] as const satisfies readonly LoopsState[];
+
 /** How the host found crewhub-loops (spec addendum "a smooth connection", part 1). */
 export interface HostDiscovery {
   /** `searching`: nothing answers yet; the host looks again every 5 s. */
@@ -97,6 +103,8 @@ export interface HostDiscovery {
   target?: string;
 }
 
+export const HOST_KEY_STATES = ["none", "unchecked", "checking", "rejected", "ok"] as const;
+
 /**
  * The host's key: none yet (the Connect screen), being checked, rejected by loops, ok, or `unchecked`: the host holds a
  * key but crewhub-loops has not answered about it (down, restarting, a 5xx, a timeout); it is checked again when loops
@@ -104,7 +112,7 @@ export interface HostDiscovery {
  * disk with its reason until a new one is pasted or it is forgotten.
  */
 export interface HostKeyState {
-  state: "none" | "unchecked" | "checking" | "rejected" | "ok";
+  state: (typeof HOST_KEY_STATES)[number];
   /** The key's agent name (`agent-<name>.key`, or the principal loops answered); paired browsers only. */
   name?: string;
   /** Where the key came from: the environment's file, the host's stored key, or the old default file. Paired only. */
@@ -188,7 +196,7 @@ export interface HostConnection {
 
 /** `GET /world-api/health`. Never the key. */
 export interface HostHealth {
-  loops: "ok" | "down" | "unauthorized";
+  loops: LoopsState;
   /** The key's agent name; `""` while the host has no key (then `connection.key.state` is `none`). */
   keyName: string;
   /** Always false since the builder-key fallback went; kept for hosts from before. */
@@ -249,7 +257,7 @@ export function readConnection(value: unknown): HostConnection | null {
   if (value === null || typeof value !== "object") return null;
   const raw = value as { discovery?: Partial<HostDiscovery>; key?: Partial<HostKeyState>; stream?: Partial<HostStreamState>; archived?: Partial<HostArchiveState>; snapshot?: unknown; session?: unknown };
   const discoveryState = oneOf(raw.discovery?.state, ["found", "searching"]);
-  const keyState = oneOf(raw.key?.state, ["none", "unchecked", "checking", "rejected", "ok"]);
+  const keyState = oneOf(raw.key?.state, HOST_KEY_STATES);
   const streamState = oneOf(raw.stream?.state, ["idle", "ok", "down", "unauthorized", "busy"]);
   if (discoveryState === undefined || keyState === undefined || streamState === undefined) return null;
   const discovery: HostDiscovery = { state: discoveryState };
@@ -318,8 +326,9 @@ export function readSnapshotState(value: unknown): HostSnapshotState | null {
 export function readHostHealth(value: unknown): HostHealth | null {
   const body = value as Partial<HostHealth> | null;
   if (body === null || typeof body !== "object") return null;
-  if (!["ok", "down", "unauthorized"].includes(body.loops as string) || typeof body.keyName !== "string") return null;
-  const health: HostHealth = { loops: body.loops as HostHealth["loops"], keyName: body.keyName, sharedKey: body.sharedKey === true };
+  const loops = oneOf(body.loops, LOOPS_STATES);
+  if (loops === undefined || typeof body.keyName !== "string") return null;
+  const health: HostHealth = { loops, keyName: body.keyName, sharedKey: body.sharedKey === true };
   if (typeof body.loopsCommit === "string") health.loopsCommit = body.loopsCommit;
   if (typeof body.loopsCommitBefore === "string") health.loopsCommitBefore = body.loopsCommitBefore;
   if (typeof body.cursor === "number") health.cursor = body.cursor;
@@ -332,4 +341,80 @@ export function readHostHealth(value: unknown): HostHealth | null {
   const connection = readConnection(body.connection);
   if (connection !== null) health.connection = connection;
   return health;
+}
+
+// --- The stream: `GET /world-api/stream`, one JSON message per Server-Sent Event. ---
+
+export type HostMessage =
+  /**
+   * `stream: "busy"` with the reason when loops refused the stream with 429 (`loops` stays `down` for the world from before).
+   * `key` is the host's own word on its key (`HostConnection.key.state`: none, unchecked, checking, rejected, ok), stamped by
+   * the host on every status it sends a tab: `loops` keeps one legacy word, "unauthorized", for no key and for a rejected
+   * key alike, so after a Forget in another tab a tab hears `unauthorized, key none` and shows the Connect screen, and for a
+   * key loops revoked `unauthorized, key rejected`. The upstream itself sends no key; the host adds it (a host from before
+   * round 11 sends none).
+   */
+  | { type: "status"; loops: LoopsState; stream?: "busy"; reason?: string; key?: HostKeyState["state"] }
+  | { type: "event"; envelope: Envelope }
+  | { type: "heartbeat"; seq: number; ts: string }
+  /** An agent's message to the person, read by the host with its own key where loops lets it (apps/host chatLine.ts): a bubble. */
+  | { type: "chat"; chat: ChatLine }
+  /** The installation's town document changed on the host (round 20, worldDb.ts): the browsers refetch `/world-api/town`. */
+  | { type: "town"; rev: number }
+  /** The chat threads' facts (round 24), where loops lets the key read the chat: the whole list, at attach and after a `dm.*` event. */
+  | { type: "threads"; threads: ChatThreadFact[] }
+  | { type: "reset"; reason: "gone" | "reconnected" | "cursor" };
+
+const RESET_REASONS = ["gone", "reconnected", "cursor"] as const;
+/** A `loops` word this page does not know is read as `down` (a newer host): the world from before took it so. */
+const loopsWord = knownOr(LOOPS_STATES, "host loops state", "down");
+/** A reset's reason is for the log: a word this page does not know passes through. */
+const resetReason = lenientOneOf(RESET_REASONS, "reset reason");
+const fail = (path: string, message: string): Result<never> => ({ ok: false, path, message });
+const okAs = (message: HostMessage): Result<HostMessage> => ({ ok: true, value: message });
+
+/**
+ * One message of the host's stream, strictly: the kinds above in their shapes, or why not (the path names the field).
+ * Lenient only where a word may be newer than this page (`loops`, a reset's reason) and on a `key` word it does not
+ * know, which is dropped as the status stands (the world from before ignored it the same way).
+ */
+export function readHostMessage(value: unknown): Result<HostMessage> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return fail("$", "expected a message object");
+  const raw = value as Record<string, unknown>;
+  switch (raw.type) {
+    case "status": {
+      const loops = loopsWord(raw.loops, "$.loops");
+      if (!loops.ok) return loops;
+      const out: HostMessage = { type: "status", loops: loops.value };
+      if (raw.stream === "busy") out.stream = "busy";
+      if (typeof raw.reason === "string") out.reason = raw.reason;
+      const key = oneOf(raw.key, HOST_KEY_STATES);
+      if (key !== undefined) out.key = key;
+      return okAs(out);
+    }
+    case "event": {
+      const result = validateEnvelope(raw.envelope);
+      return result.ok ? okAs({ type: "event", envelope: result.value }) : fail(`$.envelope${result.path.slice(1)}`, result.message);
+    }
+    case "heartbeat":
+      if (typeof raw.seq !== "number") return fail("$.seq", "expected a number");
+      if (typeof raw.ts !== "string") return fail("$.ts", "expected a string");
+      return okAs({ type: "heartbeat", seq: raw.seq, ts: raw.ts });
+    case "chat": {
+      const chat = readChatLine(raw.chat);
+      return chat === null ? fail("$.chat", "expected a chat line: agentId, text, at, messageId and threadId as strings") : okAs({ type: "chat", chat });
+    }
+    case "town":
+      return typeof raw.rev === "number" && Number.isInteger(raw.rev) && raw.rev >= 0 ? okAs({ type: "town", rev: raw.rev }) : fail("$.rev", "expected a whole number from 0 up");
+    case "threads": {
+      const threads = readThreadFacts(raw.threads);
+      return threads === null ? fail("$.threads", "expected a list of thread facts") : okAs({ type: "threads", threads });
+    }
+    case "reset": {
+      const reason = resetReason(raw.reason, "$.reason");
+      return reason.ok ? okAs({ type: "reset", reason: reason.value }) : reason;
+    }
+    default:
+      return fail("$.type", `unknown message type ${JSON.stringify(raw.type)}`);
+  }
 }
