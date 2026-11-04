@@ -86,8 +86,8 @@ export function createArchiveMemory(options: ArchiveMemoryOptions): ArchiveMemor
   /** True once this loops told the host its own set, or the memory on disk is this loops' own: then the file is written. */
   let learnt = false;
 
-  /** Keeps the set (and its source), and writes the file only when the set changed and this loops' set is learnt, under the judged target. */
-  function remember(next: Iterable<string>, from: HostArchiveState["source"] | null): void {
+  /** Keeps the set (and its source), and writes the file only when the set changed and this loops' set is learnt, under the link's target. */
+  function remember(next: Iterable<string>, from: HostArchiveState["source"] | null, target: string): void {
     const sorted = normaliseSlugs(next);
     const changed = sorted.join("\n") !== normaliseSlugs(slugs).join("\n");
     slugs = new Set(sorted);
@@ -97,10 +97,9 @@ export function createArchiveMemory(options: ArchiveMemoryOptions): ArchiveMemor
     at = now();
     if (store === undefined || !learnt) return;
     try {
-      // The file names the target this set was learnt for: the one the link was judged for (round 60, A5), never the
-      // one discovery finds by the time of the save (it may have switched before the relink judged the new one).
-      const target = judgedFor;
-      const record: ArchiveRecord = { slugs: sorted, at, ...(target === null ? {} : { target }) };
+      // The file names the target this set was learnt for: the link's own (round 60, A5; round 61, the handle), never
+      // the one discovery finds by the time of the save (it may have switched before the relink judged the new one).
+      const record: ArchiveRecord = { slugs: sorted, at, target };
       store.save(record);
       onDisk = record;
       log(`remembered ${projects(sorted.length)} in ${store.file}`);
@@ -155,15 +154,15 @@ export function createArchiveMemory(options: ArchiveMemoryOptions): ArchiveMemor
         if (type === "project.archived") {
           if (isSegment(slug)) seen.add(slug);
           learnt = true; // loops itself says this project is archived: a fact of this loops' own set
-          remember([...slugs, slug as string], null);
+          remember([...slugs, slug as string], null, target);
         } else if (type === "project.restored") {
           if (isSegment(slug)) seen.delete(slug);
-          remember([...slugs].filter((s) => s !== slug), null);
+          remember([...slugs].filter((s) => s !== slug), null, target);
         }
       },
       reported(report) {
         if (gone("archive report")) return;
-        remember(report.slugs, report.source);
+        remember(report.slugs, report.source, target);
       },
       forSnapshot() {
         const started = slugs;
