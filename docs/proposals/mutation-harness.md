@@ -15,7 +15,11 @@ planted roads, and the order a day round runs the mutants in. **No mutant of the
 `NODE_OPTIONS`, into every node child. It is a deny list of the roads known in round 35, as it stood at `cc23d62`.
 **Since then** (round 55, `task/r55-guard`) it also refuses a connect to 8291 to 8293, 8391, 5180 and 5173, and a
 listen on 8091, 8000, 9443, 8291 to 8293, 8391 and 5180: the table's TCP and listen rows below are history for those
-ports. The rest of the table still holds:
+ports. **Round 56** (`task/r56-guard-home`) closed two more: the folders are refused under the user's own home
+(`os.userInfo().homedir`) as well as `$HOME`, and a real host's run file (`crewhub-world-host-<1024 to 49151>.json`)
+directly in the real `TMPDIR` is refused, also in a child that moves its `TMPDIR` (the first process hands the real one
+down). A child given an explicit env without that hand-down *and* a moved `TMPDIR` still guards only its own. The rest
+of the table still holds:
 
 | Road | Refused by no-app-reach | Not refused |
 | --- | --- | --- |
@@ -239,6 +243,21 @@ A first version of the JS layer refused every read outside the root. `config.tes
   timeout. Give each run its own `timeout` (60 s) and count a timeout as killed.
 - **Never:** the worktree itself (the fake's key file is `tools/out/loops-fake.key` relative to the source), a root
   under the real home, or a run without the kernel layer.
+
+## 5b. Roads outside the tests (round 56's sweep, for a day round)
+
+Round 56 read every test, tool and script for a socket, fetch or listen that could reach a named port (8091, 8000,
+9443, 5180, 5173, 8291 to 8293, 8391) when run as written. In the tests only the two guard tests did, and round 56 moved
+them onto decoys; the socket tests' `loopsUrl` is now a closed port. Left for a day round:
+1. **`tools/regress.mjs`:** `real` and connect's real half opt-in only (`--real`), the default groups the eight that use
+   fakes and stubs; `loopsEnvFile` reads only `--loops-env`, with no search of the main checkout or `~/Documents/GitHub`.
+2. **`tools/timeworld.mjs`:** `--fake <port>` or an explicit `--loops-env` required, with no search.
+3. **`tools/loops-seed.mjs` and `tools/lib/seed.ts`:** `--url` required, no 8291 default.
+4. **One named-port list, shared** by `toolGuard.ownPort`, `pixcheck.mjs`, `tools/lib/live.mjs` and `road2proof.mjs`: a
+   tool's own ports may be none of them, and a `--loops-url` to 8291 to 8293 only with the same opt-in as item 1.
+5. **`tools/README.md`:** examples with a port of one's own, not `--port 5173`.
+6. **The host tests' helpers:** a shared `testHost()` that refuses to build a host without a target or an app data
+   folder with a `settings.json`, so a forgotten `discovery` is a test error, not a probe of 8091 left to the guard.
 
 ## 6. Limits
 

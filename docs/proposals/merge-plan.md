@@ -234,6 +234,14 @@ order, then question 1's branch last; every hand merge then happens in that last
   - **The replays on `bce82f1`:** `tab q3 q8 q11 q14 q15`, result `ba4cf8b`, 1370 / 1370; and `cookie+expiry q3 q8 q11
     q14 q15`, result `3a2c0f3`, 1368 / 1368. Both were also green on `6a119db`, `6568025`, `3ab9bd8` and `586db58`, the
     round's other code merges. No rule of the plan changed.
+- **Round 56, a short last run, on the head only.** No host or page behaviour changed. The guard's own tests prove
+  every rule on a decoy port they own, so no test aims at a named real port any more; `no-app-reach` refuses the real
+  home's folders when `HOME` is moved and a real host's run file in the real `TMPDIR`; six small pure pieces moved out
+  of `apps/world`'s state modules; the socket tests give a closed port as `loopsUrl`. No answer branch changed.
+  - **The merges:** all seven merge cleanly onto every head of round 56, last `5b262ec`.
+  - **The replays on `5b262ec`:** `tab q3 q8 q11 q14 q15`, result `c0ec5d6`, 1382 / 1382; and `cookie+expiry q3 q8 q11
+    q14 q15`, result `614b7ad`, 1380 / 1380. Both were also green on `281e5b0`, `716ef35` and `ece505e`. No rule of
+    the plan changed.
 - **The `cookie+expiry` and `cookie` rows, rehearsed in round 37** (detached checkouts; the five independent branches
   then the question-1 branch): the five alone on `e55ef42`, check 1070 of 1070; the five then `q1-cookie-expiry` (A,
   then B), check 1075 of 1075 on `e55ef42` and again on `761db9f` (`769434a`); the five then `r27-tab-pairing`, check
