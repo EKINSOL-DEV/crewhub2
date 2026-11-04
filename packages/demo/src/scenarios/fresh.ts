@@ -3,7 +3,7 @@
  * exist; there is no project at all. A minute in, the person creates the first project (`project.created`, as loops
  * emits it), its lead's lane comes up, and the first tickets follow. All of it is fiction; see CONTENT.md.
  */
-import { type DemoContent, type ProjectSeed, WORLD_KEY_BOT } from "../content.ts";
+import { DEMO_SESSION, type DemoContent, type ProjectSeed, WORLD_KEY_BOT } from "../content.ts";
 import { requestedProp } from "../props.ts";
 import { type PropHome, type ScriptBuilder, type Story, propFlow } from "../script.ts";
 import { at } from "../time.ts";
@@ -27,7 +27,7 @@ export const FIRST_PROJECT: ProjectSeed = {
 export const FIRST_PROJECT_AT_MS = at("1:00");
 
 export const FRESH_CONTENT: DemoContent = {
-  session: "ekinsol",
+  session: DEMO_SESSION,
   observer: WORLD_KEY_BOT.id,
   people: [{ id: "nicky", displayName: "Nicky", role: "admin" }],
   agents: [
