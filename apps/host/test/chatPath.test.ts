@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { Envelope } from "@crewhub/loops-client";
 import { createChatPath, THREADS_REFRESH_MS, type ChatPathOptions } from "../src/chatPath.ts";
+import { createGate } from "../src/dmReads.ts";
 
 type Answer = { status: number; body: unknown } | Error;
 
@@ -180,5 +181,89 @@ describe("the viewer key's chat path", () => {
     assert.deepEqual(live.said, [], "the line in flight is dropped");
     assert.deepEqual(live.asked, ["/api/dm/messages/dm_k1"], "the re-read timer was cleared: no threads read");
     assert.equal(live.chat.reads(), "yes", "the verdict stands for whoever still asks");
+  });
+});
+
+// The port of question 14's answer branch onto C4 (port/task/q14-dm-read-cap): the host's gate reaches the reads through
+// this interface's `dmReads`. dmReadCap.test.ts pins the same through the host against the stub.
+describe("the chat path with the host's dmReads (question 14)", () => {
+  const VIEWING = { "/api/agents": { status: 200, body: VIEWER }, "/api/dm/threads": { status: 200, body: { threads: [] } } };
+  const msg = (id: string) => dm("dm.created", { id: "boing", kind: "agent" }, { threadId: "dmt_boing", messageId: id, agentId: "boing" });
+  const line = (id: string) => ({ status: 200, body: { message: { ...MESSAGE.message, id } } });
+  function gated(answers: Parameters<typeof fakeLoops>[0], limit: number, live = () => true) {
+    const loops = fakeLoops({ ...VIEWING, ...answers });
+    const said: { messageId: string }[] = [];
+    const lost: [string, number | null][] = [];
+    const chat = createChatPath({
+      client: loops.client,
+      keyName: "crewhub-world",
+      log: () => undefined,
+      onThreads: () => undefined,
+      onLine: (l) => said.push(l),
+      refreshMs: 60_000,
+      dmReads: { gate: createGate(limit), retryMs: 1, onLost: (id, status) => lost.push([id, status]), live },
+    });
+    return { chat, ...loops, said, lost };
+  }
+  const reads = (asked: string[]) => asked.filter((p) => p.startsWith("/api/dm/messages/"));
+
+  it("at most the gate's limit in flight, the rest in the stream's order, none dropped", async () => {
+    const held: (() => void)[] = [];
+    const hold = (id: string) => () => new Promise<Answer>((resolve) => held.push(() => resolve(line(id))));
+    const { chat, asked, said } = gated({ "/api/dm/messages/a": hold("a"), "/api/dm/messages/b": hold("b"), "/api/dm/messages/c": hold("c") }, 2);
+    await chat.check();
+    for (const id of ["a", "b", "c"]) chat.onEvent(msg(id));
+    await tick();
+    assert.deepEqual(reads(asked), ["/api/dm/messages/a", "/api/dm/messages/b"], "two in flight, c waits");
+    held.shift()!();
+    await tick();
+    assert.deepEqual(reads(asked), ["/api/dm/messages/a", "/api/dm/messages/b", "/api/dm/messages/c"], "c starts when a slot frees");
+    for (const release of held.splice(0)) release();
+    await tick();
+    assert.deepEqual(said.map((l) => l.messageId).sort(), ["a", "b", "c"]);
+    chat.dispose();
+  });
+
+  it("a read loops did not refuse (503, no answer) is tried once more; a 404 is final; a read lost after its retry is counted", async () => {
+    let tries = 0;
+    const { chat, asked, said, lost } = gated(
+      {
+        "/api/dm/messages/flaky": () => (++tries === 1 ? { status: 503, body: null } : line("flaky")),
+        "/api/dm/messages/gone": { status: 404, body: null },
+        "/api/dm/messages/down": new Error("ECONNRESET"),
+      },
+      8,
+    );
+    await chat.check();
+    for (const id of ["flaky", "gone", "down"]) chat.onEvent(msg(id));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.deepEqual(said.map((l) => l.messageId), ["flaky"], "the 503 read again and made its line");
+    assert.equal(reads(asked).filter((p) => p.endsWith("/gone")).length, 1, "a 404 is loops' word: no retry");
+    assert.equal(reads(asked).filter((p) => p.endsWith("/down")).length, 2, "no answer: one retry");
+    assert.deepEqual(lost, [["down", null]], "lost after the retry: counted once; the 404 is no loss");
+    chat.dispose();
+  });
+
+  it("a read still queued when the link goes (dispose) or the host closes (live false) is not started, and not counted lost", async () => {
+    for (const end of ["dispose", "close"] as const) {
+      let open = true;
+      const held: (() => void)[] = [];
+      const { chat, asked, lost } = gated(
+        { "/api/dm/messages/a": () => new Promise<Answer>((resolve) => held.push(() => resolve(line("a")))), "/api/dm/messages/b": line("b") },
+        1,
+        () => open,
+      );
+      await chat.check();
+      chat.onEvent(msg("a"));
+      chat.onEvent(msg("b"));
+      await tick();
+      if (end === "dispose") chat.dispose();
+      else open = false;
+      held.shift()!();
+      await tick();
+      assert.deepEqual(reads(asked), ["/api/dm/messages/a"], `${end}: b never asked`);
+      assert.deepEqual(lost, [], `${end}: nothing counted lost`);
+      chat.dispose();
+    }
   });
 });

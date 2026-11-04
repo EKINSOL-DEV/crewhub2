@@ -19,6 +19,7 @@
  */
 import type { ChatLine, ChatThreadFact, Envelope } from "@crewhub/loops-client";
 import { readAgentDm, readDmLine, readThreads } from "@crewhub/loops-client";
+import { type Gate, retryableRead } from "./dmReads.ts";
 import type { LoopsClient } from "./loops.ts";
 
 /** Whether the key reads the chat on this link: `unknown` until loops was asked (health says `session: unknown` then). */
@@ -40,6 +41,13 @@ export interface ChatPathOptions {
   onLine: (line: ChatLine) => void;
   /** The coalescing of the threads' re-reads; tests shorten it. */
   refreshMs?: number;
+  /**
+   * Question 14: the host's gate on its message reads (at most `DM_READ_LIMIT` in flight toward loops, the rest wait
+   * their turn in the stream's order), the pause before the one retry of a read loops did not refuse (`retryableRead`),
+   * where a read lost after that retry is counted, and whether the host still runs (a read queued while it closes is
+   * not started). Absent: each message read at once, once.
+   */
+  dmReads?: { gate: Gate; retryMs: number; onLost: (messageId: string, status: number | null) => void; live?: () => boolean };
 }
 
 export interface ChatPath {
@@ -122,14 +130,34 @@ export function createChatPath(options: ChatPathOptions): ChatPath {
     }, refreshMs);
   }
 
-  /** The message read by id with the key, as one line; null when not readable (no 200, no message, a read that failed). */
-  async function readLine(dm: { messageId: string; threadId: string; agentId: string }): Promise<ChatLine | null> {
+  type Dm = { messageId: string; threadId: string; agentId: string };
+  /** One read of the message by id with the key: its status (null when loops did not answer) and the line it makes, if any. */
+  async function readOnce(dm: Dm): Promise<{ status: number | null; line: ChatLine | null }> {
     try {
       const { status, body } = await client.getJson(`/api/dm/messages/${encodeURIComponent(dm.messageId)}`);
-      return status === 200 ? readDmLine(dm, body) : null;
+      return { status, line: status === 200 ? readDmLine(dm, body) : null };
     } catch {
-      return null;
+      return { status: null, line: null };
     }
+  }
+
+  /**
+   * The message as one line; null when not readable (no 200, no message, a read that failed). With the host's
+   * `dmReads` (question 14): through its gate, a read whose link is gone (disposed) or whose host closes is not
+   * started, one retry after `retryMs` for a read loops did not refuse, and a read lost after it is counted.
+   */
+  async function readLine(dm: Dm): Promise<ChatLine | null> {
+    const reads = options.dmReads;
+    if (reads === undefined) return (await readOnce(dm)).line;
+    const live = () => !disposed && (reads.live?.() ?? true);
+    const skipped = { status: null, line: null, skipped: true } as const;
+    const attempt = () => reads.gate.run(() => (live() ? readOnce(dm) : Promise.resolve(skipped)));
+    const first = await attempt();
+    if (first.line !== null || "skipped" in first || !retryableRead(first.status)) return first.line;
+    await new Promise<void>((resolve) => setTimeout(resolve, reads.retryMs).unref?.());
+    const second = await attempt();
+    if (second.line === null && !("skipped" in second) && live()) reads.onLost(dm.messageId, second.status);
+    return second.line;
   }
 
   return {

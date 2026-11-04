@@ -33,6 +33,7 @@ import { type LoopsClient, createLoopsClient, isUnauthorized } from "./loops.ts"
 import { PAIR_PATH_PREFIX, PAIR_REFUSED_HTML, type Pairing, createPairing, pairCookieHeader } from "./pairing.ts";
 import { type ArchiveReport, type AssembledSnapshot, SnapshotError, type SnapshotStats, assembleSnapshot } from "./snapshot.ts";
 import { type ChatPath, createChatPath } from "./chatPath.ts";
+import { DM_LOST_LOG_MS, DM_READ_LIMIT, DM_READ_RETRY_MS, createGate } from "./dmReads.ts";
 import { type HostMessage, type LoopsState, type Upstream, createUpstream } from "./stream.ts";
 
 export interface HostOptions {
@@ -69,6 +70,12 @@ export interface HostOptions {
   onStep?: (step: HostStep) => void;
   /** Reads in flight at most while a snapshot is assembled (default 6). */
   snapshotConcurrency?: number;
+  /**
+   * The chat's road 1 (question 14): agent messages read at most `limit` at once, the rest wait their turn (default
+   * `DM_READ_LIMIT`, 8); `retryMs` before the one retry of a read loops did not refuse (default `DM_READ_RETRY_MS`);
+   * `lostLogMs` between the log lines that count the reads lost after it (default `DM_LOST_LOG_MS`). Tests shorten them.
+   */
+  dmReads?: { limit?: number; retryMs?: number; lostLogMs?: number };
   /** Extra origins allowed besides the host's own (the Vite dev server). */
   allowedOrigins?: string[];
   bufferSize?: number;
@@ -394,11 +401,32 @@ export async function createHost(options: HostOptions): Promise<Host> {
   function sendThreads(threads: ChatThreadFact[]): void {
     for (const tab of tabs.values()) tab.send({ type: "threads", threads });
   }
+  // --- The chat's road 1 (question 14): at most `dmReads.limit` message reads in flight toward loops, the rest of a
+  // burst wait their turn in the stream's order (nothing dropped); one retry after `dmReads.retryMs` for a read loops
+  // did not refuse; what is lost after that is counted and said in one line at most every `dmReads.lostLogMs`. One gate
+  // and one count for the host, whatever link reads (each link's chat path, chatPath.ts, reads through them).
+  const dmGate = createGate(options.dmReads?.limit ?? DM_READ_LIMIT);
+  const dmReadRetryMs = options.dmReads?.retryMs ?? DM_READ_RETRY_MS;
+  const dmLostLogMs = options.dmReads?.lostLogMs ?? DM_LOST_LOG_MS;
+  const dmLost = { count: 0, last: "", timer: null as ReturnType<typeof setTimeout> | null };
+  function noteLostLine(messageId: string, status: number | null): void {
+    dmLost.count += 1;
+    dmLost.last = `${messageId}, ${status === null ? "no answer" : status}`;
+    if (dmLost.timer !== null) return;
+    dmLost.timer = setTimeout(() => {
+      dmLost.timer = null;
+      log(`chat: ${dmLost.count} agent message(s) not read after one retry, those bubbles are lost (last: ${dmLost.last})`);
+      dmLost.count = 0;
+    }, dmLostLogMs);
+    dmLost.timer.unref?.();
+  }
   function chatPathFor(client: LoopsClient, keyName: string): ChatPath {
     const chat: ChatPath = createChatPath({
       client,
       keyName,
       log,
+      // Question 14: the host's one gate, its retry pause and its lost count; a read queued while the host closes is not started.
+      dmReads: { gate: dmGate, retryMs: dmReadRetryMs, onLost: noteLostLine, live: () => !closed },
       // Only for the link that stands: at the check inside relink no link stands yet, and the tabs get the threads as
       // they attach (attach()); a line or a re-read of a link that is gone is dropped.
       onThreads: (threads) => {
@@ -1279,6 +1307,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
       closed = true;
       clearInterval(idleBeat);
       clearRecheck();
+      if (dmLost.timer !== null) clearTimeout(dmLost.timer);
       discovery.stop();
       await relinking;
       if (link !== null) {
