@@ -123,7 +123,7 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { cli, dressed, launch, problemLines, seek, speed, watch } from "./lib/world.mjs";
+import { cli, dressed, launch, list, problemLines, seek, speed, watch } from "./lib/world.mjs";
 import { createConnectStub } from "./lib/connectStub.mjs";
 import { createLoopsWebStub } from "./lib/loopsWebStub.mjs";
 import { isProbeRefusal } from "./lib/probeRefusal.ts";
