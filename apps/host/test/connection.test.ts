@@ -74,10 +74,18 @@ describe("the connection to loops", () => {
     });
     cleanup.push(() => conn.close());
     conn.start();
-    const state = () => conn.state(true);
-    const key = () => state().key;
-    const stream = () => state().stream.state;
-    const loops = () => conn.words().loops;
+    // As health answered: after a link in the making has made its first attempt (`settled`), so a word read right
+    // after the link was built, before that attempt, is never taken for its outcome.
+    const state = async () => {
+      await conn.settled();
+      return conn.state(true);
+    };
+    const key = async () => (await state()).key;
+    const stream = async () => (await state()).stream.state;
+    const loops = async () => {
+      await conn.settled();
+      return conn.words().loops;
+    };
     return { conn, lines, store, state, key, stream, loops };
   }
 
@@ -85,22 +93,22 @@ describe("the connection to loops", () => {
     const stub = await createLoopsStub({ ...installation() });
     cleanup.push(() => stub.close());
     const { conn, key, stream, loops, store, lines } = start({ appData: appData(stub.port), intervalMs: 40, key: "chl_revoked_0123456789" });
-    await waitFor("the verdict", () => key().state === "rejected");
-    const rejected = key();
+    await waitFor("the verdict", async () => (await key()).state === "rejected");
+    const rejected = (await key());
     assert.equal(rejected.reason, UNKNOWN_REASON);
     assert.equal(rejected.source, "stored");
-    assert.equal(loops(), "unauthorized");
-    assert.equal(stream(), "idle", "a rejected key opens no stream");
+    assert.equal((await loops()), "unauthorized");
+    assert.equal((await stream()), "idle", "a rejected key opens no stream");
     await soak(200);
     assert.equal(store.forgotten, 0, "never forgotten by itself");
-    assert.equal(key().state, "rejected", "and still rejected");
+    assert.equal((await key()).state, "rejected", "and still rejected");
     assert.ok(lines.some((l) => /rejected by loops .* \(the key is kept; paste a new one or forget it\)/.test(l)), lines.join("\n"));
-    const at = Date.parse(key().recheckAt ?? "");
+    const at = Date.parse((await key()).recheckAt ?? "");
     assert.ok(at > Date.now() + 60_000, "the kept key is re-checked later, not polled: recheckAt is minutes away");
     await conn.forgetKey();
     assert.equal(store.forgotten, 1);
-    assert.equal(key().state, "none");
-    assert.equal(key().recheckAt, undefined, "Forget cancels the re-check");
+    assert.equal((await key()).state, "none");
+    assert.equal((await key()).recheckAt, undefined, "Forget cancels the re-check");
     assert.ok(lines.some((l) => /key crewhub-world \(stored\) forgotten/.test(l)));
   });
 
@@ -109,16 +117,16 @@ describe("the connection to loops", () => {
     cleanup.push(() => stub.close());
     stub.outage({ status: 503, healthOk: true });
     const { state, key, stream, loops, lines } = start({ appData: appData(stub.port), intervalMs: 40, key: stub.key });
-    await waitFor("the discovery", () => state().discovery.state === "found");
-    await waitFor("the first attempt", () => stream() === "down");
-    assert.equal(key().state, "unchecked", "a 503 is not a verdict on the key");
-    assert.equal(key().reason, undefined);
-    assert.equal(loops(), "down");
+    await waitFor("the discovery", async () => (await state()).discovery.state === "found");
+    await waitFor("the first attempt", async () => (await stream()) === "down");
+    assert.equal((await key()).state, "unchecked", "a 503 is not a verdict on the key");
+    assert.equal((await key()).reason, undefined);
+    assert.equal((await loops()), "down");
     assert.ok(lines.some((l) => /key crewhub-world \(stored\) unchecked: crewhub-loops answered 503/.test(l)), lines.join("\n"));
     stub.outage(null);
-    await waitFor("the recovery", () => stream() === "ok");
-    assert.equal(key().state, "ok");
-    assert.equal(loops(), "ok");
+    await waitFor("the recovery", async () => (await stream()) === "ok");
+    assert.equal((await key()).state, "ok");
+    assert.equal((await loops()), "ok");
   });
 
   it("a 401 from a loops whose health does not answer (restarting) is down, not a verdict on the key", async () => {
@@ -126,14 +134,14 @@ describe("the connection to loops", () => {
     cleanup.push(() => stub.close());
     stub.outage({ status: 401 });
     const { key, stream, loops, lines } = start({ loopsUrl: stub.url, key: stub.key });
-    await waitFor("the first attempt", () => stream() === "down");
-    assert.equal(key().state, "unchecked");
-    assert.equal(loops(), "down", "never unauthorized");
+    await waitFor("the first attempt", async () => (await stream()) === "down");
+    assert.equal((await key()).state, "unchecked");
+    assert.equal((await loops()), "down", "never unauthorized");
     assert.ok(lines.some((l) => /answered 401 but crewhub-loops' health does not answer: restarting\?/.test(l)), lines.join("\n"));
     assert.ok(lines.some((l) => /refused the key \(401 or 403\) but its health does not answer: down/.test(l)), "the stream's own guard");
     stub.outage(null);
-    await waitFor("the recovery", () => stream() === "ok");
-    assert.equal(key().state, "ok");
+    await waitFor("the recovery", async () => (await stream()) === "ok");
+    assert.equal((await key()).state, "ok");
   });
 
   it("a timeout is down: the key stays unchecked until loops answers", async () => {
@@ -141,52 +149,52 @@ describe("the connection to loops", () => {
     cleanup.push(() => stub.close());
     stub.outage({ status: 0, hang: true, healthOk: true });
     const { key, stream, lines } = start({ loopsUrl: stub.url, key: stub.key, timings: { readTimeoutMs: 1000 } });
-    await waitFor("the first attempt (the read timeout)", () => stream() === "down");
-    assert.equal(key().state, "unchecked");
+    await waitFor("the first attempt (the read timeout)", async () => (await stream()) === "down");
+    assert.equal((await key()).state, "unchecked");
     assert.ok(lines.some((l) => /did not answer \(a timeout or a refused connection\)/.test(l)), lines.join("\n"));
     stub.outage(null);
-    await waitFor("the recovery", () => stream() === "ok");
-    assert.equal(key().state, "ok");
+    await waitFor("the recovery", async () => (await stream()) === "ok");
+    assert.equal((await key()).state, "ok");
   });
 
   it("loops stopped mid-run and started again on its port: the stream goes down and comes back, the key stays ok", async () => {
     const port = await freePort();
     const stub = await createLoopsStub({ ...installation(), port });
     const { key, stream, loops } = start({ loopsUrl: stub.url, key: stub.key });
-    await waitFor("the stream", () => stream() === "ok");
-    assert.equal(key().state, "ok");
+    await waitFor("the stream", async () => (await stream()) === "ok");
+    assert.equal((await key()).state, "ok");
     await stub.close();
-    await waitFor("loops down", () => stream() === "down");
-    assert.equal(key().state, "ok", "a refused connection says nothing about the key");
-    assert.equal(loops(), "down");
+    await waitFor("loops down", async () => (await stream()) === "down");
+    assert.equal((await key()).state, "ok", "a refused connection says nothing about the key");
+    assert.equal((await loops()), "down");
     const again = await createLoopsStub({ ...installation(), port });
     cleanup.push(() => again.close());
-    await waitFor("loops back", () => stream() === "ok");
-    assert.equal(key().state, "ok");
+    await waitFor("loops back", async () => (await stream()) === "ok");
+    assert.equal((await key()).state, "ok");
   });
 
   it("the stream's 401 after a credential re-check ended it (revoked meanwhile): rejected with the reason, kept, forgotten on forgetKey", async () => {
     const stub = await createLoopsStub({ ...installation() });
     cleanup.push(() => stub.close());
     const { conn, key, stream, loops, store, lines } = start({ loopsUrl: stub.url, key: stub.key });
-    await waitFor("the stream", () => stream() === "ok");
+    await waitFor("the stream", async () => (await stream()) === "ok");
     stub.revoke();
-    await waitFor("the verdict", () => key().state === "rejected");
-    assert.equal(key().reason, STREAM_REFUSED_REASON);
-    assert.equal(loops(), "unauthorized");
+    await waitFor("the verdict", async () => (await key()).state === "rejected");
+    assert.equal((await key()).reason, STREAM_REFUSED_REASON);
+    assert.equal((await loops()), "unauthorized");
     assert.equal(store.forgotten, 0);
     assert.ok(lines.some((l) => /rejected on the stream \(the key is kept/.test(l)), lines.join("\n"));
     // The stream stops: no retry with a refused key (each was a 401 and a health probe every 30 s); the host waits.
-    await waitFor("the stream stopped", () => stream() === "idle" && stub.openStreams() === 0);
+    await waitFor("the stream stopped", async () => (await stream()) === "idle" && stub.openStreams() === 0);
     const requestsAfterVerdict = stub.requests.length;
-    const recheckAt = Date.parse(key().recheckAt ?? "");
+    const recheckAt = Date.parse((await key()).recheckAt ?? "");
     assert.ok(recheckAt > Date.now() + 60_000, "re-checked minutes later, said in the states");
     await soak(400);
     assert.equal(stub.requests.length, requestsAfterVerdict, "nothing asked of loops while the key waits");
     await conn.forgetKey();
     assert.equal(store.forgotten, 1);
-    assert.equal(key().state, "none");
-    assert.equal(key().recheckAt, undefined, "Forget cancels the re-check");
+    assert.equal((await key()).state, "none");
+    assert.equal((await key()).recheckAt, undefined, "Forget cancels the re-check");
     await soak(400);
     assert.ok(!stub.requests.slice(requestsAfterVerdict).some((r) => r.authorization !== undefined), "and no re-check with the forgotten key");
   });
@@ -195,25 +203,25 @@ describe("the connection to loops", () => {
     const stub = await createLoopsStub({ ...installation() });
     cleanup.push(() => stub.close());
     const { key, stream, lines } = start({ loopsUrl: stub.url, key: stub.key, timings: { recheckMs: 300 } });
-    await waitFor("the stream", () => stream() === "ok");
+    await waitFor("the stream", async () => (await stream()) === "ok");
     stub.revoke();
-    await waitFor("the verdict", () => key().state === "rejected");
-    await waitFor("the stream stopped", () => stream() === "idle");
+    await waitFor("the verdict", async () => (await key()).state === "rejected");
+    await waitFor("the stream stopped", async () => (await stream()) === "idle");
     const seen = stub.requests.length;
     // Loops down at re-check time: one keyless health probe, no key check, still rejected, a new time said.
     stub.outage({ status: 503 });
-    const firstAt = key().recheckAt ?? "";
+    const firstAt = (await key()).recheckAt ?? "";
     await waitFor("the probe that found loops down", () => lines.some((l) => /not re-checked: crewhub-loops does not answer its health/.test(l)));
     const sinceRejected = stub.requests.slice(seen);
     assert.ok(sinceRejected.every((r) => r.path === "/api/health" && r.authorization === undefined), `only keyless health probes: ${sinceRejected.map((r) => r.path).join(" ")}`);
-    assert.equal(key().state, "rejected");
-    await waitFor("a later re-check time", () => (key().recheckAt ?? "") > firstAt);
+    assert.equal((await key()).state, "rejected");
+    await waitFor("a later re-check time", async () => ((await key()).recheckAt ?? "") > firstAt);
     // Loops back and the bot re-enabled: the next re-check (a probe, then the key check) brings the stream back, no paste.
     stub.outage(null);
     stub.revoke(false);
-    await waitFor("the key accepted again", () => key().state === "ok");
-    await waitFor("the stream back", () => stream() === "ok");
-    assert.equal(key().recheckAt, undefined);
+    await waitFor("the key accepted again", async () => (await key()).state === "ok");
+    await waitFor("the stream back", async () => (await stream()) === "ok");
+    assert.equal((await key()).recheckAt, undefined);
     assert.ok(lines.some((l) => /re-checking the kept key crewhub-world \(stored\)/.test(l)), lines.join("\n"));
     const probes = stub.requests.slice(seen).filter((r) => r.path === "/api/health" && r.authorization === undefined).length;
     const streamTries = stub.requests.slice(seen).filter((r) => r.path.startsWith("/api/events/stream")).length;
@@ -225,16 +233,16 @@ describe("the connection to loops", () => {
     const port = await freePort();
     const stub = await createLoopsStub({ ...installation(), port });
     const { state, key, stream, loops } = start({ appData: appData(port), intervalMs: 40, key: stub.key });
-    await waitFor("the stream", () => stream() === "ok");
+    await waitFor("the stream", async () => (await stream()) === "ok");
     await stub.close();
-    await waitFor("the discovery searching again", () => state().discovery.state === "searching");
-    assert.equal(key().state, "ok", "unchanged: loops went away, the key did not");
-    assert.equal(stream(), "idle");
-    assert.equal(loops(), "down");
+    await waitFor("the discovery searching again", async () => (await state()).discovery.state === "searching");
+    assert.equal((await key()).state, "ok", "unchanged: loops went away, the key did not");
+    assert.equal((await stream()), "idle");
+    assert.equal((await loops()), "down");
     const again = await createLoopsStub({ ...installation(), port });
     cleanup.push(() => again.close());
-    await waitFor("found again", () => stream() === "ok");
-    assert.equal(key().state, "ok");
+    await waitFor("found again", async () => (await stream()) === "ok");
+    assert.equal((await key()).state, "ok");
     assert.equal(again.streamsOpened(), 1);
   });
 
@@ -243,8 +251,8 @@ describe("the connection to loops", () => {
     cleanup.push(() => stub.close());
     const { conn, state, loops } = start({ loopsUrl: stub.url, key: stub.key });
     await waitFor("the version", () => conn.words().version === "0.3.1");
-    assert.equal(loops(), "ok");
-    assert.equal(state().session?.state, "key", "the viewer key is still the key road");
+    assert.equal((await loops()), "ok");
+    assert.equal((await state()).session?.state, "key", "the viewer key is still the key road");
     const healthReads = stub.requests.filter((r) => r.path === "/api/health");
     assert.ok(healthReads.length > 0 && healthReads.every((r) => r.authorization === undefined), `every health read is keyless: ${healthReads.map((r) => (r.authorization === undefined ? "keyless" : "with the key")).join(", ")}`);
   });
@@ -256,13 +264,13 @@ describe("the connection to loops", () => {
     await waitFor("the first version", () => conn.words().version === "0.1.0");
     assert.equal(conn.words().versionBefore, undefined, "one version seen: nothing to say");
     await first.close();
-    await waitFor("loops down", () => loops() === "down");
+    await waitFor("loops down", async () => (await loops()) === "down");
     const second = await createLoopsStub({ ...installation(), port, version: "0.2.0" });
     cleanup.push(() => second.close());
     await waitFor("the new version", () => conn.words().version === "0.2.0");
     assert.equal(conn.words().versionBefore, "0.1.0");
-    assert.equal(loops(), "ok");
-    assert.equal(key().state, "ok", "an upgrade is no verdict on the key");
+    assert.equal((await loops()), "ok");
+    assert.equal((await key()).state, "ok", "an upgrade is no verdict on the key");
     assert.equal(lines.filter((l) => /crewhub-loops version 0\.1\.0 → 0\.2\.0/.test(l)).length, 1, lines.join("\n"));
     // The same version read again (another reconnect) is no change.
     second.endStreams();
@@ -276,19 +284,19 @@ describe("the connection to loops", () => {
     cleanup.push(() => stub.close());
     const { conn, key, stream, store, lines } = start({ loopsUrl: stub.url });
     await waitFor("the discovery", () => conn.state(false).discovery.state === "found");
-    assert.equal(key().state, "none");
+    assert.equal((await key()).state, "none");
     const wrong = await conn.setKey("chl_wrong_key_0123456789");
     assert.equal(wrong.state, "rejected");
     assert.ok(wrong.state === "rejected" && /does not know this key/.test(wrong.reason));
     assert.ok(lines.some((l) => /^a pasted key was rejected: /.test(l)), lines.join("\n"));
-    assert.equal(key().state, "none", "a refused paste changes nothing");
+    assert.equal((await key()).state, "none", "a refused paste changes nothing");
     assert.deepEqual(store.saved, [], "never stored");
     const ok = await conn.setKey(stub.key);
     assert.deepEqual(ok, { state: "ok", name: "crewhub-world", stored: true });
     assert.deepEqual(store.saved, [stub.key], "stored once; the store sees the key, the log never does");
     assert.ok(!lines.some((l) => l.includes(stub.key)), "the key is in no log line");
-    assert.deepEqual([key().state, key().source, key().name], ["ok", "stored", "crewhub-world"]);
-    await waitFor("the stream", () => stream() === "ok");
+    assert.deepEqual([(await key()).state, (await key()).source, (await key()).name], ["ok", "stored", "crewhub-world"]);
+    await waitFor("the stream", async () => (await stream()) === "ok");
     stub.outage({ status: 503 });
     const down = await conn.setKey(stub.key);
     assert.equal(down.state, "unreachable", "loops not answering its health: nothing is known about the pasted key");
@@ -304,7 +312,7 @@ describe("the connection to loops", () => {
     const stub = await createLoopsStub({ ...installation(), keyReadsChat: true, dm: { threads: [THREAD], messages: {} } });
     cleanup.push(() => stub.close());
     const { conn, state, stream } = start({ loopsUrl: stub.url, key: stub.key });
-    await waitFor("the stream and the chat road", () => stream() === "ok" && state().session?.state === "key");
+    await waitFor("the stream and the chat road", async () => (await stream()) === "ok" && (await state()).session?.state === "key");
     const { seq } = stub.emit({ type: "dm.created", project: null, ticket: null, actor: { id: "nicky", kind: "user" }, recipientIds: ["boing"], payload: { threadId: "dmt_boing", messageId: "dm_p1", agentId: "boing" } });
     await waitFor("the dm event heard", () => conn.words().cursor === seq);
     await conn.close();
