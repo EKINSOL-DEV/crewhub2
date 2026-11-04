@@ -7,7 +7,9 @@ export { emptyFacts } from "./facts.ts";
 export { emptyMemory } from "./memory.ts";
 export { Projection } from "./projection.ts";
 export { freshnessOf, reduceWorld } from "./reducer.ts";
-export { CIVIC_WORDS, agentStateWords, describeWorld, doneWord, hallSummary } from "./describe.ts";
+export { CIVIC_WORDS, describeWorld, doneWord, hallSummary } from "./describe.ts";
+export { agentLook, agentWords, figureLook, laneLook } from "./appearance.ts";
+export type { AgentBubble, AgentLook, AgentWords, DeskFacts, DotTone, FigureLook, FigurePose, LampLane, LaneChipKind, LaneLook, SceneAgent } from "./appearance.ts";
 export { roleInferred, roleNoun, roleWords } from "./roleWords.ts";
 export type { RoleVoice } from "./roleWords.ts";
 export {
