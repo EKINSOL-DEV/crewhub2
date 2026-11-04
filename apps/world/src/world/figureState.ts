@@ -1,7 +1,8 @@
-/* What a figure shows, derived from what the world model already says: an agent's placement, the ticket on its desk,
-   its walker and (for the postman) its letters. Pure; the reducer and the projection know nothing of casts. */
+/* What a figure shows: the cast adapter of the appearance module. The figure at rest is world-model's `figureLook`
+   (the placement and the ticket on its desk); the walker and (for the postman) the letters are the scene's own facts,
+   laid on top here. Pure; the reducer and the projection know nothing of casts. */
 import { IDLE_STATE, type CastRole, type FigureState } from "@crewhub/world-cast";
-import type { AgentPlacement } from "@crewhub/world-model";
+import { figureLook, type AgentPlacement, type FigureLook } from "@crewhub/world-model";
 
 /** Where a figure stands in the world: its building, or one of the two civic places. */
 export type FigurePlace = "building" | "post-office" | "town-hall";
@@ -27,22 +28,20 @@ export interface FigureFacts {
   carrying?: boolean;
 }
 
+/** The one look the renderer's per-frame reads fill (no allocation per frame). */
+const look: FigureLook = { pose: "idle", waiting: false, alert: false, proxy: false, lamp: "off" };
+
 /**
- * focused → working; relaxed → done when its lane says so, else idle; raised-hand → blocked; greyed → stale. A proxy
- * idles, as does an agent standing away from its desk; walking wins over all of them. `into` is filled and returned
- * when given (the renderer asks every frame and reuses one state).
+ * The figure at rest (`figureLook`: its posture and lane), except that walking wins over all of it and an agent
+ * standing away from its desk idles. `into` is filled and returned when given (the renderer asks every frame and
+ * reuses one state).
  */
 export function figureState({ agent, deskWaiting = false, walker = null, carrying = false }: FigureFacts, into: FigureState = { ...IDLE_STATE }): FigureState {
-  const proxy = agent.presence === "proxy";
-  if (walker?.walking) into.activity = "walking";
-  else if (proxy || (walker && !walker.seated)) into.activity = "idle";
-  else if (agent.posture === "focused") into.activity = "working";
-  else if (agent.posture === "raised-hand") into.activity = "blocked";
-  else if (agent.posture === "greyed") into.activity = "stale";
-  else into.activity = agent.laneStatus === "done" ? "done" : "idle";
-  into.waiting = deskWaiting && !proxy;
-  into.alert = agent.alerts.length > 0;
-  into.proxy = proxy;
+  figureLook(agent, { waiting: deskWaiting }, look);
+  into.activity = walker?.walking ? "walking" : walker && !walker.seated ? "idle" : look.pose;
+  into.waiting = look.waiting;
+  into.alert = look.alert;
+  into.proxy = look.proxy;
   into.carrying = carrying;
   return into;
 }

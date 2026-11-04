@@ -443,6 +443,9 @@ if (opts.demo) {
     await r.keyboard.press("Escape");
     await r.waitForTimeout(300);
     ok("keyboard: Escape closes the card", (await r.locator(".agent-card").count()) === 0);
+    // Round 21: a focus that was in the card goes to the scene's canvas, not to the body, so the arrow keys and Enter
+    // work at once (round 59d, review-c2 B1: the fact the view module must keep).
+    ok("keyboard: Escape on the card puts the focus on the scene's canvas", (await r.evaluate(() => document.activeElement?.tagName ?? "")) === "CANVAS", await activeIs());
     // Build mode: in, a prop chosen in the palette by keyboard, out: the focus lands on the Build button, not the body.
     await r.keyboard.press("/");
     await r.waitForSelector('[role="dialog"] input', { timeout: 5000 });

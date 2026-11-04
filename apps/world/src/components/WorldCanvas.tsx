@@ -23,18 +23,20 @@ import { useDayNight } from "../state/daynight";
 import { useFps } from "../state/fps";
 import { FpsOverlay } from "./FpsOverlay";
 import type { Pick } from "../world/buildingView";
+import { hereOf, insideOf, type Selection, type View, type ViewIntent } from "../state/view";
 import { buildingTemplate } from "../world/buildingTemplate";
 import { assignDesks, placeObjects } from "../world/interiorLayout";
 import { roomName, sameRoom, shortRoomName, signState } from "../world/roomWords";
 import { isThreeRoom, RACKS } from "../world/roomDressing";
 import { useBuildingPlan } from "../state/buildingPlan";
-import { TownScene, type BuildPointer, type CameraAction, type FrameStats } from "../world/TownScene";
+import { TownScene, type BuildPointer, type FrameStats } from "../world/TownScene";
 import { resolveBuildingPlacements } from "../world/placements";
 import type { TownLayer } from "../world/propLayer";
 import type { Ambient } from "../world/movement";
 import { keysDirection } from "../world/visitor";
 import { LaneChip } from "../world/lane";
-import { clockTime, countsLine, laneWords } from "../world/townLayout";
+import { countsLine } from "../world/townLayout";
+import { agentLook, type AgentBubble } from "@crewhub/world-model";
 import { civicLabel, civicWords } from "../world/settlementDressing";
 import { namesLine } from "../world/namesLine";
 import { freeLots, type TownPlan } from "../world/townPlan";
@@ -47,11 +49,6 @@ import { markLabel, type SaidMark } from "../world/saidText";
 import { Chip } from "./primitives";
 import { needsOf, needsPinWords, needsTotal, needsWords, summarise, summaryWords, activeWords, type DistrictPlace } from "../world/wayfinding";
 
-export interface Selection {
-  hover: Pick | null;
-  selected: Pick | null;
-}
-
 interface Props {
   model: WorldModel;
   /** What an agent just said to the person (round 12, state/said.ts): a speech bubble over its figure. */
@@ -62,48 +59,23 @@ interface Props {
   marks: SaidMark[];
   /** Where every building stands (state/plan.ts). */
   plan: TownPlan;
-  entered: string | null;
-  focused: number;
-  /** The jump list's active row's building while the list is open: built ahead, likeliest of all (prepareAhead.ts). */
-  likely: string | null;
-  ringVisible: boolean;
-  room: RoomKind | null;
-  zoomed: RoomKind | null;
-  selection: Selection;
+  /** The world view (state/view.ts): the level, the focus ring, the selection, the card, the follow, the walk and the camera commands. */
+  view: View;
+  /** Everything the scene and the labels want of the view goes back as one intent (a click on a sign, a pick, a door crossed). */
+  onIntent: (intent: ViewIntent) => void;
   reducedMotion: boolean;
   ambient: Ambient;
   /** Every label, not only names and one bubble per robot (the Details toggle). */
   details: boolean;
-  action: { id: number; type: CameraAction };
-  /** The districts in use (one for a single settlement) and the one the view is in, if any. */
+  /** The districts in use (one for a single settlement). */
   districts: DistrictPlace[];
-  district: string | null;
-  /** A camera flight to a label anchor (the jump list's civic buildings and the town's figures); `reach` is the ground framed around it. */
-  flight: { id: number; anchor: string; reach?: number };
-  onDistrict: (id: string) => void;
-  onEnter: (slug: string) => void;
-  onHover: (index: number | null) => void;
-  onPick: (target: Pick | null, hover: boolean) => void;
   onError: () => void;
   town: TownLayer | null;
-  /** The agent card is open for the selected agent (components/AgentCard). */
-  card: boolean;
   /** The card's Chat button opens the Chat panel for that agent; null when there is none (the demo). */
   onChat: ((key: string) => void) | null;
-  onCloseCard: () => void;
-  /** The agent the camera follows, or null. */
-  following: string | null;
-  onFollow: (key: string | null) => void;
-  /** The followed figure walked into the town (null) or a building: the app sets the level. */
-  onFollowed: (building: string | null) => void;
-  /** The follow ended in the scene (a drag, the figure left). */
-  onFollowStopped: () => void;
   /** Says something on the polite status line (a building moved). */
   onAnnounce?: (text: string) => void;
   onBuild: (kind: BuildPointer, at: { room: RoomKind; cell: { x: number; z: number } } | null, pick: Pick | null) => void;
-  /** Walk mode: the person walks a visitor through the world; a front door crossed reports the building (or null for the town). */
-  walking: boolean;
-  onWalkPlace: (slug: string | null) => void;
 }
 
 /* Above this many buildings, Details leaves the town's signs as quiet names (only the focused one expands). */
@@ -213,20 +185,22 @@ export default function WorldCanvas(props: Props) {
   );
   // A building picked up in build mode: its free plots show as markers in the town view.
   const moving = useMovingBuilding();
-  const movingBuilding = !props.entered && moving ? (props.model.buildings.find((b) => b.slug === moving) ?? null) : null;
+  const movingBuilding = !props.view.entered && moving ? (props.model.buildings.find((b) => b.slug === moving) ?? null) : null;
   const plots = props.town?.doc.plots;
   const free = useMemo(() => (movingBuilding && plots ? freeLots(props.plan, plots) : []), [movingBuilding, props.plan, plots]);
   const lotAnchors = useMemo(() => free.map((l) => l.cell), [free]);
+  // The district the view is in: the one it names, while it is still in use.
+  const district = hereOf(props.view, props.districts)?.id ?? null;
   const view = {
     model: props.model,
     plan: props.plan,
     lotAnchors,
-    entered: props.entered,
-    focused: props.focused,
-    likely: props.likely,
-    ringVisible: props.ringVisible,
-    room: props.room,
-    zoomed: props.zoomed,
+    entered: props.view.entered,
+    focused: props.view.focused,
+    likely: props.view.likely,
+    ringVisible: props.view.ringVisible,
+    room: props.view.room,
+    zoomed: props.view.zoomed,
     reducedMotion: props.reducedMotion,
     theme: dark ? ("lamplight" as const) : ("day" as const),
     quality,
@@ -241,25 +215,26 @@ export default function WorldCanvas(props: Props) {
     ambient: props.ambient,
     measure: pageConfig().stress,
     fps,
-    selectedAgent: props.selection.selected?.kind === "agent" ? props.selection.selected.key : props.selection.selected?.kind === "person" ? props.selection.selected.id : null,
+    selectedAgent: props.view.selection.selected?.kind === "agent" ? props.view.selection.selected.key : props.view.selection.selected?.kind === "person" ? props.view.selection.selected.id : null,
     districts: districtViews,
-    district: props.district,
-    walking: props.walking,
+    district,
+    walk: props.view.walk,
   };
   useEffect(() => {
     if (!host.current || !labels.current) return;
     try {
       scene.current = new TownScene(host.current, labels.current, view, {
-        enter: (slug) => latest.current.onEnter(slug),
-        hover: (index) => latest.current.onHover(index),
-        pick: (target, hover) => latest.current.onPick(target, hover),
+        enter: (slug) => latest.current.onIntent({ type: "enter", slug }),
+        hover: (index) => latest.current.onIntent({ type: "hover", index }),
+        pick: (target, hover) => latest.current.onIntent({ type: "pick", target, hover }),
         error: () => latest.current.onError(),
         build: (kind, at, pick) => latest.current.onBuild(kind, at, pick),
-        followed: (building) => latest.current.onFollowed(building),
-        followStopped: () => latest.current.onFollowStopped(),
+        followed: (building) => latest.current.onIntent({ type: "followed", building }),
+        followStopped: () => latest.current.onIntent({ type: "followStopped" }),
         // The town lays itself out over a few tasks; the loading note stays until it is done.
         ready: () => setReady(true),
-        walkPlace: (slug) => latest.current.onWalkPlace(slug),
+        // A front door crossed on foot: in or out, as a click would.
+        walkPlace: (slug) => latest.current.onIntent(slug ? { type: "enter", slug } : { type: "back" }),
       });
     } catch {
       latest.current.onError();
@@ -274,23 +249,23 @@ export default function WorldCanvas(props: Props) {
   useLayoutEffect(() => {
     scene.current?.setView(view);
   });
+  const { action, flight, following } = props.view;
   useEffect(() => {
-    if (props.action.id) scene.current?.cameraAction(props.action.type);
-  }, [props.action]);
+    if (action.id) scene.current?.cameraAction(action.type);
+  }, [action]);
   useEffect(() => {
-    if (props.flight.id) scene.current?.flyToAnchor(props.flight.anchor, props.flight.reach);
-  }, [props.flight]);
+    if (flight.id) scene.current?.flyToAnchor(flight.anchor, flight.reach);
+  }, [flight]);
   useEffect(() => {
-    scene.current?.follow(props.following);
-  }, [props.following, ready]);
-  const portrait = useCallback((canvas: HTMLCanvasElement) => scene.current?.portrait(latest.current.selection.selected?.kind === "agent" ? latest.current.selection.selected.key : "", canvas) ?? false, []);
+    scene.current?.follow(following);
+  }, [following, ready]);
+  const portrait = useCallback((canvas: HTMLCanvasElement) => scene.current?.portrait(latest.current.view.selection.selected?.kind === "agent" ? latest.current.view.selection.selected.key : "", canvas) ?? false, []);
 
-  const { model, entered } = props;
-  const inside = model.buildings.find((b) => b.slug === entered) ?? null;
+  const { model, onIntent } = props;
+  const walking = props.view.walk !== null;
+  const inside = insideOf(props.view, model.buildings);
   const compact = useCompact();
   const card = useAgentCard(props, inside, compact, portrait);
-  const go = useRef({ onEnter: props.onEnter, onHover: props.onHover });
-  go.current = { onEnter: props.onEnter, onHover: props.onHover };
   return (
     <>
       <div ref={host} className="canvas-host" />
@@ -303,12 +278,12 @@ export default function WorldCanvas(props: Props) {
       {pageConfig().stress && ready && <FrameOverlay scene={scene} />}
       {compact && card && card.element}
       {fps && ready && <FpsOverlay scene={scene} />}
-      {props.walking && ready && <WalkControls scene={scene} />}
+      {walking && ready && <WalkControls scene={scene} />}
       <div ref={labels} className="world-labels">
         {/* The labels, signs and the card beside a figure (round 48): a throw here drops this layer, not the town; it is
             drawn again in another building or back in the town. The scene keeps the div itself. */}
         <OverlayBoundary name="labels" resetKey={inside?.slug ?? null} fallback={null}>
-        {props.walking && (
+        {walking && (
           <div className="anchor agent-anchor picked" data-anchor="you">
             <span className="agent-stack">
               <span className="name-pill you-pill">You</span>
@@ -339,7 +314,7 @@ export default function WorldCanvas(props: Props) {
           if (inside && !props.details) return null;
           // With Details on, a town of more than a few buildings keeps its signs quiet (a wall of cards hides the town):
           // the focused one still expands.
-          const expanded = inside ? !compact : (props.ringVisible && props.focused === index) || (props.details && model.buildings.length <= QUIET_TOWN);
+          const expanded = inside ? !compact : (props.view.ringVisible && props.view.focused === index) || (props.details && model.buildings.length <= QUIET_TOWN);
           const lead = expanded && !b.archived ? b.agents.find((a) => a.key === b.lead.id && a.presence === "real") : undefined;
           return (
             <TownSign
@@ -357,11 +332,11 @@ export default function WorldCanvas(props: Props) {
               leadStatus={lead?.laneStatus ?? null}
               stale={expanded && model.freshness.stale}
               teamTs={expanded ? model.freshness.teamTs : null}
-              go={go}
+              onIntent={onIntent}
             />
           );
         })}
-        {!inside && <Wayfinding districts={props.districts} district={props.district} marks={props.marks} onDistrict={props.onDistrict} onEnter={props.onEnter} />}
+        {!inside && <Wayfinding districts={props.districts} district={district} marks={props.marks} onIntent={onIntent} />}
         {inside && !inside.archived && <Interior building={inside} model={model} props={props} compact={compact} />}
         {!compact && card && (
           <div className="anchor card-anchor" data-anchor={`card:${inside ? inside.slug : "town"}:${card.key}`}>
@@ -370,7 +345,7 @@ export default function WorldCanvas(props: Props) {
         )}
         {!inside && (
           <>
-            <TownFigures model={model} selection={props.selection} card={props.card} said={props.said} onSaidTap={props.onSaidTap} />
+            <TownFigures model={model} selection={props.view.selection} card={props.view.card} said={props.said} onSaidTap={props.onSaidTap} />
             <div className="anchor" data-anchor="c:town-hall">
               <span className="town-sign civic">
                 <span className="sign-title">
@@ -412,7 +387,7 @@ function cardPart<T>(part: string, make: () => T): T | typeof CARD_FAILED {
     civic figures (the town hall's agents, the postman). Its facts come from the projection, its sections from the
     registry. Null when there is nothing to show (no agent selected, the agent is not at this level). */
 function useAgentCard(props: Props, inside: Building | null, compact: boolean, portrait: (canvas: HTMLCanvasElement) => boolean): { key: string; element: ReactNode } | null {
-  const key = props.card && props.selection.selected?.kind === "agent" ? props.selection.selected.key : null;
+  const key = props.view.card && props.view.selection.selected?.kind === "agent" ? props.view.selection.selected.key : null;
   const { model } = props;
   const demo = model.mode === "demo";
   const gathered = useMemo(() => (key ? cardPart("facts", () => agentCardFacts(model, worldRuntime().projection.facts, key)) : null), [key, model]);
@@ -437,7 +412,8 @@ function useAgentCard(props: Props, inside: Building | null, compact: boolean, p
   if (!key || gathered === null || !here) return null;
   // A card that cannot be drawn says so in its place; the town stays (round 48). Another agent's card tries again.
   const name = facts?.displayName ?? [...model.buildings.flatMap((b) => b.agents), ...model.townHall, ...model.postOffice].find((a) => a.key === key)?.displayName ?? key;
-  const failed = <AgentCardFailed name={name} sheet={compact} onClose={props.onCloseCard} />;
+  const closeCard = () => props.onIntent({ type: "closeCard" });
+  const failed = <AgentCardFailed name={name} sheet={compact} onClose={closeCard} />;
   if (facts === null || sections === CARD_FAILED) return { key, element: failed };
   return {
     key,
@@ -448,11 +424,11 @@ function useAgentCard(props: Props, inside: Building | null, compact: boolean, p
         sections={sections}
         freshness={model.freshness}
         demo={demo}
-        following={props.following === key}
+        following={props.view.following === key}
         sheet={compact}
-        onFollow={() => props.onFollow(props.following === key ? null : key)}
+        onFollow={() => props.onIntent({ type: "follow", key: props.view.following === key ? null : key })}
         onChat={props.onChat}
-        onClose={props.onCloseCard}
+        onClose={closeCard}
         portrait={portrait}
       />
       </OverlayBoundary>
@@ -498,6 +474,7 @@ function TownFigures({ model, selection, card, said, onSaidTap }: { model: World
     <>
       {labelled.map((agent) => {
         const line = saidBy(agent.name, model.now, said);
+        const look = agentLook(agent, model);
         return (
           <div key={agent.key} className={`anchor agent-anchor${agent.key === shown ? " picked" : ""}`} data-anchor={`a:town:${agent.key}`}>
             <span className="agent-stack">
@@ -508,10 +485,10 @@ function TownFigures({ model, selection, card, said, onSaidTap }: { model: World
                 </button>
               )}
               {agent.key === shown && (
-                <span className="name-pill" title={`${agent.displayName}: ${laneWords(agent.laneStatus, model.freshness)}`}>
-                  <span className="pill-dot" data-tone={dotTone(agent, model)} aria-hidden="true" />
+                <span className="name-pill" title={`${agent.displayName}: ${look.words}`}>
+                  <span className="pill-dot" data-tone={look.tone} aria-hidden="true" />
                   {agent.displayName}
-                  <span className="sr-only">: {laneWords(agent.laneStatus, model.freshness)}</span>
+                  <span className="sr-only">: {look.words}</span>
                 </span>
               )}
             </span>
@@ -539,9 +516,10 @@ const TownSign = memo(function TownSign(props: {
   leadStatus: LaneStatus | null;
   stale: boolean;
   teamTs: string | null;
-  go: { current: { onEnter: (slug: string) => void; onHover: (index: number | null) => void } };
+  /** Stable (App's dispatch): a click enters, the focus hovers. */
+  onIntent: (intent: ViewIntent) => void;
 }) {
-  const { slug, index, name, projectKey, archived, expanded, inside, go } = props;
+  const { slug, index, name, projectKey, archived, expanded, inside, onIntent } = props;
   return (
     <div className={`anchor${expanded ? " raised" : ""}`} data-anchor={`b:${slug}`}>
       <button
@@ -549,8 +527,8 @@ const TownSign = memo(function TownSign(props: {
         className={`town-sign${expanded ? " expanded" : ""}${archived ? " archived" : ""}`}
         aria-label={inside ? `${name} (${projectKey}), inside` : `Enter ${name} (${projectKey})`}
         tabIndex={inside ? -1 : 0}
-        onClick={() => !inside && go.current.onEnter(slug)}
-        onFocus={() => go.current.onHover(index)}
+        onClick={() => !inside && onIntent({ type: "enter", slug })}
+        onFocus={() => onIntent({ type: "hover", index })}
       >
         <span className="sign-title">
           {archived && <Archive className="icon icon-sm" aria-hidden="true" />}
@@ -577,7 +555,7 @@ const TownSign = memo(function TownSign(props: {
    as long as the bubble lives (the figure is not drawn from the town); both in one row when both. The scene shows the
    cards from far and the building signs nearer (`data-detail` on the labels host, `labelDetail` in wayfinding.ts);
    every fact here is also a sentence in the text view. */
-function Wayfinding({ districts, district, marks, onDistrict, onEnter }: { districts: DistrictPlace[]; district: string | null; marks: SaidMark[]; onDistrict: (id: string) => void; onEnter: (slug: string) => void }) {
+function Wayfinding({ districts, district, marks, onIntent }: { districts: DistrictPlace[]; district: string | null; marks: SaidMark[]; onIntent: (intent: ViewIntent) => void }) {
   // The model is new many times a second and these labels rarely change: they are worked out as plain values and
   // drawn again only when one of those differs.
   const cards =
@@ -597,8 +575,8 @@ function Wayfinding({ districts, district, marks, onDistrict, onEnter }: { distr
   // One row over a roof: its pin, its marks, or both side by side (never one on top of the other).
   const roofs = [...new Set([...pins.map((p) => p.slug), ...marks.map((m) => m.slug)])].map((slug) => ({ slug, pin: pins.find((p) => p.slug === slug) ?? null, marks: marks.filter((m) => m.slug === slug) }));
   const key = JSON.stringify([cards, roofs]);
-  const go = useRef({ onDistrict, onEnter });
-  go.current = { onDistrict, onEnter };
+  const go = useRef(onIntent);
+  go.current = onIntent;
   return useMemo(
     () => (
       <>
@@ -610,7 +588,7 @@ function Wayfinding({ districts, district, marks, onDistrict, onEnter }: { distr
               data-color={d.color ?? undefined}
               aria-label={`${d.name}, district. ${d.words}${district === d.id ? " You are here." : " Go there."}`}
               aria-current={district === d.id ? "location" : undefined}
-              onClick={() => go.current.onDistrict(d.id)}
+              onClick={() => go.current({ type: "go", place: { district: d.id, building: null, room: null } })}
             >
               <span className="district-name">
                 <span className="district-dot" aria-hidden="true" />
@@ -632,14 +610,14 @@ function Wayfinding({ districts, district, marks, onDistrict, onEnter }: { distr
         ))}
         {roofs.map((r) => {
           const pin = r.pin && (
-            <button type="button" className="need-pin" aria-label={`${r.pin.name} needs a person: ${r.pin.words}. Go inside.`} title={`${r.pin.name}: ${r.pin.words}`} onClick={() => go.current.onEnter(r.slug)}>
+            <button type="button" className="need-pin" aria-label={`${r.pin.name} needs a person: ${r.pin.words}. Go inside.`} title={`${r.pin.name}: ${r.pin.words}`} onClick={() => go.current({ type: "enter", slug: r.slug })}>
               <TriangleAlert className="icon icon-sm" aria-hidden="true" />
               <span className="need-count">{r.pin.total}</span>
               <span className="need-words">{r.pin.pin}</span>
             </button>
           );
           const chat = r.marks.map((m) => (
-            <button key={m.agent} type="button" className={`chat-mark${m.fading ? " fading" : ""}`} aria-label={markLabel(m)} title={`${m.name} says: ${m.text}`} data-said-mark={m.agent} onClick={() => go.current.onEnter(r.slug)}>
+            <button key={m.agent} type="button" className={`chat-mark${m.fading ? " fading" : ""}`} aria-label={markLabel(m)} title={`${m.name} says: ${m.text}`} data-said-mark={m.agent} onClick={() => go.current({ type: "enter", slug: r.slug })}>
               <MessageCircle className="icon icon-sm" aria-hidden="true" />
               <span className="chat-mark-name">{m.name}</span>
             </button>
@@ -686,15 +664,16 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
   }, [b, rooms]);
   const nameOf = (slug: string | null) => model.buildings.find((x) => x.slug === slug)?.name ?? slug ?? "another building";
   // A hovered room reveals its labels; a nameplate is for the agent or object under the pointer, else the selected one.
-  const hovered = props.selection.hover?.kind === "room" ? null : props.selection.hover;
+  const { selection } = props.view;
+  const hovered = selection.hover?.kind === "room" ? null : selection.hover;
   // With the card open the selected agent's plate gives way to it; a hovered agent keeps its own.
-  const shown = hovered ?? (props.card && props.selection.selected?.kind === "agent" ? null : props.selection.selected);
+  const shown = hovered ?? (props.view.card && selection.selected?.kind === "agent" ? null : selection.selected);
   const published = b.releases.filter((r) => r.publishedAt);
-  const focusedRoom = props.room ?? props.zoomed;
-  const picked = (target: Pick) => same(props.selection.hover, target) || same(props.selection.selected, target);
+  const focusedRoom = props.view.room ?? props.view.zoomed;
+  const picked = (target: Pick) => same(selection.hover, target) || same(selection.selected, target);
   const revealed = new Set<RoomKind>();
-  for (const room of [props.room, props.zoomed]) if (room) revealed.add(room);
-  if (!compact) for (const target of [props.selection.hover, props.selection.selected]) if (target?.kind === "room") revealed.add(target.room);
+  for (const room of [props.view.room, props.view.zoomed]) if (room) revealed.add(room);
+  if (!compact) for (const target of [selection.hover, selection.selected]) if (target?.kind === "room") revealed.add(target.room);
   const shows = (room: RoomKind | null | undefined) => props.details || (!!room && [...revealed].some((r) => sameRoom(r, room, rooms)));
   const roomOfAgent = (key: string) => b.agents.find((a) => a.key === key)?.room ?? null;
   const editing = !!props.town?.build;
@@ -708,7 +687,7 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
     <>
       {template.rooms.map((r) => {
         const sign = signState(b, r.kind, rooms);
-        const focused = !!props.room && sameRoom(props.room, r.kind, rooms);
+        const focused = !!props.view.room && sameRoom(props.view.room, r.kind, rooms);
         if (compact ? !focusedRoom || !sameRoom(focusedRoom, r.kind, rooms) : !shows(r.kind)) return null;
         return (
           <div key={r.kind} className="anchor" data-anchor={`r:${b.slug}:${r.kind}`}>
@@ -899,39 +878,8 @@ function TownLabels({ building: b, town, errors, shows }: { building: Building; 
 
 const CAPTION_ICON: Record<ProgressKind, typeof Play> = { start: Play, update: RefreshCw, done: Check, question: CircleHelp };
 
-
-function statusTag(agent: AgentPlacement, model: WorldModel, workingIn: string) {
-  if (agent.presence === "proxy") return `working in ${workingIn}${agent.locationInferred ? " (inferred)" : ""}`;
-  if (model.freshness.stale) {
-    const since = clockTime(model.freshness.teamTs);
-    return since ? `stale since ${since}` : "status unknown";
-  }
-  if (agent.posture === "greyed") return "status unknown";
-  if (agent.posture === "raised-hand") return "blocked";
-  return null;
-}
-
-/** The dot in a name pill: the lane status by colour, always with its words in the pill's title and the text view. */
-function dotTone(agent: AgentPlacement, model: WorldModel): string {
-  if (agent.presence === "proxy") return "proxy";
-  if (model.freshness.stale || agent.laneStatus === "unknown" || agent.posture === "greyed") return "unknown";
-  if (agent.posture === "raised-hand" || agent.laneStatus === "blocked") return "blocked";
-  return agent.laneStatus;
-}
-
-/** The one bubble a robot may carry by default: a question, a raised hand, a lit alert, or a fresh "done", in that order. */
-function bubbleFor(agent: AgentPlacement, model: WorldModel): { icon: typeof Play; text: string; tone: string; title: string } | null {
-  if (agent.presence !== "real") return null;
-  const caption = agent.caption;
-  if (caption?.kind === "question") return { icon: CircleHelp, text: "a little help?", tone: "ask", title: `${agent.displayName} asks on ${caption.ticketKey}: ${caption.text}` };
-  if (model.freshness.stale) return null;
-  if (agent.posture === "raised-hand") return { icon: Hand, text: "blocked", tone: "ask", title: `${agent.displayName} is blocked` };
-  const alert = agent.alerts[0];
-  if (alert) return { icon: TriangleAlert, text: alert, tone: "alert", title: agent.alerts.join("; ") };
-  if (caption?.kind === "done" && (caption.until == null || caption.until - model.now >= 4000))
-    return { icon: Check, text: "done", tone: "done", title: `${agent.displayName} on ${caption.ticketKey}: ${caption.text}` };
-  return null;
-}
+/** The icon of each bubble the appearance module (world-model `agentLook`) may give a figure. */
+const BUBBLE_ICON: Record<AgentBubble["kind"], typeof Play> = { question: CircleHelp, blocked: Hand, alert: TriangleAlert, done: Check };
 
 function AgentLabel({
   slug,
@@ -958,16 +906,17 @@ function AgentLabel({
   /** False on a phone outside a revealed room; the text view keeps every name. */
   pill: boolean;
 }) {
-  const tag = statusTag(agent, model, workingIn);
+  const look = agentLook(agent, model, workingIn);
+  const tag = look.tag;
   const caption = agent.presence === "real" && full ? agent.caption : null;
   const Icon = caption ? CAPTION_ICON[caption.kind] : null;
   const fading = caption?.until != null && caption.until - model.now < 4000;
   const alerts = full ? agent.alerts : [];
-  const bubble = full ? null : bubbleFor(agent, model);
-  const words = agent.presence === "proxy" ? (tag ?? "working elsewhere") : laneWords(agent.laneStatus, model.freshness);
+  const bubble = full || !look.bubble ? null : { ...look.bubble, icon: BUBBLE_ICON[look.bubble.kind] };
+  const words = look.words;
   const pill = showPill && !plate && (
     <span className={`name-pill${agent.presence === "proxy" ? " proxy" : ""}`} title={`${agent.displayName}: ${words}`}>
-      <span className="pill-dot" data-tone={dotTone(agent, model)} aria-hidden="true" />
+      <span className="pill-dot" data-tone={look.tone} aria-hidden="true" />
       {agent.displayName}
       <span className="sr-only">: {words}</span>
     </span>

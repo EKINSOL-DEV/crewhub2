@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { ChatLine, ChatThreadFact, FetchLike, HostHealth, HostSessionState } from "@crewhub/loops-client";
 import { POLL_HIDDEN_MS, POLL_MS, REPROBE_MS, REPROBE_SLOW_MS } from "@crewhub/loops-client";
-import { createPageChatRunner, healthRereadKey, hostKeyReadsChat, loopsOriginOf, type PageChatState } from "../src/state/pageChat.ts";
+import { createPageChatRunner, hostKeyReadsChat, loopsOriginOf, type PageChatState } from "../src/state/pageChat.ts";
 
 const ORIGIN = "http://127.0.0.1:8293";
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -244,7 +244,7 @@ test("the host's word and the origin: the key's state in health, the loops web o
   assert.equal(hostKeyReadsChat(health({ state: "unknown" })), null, "the host has not said yet (round 29)");
 });
 
-test("round 29 (Medium 2, the page's half): while the host has not said whether its key reads the chat, the runner asks loops nothing and the road is none; a health re-read is due when the stream goes live or the key word changes", async () => {
+test("round 29 (Medium 2, the page's half): while the host has not said whether its key reads the chat, the runner asks loops nothing and the road is none (the health re-read when the stream goes live or the key word changes is the host health module's, test/hostHealth.test.ts)", async () => {
   const l = loops();
   const { r, c } = runner({ hostKeyReadsChat: null, fetchFn: l.fetchFn });
   r.start();
@@ -257,11 +257,6 @@ test("round 29 (Medium 2, the page's half): while the host has not said whether 
   await settle();
   assert.deepEqual(l.calls, []);
   r.stop();
-  assert.equal(healthRereadKey(null, null), null, "nothing known: the gate's read stands");
-  assert.equal(healthRereadKey("loops-down", null), null);
-  assert.notEqual(healthRereadKey("live", null), null, "the stream live: read again");
-  assert.notEqual(healthRereadKey("live", "ok"), healthRereadKey("live", null), "the key word: read again");
-  assert.notEqual(healthRereadKey("live", "ok"), healthRereadKey("stale", "ok"), "live again after stale: read again");
 });
 
 test("round 29 (Low 8): a loops elsewhere than this computer is not asked: the verdict is remote, the road none", async () => {
