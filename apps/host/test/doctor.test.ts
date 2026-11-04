@@ -55,6 +55,24 @@ describe("the doctor", () => {
     }
   });
 
+  it("agents that is no list is a fix (the read failed), never an ok count; a list without the key's own entry says the count alone (review-h5)", async () => {
+    const dir = folder();
+    const keyFile = path.join(dir, "agent-crewhub-world.key");
+    const doctor = async (stub: Awaited<ReturnType<typeof createLoopsStub>>) => {
+      cleanup.push(() => stub.close());
+      writeFileSync(keyFile, `${stub.key}\n`, { mode: 0o600 });
+      return runDoctor({ env: { CREWHUB_WORLD_LOOPS_URL: stub.url, CREWHUB_WORLD_KEY_FILE: keyFile, CREWHUB_WORLD_PORT: "5187", CREWHUB_WORLD_CONFIG_DIR: dir }, probePort: free });
+    };
+    for (const agents of [{}, 5, "abc"]) {
+      const report = await doctor(await createLoopsStub({ ...installation(), routes: { ...installation().routes, "/api/agents": { agents } } }));
+      assert.equal(byId(report).agents!.status, "fix", `agents ${JSON.stringify(agents)}: ${byId(report).agents!.text}`);
+      assert.equal(report.ok, false, `agents ${JSON.stringify(agents)}`);
+    }
+    const unlisted = await doctor(await createLoopsStub({ ...installation(), routes: { ...installation().routes, "/api/agents": { agents: [{ id: "boing", displayName: "Boing", role: "lead" }] } } }));
+    assert.equal(byId(unlisted).agents!.status, "ok");
+    assert.equal(byId(unlisted).agents!.text, "1 agent", "no words about a key loops does not list, and no stray prefix");
+  });
+
   it("a warn line is no fix: on another Node major, everything else ok, the report is ok and exits 0", async () => {
     const stub = await createLoopsStub({ ...installation() });
     cleanup.push(() => stub.close());

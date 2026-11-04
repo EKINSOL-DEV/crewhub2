@@ -11,6 +11,7 @@ import { ARCHIVE_MEMORY_NAME, parseArchiveMemory, plainTime } from "./archiveSto
 import { belongsTo } from "./archiveMemory.ts";
 import { ConfigError, KEY_SHAPE, type KeyFiles, type LoadedKey, type PathKind, type ServerConfig, keyFilesOf, loadKey, loadServerConfig, statPath, configFolderLine } from "./config.ts";
 import { type DiscoveryInput, type Found, discoverOnce, loopsHealth, roadsOf, targetText } from "./discovery.ts";
+import { keyBotWords, readKeyBot } from "./keyBot.ts";
 import { checkKey } from "./keyCheck.ts";
 import { type LoopsClient, type LoopsTarget, createLoopsClient } from "./loops.ts";
 import { nodeWarningLine, readNvmrc, runningNodeVersion } from "./nodeVersion.ts";
@@ -194,21 +195,14 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
       return null;
     };
     await read<{ projects: { slug: string }[] }>("projects", "/api/projects", (b) => `${b.projects.length} project${b.projects.length === 1 ? "" : "s"}${b.projects.length === 0 ? " (no buildings yet: make one in crewhub-loops)" : `: ${b.projects.map((p) => p.slug).join(", ")}`}`);
-    const me = verdict.state === "ok" ? verdict.name : null;
-    await read<{ agents: { id: string; external?: boolean; reader?: boolean; viewer?: boolean; disabled?: boolean; role?: string }[] }>("agents", "/api/agents", (b) => {
-      const self = b.agents.find((a) => a.id === me);
+    await read<{ agents: unknown[] }>("agents", "/api/agents", (b) => {
+      // A body without a list is no agents answer: `read` says the read failed, as it did when `.find` threw (review-h5).
+      if (!Array.isArray(b.agents)) throw new TypeError("agents is no list");
+      // The key's own entry says what kind of bot it is (keyBot.ts, the one reader; the chat path asks the same fact).
       // A viewer (the "Connect CrewHub World" card, loops main) reads only: loops refuses the rest before the route runs.
-      const about =
-        self === undefined
-          ? ""
-          : self.reader === true
-            ? "; this key's bot is read-only: the board will answer 403"
-            : self.viewer === true
-              ? `; ${self.id} is a viewer: it reads what the world needs and writes nothing`
-              : self.external === true
-                ? `; ${self.id} is an external bot, not read-only: it could write, the host sends GETs only`
-                : `; ${self.id} is a ${self.role ?? "lead"} agent with a lane, not an external bot (it works, but an external bot is the intended key)`;
-      return `${b.agents.length} agent${b.agents.length === 1 ? "" : "s"}${about}`;
+      // `read` runs only where the key was accepted, so its name is known.
+      const about = verdict.state === "ok" ? keyBotWords(readKeyBot(b, verdict.name)) : "";
+      return `${b.agents.length} agent${b.agents.length === 1 ? "" : "s"}${about === "" ? "" : `; ${about}`}`;
     });
     await read<{ sessions: unknown[] }>("team", "/api/team", (b) => `${b.sessions.length} session${b.sessions.length === 1 ? "" : "s"} in the team snapshot`);
     await read<{ lastSeq: number; cursor?: string }>("events", "/api/events", (b) => `the event log's tail is seq ${b.lastSeq}${typeof b.cursor === "string" ? " (sealed cursor present)" : ""}`, { from: "tail" });
