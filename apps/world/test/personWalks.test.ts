@@ -136,3 +136,12 @@ test("a visit the model drops before the pickup sends the person out empty-hande
   update(model([]));
   assert.equal(persons.person("cr")?.phase, "to-rack", "the carry goes on once the package is in hand");
 });
+
+test("a visit the model still tells keeps its person on the way to the package across updates (round 55, r55-mut-worldsim: personWalks.ts:93)", () => {
+  const { persons, update, run } = setUp("classic");
+  update(model([visit("t1")]));
+  run(0.5);
+  assert.equal(persons.person("cr")?.phase, "to-package");
+  update(model([visit("t1")]));
+  assert.equal(persons.person("cr")?.phase, "to-package", "still told: no reason to leave");
+});

@@ -133,3 +133,13 @@ test("rooms: one per cast near, a block of states per cast at town distance, nev
         assert.ok(Math.abs(origins[i]!.x - origins[j]!.x) >= ROOM.width || Math.abs(origins[i]!.z - origins[j]!.z) >= ROOM.depth);
   }
 });
+
+test("at town distance a cast's own room is titled with the chosen state at the desks and with the scene elsewhere (round 55, r55-mut-worldsim: castRoomPlan.ts:302)", () => {
+  const stateLabel = PREVIEW_STATES.find((s) => s.id === "working")!.label;
+  assert.equal(roomPlays(1, "working", "desks", true).plays[0]!.note, stateLabel);
+  for (const scene of ["walk", "team"] as const) {
+    const sceneLabel = roomPlays(1, "working", scene, true).plays[0]!.note;
+    assert.notEqual(sceneLabel, stateLabel, scene);
+    assert.ok(typeof sceneLabel === "string" && sceneLabel.length > 0, scene);
+  }
+});
