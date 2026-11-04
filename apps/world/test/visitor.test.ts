@@ -115,3 +115,12 @@ test("the follow camera pulls in over what stands between it and the visitor", (
   assert.equal(walkTilt(0, 0.5, 0, 0, [], 2), WALK_TILTS[0]);
   assert.equal(walkTilt(0, 0.5, 0.95, 0, wall, 2), WALK_TILTS[WALK_TILTS.length - 1], "right against it: the steepest");
 });
+
+test("a gentle push straight at the front door crosses it as a full one does (round 55, r55-mut-worldsim: visitor.ts:148)", () => {
+  const nav = world();
+  const v = new Visitor(nav, nav.lobby("p0")!);
+  // A stick tilted a third of the way: the visitor walks slower, but the aim at the door is the same.
+  for (let i = 0; i < 2400 && v.building; i++) v.step(0, 0.3, STEP);
+  assert.equal(v.building, null, "it stands in the town");
+  assert.deepEqual(v.location, nav.graph.door("p0/entrance")!.b);
+});

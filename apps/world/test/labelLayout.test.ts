@@ -171,3 +171,11 @@ test("town signs standing under their anchors stack instead of piling: the back 
   assert.equal(back.nx, 170, "straight up");
   assert.ok(pin.ny - 24 >= front.ny + 8 + 70 + 3 || pin.ny <= front.ny + 8 - 3, `the pin is clear of the sign (${pin.ny})`);
 });
+
+test("a room sign that only touches a robot's box is not over it; one pixel into it is (round 55, r55-mut-worldsim: labelLayout.ts:96)", () => {
+  // The sign at (100, 100), half 30, height 20: its box is 94 to 154 across and 90 to 110 down.
+  const sign = label("r:hq:lobby", 100, 100);
+  const robotAt = (left: number): RobotBox => ({ id: "a:hq:lead", x: left + 20, left, right: left + 40, top: 90, bottom: 110 });
+  assert.equal(overRobot(sign, [], [robotAt(154)], 1), false, "edge to edge");
+  assert.equal(overRobot(sign, [], [robotAt(153)], 1), true);
+});

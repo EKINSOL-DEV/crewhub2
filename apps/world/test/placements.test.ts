@@ -150,3 +150,13 @@ test("free spots for error crates start near the room centre and skip furniture 
   // The storage door (4, 6) carries a marker, so it is never a spot.
   assert.ok(taken.has("4,6"));
 });
+
+test("the free-cell search reaches the room's first column: a bench one cell narrower than the lobby fits only there (round 55, r55-mut-worldsim: placements.ts:241)", () => {
+  const lobby = resolveBuildingPlacements(doc0, "cr", template, defs).rooms.get("lobby")!;
+  const width = lobby.layout.grid.width - 1;
+  const wide = { ...defs, "probe:wide": { id: "probe:wide", label: "A long bench", footprint: { width, depth: 1 }, blocksMovement: false, tags: [], approaches: [] } };
+  const cell = freeCellIn(lobby, wide, "probe:wide");
+  assert.ok(cell, "the bench fits in the lobby");
+  assert.equal(cell.x, 0, "against the first column (the walls and doors leave no other)");
+  assert.deepEqual(checkGhost(doc0, "cr", template, wide, { id: "x", propId: "probe:wide", room: "lobby", cell, rotation: 0 }), { ok: true });
+});

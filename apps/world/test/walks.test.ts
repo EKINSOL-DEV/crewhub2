@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { WorldModel } from "@crewhub/world-model";
-import { roomId, TOWN_ROOM } from "../src/world/navigation.ts";
+import { roomId, TOWN_HALL_CELL, TOWN_ROOM } from "../src/world/navigation.ts";
 import { Walks } from "../src/world/walks.ts";
 import { idleChoice, IDLE_BUCKET_MS } from "../src/world/movement.ts";
 import { agent, building, object, world } from "./fixtures.ts";
@@ -217,4 +217,38 @@ test("round 54: reduced motion turned on while an agent walks: its next frames s
   });
   assert.equal(roomOf(walks, "cr/dev-1"), roomId("cr", "review"), "at the review pile within a second");
   assert.ok(cells.size <= 3, `a jump: the step under way, then the pile (${[...cells].join(" ")})`);
+});
+
+test("an idle errand that falls due while its agent is still walking in is not given (round 55, r55-mut-worldsim: walks.ts:393)", () => {
+  let due = 0;
+  for (let bucket = 100; !due; bucket++) {
+    const choice = idleChoice("cr/dev-1", bucket * IDLE_BUCKET_MS, "on");
+    if (choice) due = choice.at;
+  }
+  const options = { ...inside, ambient: "on" as const };
+  const relaxed = (key: string) => agent(key, "workers", { posture: "relaxed", laneStatus: "idle" });
+  const walks = new Walks();
+  walks.update(world([building("cr", [relaxed("cr/dev-2")]), building("ops")], { postOffice: [postman] }), options);
+  for (let i = 0; i < 30; i++) walks.tick(1 / 30, due - 10_000 + i * 33);
+  // cr/dev-1 joins: it walks in from the door, and its idle errand falls due on the next frame.
+  walks.update(world([building("cr", [relaxed("cr/dev-1"), relaxed("cr/dev-2")]), building("ops")], { postOffice: [postman] }), options);
+  walks.tick(1 / 30, due);
+  assert.notEqual(walks.nav.sim.actor("cr/dev-1")?.status, "arrived", "cr/dev-1 is still walking in");
+  assert.equal(walks.errand("cr/dev-1"), null);
+});
+
+test("a letter for a building the town does not show goes to the town hall (round 55, r55-mut-worldsim: walks.ts:459)", () => {
+  const walks = new Walks();
+  const options = { entered: null, reducedMotion: false, ambient: "on" as const, buildingPlan: "classic" as const };
+  walks.update(model(), options);
+  run(walks, 1);
+  const letter = { deliveryId: "d1", recipientId: "gone-lead", reason: "dm", state: "pending" as const, toBuilding: "gone", startedAt: T };
+  walks.update(model(onDesk, { deliveries: [letter], cursor: 2 }), options);
+  run(walks, 0.2);
+  assert.equal(walks.postman()!.carrying, 1);
+  const reached = run(walks, 60, () => {
+    const at = walks.nav.sim.actor("postman")!.location;
+    return at.room === TOWN_ROOM && at.cell.x === TOWN_HALL_CELL.x && at.cell.z === TOWN_HALL_CELL.z;
+  });
+  assert.ok(reached < 60, "the postman reaches the town hall");
 });
