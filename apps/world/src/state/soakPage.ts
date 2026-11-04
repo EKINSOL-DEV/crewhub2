@@ -4,17 +4,14 @@
    and tests under node. */
 import { fadedCopiesAlive } from "@crewhub/world-cast";
 import { getHealth } from "./health";
-import { getPageChat } from "./pageChat";
-import { getRecentAnswers, saidCount } from "./said";
 import type { StoreReads } from "./soak";
-import { getThreads } from "./threads";
-import { townRuntime } from "./runtimes";
+import { chatStores, townRuntime } from "./runtimes";
 
 export function pageReads(connection: () => unknown): StoreReads {
   return {
-    said: saidCount,
-    answers: () => getRecentAnswers().length,
-    threads: getThreads,
+    said: chatStores.said.count,
+    answers: () => chatStores.recent().length,
+    threads: chatStores.threads.get,
     town: () => {
       const { doc, hostRev } = townRuntime().state;
       return { docRevision: doc.revision, hostRev };
@@ -25,7 +22,7 @@ export function pageReads(connection: () => unknown): StoreReads {
     },
     connection,
     pageChat: () => {
-      const { probe, road, polling, polls, lines } = getPageChat();
+      const { probe, road, polling, polls, lines } = chatStores.page.get();
       return { probe, road, polling, polls, lines };
     },
     faded: fadedCopiesAlive,

@@ -57,19 +57,24 @@ function code(file: string): string {
     .replace(/^\s*\/\/.*$/gm, "");
 }
 
-test("regress.mjs asks regressPlan right after its command line and searches for no env file (read, never run)", () => {
+test("regress.mjs asks regressPlan right after its command line, runs its groups only after it, and searches for no env file (read, never run)", () => {
   const text = code("regress.mjs");
   const cli = text.indexOf("cli(USAGE");
   const plan = text.indexOf("regressPlan({");
   assert.ok(cli > 0 && plan > cli, "regressPlan is called after the command line is read");
-  for (const later of ["launch(opts)", "checkBuild(", "createConnectStub(", "createLoopsFake", "createHost"]) {
-    const at = text.indexOf(later);
-    assert.ok(at === -1 || at > plan, `${later} comes after regressPlan`);
+  for (const later of ["launch(opts)", "checkBuild(", "for (const [name, run] of PLAN)"]) {
+    assert.ok(text.indexOf(later) > plan, `${later} comes after regressPlan`);
   }
-  assert.doesNotMatch(text, /git-common-dir/, "no search of the main checkout");
-  assert.doesNotMatch(text, /"Documents"/, "no search of ~/Documents/GitHub");
-  assert.doesNotMatch(text, /loops-dev\$\{[^}]*\}\.env|loops-dev\.env/, "no default env file name");
-  assert.match(text, /if \(plan\.real\) await realHalf\(\);/, "the connect group's real half only with real");
+  // The groups are files (tools/regress/<group>.mjs, round 61): their stubs, fakes and hosts start only when the runner's
+  // PLAN loop calls them, after the plan; the runner itself starts none.
+  for (const never of ["createConnectStub(", "createLoopsFake", "createHost"]) assert.equal(text.indexOf(never), -1, `${never} is a group's, not the runner's`);
+  const groups = GROUPS.map((name) => code(`regress/${name}.mjs`));
+  for (const source of [text, ...groups]) {
+    assert.doesNotMatch(source, /git-common-dir/, "no search of the main checkout");
+    assert.doesNotMatch(source, /"Documents"/, "no search of ~/Documents/GitHub");
+    assert.doesNotMatch(source, /loops-dev\$\{[^}]*\}\.env|loops-dev\.env/, "no default env file name");
+  }
+  assert.match(code("regress/connect.mjs"), /if \(plan\.real\) await realHalf\(\);/, "the connect group's real half only with real");
   const envFile = /function loopsEnvFile\(\) \{\n([\s\S]*?)\n\}/.exec(text)?.[1] ?? "";
   assert.match(envFile, /^  if \(plan\.loopsEnv === ""\) opts\.fail\(/, "an empty --loops-env fails before path.resolve, which would answer the working directory");
   assert.equal(envFile.split("\n").length, 2, "loopsEnvFile is the refusal and --loops-env's path, nothing else");

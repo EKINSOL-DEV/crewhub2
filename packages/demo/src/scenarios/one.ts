@@ -3,14 +3,14 @@
  * storyline: work in progress, a review that waits on a person, a quiet ticket the watchdog notices, a prop request.
  * All of it is fiction; see CONTENT.md.
  */
-import { type DemoContent, WORLD_KEY_BOT } from "../content.ts";
+import { DEMO_SESSION, type DemoContent, WORLD_KEY_BOT } from "../content.ts";
 import { requestedProp } from "../props.ts";
 import { type PropHome, type ScriptBuilder, type Story, propFlow } from "../script.ts";
 import { DAY, HOUR, MINUTE, at } from "../time.ts";
 import { GLOBAL_LABELS } from "./shared.ts";
 
 export const ONE_CONTENT: DemoContent = {
-  session: "ekinsol",
+  session: DEMO_SESSION,
   observer: WORLD_KEY_BOT.id,
   people: [{ id: "nicky", displayName: "Nicky", role: "admin" }],
   agents: [

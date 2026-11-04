@@ -1152,7 +1152,7 @@ pageProbe })`: `key` when the host's key reads the chat (health `connection.sess
 the page's probe of road 2 answered (`on`), else `none`; the probe's other verdicts (`signed-out`, `origin-not-set`,
 `unreachable`, `chat-off`, `remote`, `unknown`; the last two since round 29's review: a 409 `feature_off` through the
 origin, and a loops elsewhere than this computer, which is not asked) only shape the words. `state/chatRoadStore.ts` combines the health store and the probe's
-verdict (`rememberPageProbe`) into `useChatRoad()`. Chat lines from either road go into the same `said` store, so the
+verdict (the chat stores' `probe`) into `useChatRoad()`. Chat lines from either road go into the same `said` store, so the
 bubbles, the chat mark, Recent answers and the card work the same on both. **The words** (`chatWords`, `chatGlance`,
 `recentEmptyWords`, `cardAnswersEmpty`, `chatPlaceLine`, all in `chatRoad.ts`, tested per road and per `none` case)
 are one story in the Connection panel's Chat section (`.connection-chat`, `data-road`, `data-probe`), the Chat panel's

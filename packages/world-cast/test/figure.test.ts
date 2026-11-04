@@ -3,16 +3,17 @@ import test from "node:test";
 import * as THREE from "three";
 import {
   CAST_ROLES,
+  MOTION_CHANNELS,
+  MOTION_WAVES,
+  RESERVED_COLORS,
   applyFigurePatch,
   createCast,
-  figureColor,
   measureFigure,
   referenceKit,
   validateCastManifest,
   validateFigure,
   validateFigurePatch,
   validatePerson,
-  wave,
   type CastManifest,
   type FigureExtension,
   type FigureSpec,
@@ -20,7 +21,9 @@ import {
   type Perch,
   type WorkPlace,
 } from "../src/index.ts";
-import { castProblems, sightProblems } from "../src/index.ts";
+import { castProblems } from "../src/index.ts";
+import { sightProblems } from "../src/contract.ts";
+import { figureColor, wave } from "../src/figure.ts";
 
 const manifest: CastManifest = {
   format: "crewhub-cast/1",
@@ -98,6 +101,54 @@ test("waves", () => {
   assert.equal(wave("blink", 0.5, 5), 0);
   assert.ok(Math.abs(wave("glance", 0.1, 8) - 1) < 1e-9, "the swell peaks 0.8 s in");
   assert.equal(wave("glance", 0.5, 8), 0);
+});
+
+test("a motion's channel and wave: the validator's words say the contract's lists, in their order, and each is accepted", () => {
+  const motion = (change: Record<string, string>) => {
+    const spec = figure();
+    Object.assign(spec.motions.working![0]!, change);
+    return validateFigure(spec);
+  };
+  const refused = motion({ channel: "rotation.w", wave: "wobble" });
+  assert.deepEqual(refused.ok ? [] : refused.errors, [
+    "figure.motions.working[0].channel: must be one of rotation.x, rotation.y, rotation.z, offset.x, offset.y, offset.z, scale.x, scale.y, scale.z",
+    "figure.motions.working[0].wave: must be one of sine, bounce, lift, blink, glance",
+  ]);
+  for (const channel of MOTION_CHANNELS) assert.equal(motion({ channel }).ok, true, channel);
+  for (const kind of MOTION_WAVES) {
+    assert.equal(motion({ wave: kind }).ok, true, kind);
+    assert.equal(typeof wave(kind, 0.01, 5), "number", kind);
+  }
+});
+
+test("every channel moves its own axis of the joint, rotations in degrees and the rest in units", () => {
+  const axes = ["x", "y", "z"] as const;
+  const read = (joint: THREE.Object3D) => [joint.rotation, joint.position, joint.scale].flatMap((v) => axes.map((axis) => v[axis]));
+  for (const channel of MOTION_CHANNELS) {
+    const spec = figure();
+    spec.poses = {};
+    spec.motions = { working: [{ joint: "head", channel, wave: "sine", amplitude: 0.25, period: 4 }] };
+    const handle = createCast(manifest, spec, referenceKit(manifest.colors)).figure({ key: "a:1", role: "worker", accent: null });
+    const head = handle.body.children.find((c) => c.type === "Group")!.children.find((c) => c.type === "Group")!;
+    handle.setState(state({ activity: "working" }));
+    const before = read(head);
+    handle.update(1);
+    const moved = read(head).map((value, i) => value - before[i]!);
+    const at = MOTION_CHANNELS.indexOf(channel);
+    moved.forEach((delta, i) => {
+      const expected = i !== at ? 0 : at < 3 ? (0.25 * Math.PI) / 180 : 0.25;
+      assert.ok(Math.abs(delta - expected) < 1e-6, `${channel}: slot ${i} moved ${delta}, not ${expected}`);
+    });
+  }
+});
+
+test("the reserved colour names resolve in the reference kit, unless the cast gives its own", () => {
+  const kit = referenceKit(manifest.colors);
+  const neutral = kit.hex("not-a-colour");
+  for (const name of RESERVED_COLORS) assert.notEqual(kit.hex(name), neutral, name);
+  assert.equal(new Set(RESERVED_COLORS.map((name) => kit.hex(name))).size, RESERVED_COLORS.length, "each its own colour");
+  const own = referenceKit({ ...manifest.colors, alert: { day: "#123456", lamplight: "#123456" } });
+  assert.equal(own.hex("alert"), "#123456");
 });
 
 test("a figure shows the parts of its role and state, poses in layers and drops small parts far", () => {

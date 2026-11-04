@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CAST_ROLES, FIGURE_ACTIVITIES } from "../../../packages/world-cast/src/index.ts";
+import { CAST_ROLES, FIGURE_ACTIVITIES } from "@crewhub/world-cast";
 import {
   carryOnState,
   FOLLOW_GAP,

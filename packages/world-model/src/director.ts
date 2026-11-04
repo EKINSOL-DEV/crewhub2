@@ -8,6 +8,7 @@
  * shape is rejected, so there is nowhere to put text that could appear as an agent's speech).
  */
 import { roomLabel } from "./rooms.ts";
+import { freshnessWords } from "./freshness.ts";
 import { ROOM_KINDS, placeWords, roomPlaceWords, type RoomWording } from "./halls.ts";
 import type { AgentKey, AgentPlacement, Building, RoomKind, WorldModel } from "./model.ts";
 
@@ -336,13 +337,6 @@ export function noPlanLine(model: WorldModel, quickPlans: boolean): string {
   for (const reason of reasons) counts.set(reason as string, (counts.get(reason as string) ?? 0) + 1);
   const order = ["status unknown", "working", "blocked", "stalled", "waiting on a person"];
   const why = [...counts].sort((a, b) => b[1] - a[1] || order.indexOf(a[0]) - order.indexOf(b[0])).map(([reason, n]) => `${n} ${reason}`).join(", ");
-  const { freshness } = model;
-  const probe = !counts.has("status unknown")
-    ? ""
-    : freshness.teamTs === null
-      ? " No team probe has reported to this crewhub-loops, so a status stays unknown until one does."
-      : freshness.stale
-        ? ` The team snapshot is stale since ${freshness.teamTs}, so a status shows as unknown until a fresh one.`
-        : "";
+  const probe = counts.has("status unknown") ? freshnessWords(model.freshness).whyUnknown : "";
   return `No plan yet: no agent here is idle (${why}), so the scripted director has nobody to move; it plans when one is.${probe}${quick}`;
 }
