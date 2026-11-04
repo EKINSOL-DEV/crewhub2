@@ -133,3 +133,68 @@ test("a child started by spawnSync, execFileSync or execSync with a bare env car
     done();
   }
 });
+
+/** No process has this pid on Linux (pid_max is at most 2^22 = 4194304) or on macOS (pids end at 99999). */
+const NO_SUCH_PID = 2 ** 22 + 1;
+
+test("refusesKill: the test's own process and its own live children; anything else, a process group or signal 0 to another is refused", () => {
+  const own = new Set([4242]);
+  assert.equal(guard.refusesKill(4242, "SIGTERM", own, 100), null, "a child the test started");
+  assert.equal(guard.refusesKill(100, "SIGINT", own, 100), null, "the test's own process");
+  assert.equal(guard.refusesKill(100, 0, own, 100), null, "signal 0 to itself");
+  assert.match(guard.refusesKill(4243, "SIGTERM", own, 100) ?? "", /pid 4243 is not a live child this test started/);
+  assert.match(guard.refusesKill(4243, 0, own, 100) ?? "", /pid 4243 is not a live child this test started \(signal 0\)/, "signal 0 is a signal too");
+  assert.match(guard.refusesKill(NO_SUCH_PID, undefined, own, 100) ?? "", /not a live child .*\(signal SIGTERM\)/, "the default signal named");
+  for (const pid of [0, -1, -4242]) assert.match(guard.refusesKill(pid, "SIGTERM", own, 100) ?? "", /a process group/, `pid ${pid}`);
+  assert.equal(guard.refusesKill("4243" as unknown as number, "SIGTERM", own, 100), null, "not a number: Node refuses it itself");
+});
+
+test("process.kill is the guard's (marked), and a child the test starts is its own until it exits", async () => {
+  assert.equal((process.kill as unknown as Record<symbol, unknown>)[MARK], true);
+  const child = cp.spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], { stdio: "ignore" });
+  const pid = child.pid as number;
+  assert.ok(guard.OWN_CHILDREN.has(pid), "the child's pid is tracked");
+  const exited = new Promise((resolve) => child.once("exit", (_code, signal) => resolve(signal)));
+  assert.equal(guard.refusesKill(pid, "SIGTERM"), null, "the rule allows it before the signal is sent");
+  process.kill(pid, "SIGTERM");
+  assert.equal(await exited, "SIGTERM");
+  assert.ok(!guard.OWN_CHILDREN.has(pid), "an exited child is nobody's: its pid may be reused");
+  assert.notEqual(guard.refusesKill(pid, "SIGTERM"), null);
+});
+
+test("in a child of the test's own (record mode): its own child is signalled; the reaped child's pid and a pid no system has are refused before any signal", async () => {
+  const { dir, done } = tempDir();
+  try {
+    const log = path.join(dir, "reach.log");
+    const script = path.join(dir, "kill.mjs");
+    fs.writeFileSync(
+      script,
+      [
+        `import { spawn } from "node:child_process";`,
+        `import { pathToFileURL } from "node:url";`,
+        `const rules = await import(pathToFileURL(${JSON.stringify(GUARD_FILE)}).href);`,
+        `const kid = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], { stdio: "ignore" });`,
+        `const exited = new Promise((resolve) => kid.once("exit", (code, signal) => resolve(signal)));`,
+        `process.kill(kid.pid, "SIGTERM");`,
+        `console.log("own child " + (await exited));`,
+        `const tryKill = (pid, signal) => { try { process.kill(pid, signal); return "sent"; } catch (e) { return e.code ?? e.message; } };`,
+        // The reaped child's pid may be anybody's by now: tried only when the guard's patch and rule are both in place.
+        `if (process.kill[Symbol.for("crewhub-world.no-app-reach")] !== true || rules.refusesKill?.(kid.pid, "SIGTERM") == null) console.log("reaped skipped: no guard to refuse it");`,
+        `else console.log("reaped " + tryKill(kid.pid, "SIGTERM"));`,
+        `console.log("none " + tryKill(${NO_SUCH_PID}, 0));`,
+        `console.log("self " + tryKill(process.pid, 0));`,
+      ].join("\n") + "\n",
+    );
+    const result = await closed(cp.spawn(process.execPath, [script], { env: { ...process.env, CREWHUB_TEST_REACH_LOG: log }, stdio: ["ignore", "pipe", "pipe"] }));
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /^own child SIGTERM$/m, result.stdout);
+    assert.match(result.stdout, /^reaped ESRCH$/m, result.stdout);
+    assert.match(result.stdout, /^none ESRCH$/m, result.stdout);
+    assert.match(result.stdout, /^self sent$/m, result.stdout);
+    const lines = fs.readFileSync(log, "utf8").split("\n");
+    assert.equal(lines.filter((l) => / REFUSED kill pid \d+ is not a live child this test started/.test(l)).length, 2, `the reaped pid and the made-up one, refused by the guard (not by the kernel): ${lines.join("\n")}`);
+    assert.ok(lines.some((l) => l.includes(`REFUSED kill pid ${NO_SUCH_PID} is not a live child this test started (signal 0)`)), lines.join("\n"));
+  } finally {
+    done();
+  }
+});

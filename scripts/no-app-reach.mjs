@@ -19,6 +19,9 @@
  *   - a child a test starts (spawn, spawnSync, exec, execSync, execFile, execFileSync, fork, and the promisified exec
  *     and execFile) with an explicit env still gets the guard: its NODE_OPTIONS gets the guard's --import and its env
  *     the real TMPDIR, added and never replaced (round 58d); a child without an env inherits both;
+ *   - process.kill reaches only the test's own process and its own live children (the pids its child_process calls
+ *     returned, each forgotten when it exits, since a reaped pid may be anybody's); any other pid, signal 0 included,
+ *     and a process group (pid 0 or below) is refused before a signal is sent (round 58d);
  * A refusal throws an Error whose message starts with "no-app-reach:" and sets the process's exit code to 1, so the test
  * file fails even when the code under test swallows the error (a discovery probe reports "down" and goes on). With
  * CREWHUB_TEST_REACH_LOG=<file> the guard records instead (every connect and every refusal, one line each, with the
@@ -33,8 +36,7 @@
  * CREWHUB_TEST_GUARD_HOME=<absolute folder> (round 56, the guard's own tests only) adds a decoy home whose three folders
  * are refused as well; it never replaces $HOME or the user's home. CREWHUB_TEST_REAL_TMPDIR adds, never replaces, too.
  *
- * Not guarded (round 55's docs/proposals/mutation-harness.md, a day round's work): node:sqlite (it opens past node:fs)
- * and process.kill.
+ * Not guarded (round 55's docs/proposals/mutation-harness.md, a day round's work): node:sqlite (it opens past node:fs).
  *
  * It changes nothing for a real host: only the test scripts preload it. The predicates are exported for the unit test
  * in scripts/test/no-app-reach.test.ts, which also checks that the preload is active, and noAppReachPorts.test.ts. */
@@ -110,6 +112,22 @@ const DECOY_WORDS = "the guard test's decoy (CREWHUB_TEST_GUARD_DECOY)";
 /** Ports a test listens on never (round 55): somebody's process holds them, or a host's discovery would take a test's listener for loops. Vite's stays open, as round 55's brief listed it. */
 export const LISTEN_PORTS = NAMED_PORTS.map(({ port }) => port).filter((port) => port !== VITE_PORT);
 export const MARK = Symbol.for("crewhub-world.no-app-reach");
+/** The pids of the children this process started and that have not exited (round 58d): what process.kill may reach. */
+export const OWN_CHILDREN = new Set();
+/**
+ * Why a test may not send `signal` to `pid`, or null (round 58d). Allowed: the test's own process (`self`) and its own
+ * live children (`own`, the pids its child_process calls returned, each dropped when it exits: a reaped pid may be
+ * anybody's). Signal 0 decides like any other: it is aimed at a process too. A pid of 0 or below is a process group
+ * (the test runner's among them): refused. A pid that is not a number is Node's to refuse.
+ */
+export function refusesKill(pid, signal, own = OWN_CHILDREN, self = process.pid) {
+  if (typeof pid !== "number" || !Number.isInteger(pid)) return null;
+  const sig = signal ?? "SIGTERM";
+  if (pid <= 0) return `pid ${pid}, a process group: every process in it, the test runner's too (signal ${sig})`;
+  if (pid === self || own.has(pid)) return null;
+  return `pid ${pid} is not a live child this test started (signal ${sig})`;
+}
+
 /** This file: what NODE_OPTIONS imports in every child. */
 export const GUARD_FILE = fileURLToPath(import.meta.url);
 
@@ -305,18 +323,46 @@ if (globalThis[MARK] === undefined) {
   });
   // child_process (round 58d): a child given an explicit env still gets the guard and the real TMPDIR (guardedArgs).
   // exec and execFile carry their own promisified form (util.promisify.custom), wrapped the same way.
+  // A child the async forms start is the test's own until it exits (OWN_CHILDREN, for process.kill); a sync form's
+  // child has exited when the call returns.
+  const own = (child) => {
+    if (typeof child?.pid !== "number" || typeof child.once !== "function") return child;
+    const pid = child.pid;
+    OWN_CHILDREN.add(pid);
+    child.once("exit", () => OWN_CHILDREN.delete(pid));
+    return child;
+  };
   for (const name of CHILD_FORMS) {
     const original = childProcess[name];
     const wrapped = function guardedChild(...args) {
-      return original.apply(this, guardedArgs(args));
+      return own(original.apply(this, guardedArgs(args)));
     };
     Object.defineProperty(wrapped, "name", { value: original.name });
     const custom = original[promisify.custom];
-    if (typeof custom === "function") Object.defineProperty(wrapped, promisify.custom, { value: (...args) => custom(...guardedArgs(args)) });
+    if (typeof custom === "function")
+      Object.defineProperty(wrapped, promisify.custom, {
+        value: (...args) => {
+          const promise = custom(...guardedArgs(args));
+          own(promise.child);
+          return promise;
+        },
+      });
     wrapped[MARK] = true;
     childProcess[name] = wrapped;
   }
   syncBuiltinESMExports();
+
+  // process.kill (round 58d): only the test's own process and its own live children (refusesKill), refused before any
+  // signal; in record mode the refusal looks like a pid that is not there.
+  const kill = process.kill;
+  process.kill = function guardedKill(pid, signal) {
+    const reason = refusesKill(pid, signal);
+    if (reason === null) return kill.call(process, pid, signal);
+    refuse("kill", reason);
+    if (recording) throw Object.assign(new Error("kill ESRCH (no-app-reach)"), { code: "ESRCH", errno: -3, syscall: "kill" });
+    throw new Error(`no-app-reach: a test reached for ${reason} (kill)`);
+  };
+  process.kill[MARK] = true;
 
   // A child that moves TMPDIR still knows the real one (an env the test gives explicitly may leave it out: then the
   // child's own TMPDIR is all it guards).

@@ -22,3 +22,5 @@ export const GUARD_FILE: string;
 export const CHILD_FORMS: string[];
 export function handDownEnv(env: Record<string, string | undefined>, parent?: Record<string, string | undefined>, guardFile?: string): Record<string, string | undefined>;
 export function guardedArgs(args: unknown[], parent?: Record<string, string | undefined>, guardFile?: string): unknown[];
+export const OWN_CHILDREN: Set<number>;
+export function refusesKill(pid: number, signal?: string | number, own?: Set<number>, self?: number): string | null;
