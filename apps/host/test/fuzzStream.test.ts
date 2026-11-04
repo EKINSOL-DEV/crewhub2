@@ -168,7 +168,7 @@ describe("fuzz: the stream's parsing of loops' lines", () => {
       assert.ok(messages.filter((m) => m.type === "event").length > 100, `seed ${seed}: ${messages.filter((m) => m.type === "event").length} events reached the tab`);
       // The events fed to the archive memory, every project's slug whatever shape `project` has on the wire: only path
       // segments enter the link's set or the set (round 34; the upstream kept this set before round 59d's C5).
-      const memory = createArchiveMemory({ targetNow: () => "fuzz", log: () => undefined });
+      const memory = createArchiveMemory({ log: () => undefined });
       memory.linked("fuzz");
       for (const m of messages) if (m.type === "event") memory.heard(m.envelope);
       for (const slug of [...memory.seen(), ...memory.slugs(), ...(memory.state(true).slugs ?? [])]) assert.ok(isSegment(slug), `seed ${seed}: archived slug ${JSON.stringify(slug)} is no segment`);

@@ -290,13 +290,23 @@ export interface ArchiveReport {
   slugs: string[];
 }
 
+/** What the host knows of the archived projects when a snapshot asks (`SnapshotOptions.archived`). */
+export interface KnownArchived {
+  /** Slugs the host saw archived on its stream, then the ones it remembers (`archiveStore.ts`): read one by one, since the list leaves them out, and kept only when loops confirms. */
+  slugs: Iterable<string>;
+  /** Whether the host remembered any: the source is `remembered` when neither the list nor the log told the set whole. */
+  remembered: boolean;
+}
+
 export interface SnapshotOptions {
   /** The event cursor the snapshot is taken after (the host's stream position). */
   cursor: number;
-  /** Slugs of projects the host saw archived through events: read one by one, since the list leaves them out. */
-  knownArchivedSlugs?: Iterable<string>;
-  /** Slugs the host remembered from an earlier run (`archiveStore.ts`): read one by one too, and confirmed by loops. */
-  rememberedSlugs?: Iterable<string>;
+  /**
+   * The archived projects the host knows (round 60, A1; the archive memory's `forSnapshot()`): asked once, when the
+   * snapshot reaches the archived projects (after the project list and the log's archive read), so an archive heard
+   * on the stream meanwhile counts.
+   */
+  archived?: () => KnownArchived;
   /** The host's own principal (the key's agent, as loops named it): the observer the world hides from the figures. */
   observer?: string | null;
   /** Told where the archived projects came from, once per snapshot. */
@@ -349,14 +359,14 @@ export async function assembleSnapshot(client: LoopsClient, options: SnapshotOpt
   // ones the host remembered (they matter when loops would not read its log whole); read one by one under the same
   // cap, in order, counted and timed like every other read.
   const fromLog: ArchiveLogRead = complete ? { slugs: [], complete: true } : await readArchivedSlugsFromEvents(reader);
-  const remembered = [...(options.rememberedSlugs ?? [])];
+  const known = options.archived?.() ?? { slugs: [], remembered: false };
   // One gate for the three sources (round 34): only a slug that is a path segment is read, whatever road it came by.
-  const unseen = [...new Set([...fromLog.slugs, ...(options.knownArchivedSlugs ?? []), ...remembered])].filter((slug) => isSegment(slug) && !seen.has(slug));
+  const unseen = [...new Set([...fromLog.slugs, ...known.slugs])].filter((slug) => isSegment(slug) && !seen.has(slug));
   const ones = await mapLimit(unseen, limit, (slug) => reader.getJson<{ project: ProjectOut }>("/api/projects/{slug}".replace("{slug}", encodeURIComponent(slug))));
   for (const one of ones) {
     if (one.status === 200 && one.body?.project !== undefined && typeof one.body.project.archivedAt === "string") archivedProjects.push(one.body.project);
   }
-  options.onArchive?.({ source: complete ? "list" : fromLog.complete ? "log" : remembered.length > 0 ? "remembered" : "none", slugs: archivedProjects.map((p) => p.slug).sort() });
+  options.onArchive?.({ source: complete ? "list" : fromLog.complete ? "log" : known.remembered ? "remembered" : "none", slugs: archivedProjects.map((p) => p.slug).sort() });
 
   // The reads of every project, flattened into one capped queue in the projects' order: the board and the features of
   // every project first (two reads each), then the milestones and releases of those that have the feature on.

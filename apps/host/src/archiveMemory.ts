@@ -18,13 +18,11 @@
 import type { Envelope, HostArchiveState } from "@crewhub/loops-client";
 import { isSegment } from "./allowList.ts";
 import { type ArchiveRecord, type ArchiveStore, normaliseSlugs, plainTime } from "./archiveStore.ts";
-import type { ArchiveReport } from "./snapshot.ts";
+import type { ArchiveReport, KnownArchived } from "./snapshot.ts";
 
 export interface ArchiveMemoryOptions {
   /** Where the memory lives across runs; absent: remembered for this run only (nothing read, nothing written). */
   store?: ArchiveStore;
-  /** The target (`targetText`) discovery finds at the moment of a save, or null: the target the saved file names. */
-  targetNow: () => string | null;
   log: (line: string) => void;
   /** The time a change is learnt at, ISO 8601. Default: now. */
   now?: () => string;
@@ -56,6 +54,13 @@ export interface ArchiveMemory {
   slugs(): ReadonlySet<string>;
   /** Health's `connection.archived`; the slugs, sorted, only when `detailed` (a paired browser). */
   state(detailed: boolean): HostArchiveState;
+  /**
+   * The snapshot's `archived` option, for an assembly starting now (round 60, A1): asked when the snapshot reaches the
+   * archived projects, it answers this link's stream set as it is then (`seen`, live: an archive heard meanwhile
+   * counts), followed by the set as it stood when the assembly started (`slugs`), and whether that set had any. A
+   * relink during the assembly leaves the getter on the link it started on.
+   */
+  forSnapshot(): () => KnownArchived;
 }
 
 /** Whether a memory on disk belongs to the loops at `target`: it names that target, or none (the format before round 34). */
@@ -72,12 +77,12 @@ export function createArchiveMemory(options: ArchiveMemoryOptions): ArchiveMemor
   let slugs: ReadonlySet<string> = new Set();
   let at: string | undefined;
   let seen = new Set<string>();
-  /** The target the memory was judged for, so a target change judges it again. */
+  /** The target the memory was judged for, so a target change judges it again; the file is saved under it. */
   let judgedFor: string | null = null;
   /** True once this loops told the host its own set, or the memory on disk is this loops' own: then the file is written. */
   let learnt = false;
 
-  /** Keeps the set (and its source), and writes the file only when the set changed and this loops' set is learnt. */
+  /** Keeps the set (and its source), and writes the file only when the set changed and this loops' set is learnt, under the judged target. */
   function remember(next: Iterable<string>, from: HostArchiveState["source"] | null): void {
     const sorted = normaliseSlugs(next);
     const changed = sorted.join("\n") !== normaliseSlugs(slugs).join("\n");
@@ -88,7 +93,9 @@ export function createArchiveMemory(options: ArchiveMemoryOptions): ArchiveMemor
     at = now();
     if (store === undefined || !learnt) return;
     try {
-      const target = options.targetNow();
+      // The file names the target this set was learnt for: the one the link was judged for (round 60, A5), never the
+      // one discovery finds by the time of the save (it may have switched before the relink judged the new one).
+      const target = judgedFor;
       const record: ArchiveRecord = { slugs: sorted, at, ...(target === null ? {} : { target }) };
       store.save(record);
       onDisk = record;
@@ -149,6 +156,11 @@ export function createArchiveMemory(options: ArchiveMemoryOptions): ArchiveMemor
       const out: HostArchiveState = { source, count: slugs.size, ...(at === undefined ? {} : { at }) };
       if (detailed) out.slugs = normaliseSlugs(slugs);
       return out;
+    },
+    forSnapshot() {
+      const stream = seen;
+      const started = slugs;
+      return () => ({ slugs: [...stream, ...started], remembered: started.size > 0 });
     },
   };
 }
