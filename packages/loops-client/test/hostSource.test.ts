@@ -9,6 +9,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from "node:net";
 import { after, test } from "node:test";
 import { createHostSource, prefetchSnapshot, probeHost } from "../src/hostSource.ts";
+import { worldApiPath } from "../src/hostWire.ts";
 import type { ConnectionState, HostSourceOptions, LoopsSnapshot, SourceMessage } from "../src/source.ts";
 
 const fixture = (name: string): Record<string, unknown> =>
@@ -118,15 +119,15 @@ async function startHost(): Promise<FakeHost> {
   };
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url ?? "/", host.url);
-    if (url.pathname === "/world-api/health") return json(res, 200, { loops: "ok", keyName: "agent-crewhub-world", sharedKey: false, cursor: host.cursor, loopsWebUrl: "http://127.0.0.1:8091", transport: "unix", extra: "ignored" });
-    if (url.pathname === "/world-api/snapshot") {
+    if (url.pathname === worldApiPath("/health")) return json(res, 200, { loops: "ok", keyName: "agent-crewhub-world", sharedKey: false, cursor: host.cursor, loopsWebUrl: "http://127.0.0.1:8091", transport: "unix", extra: "ignored" });
+    if (url.pathname === worldApiPath("/snapshot")) {
       host.snapshots += 1;
       host.onSnapshot?.();
       if (!host.paired) return json(res, 401, { error: "not_paired" });
       if (host.snapshotStatus !== 200) return json(res, host.snapshotStatus, { error: "loops_down" });
       return json(res, 200, snapshotAt(host.cursor));
     }
-    if (url.pathname === "/world-api/team") {
+    if (url.pathname === worldApiPath("/team")) {
       host.teamReads += 1;
       const answer = host.teamAnswer?.(host.teamReads);
       if (answer === undefined) {
@@ -140,7 +141,7 @@ async function startHost(): Promise<FakeHost> {
       }, answer.delayMs);
       return;
     }
-    if (url.pathname === "/world-api/stream") {
+    if (url.pathname === worldApiPath("/stream")) {
       host.cursors.push(url.searchParams.get("cursor"));
       if (host.hang) return; // never answered; closed with the server
       if (!host.paired) return json(res, 401, { error: "not_paired" });
@@ -151,9 +152,9 @@ async function startHost(): Promise<FakeHost> {
       req.on("close", () => streams.delete(res));
       return;
     }
-    if (url.pathname === "/world-api/tickets/CL-85") return json(res, 200, { ticket: fixture("ticket.json") });
-    if (url.pathname === "/world-api/projects/crewhub-loops/milestones") return json(res, 409, { error: "feature_off" });
-    if (url.pathname === "/world-api/project-groups") return json(res, 200, { groups: [] });
+    if (url.pathname === worldApiPath("/tickets/{ref}", { ref: "CL-85" })) return json(res, 200, { ticket: fixture("ticket.json") });
+    if (url.pathname === worldApiPath("/projects/{slug}/milestones", { slug: "crewhub-loops" })) return json(res, 409, { error: "feature_off" });
+    if (url.pathname === worldApiPath("/project-groups")) return json(res, 200, { groups: [] });
     return json(res, 404, { error: "not_found" });
   });
   servers.push(server);

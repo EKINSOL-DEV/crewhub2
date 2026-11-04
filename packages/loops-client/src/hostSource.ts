@@ -21,6 +21,7 @@ import type {
   WatchdogResponse,
 } from "./types.ts";
 import type { ChatLine, ConnectionState, ConnectionStatus, HostSourceOptions, LoopsSnapshot, SourceMessage, WorldSource, ChatThreadFact } from "./source.ts";
+import { worldApiPath } from "./hostWire.ts";
 import {
   type Result,
   validateBoardResponse,
@@ -176,7 +177,6 @@ export interface HostSourceTimings {
 }
 
 const DEFAULT_TIMINGS: HostSourceTimings = { staleMs: 40_000, teamPollMs: 30_000, retryMinMs: 500, retryMaxMs: 10_000, firstRetryMaxMs: 2000 };
-const PREFIX = "/world-api";
 
 /** What the host puts on the stream (ready-team-map: "Host → browser"). */
 type StreamMessage =
@@ -285,7 +285,7 @@ export function readSnapshotState(value: unknown): HostSnapshotState | null {
 /** Asks the host for its health. `null` when nothing answers within `timeoutMs` or the answer is not a host's. */
 export async function probeHost(baseUrl = "", timeoutMs = 1500): Promise<HostHealth | null> {
   try {
-    const response = await fetch(`${baseUrl}${PREFIX}/health`, {
+    const response = await fetch(`${baseUrl}${worldApiPath("/health")}`, {
       signal: AbortSignal.timeout(timeoutMs),
       headers: { accept: "application/json" },
     });
@@ -315,7 +315,7 @@ export async function probeHost(baseUrl = "", timeoutMs = 1500): Promise<HostHea
  * the moment the source decision says live, so the host assembles the snapshot while the world's module loads.
  */
 export function prefetchSnapshot(baseUrl = ""): Promise<Response> {
-  return fetch(`${baseUrl}${PREFIX}/snapshot`, { headers: { accept: "application/json" } });
+  return fetch(`${baseUrl}${worldApiPath("/snapshot")}`, { headers: { accept: "application/json" } });
 }
 
 export function createHostSource(options: HostSourceOptions = {}): WorldSource {
@@ -381,9 +381,11 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
     }
   };
 
-  const url = (path: string) => `${base}${PREFIX}${path}`;
+  /** `path` is a wire path (`worldApiPath`): `/world-api/…`. */
+  const url = (path: string) => `${base}${path}`;
   const get = (path: string, signal?: AbortSignal) =>
     fetch(url(path), { signal: signal ?? null, headers: { ...extraHeaders, accept: "application/json" } });
+  const SNAPSHOT = worldApiPath("/snapshot");
 
   /** Any message from the host: the stream is alive. Silence past `staleMs` is not: the stream is stale and healed. */
   function touched(): void {
@@ -458,7 +460,7 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
   async function loadSnapshot(signal: AbortSignal, pending: Promise<Response> | null = null): Promise<boolean> {
     let response: Response;
     try {
-      response = await (pending ?? get("/snapshot", signal));
+      response = await (pending ?? get(SNAPSHOT, signal));
     } catch {
       if (haveSnapshot) setState("stale");
       return false;
@@ -473,7 +475,7 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
       return false;
     }
     if (!response.ok) {
-      warnOnce(`snapshot:${response.status}`, `GET ${PREFIX}/snapshot answered ${response.status}`);
+      warnOnce(`snapshot:${response.status}`, `GET ${SNAPSHOT} answered ${response.status}`);
       if (haveSnapshot) setState("stale");
       return false;
     }
@@ -507,7 +509,7 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
   async function readStreamWith(signal: AbortSignal): Promise<"resnapshot" | "ended"> {
     let response: Response;
     try {
-      response = await fetch(url(`/stream?cursor=${cursor}`), { signal, headers: { ...extraHeaders, accept: "text/event-stream" } });
+      response = await fetch(url(worldApiPath("/stream", {}, { cursor: String(cursor) })), { signal, headers: { ...extraHeaders, accept: "text/event-stream" } });
     } catch {
       return "ended";
     }
@@ -642,7 +644,7 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
     if (!running) return;
     const ask = ++teamAsked;
     try {
-      const response = await get("/team", abort?.signal);
+      const response = await get(worldApiPath("/team"), abort?.signal);
       if (!response.ok) return;
       const result = validateTeamSnapshot(await response.json());
       if (!result.ok) {
@@ -710,14 +712,14 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
     },
   };
 
-  /** A read of one object through the host, validated; `null` on 404, a rejection otherwise. */
+  /** A read of one object through the host (`path` a wire path), validated; `null` on 404, a rejection otherwise. */
   async function read<T>(path: string, validate: (input: unknown) => Result<T>): Promise<T | null> {
     const response = await get(path);
     if (response.status === 404) return null;
     if (response.status === 409) return null; // feature_off: the lists answer []
-    if (!response.ok) throw new Error(`GET ${PREFIX}${path} answered ${response.status}`);
+    if (!response.ok) throw new Error(`GET ${path} answered ${response.status}`);
     const result = validate(await response.json());
-    if (!result.ok) throw new Error(`GET ${PREFIX}${path}: ${result.path}: ${result.message}`);
+    if (!result.ok) throw new Error(`GET ${path}: ${result.path}: ${result.message}`);
     return result.value;
   }
   const unwrap =
@@ -761,25 +763,23 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
         if (listeners.size === 0) stop();
       };
     },
-    getTicket: (ref): Promise<Ticket | null> => read(`/tickets/${encodeURIComponent(ref)}`, unwrap("ticket", validateTicket)),
-    getProject: (slug): Promise<ProjectOut | null> =>
-      read(`/projects/${encodeURIComponent(slug)}`, unwrap("project", validateProjectOut)),
-    getBoard: (slug): Promise<BoardResponse | null> => read(`/board/${encodeURIComponent(slug)}`, validateBoardResponse),
+    getTicket: (ref): Promise<Ticket | null> => read(worldApiPath("/tickets/{ref}", { ref }), unwrap("ticket", validateTicket)),
+    getProject: (slug): Promise<ProjectOut | null> => read(worldApiPath("/projects/{slug}", { slug }), unwrap("project", validateProjectOut)),
+    getBoard: (slug): Promise<BoardResponse | null> => read(worldApiPath("/board/{slug}", { slug }), validateBoardResponse),
     getWatchdog: async (): Promise<WatchdogResponse> => {
-      const watchdog = await read("/watchdog", validateWatchdogResponse);
-      if (watchdog === null) throw new Error(`GET ${PREFIX}/watchdog answered 404`);
+      const watchdog = await read(worldApiPath("/watchdog"), validateWatchdogResponse);
+      if (watchdog === null) throw new Error(`GET ${worldApiPath("/watchdog")} answered 404`);
       return watchdog;
     },
     getMilestones: async (slug): Promise<MilestoneSummary[]> =>
-      (await read(`/projects/${encodeURIComponent(slug)}/milestones`, validateMilestonesResponse))?.milestones ?? [],
+      (await read(worldApiPath("/projects/{slug}/milestones", { slug }), validateMilestonesResponse))?.milestones ?? [],
     getReleases: async (slug): Promise<ReleaseSummary[]> =>
-      (await read(`/projects/${encodeURIComponent(slug)}/releases`, validateReleasesResponse))?.releases ?? [],
-    listProjectGroups: async (): Promise<ProjectGroup[]> =>
-      (await read("/project-groups", validateProjectGroupsResponse))?.groups ?? [],
+      (await read(worldApiPath("/projects/{slug}/releases", { slug }), validateReleasesResponse))?.releases ?? [],
+    listProjectGroups: async (): Promise<ProjectGroup[]> => (await read(worldApiPath("/project-groups"), validateProjectGroupsResponse))?.groups ?? [],
     getComments: async (ref): Promise<CommentOut[]> =>
-      (await read(`/tickets/${encodeURIComponent(ref)}/comments`, validateCommentsResponse))?.comments ?? [],
+      (await read(worldApiPath("/tickets/{ref}/comments", { ref }), validateCommentsResponse))?.comments ?? [],
     getProgress: async (ref): Promise<ProgressItem[]> =>
-      (await read(`/tickets/${encodeURIComponent(ref)}/progress`, validateProgressResponse))?.progress ?? [],
+      (await read(worldApiPath("/tickets/{ref}/progress", { ref }), validateProgressResponse))?.progress ?? [],
   };
 }
 
@@ -802,12 +802,12 @@ export interface HostAnswer {
  * key is in the request body and nowhere else: not in the URL, not in the answer, not in a log. Never throws.
  */
 export async function connectHost(key: string, baseUrl = "", timeoutMs = 10_000): Promise<HostAnswer> {
-  return hostRequest("POST", `${baseUrl}${PREFIX}/connect`, JSON.stringify({ key }), timeoutMs);
+  return hostRequest("POST", `${baseUrl}${worldApiPath("/connect")}`, JSON.stringify({ key }), timeoutMs);
 }
 
 /** `DELETE /world-api/connect`: the host forgets its stored key (the world then asks for one again). Never throws. */
 export async function forgetHostKey(baseUrl = "", timeoutMs = 10_000): Promise<HostAnswer> {
-  return hostRequest("DELETE", `${baseUrl}${PREFIX}/connect`, null, timeoutMs);
+  return hostRequest("DELETE", `${baseUrl}${worldApiPath("/connect")}`, null, timeoutMs);
 }
 
 /**
@@ -816,7 +816,7 @@ export async function forgetHostKey(baseUrl = "", timeoutMs = 10_000): Promise<H
  * no database. Never throws.
  */
 export async function readHostTown(baseUrl = "", timeoutMs = 10_000): Promise<HostAnswer> {
-  return hostRequest("GET", `${baseUrl}${PREFIX}/town`, null, timeoutMs);
+  return hostRequest("GET", `${baseUrl}${worldApiPath("/town")}`, null, timeoutMs);
 }
 
 /**
@@ -825,7 +825,7 @@ export async function readHostTown(baseUrl = "", timeoutMs = 10_000): Promise<Ho
  * never overwritten). Same origin; the browser sends the Origin header on a PUT by itself. Never throws.
  */
 export async function writeHostTown(document: unknown, baseRev: number, baseUrl = "", timeoutMs = 15_000, op: HostTownOp = "commit"): Promise<HostAnswer> {
-  return hostRequest("PUT", `${baseUrl}${PREFIX}/town`, JSON.stringify(document === null ? { op, baseRev } : { op, document, baseRev }), timeoutMs);
+  return hostRequest("PUT", `${baseUrl}${worldApiPath("/town")}`, JSON.stringify(document === null ? { op, baseRev } : { op, document, baseRev }), timeoutMs);
 }
 
 /** One move of the host's town history (round 21): a person's edit, the world's own record, a step back or forward. */
@@ -833,12 +833,12 @@ export type HostTownOp = "commit" | "amend" | "undo" | "redo";
 
 /** `GET /world-api/town/backups`: the host's backup copies (`world.db.bak-v<n>`) for a restore. Never throws. */
 export async function readHostTownBackups(baseUrl = "", timeoutMs = 10_000): Promise<HostAnswer> {
-  return hostRequest("GET", `${baseUrl}${PREFIX}/town/backups`, null, timeoutMs);
+  return hostRequest("GET", `${baseUrl}${worldApiPath("/town/backups")}`, null, timeoutMs);
 }
 
 /** `GET /world-api/town/backups/{name}`: this installation's town inside one backup copy. Never throws. */
 export async function readHostTownBackup(name: string, baseUrl = "", timeoutMs = 10_000): Promise<HostAnswer> {
-  return hostRequest("GET", `${baseUrl}${PREFIX}/town/backups/${encodeURIComponent(name)}`, null, timeoutMs);
+  return hostRequest("GET", `${baseUrl}${worldApiPath("/town/backups/{name}", { name })}`, null, timeoutMs);
 }
 
 async function hostRequest(method: "GET" | "POST" | "PUT" | "DELETE", url: string, body: string | null, timeoutMs: number): Promise<HostAnswer> {

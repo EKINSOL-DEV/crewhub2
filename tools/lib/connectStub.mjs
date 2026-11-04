@@ -12,6 +12,8 @@ import { createServer, request as httpRequest } from "node:http";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createLoopsWebStub } from "./loopsWebStub.mjs";
+// The wire's route table (packages/loops-client, hostWire.ts): the stub answers the paths the page builds, by the same table.
+import { WORLD_API_PREFIX, worldApiPath } from "../../packages/loops-client/src/hostWire.ts";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -79,7 +81,7 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
     switch (current) {
       case "older": {
         const { host, web } = await ensureInner();
-        const real = await getJson(`${host.url}/world-api/health`);
+        const real = await getJson(`${host.url}${worldApiPath("/health")}`);
         return { loops: real?.loops ?? "ok", keyName: "crewhub-world", sharedKey: false, pairing: "on", paired: true, transport: "tcp", loopsWebUrl: web.url, cursor: real?.cursor ?? 0 };
       }
       case "no-loops":
@@ -99,7 +101,7 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
       case "busy":
       case "connected": {
         const { fake, host, web } = await ensureInner();
-        const real = await getJson(`${host.url}/world-api/health`);
+        const real = await getJson(`${host.url}${worldApiPath("/health")}`);
         const cursor = typeof real?.cursor === "number" ? real.cursor : fake.lastSeq();
         if (typeof real?.cursor === "number" && real.cursor > 0) lastEventAt = lastEventAt ?? new Date().toISOString();
         return {
@@ -200,7 +202,7 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
       else res.end();
     });
     req.pipe(upstream);
-    if (req.url?.startsWith("/world-api/stream")) streams.add(entry);
+    if (req.url?.startsWith(worldApiPath("/stream"))) streams.add(entry);
     res.on("close", () => {
       streams.delete(entry);
       upstream.destroy();
@@ -224,9 +226,9 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
-    if (url.pathname === "/world-api/health" && req.method === "GET") return send(res, 200, await health());
-    if (url.pathname === "/world-api/connect" && req.method === "POST") return connect(req, res);
-    if (url.pathname === "/world-api/connect" && req.method === "DELETE") {
+    if (url.pathname === worldApiPath("/health") && req.method === "GET") return send(res, 200, await health());
+    if (url.pathname === worldApiPath("/connect") && req.method === "POST") return connect(req, res);
+    if (url.pathname === worldApiPath("/connect") && req.method === "DELETE") {
       current = "connect";
       log("connect: the stored key forgotten");
       // As the real host (host.ts legacyState): the tabs' open streams hear "unauthorized", its legacy word for no key as
@@ -248,11 +250,11 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
       await setState(next);
       return send(res, 200, { state: current });
     }
-    if (url.pathname.startsWith("/world-api/")) {
+    if (url.pathname.startsWith(`${WORLD_API_PREFIX}/`)) {
       if (current === "unpaired") return send(res, 401, { error: "not_paired" });
       if (current !== "connected" && current !== "older" && current !== "busy") return send(res, 503, { error: current === "rejected" ? "unauthorized" : current === "no-loops" ? "no_loops" : current === "connect" || current === "pair" || current === "checking" ? "no_key" : "loops_down" });
       const { host } = await ensureInner();
-      if (current === "busy" && url.pathname === "/world-api/stream") return busyStream(res);
+      if (current === "busy" && url.pathname === worldApiPath("/stream")) return busyStream(res);
       return proxy(req, res, host.url);
     }
     send(res, 404, { error: "not_found" });

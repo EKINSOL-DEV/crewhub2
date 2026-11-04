@@ -5,6 +5,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net";
 import test from "node:test";
 import { connectHost, forgetHostKey } from "../src/hostSource.ts";
+import { worldApiPath } from "../src/hostWire.ts";
 
 interface Seen {
   method: string | undefined;
@@ -40,7 +41,7 @@ test("connectHost posts the key as JSON to /world-api/connect and answers the st
     assert.deepEqual(answer, { status: 204, body: null });
     assert.equal(host.seen.length, 1);
     assert.equal(host.seen[0]?.method, "POST");
-    assert.equal(host.seen[0]?.url, "/world-api/connect");
+    assert.equal(host.seen[0]?.url, worldApiPath("/connect"));
     assert.equal(host.seen[0]?.contentType, "application/json");
     assert.deepEqual(JSON.parse(host.seen[0]?.body ?? ""), { key });
     assert.doesNotMatch(JSON.stringify(answer), /chl_/, "the answer never carries the key");
@@ -74,7 +75,7 @@ test("forgetHostKey is a DELETE of /world-api/connect without a body", async () 
   try {
     assert.deepEqual(await forgetHostKey(host.url, 1000), { status: 204, body: null });
     assert.equal(host.seen[0]?.method, "DELETE");
-    assert.equal(host.seen[0]?.url, "/world-api/connect");
+    assert.equal(host.seen[0]?.url, worldApiPath("/connect"));
     assert.equal(host.seen[0]?.body, "");
   } finally {
     await host.close();
