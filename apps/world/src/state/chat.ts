@@ -18,6 +18,7 @@ import { loopsOriginOf } from "./pageChat.ts";
 import { answerTarget, type AnswerTarget } from "./recentAnswers.ts";
 import type { Answer } from "./said.ts";
 import { agentNameOf } from "./view.ts";
+import { storedValue } from "./setting.ts";
 import type { WorldRuntime } from "./world.ts";
 
 /** Where "open the chat for this agent" goes: the agent's card (the demo: its chat is the dock), or the Chat panel (live; null: opened from the chip, no agent). */
@@ -76,23 +77,14 @@ function refreshed(message: { type: "snapshot" } | { type: "event"; envelope: Pi
 
 type PinStorage = Pick<Storage, "getItem" | "setItem">;
 
-function loadPins(storage: () => PinStorage | null): string[] | null {
-  try {
-    const raw = storage()?.getItem(PINS_KEY) ?? null;
-    const value: unknown = raw === null ? null : JSON.parse(raw);
+const storedPins = storedValue<string[] | null>({
+  key: PINS_KEY,
+  parse: (text) => {
+    const value: unknown = text === null ? null : JSON.parse(text);
     return Array.isArray(value) && value.every((id) => typeof id === "string") ? value : null;
-  } catch {
-    return null;
-  }
-}
-
-function savePins(storage: () => PinStorage | null, pins: string[]): void {
-  try {
-    storage()?.setItem(PINS_KEY, JSON.stringify(pins));
-  } catch {
-    // Storage off (a private window): the pins last until the page closes.
-  }
-}
+  },
+  format: (pins) => (pins === null ? null : JSON.stringify(pins)),
+});
 
 export interface DemoChatConfig {
   world: ChatWorld;
@@ -108,7 +100,7 @@ export interface DemoChatConfig {
 export function demoChat(config: DemoChatConfig): Chat {
   const { world, dock, said } = config;
   let api: DemoApi | null = null;
-  const dockApi = () => (api ??= createDemoApi(dock, { pins: loadPins(config.storage), onPinsChange: (pins) => savePins(config.storage, pins), baseUrl: DEMO_LOOPS_URL }));
+  const dockApi = () => (api ??= createDemoApi(dock, { pins: storedPins.read(config.storage), onPinsChange: (pins) => storedPins.write(pins, config.storage), baseUrl: DEMO_LOOPS_URL }));
   let invalidate: ((key: QueryKey) => void) | null = null;
   let lead: string | null | undefined;
   /* The agent's reply, read back from the demo's thread: the line the said store keeps, named as the model names the agent now. */
