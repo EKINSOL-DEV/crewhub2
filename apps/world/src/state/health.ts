@@ -133,6 +133,8 @@ export function createHostHealth(options: HostHealthOptions): HostHealthModule {
   let disposed = false;
   let cancel: (() => void) | null = null;
   let pace: number | null = null;
+  /** When the last read started; null before the first. */
+  let lastAsk: number | null = null;
 
   const holds = (kind: HealthNeed) => (held.get(kind) ?? 0) > 0;
   const fastest = (): number | null => {
@@ -144,20 +146,23 @@ export function createHostHealth(options: HostHealthOptions): HostHealthModule {
     return ms;
   };
   // The poll: one timer at the fastest pace; restarted only when the pace changes, so a need that comes and goes at
-  // the same pace does not push the next read back.
+  // the same pace does not push the next read back. A new pace counts from the last read, not from now: when the
+  // first snapshot's 0.5 s need ends under the panel's 5 s one, the panel's next read is 5 s after the last read.
   const tick = () => {
     cancel = null;
     ask();
-    arm();
+    arm(false);
   };
-  const arm = () => {
+  const arm = (fromLastRead: boolean) => {
     cancel?.();
     cancel = null;
     pace = disposed ? null : fastest();
-    if (pace !== null) cancel = schedule(tick, pace);
+    if (pace === null) return;
+    const wait = fromLastRead && lastAsk !== null ? Math.max(0, pace - (now() - lastAsk)) : pace;
+    cancel = schedule(tick, wait);
   };
   const repace = () => {
-    if (fastest() !== pace) arm();
+    if (fastest() !== pace) arm(true);
   };
   const settle = (): boolean => {
     const was = degraded;
@@ -168,6 +173,7 @@ export function createHostHealth(options: HostHealthOptions): HostHealthModule {
 
   async function read(): Promise<void> {
     reading = true;
+    lastAsk = now();
     let fresh: HostHealth | null = null;
     try {
       fresh = await options.probe({ holds });
@@ -236,7 +242,7 @@ export function createHostHealth(options: HostHealthOptions): HostHealthModule {
 
 /* The page's instance, made on first use: by then main.tsx has recorded the gate's decision and its health. */
 let page: HostHealthModule | null = null;
-export function pageHealth(): HostHealthModule {
+function pageHealth(): HostHealthModule {
   page ??= createHostHealth({
     probe: async (needs) => {
       // "I opened the link" (round 27): while a Connect screen shows, a tab without a bearer asks the other tabs of this

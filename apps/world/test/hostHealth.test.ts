@@ -127,6 +127,23 @@ test("the fastest held need sets the one pace; releasing it falls back to the ne
   module.dispose();
 });
 
+test("a new pace counts from the last read, not from the change: the panel's next read is 5 s after the last one when the first snapshot's need ends (review-c6, 1)", async () => {
+  const { host, clock, module } = setup();
+  const panel = module.need("panel");
+  const snapshot = module.need("snapshot");
+  await settle();
+  await clock.advance(1000);
+  const reads = host.calls;
+  await clock.advance(300);
+  snapshot();
+  assert.equal(clock.pending(), 5000 - 300, "5 s after the read at 1 s, not 5 s after the release");
+  await clock.advance(4700);
+  assert.equal(host.calls, reads + 1);
+  assert.equal(clock.pending(), 5000, "then the panel's own pace");
+  panel();
+  module.dispose();
+});
+
 test("a glance asks once and never polls", async () => {
   const { host, clock, module } = setup();
   const release = module.need("glance");
