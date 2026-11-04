@@ -1,12 +1,13 @@
-/* Build mode's runtime: the town document (loaded from IndexedDB at start, committed on every edit), its catalogue,
+/* Build mode's runtime: the town document (loaded from its store at start, committed on every edit), its catalogue,
    and the prop-request flow. When the projection lists a newly done prop ticket, its ticket and comments are fetched
    once, and the prop is imported and placed as one revision (world/propImport.ts); an invalid prop becomes an error
-   object. Placements made here or imported are marked fresh so the scene materialises them. */
-import { useSyncExternalStore } from "react";
-import { buildingPlanNow } from "./buildingPlan";
+   object. Placements made here or imported are marked fresh so the scene materialises them.
+
+   A runtime is built from its config (state/runtimes.ts builds the page's one): the world runtime it follows, the town
+   context, the store (the browser's, or the host's in live mode: state/hostTown.ts) and the building plan. So a node
+   test builds one over a demo world and a store in memory. */
 import {
   applyEdit,
-  builtinIds,
   createCatalogue,
   importTownDocument,
   propRequestsFromFacts,
@@ -16,18 +17,14 @@ import {
   type TownDocument,
   type TownEdit,
 } from "@crewhub/world-model";
-import { definitions } from "../world/definitions";
-import { placementDefinitions } from "../world/placements";
-import { importPropRequest, type InvalidRequest } from "../world/propImport";
-import { allocationEdit, carryAllocations } from "../world/settlement";
-import { styleRegistry } from "../world/style";
-import { readHostTown, writeHostTown } from "@crewhub/loops-client";
-import { createHostTownStore, townStoreFor } from "./hostTown";
-import { onHostConnected, onHostTown } from "./townBus";
-import { createPropQueue } from "./propQueue";
-import { createTownStore, seededTown, type TownStore } from "./townStore";
-import { applyEdits, invalidChanged, visibleInvalid } from "./townEdits";
-import { LIVE, SCENARIO, STRESS, TOWN_COPY_FROM, TOWN_KEY, worldRuntime } from "./world";
+import type { BuildingPlan } from "../world/buildingTemplate.ts";
+import { definitions } from "../world/definitions.ts";
+import { placementDefinitions } from "../world/placements.ts";
+import { importPropRequest, type InvalidRequest } from "../world/propImport.ts";
+import { allocationEdit } from "../world/settlement.ts";
+import { createPropQueue } from "./propQueue.ts";
+import type { TownStore } from "./townStore.ts";
+import type { WorldRuntime } from "./world.ts";
 
 export interface TownState {
   doc: TownDocument;
@@ -47,8 +44,32 @@ export interface TownState {
 
 export type EditOutcome = { ok: true } | { ok: false; error: string };
 
-class TownRuntime {
-  readonly context: TownContext = { knownStyles: styleRegistry.listStyles().map((s) => s.id), builtinIds: builtinIds(definitions) };
+export interface TownRuntimeConfig {
+  /** The world the town follows: its model gives every project a lot, its facts the prop requests. */
+  world: Pick<WorldRuntime, "state" | "subscribe" | "projection" | "source">;
+  /** The styles and built-in props a town document may name. */
+  context: TownContext;
+  /** Where the town is kept: the browser's store, or the host's (live). */
+  store: TownStore;
+  /** The building template in force now (an imported prop is placed in it). */
+  buildingPlan: () => BuildingPlan;
+  /** A new placement id for an imported prop. */
+  newId: () => string;
+}
+
+/** Several edits as one revision (one undo step): all of them apply, or none, and the first refusal is the answer. */
+function applyEdits(doc: TownDocument, edits: readonly TownEdit[], context: TownContext): { ok: true; doc: TownDocument } | { ok: false; error: string } {
+  let next = doc;
+  for (const edit of edits) {
+    const result = applyEdit(next, edit, context);
+    if (!result.ok) return result;
+    next = result.doc;
+  }
+  return { ok: true, doc: next };
+}
+
+export class TownRuntime {
+  readonly context: TownContext;
   readonly store: TownStore;
   /** Placement ids to materialise the next time the scene shows them. */
   readonly fresh = new Set<string>();
@@ -58,18 +79,16 @@ class TownRuntime {
   /** Done prop requests, imported one at a time; a failed read is tried again after a wait (round 53, review S3). */
   readonly #props = createPropQueue({ run: (ticketKey) => this.#import(ticketKey), again: () => this.#checkRequests() });
   #announce: (text: string) => void = () => {};
+  readonly #world: TownRuntimeConfig["world"];
+  readonly #buildingPlan: () => BuildingPlan;
+  readonly #newId: () => string;
 
-  constructor() {
-    // A scenario's town starts with its zones' looks (Studio's four districts); the stress fixtures start empty.
-    const initial = STRESS ? undefined : seededTown(SCENARIO.townZones, this.context);
-    // Lots are facts of the town, not edits: an undo or redo carries them into the revision it restores.
-    const local = createTownStore({ context: this.context, name: TOWN_KEY, carry: carryAllocations, ...(initial ? { initial } : {}), ...(TOWN_COPY_FROM ? { copyFrom: TOWN_COPY_FROM } : {}) });
-    // Live: the world's host keeps the town for this installation (round 20); the browser's store is the fallback.
-    this.store = townStoreFor({
-      live: LIVE,
-      local,
-      make: (own) => createHostTownStore({ local: own, context: this.context, onTown: onHostTown, onConnected: onHostConnected, transport: { read: () => readHostTown(), write: (op, document, baseRev) => writeHostTown(document, baseRev, "", 15_000, op) }, log: (line) => console.info(`[town] ${line}`) }),
-    });
+  constructor(config: TownRuntimeConfig) {
+    this.context = config.context;
+    this.store = config.store;
+    this.#world = config.world;
+    this.#buildingPlan = config.buildingPlan;
+    this.#newId = config.newId;
     this.#state = this.#derive();
     this.store.subscribe(() => {
       this.#refresh();
@@ -78,7 +97,7 @@ class TownRuntime {
     });
     void this.store.load().then(() => {
       this.#refresh();
-      worldRuntime().subscribe(() => {
+      this.#world.subscribe(() => {
         this.#allocate();
         this.#checkRequests();
       });
@@ -157,7 +176,7 @@ class TownRuntime {
    */
   #allocate() {
     if (!this.store.state.loaded) return;
-    const buildings = worldRuntime().state.model.buildings.map((b) => ({ slug: b.slug, zoneId: b.zoneId }));
+    const buildings = this.#world.state.model.buildings.map((b) => ({ slug: b.slug, zoneId: b.zoneId }));
     if (!allocationEdit(this.store.state.doc, buildings)) return;
     void this.store.amend((doc) => {
       const edit = allocationEdit(doc, buildings);
@@ -191,20 +210,23 @@ class TownRuntime {
   /** Error objects stand only while their ticket is still a done, unimported prop request (a seek can undo it). */
   #visibleInvalid(): InvalidRequest[] {
     if (!this.#invalid.size) return [];
-    return visibleInvalid(this.#invalid, new Set(propRequestsFromFacts(worldRuntime().projection.facts, this.store.state.doc).map((r) => r.ticketKey)));
+    const listed = new Set(propRequestsFromFacts(this.#world.projection.facts, this.store.state.doc).map((r) => r.ticketKey));
+    return [...this.#invalid.values()].filter((r) => listed.has(r.ticketKey));
   }
 
   #checkRequests() {
     if (!this.store.state.loaded) return;
-    const world = worldRuntime();
+    const world = this.#world;
     const requests = propRequestsFromFacts(world.projection.facts, this.store.state.doc);
     const visible = this.#visibleInvalid();
-    if (invalidChanged(visible, this.#state.invalid)) this.#refresh();
+    // The crates shown change by count or by the request at any place (never by equal values): publish them.
+    const shown = this.#state.invalid;
+    if (visible.length !== shown.length || visible.some((r, i) => r !== shown[i])) this.#refresh();
     this.#props.offer(requests.map((r) => r.ticketKey));
   }
 
   async #import(ticketKey: string) {
-    const world = worldRuntime();
+    const world = this.#world;
     const ticket = await world.source.getTicket(ticketKey);
     // A ticket turned down while the read was on its way (Done, then rejected) brings no prop.
     if (!ticket || ticket.resolution === "rejected") return;
@@ -216,8 +238,8 @@ class TownRuntime {
       model: world.state.model,
       ticket,
       comments,
-      placementId: crypto.randomUUID(),
-      buildingPlan: buildingPlanNow(),
+      placementId: this.#newId(),
+      buildingPlan: this.#buildingPlan(),
     });
     if (!result.ok) {
       this.#invalid.set(ticketKey, result.invalid);
@@ -233,13 +255,6 @@ class TownRuntime {
   }
 }
 
-let runtime: TownRuntime | null = null;
-export function townRuntime(): TownRuntime {
-  runtime ??= new TownRuntime();
-  return runtime;
-}
-
-export function useTown(): TownState {
-  const town = townRuntime();
-  return useSyncExternalStore(town.subscribe, () => town.state);
+export function createTownRuntime(config: TownRuntimeConfig): TownRuntime {
+  return new TownRuntime(config);
 }

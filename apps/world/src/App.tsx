@@ -47,9 +47,9 @@ import { toggleFps } from "./state/fps";
 import { readRoleOverrides, writeRoleOverrides } from "./state/roleOverrides";
 import { useBuildMode } from "./state/build";
 import { useDark, useTheme } from "./state/theme";
-import { townRuntime, useTown } from "./state/town";
+import { townRuntime, useConnection, useConnectionKey, useDirectorFeed, useTown, useWorld, worldRuntime } from "./state/runtimes";
 import type { TownLayer } from "./world/propLayer";
-import { scenarioChoices, SOURCE, useConnection, useConnectionKey, useWorld, worldRuntime } from "./state/world";
+import { pageConfig } from "./state/page";
 import { translate } from "./i18n";
 import { probeHost, type ConnectionState, type HostHealth } from "@crewhub/loops-client";
 import { buildingTemplate } from "./world/buildingTemplate";
@@ -61,7 +61,6 @@ import { DirectorLog } from "./components/DirectorLog";
 import { PresenceSettings } from "./components/PresenceSettings";
 import { WhereForm } from "./components/WhereForm";
 import { civicWords } from "./world/settlementDressing";
-import { useDirectorFeed } from "./state/director";
 import type { CameraAction } from "./world/TownScene";
 import { countsLine, laneWords, mmss } from "./world/townLayout";
 import { describePlan, moveFocus } from "./world/townPlan";
@@ -745,7 +744,7 @@ function World() {
     spokenConnection.current = connection;
   }, [connection]);
   // The host's health as the Pair screen last saw it (the gate's read first); the screen polls and keeps it fresh.
-  const [health, setHealth] = useState<HostHealth>(() => SOURCE.health ?? { loops: "ok", keyName: "", sharedKey: false, pairing: "on", paired: false });
+  const [health, setHealth] = useState<HostHealth>(() => pageConfig().source.health ?? { loops: "ok", keyName: "", sharedKey: false, pairing: "on", paired: false });
   // The text view's Chat line and the Chat panel's small print say the chat session's state (round 14): one health read
   // when either opens on a live page, so the words are the host's current ones, not the gate's first read.
   const chatOpen = chat !== null;
@@ -895,7 +894,7 @@ function World() {
         {!demo && connection === "connecting" && <FirstSnapshot />}
       </main>
 
-      {connectionOpen && connection && <ConnectionPanel state={connection} initial={SOURCE.health} onClose={closeConnection} />}
+      {connectionOpen && connection && <ConnectionPanel state={connection} initial={pageConfig().source.health} onClose={closeConnection} />}
 
       {chat && !demo && <ChatPanel agent={chat.agent} health={hostHealth} road={chatRoad} full={narrow} answers={answers} recentEmpty={recentEmptyWords("live", chatRoad)} targetOf={answerTargetOf} onAnswer={openAnswer} onClose={closeChat} />}
 
@@ -1045,7 +1044,7 @@ const SPEEDS: readonly { speed: PlaybackSpeed; label: string }[] = [
 
 /* The chrome around the scene, memoised: the world model changes many times a second under load, and none of these show
    it, so they render only when their own props change. */
-const SCENARIO_CHOICES = scenarioChoices();
+const SCENARIO_CHOICES = pageConfig().scenarioChoices;
 
 const Corner = memo(function Corner({
   demo,

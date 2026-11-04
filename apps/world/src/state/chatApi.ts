@@ -1,7 +1,7 @@
 /* The demo chat API of this page: packages/demo `createDemoApi` over the world's one demo source. The person's pins are
    kept in localStorage, so a reload keeps them (loops keeps them on the server; the demo has none). */
 import { createDemoApi, type DemoApi } from "@crewhub/demo";
-import { worldRuntime } from "./world";
+import { worldRuntime } from "./runtimes";
 
 const PINS_KEY = "crewhub.world.bubbles.pins";
 /* Summary links point at loops' ticket pages (`/t/<KEY>`); the demo has no loops app, so they stay on this page. */

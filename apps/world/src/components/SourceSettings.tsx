@@ -4,11 +4,12 @@
 import { translate, useT } from "../i18n";
 import { useHostHealth } from "../state/health";
 import { hostUrl, hrefWithoutOverride, PROBE_TIMEOUT_MS, SOURCE_SETTINGS, writeSourceSetting, type SourceSetting } from "../state/source";
-import { SOURCE } from "../state/world";
+import { pageConfig } from "../state/page";
 import { Field } from "./primitives";
 
 export function SourceSettings() {
   const { t } = useT();
+  const SOURCE = pageConfig().source;
   // The host's health as last read, not the one the page started with: a key pasted while Live is another bot's (round 48).
   const health = useHostHealth();
   const choose = (value: SourceSetting) => {

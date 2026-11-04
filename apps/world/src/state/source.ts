@@ -174,7 +174,7 @@ export function setFirstSnapshot(value: HostSourceOptions["firstSnapshot"]): voi
   firstSnapshot = value;
 }
 
-/** The snapshot read ahead, once: state/world.ts takes it when it creates the host source. */
+/** The snapshot read ahead, once: state/runtimes.ts takes it when it creates the host source. */
 export function takeFirstSnapshot(): HostSourceOptions["firstSnapshot"] {
   const value = firstSnapshot;
   firstSnapshot = undefined;
