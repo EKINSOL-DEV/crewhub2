@@ -90,7 +90,12 @@ export function demoScenario(id: ScenarioId): DemoScenario {
   return SCENARIOS[id];
 }
 
+/** The scenario `text` names exactly, or null: what a command line refuses instead of playing the default. */
+export function scenarioIdOf(text: string): ScenarioId | null {
+  return (SCENARIO_IDS as readonly string[]).includes(text) ? (text as ScenarioId) : null;
+}
+
 /** The scenario a URL parameter or a stored choice names; the default for anything unknown. */
 export function parseScenarioId(value: string | null | undefined): ScenarioId {
-  return (SCENARIO_IDS as readonly string[]).includes(value ?? "") ? (value as ScenarioId) : DEFAULT_SCENARIO;
+  return scenarioIdOf(value ?? "") ?? DEFAULT_SCENARIO;
 }
