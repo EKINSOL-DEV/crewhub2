@@ -8,12 +8,13 @@
 import { statSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
+import { APP_DATA_PARTS } from "../../../scripts/app-data.mjs";
 
 /** The Mac app's default port, and the URL the discovery tries when its data folder names no other port. */
 export const DEFAULT_LOOPS_URL = "http://127.0.0.1:8091";
 export const DEFAULT_PORT = 5180;
-/** The Mac app's data folder (read only, never written; `CREWHUB_WORLD_LOOPS_APP_DATA` overrides it). */
-export const DEFAULT_APP_DATA = path.join(homedir(), "Library", "Application Support", "be.ekinsol.crewhub");
+/** The Mac app's data folder (read only, never written; `CREWHUB_WORLD_LOOPS_APP_DATA` overrides it): the one spelling, `scripts/app-data.mjs`, as the test preload and the tools' rule read it. */
+export const DEFAULT_APP_DATA = path.join(homedir(), ...APP_DATA_PARTS);
 /** The host's own folder (`CREWHUB_WORLD_CONFIG_DIR` overrides it): the stored key lives here, mode 0700/0600. */
 export const DEFAULT_CONFIG_DIR = path.join(homedir(), ".config", "crewhub-world");
 export const STORED_KEY_NAME = "loops-key";

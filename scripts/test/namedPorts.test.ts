@@ -10,6 +10,7 @@ import * as named from "../named-ports.mjs";
 import * as guard from "../no-app-reach.mjs";
 import * as seed from "../../tools/lib/seed.ts";
 import * as tools from "../../tools/lib/toolGuard.ts";
+import { DEFAULT_APP_DATA } from "../../apps/host/src/config.ts";
 
 test("the list: the nine named ports, each with whose it is, the Mac app's three and the development loops' three", () => {
   assert.deepEqual(
@@ -58,5 +59,6 @@ test("the Mac app's data folder is spelled once (scripts/app-data.mjs): the prel
   assert.equal(guard.APP_DATA_PARTS, appData.APP_DATA_PARTS, "no-app-reach's APP_DATA_PARTS is the one array");
   assert.equal(tools.APP_DATA_PARTS, appData.APP_DATA_PARTS, "toolGuard's APP_DATA_PARTS is the one array");
   assert.equal(guard.APP_DATA, path.join(homedir(), ...appData.APP_DATA_PARTS));
+  assert.equal(DEFAULT_APP_DATA, guard.APP_DATA, "the host's default app data folder is the folder the preload guards (review-pk-p3 1)");
   for (const home of guard.guardedHomes({}, "/Users/someone", "/Users/someone")) assert.ok(guard.guardedFolders([home]).some((f) => f.dir === path.join(home, ...appData.APP_DATA_PARTS) && /Mac app/.test(f.why)), "the preload's folder rule is built from it");
 });

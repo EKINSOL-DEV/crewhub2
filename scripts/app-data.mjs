@@ -1,6 +1,7 @@
 /* The Mac app's data folder, spelled once (round 60, pk-P3): `~/Library/Application Support/be.ekinsol.crewhub`, where
  * Crewhub.app keeps its crewhub-loops (its `settings.json` names the app's port; `run/api.sock` is its socket). Never
  * a test's or a tool's:
+ *   - the host reads it as its default (`apps/host/src/config.ts` `DEFAULT_APP_DATA`), the one place that looks there;
  *   - the test preload `scripts/no-app-reach.mjs` refuses every path under it (and a connect to its socket);
  *   - the tools' rule `tools/lib/toolGuard.ts` refuses it as a tool's host's app data folder.
  * A plain `.mjs` with no imports, so the preload can load it before anything else, beside `named-ports.mjs` (the
