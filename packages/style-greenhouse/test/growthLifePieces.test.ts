@@ -88,6 +88,25 @@ test("scaffolding: ledgers at every lift on all four sides, poles just outside t
   assert.ok(tarp[0]!.position.z > depth / 2, "the tarp hangs on the front");
 });
 
+test("scaffolding is built of real sizes only, with a brace across every front bay on every lift and no more (r55-style-load's mutation pass: growth.ts:129, :135, :142, :143)", () => {
+  const k = kit();
+  for (const [width, height, depth] of [[6, 3, 5], [8.5, 4.6, 3.2]] as const) {
+    const g = scaffolding(k, opts({ size: { width, height, depth } }));
+    const box = new THREE.Box3().setFromObject(g);
+    assert.ok([...box.min.toArray(), ...box.max.toArray()].every(Number.isFinite), `${width} x ${depth}: every piece has a size and a place`);
+    g.traverse((o) => assert.ok([...o.position.toArray(), ...o.scale.toArray()].every(Number.isFinite), `${width} x ${depth}: ${o.type} at ${o.position.toArray()}`));
+    const lifts = Math.max(1, Math.round(height / 1.15));
+    const bays = Math.ceil(width / 2.4);
+    const bar = k.geometry("growth:bar", () => new THREE.BoxGeometry(1, 1, 1));
+    let bars = 0;
+    g.traverse((o) => {
+      if ((o as THREE.Mesh).geometry === bar) bars += 1;
+    });
+    // Per lift four ledgers and the front guard rail; a brace per front bay per lift; one brace per side; the ladder's two rails and five rungs.
+    assert.equal(bars, lifts * 5 + lifts * bays + 2 + 2 + 5, `${width} x ${depth}`);
+  }
+});
+
 test("a district gate without a name: two piers either side of the opening, a lantern each, ivy, a sprig on both faces of the board in the district's colour", () => {
   const k = kit();
   const width = 4.2;
