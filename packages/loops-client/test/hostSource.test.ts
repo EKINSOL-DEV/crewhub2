@@ -697,3 +697,81 @@ test("a host that said loops is down and then goes quiet stays loops-down: only 
   run.stop();
   await host.close();
 });
+
+test("round 55: stop clears the stale timer: a source started again is not made stale by the stopped run's silence", async (t) => {
+  // Under mock timers the stale timer fires only when the test ticks, so the check is on state, not on a measured gap.
+  // The first run's last message armed its timer at 0 (due at 10 s); the second run's arms at 6 s (due at 16 s). At
+  // 11 s only a timer the stop left running could fire, and it would call the second, live run stale and heal it.
+  const host = await startHost();
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const run = observe(host.url, { timings: { ...TIMINGS, staleMs: 10_000 } });
+  try {
+    await settle(() => run.state() === "live" && host.cursors.length === 1, "the first run live, its stream open");
+    t.mock.timers.tick(6_000);
+    run.stop();
+    const again: SourceMessage[] = [];
+    const stopAgain = run.source.start((message) => again.push(message));
+    stops.push(stopAgain);
+    await settle(() => run.state() === "live" && host.cursors.length === 2 && again.some((m) => m.type === "snapshot"), "the second run live, its stream open");
+    const from = run.states.length;
+    t.mock.timers.tick(5_000);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(run.state(), "live");
+    assert.deepEqual(run.states.slice(from), [], "no state change at 11 s: nothing of the first run fired");
+    stopAgain();
+  } finally {
+    run.stop();
+    t.mock.timers.reset();
+    host.endStreams();
+    await host.close();
+  }
+});
+
+test("round 55: a listener that stops the source on its first snapshot leaves no stale timer running after the stop", async (t) => {
+  // The snapshot goes to the listeners before the source arms its stale timer. Spies on the mocked setTimeout and
+  // clearTimeout (as the back-off test above) record the source's own stale timers (staleMs here) and what it cleared:
+  // after a stop, every one of them must be cleared. Mocked, none fires by itself, so nothing here waits on a clock.
+  const host = await startHost();
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const mockedSet = globalThis.setTimeout;
+  const mockedClear = globalThis.clearTimeout;
+  const armed: unknown[] = [];
+  const cleared = new Set<unknown>();
+  globalThis.setTimeout = ((fn: (...args: unknown[]) => void, ms?: number, ...args: unknown[]) => {
+    const handle = mockedSet(fn, ms, ...args);
+    if (ms === 10_000 && (new Error().stack ?? "").includes("/src/hostSource.ts")) armed.push(handle);
+    return handle;
+  }) as unknown as typeof setTimeout;
+  globalThis.clearTimeout = ((handle: unknown) => {
+    cleared.add(handle);
+    return mockedClear(handle as Parameters<typeof clearTimeout>[0]);
+  }) as unknown as typeof clearTimeout;
+  const source = createHostSource({ baseUrl: host.url, timings: { ...TIMINGS, staleMs: 10_000 } });
+  let stopFirst = (): void => {};
+  let stopped = false;
+  stopFirst = source.start((message) => {
+    if (message.type !== "snapshot" || stopped) return;
+    stopped = true;
+    stopFirst();
+  });
+  stops.push(stopFirst);
+  try {
+    await settle(() => stopped, "the run stopped by its listener on the snapshot");
+    await new Promise((resolve) => setImmediate(resolve));
+    const running = () => armed.filter((handle) => !cleared.has(handle));
+    assert.deepEqual(running(), [], `after the stop in the listener: stale timers armed ${armed.length}, still running ${running().length}`);
+    // The spies see the source's timers: a plain run arms one, and its stop clears it.
+    const stopAgain = source.start(() => {});
+    stops.push(stopAgain);
+    await settle(() => source.connection!.state() === "live" && running().length === 1, "a plain run live, its stale timer armed");
+    stopAgain();
+    assert.deepEqual(running(), [], "after a plain stop");
+  } finally {
+    stopFirst();
+    globalThis.setTimeout = mockedSet;
+    globalThis.clearTimeout = mockedClear;
+    t.mock.timers.reset();
+    host.endStreams();
+    await host.close();
+  }
+});
