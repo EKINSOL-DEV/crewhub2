@@ -5,12 +5,12 @@
    and the keys of the stage are driven under `node --test` through this one interface (`test/view.test.ts`). App.tsx
    dispatches and keeps the value; WorldCanvas and TownScene read it and send intents back. Before this module the same
    facts lived in ten `useState`s, fifteen callbacks and a second walk-back copy in the scene. */
-import { archivedWords, type AgentPlacement, type RoomKind, type RoomWording, type WorldModel } from "@crewhub/world-model";
+import { archivedWords, laneLook, type AgentPlacement, type RoomKind, type RoomWording, type WorldModel } from "@crewhub/world-model";
 import type { Pick as Target } from "../world/buildingView.ts";
 import { buildingTemplate } from "../world/buildingTemplate.ts";
 import { firstRoom, roomNeighbor } from "../world/interiorLayout.ts";
 import { roomName, roomSummary, zoomedTo } from "../world/roomWords.ts";
-import { countsLine, laneWords } from "../world/townLayout.ts";
+import { countsLine } from "../world/townLayout.ts";
 import { moveFocus, type TownPlan } from "../world/townPlan.ts";
 import { isRegion, stepOut, summarise, summaryWords, type DistrictPlace, type JumpEntry, type Place } from "../world/wayfinding.ts";
 import type { CameraAction } from "../world/TownScene.ts";
@@ -155,7 +155,7 @@ function describeBuilding(model: ViewFacts["model"], index: number): string {
   if (!b) return "";
   if (b.archived) return `${b.name} (${b.key}), archived: ${archivedWords(b.archivedAt, model.now)}${b.archivedBy ? ` by ${b.archivedBy}` : ""}. ${countsLine(b.counts)}. Enter to look inside.`;
   const lead = b.agents.find((a) => a.key === b.lead.id && a.presence === "real");
-  return `${b.name} (${b.key}). ${countsLine(b.counts)}. Lead ${b.lead.displayName}, ${lead ? laneWords(lead.laneStatus, model.freshness) : "not in the building"}. Enter to go inside.`;
+  return `${b.name} (${b.key}). ${countsLine(b.counts)}. Lead ${b.lead.displayName}, ${lead ? laneLook(lead.laneStatus, model.freshness).words : "not in the building"}. Enter to go inside.`;
 }
 
 const describeDistrict = (d: DistrictPlace): string => `${d.name}. ${summaryWords(summarise(d.buildings))}`;
@@ -168,7 +168,7 @@ export function stepView(view: View, intent: ViewIntent, facts: ViewFacts): View
   const buildings = model.buildings;
   const inside = insideOf(view, buildings);
   const here = hereOf(view, districts);
-  const roomSummaryOf = (kind: RoomKind) => (inside ? roomSummary(inside, kind, (a: AgentPlacement) => laneWords(a.laneStatus, model.freshness), rooms) : "");
+  const roomSummaryOf = (kind: RoomKind) => (inside ? roomSummary(inside, kind, (a: AgentPlacement) => laneLook(a.laneStatus, model.freshness).words, rooms) : "");
   const cleared = { selection: NO_SELECTION, card: false, following: null } as const;
 
   const enter = (slug: string): ViewStep => {

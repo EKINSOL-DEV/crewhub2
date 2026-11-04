@@ -1,7 +1,7 @@
 /* The town's plot grid and the words the town labels use. Pure: no Three.js, no DOM, so it runs under `node --test`.
    World units: x east, z south (towards the home camera); the civic row (post office, square, town hall) sits behind
    the building rows. Streets run between the plots; a green belt rings the town (townDressing.ts dresses both). */
-import { laneLook, type Freshness, type LaneStatus, type TicketStatus } from "@crewhub/world-model";
+import type { TicketStatus } from "@crewhub/world-model";
 
 export const TOWN_COLUMNS = 4;
 export const TOWN_ROWS = 3;
@@ -93,10 +93,6 @@ export function countsLine(counts: Record<TicketStatus, number>): string {
   return STATUS_ORDER.map((s) => `${counts[s]} ${STATUS_WORD[s]}`).join(", ");
 }
 
-/** The short words for a lane status (the appearance module's `laneLook`), by the name App.tsx reads them. */
-export function laneWords(status: LaneStatus, freshness: Freshness): string {
-  return laneLook(status, freshness).words;
-}
 
 /** "mm:ss" for the playback bar; minutes are not capped at 59. */
 export function mmss(ms: number): string {
