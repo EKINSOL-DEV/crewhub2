@@ -382,14 +382,8 @@ export function createConnection(options: ConnectionOptions): Connection {
       // The connection's own ear on its stream, for as long as this link lives: the stream is the second opinion on
       // the key (a confirmed 401/403 is rejected, ok is ok, down says nothing), loops going away sends the discovery
       // looking again on the app's roads, the dm events feed the chat path and the archive events the memory of the
-      // closed buildings. Subscribed with no cursor, so the first message is the stream's current status, not a
-      // change: skipped.
-      let first = true;
-      upstream.subscribe(null, (message) => {
-        if (first) {
-          first = false;
-          return;
-        }
+      // closed buildings. An observer, not a tab: it hears the changes from now on, no status at once and no replay.
+      upstream.observe((message) => {
         if (link?.upstream !== upstream) return;
         if (message.type === "status") {
           if (message.loops === "unauthorized") {

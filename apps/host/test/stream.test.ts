@@ -413,4 +413,28 @@ describe("the upstream, without a host", () => {
     await waitFor("the stream after the second 429", () => upstream.state() === "ok");
     assert.deepEqual(statuses.slice(2), [{ type: "status", loops: "ok" }], "the second 429 changes nothing the tab is told");
   });
+
+  it("gives an observer (the connection's ear) what happens from now on: no status at once, no replay of the buffer", async () => {
+    const { stub, upstream } = await start();
+    const words = (heard: HostMessage[]) => heard.map((m) => (m.type === "event" ? `event ${m.envelope.seq}` : m.type === "status" ? `status ${m.loops}` : m.type));
+    const early: HostMessage[] = [];
+    const stop = upstream.observe((message) => early.push(message));
+    assert.deepEqual(words(early), [], "nothing at once: a tab is told the state it subscribes in, an observer is not");
+    await upstream.start();
+    await waitFor("the stream open", () => upstream.state() === "ok");
+    assert.deepEqual(words(early), ["status ok"], "the change to ok is heard; the down it started in was no change");
+    stub.emit(anEvent());
+    await waitFor("seq 2 at the early observer", () => words(early).includes("event 2"));
+    const late: HostMessage[] = [];
+    const tab: HostMessage[] = [];
+    upstream.observe((message) => late.push(message));
+    upstream.subscribe(1, (message) => tab.push(message));
+    assert.deepEqual(words(tab), ["status ok", "event 2"], "a tab at cursor 1 is told the state and gets seq 2 replayed from the buffer");
+    assert.deepEqual(words(late), [], "an observer gets neither");
+    stop();
+    stub.emit(anEvent());
+    await waitFor("seq 3 at the late observer", () => words(late).includes("event 3"));
+    assert.deepEqual(words(late), ["event 3"]);
+    assert.deepEqual(words(early), ["status ok", "event 2"], "an observer that stopped hears nothing more");
+  });
 });
