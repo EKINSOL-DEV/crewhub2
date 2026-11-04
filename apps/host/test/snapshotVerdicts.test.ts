@@ -50,14 +50,18 @@ const CASES: [string, (path: string, q: Query) => boolean, number, Outcome][] = 
   ["an archived project read one by one, 403 (left out)", (p) => p === "/api/projects/old", 403, "assembles"],
   ["a board, 401", (p) => p === "/api/board/atlas", 401, "unauthorized"],
   ["a board, 404", (p) => p === "/api/board/atlas", 404, "loops_down"],
+  ["a board, 200 that is no JSON", (p) => p === "/api/board/atlas", 200, "loops_down"],
   ["a project's features, 403", (p) => p === "/api/projects/beacon/features", 403, "unauthorized"],
   ["a feature's first page, 403", (p, q) => p === "/api/projects/atlas/milestones" && q.cursor === undefined, 403, "unauthorized"],
   ["a feature's first page, 500", (p, q) => p === "/api/projects/atlas/milestones" && q.cursor === undefined, 500, "loops_down"],
+  ["a feature's first page, 200 that is no JSON", (p, q) => p === "/api/projects/atlas/milestones" && q.cursor === undefined, 200, "loops_down"],
   ["a feature's first page, 409 (the feature is off)", (p, q) => p === "/api/projects/atlas/milestones" && q.cursor === undefined, 409, "assembles"],
   ["a feature's next page, 403", (p, q) => p === "/api/projects/atlas/milestones" && q.cursor !== undefined, 403, "unauthorized"],
   ["a feature's next page, 502", (p, q) => p === "/api/projects/atlas/milestones" && q.cursor !== undefined, 502, "loops_down"],
   ["the log's facts read, 403", logRead, 403, "unauthorized"],
   ["the log's facts read, 500 (no quiet, no runs)", logRead, 500, "assembles"],
+  ["a quiet ticket's activity, 403", (p, q) => p === "/api/events" && q.ticket !== undefined, 403, "unauthorized"],
+  ["a quiet ticket's activity, 500 (the paged read decides)", (p, q) => p === "/api/events" && q.ticket !== undefined, 500, "assembles"],
   ["the people, 403", (p) => p === "/api/principals", 403, "unauthorized"],
   ["the watchdog, 503", (p) => p === "/api/watchdog", 503, "loops_down"],
 ];
@@ -65,7 +69,8 @@ const CASES: [string, (path: string, q: Query) => boolean, number, Outcome][] = 
 describe("the snapshot's verdict per read (round 60, H3)", () => {
   let stub: LoopsStub;
   before(async () => {
-    stub = await createLoopsStub({ ...installation(), events: [envelope(40, "ticket.created")] });
+    const quiet = envelope(39, "ticket.quiet", { ticket: { id: "tk_AT", key: "AT-1", title: "First" }, actor: { id: "system", kind: "system" }, payload: { status: "in_progress", minutes: 15, since: "2026-10-21T07:00:00Z", ticket: "AT-1" } });
+    stub = await createLoopsStub({ ...installation(), events: [quiet, envelope(40, "ticket.created")] });
   });
   after(async () => {
     await stub.close();
