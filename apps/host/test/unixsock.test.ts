@@ -37,7 +37,7 @@ describe("the Unix socket transport", () => {
     cleanup.push(() => rmSync(dir, { recursive: true, force: true }));
     const stub = await createLoopsStub({ ...installation(), socketPath: path.join(dir, "loops.sock"), ...stubOptions });
     cleanup.push(() => stub.close());
-    const host = await createHost({ loopsUrl: "http://127.0.0.1:8091", loopsSocket: stub.socketPath as string, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 20, max: 40 }, ...hostOptions });
+    const host = await createHost({ loopsUrl: "http://127.0.0.1:1", loopsSocket: stub.socketPath as string, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 20, max: 40 }, ...hostOptions });
     cleanup.push(() => host.close());
     // A settled host: the key checked and the stream open over the socket (never assumed from the clock).
     await waitFor("the stream over the socket", async () => (await read(host.url)).connection.stream.state === "ok");
@@ -50,8 +50,8 @@ describe("the Unix socket transport", () => {
     assert.equal(health.transport, "unix");
     assert.equal(health.loops, "ok");
     assert.equal(health.cursor, 1);
-    assert.equal(health.loopsWebUrl, "http://127.0.0.1:8091", "the URL still names the web app for the sign-in link");
-    const named = await createHost({ loopsUrl: "http://127.0.0.1:8091", loopsWebUrl: "http://127.0.0.1:8291/", loopsSocket: stub.socketPath as string, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 } });
+    assert.equal(health.loopsWebUrl, "http://127.0.0.1:8091", "a socket has no origin: the app's default names the web app for the sign-in link (text only, never asked)");
+    const named = await createHost({ loopsUrl: "http://127.0.0.1:1", loopsWebUrl: "http://127.0.0.1:8291/", loopsSocket: stub.socketPath as string, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 } });
     cleanup.push(() => named.close());
     assert.equal(((await (await fetch(`${named.url}/world-api/health`)).json()) as { loopsWebUrl: string }).loopsWebUrl, "http://127.0.0.1:8291", "loopsWebUrl names another web app when given");
     const snapshot = (await (await fetch(`${host.url}/world-api/snapshot`)).json()) as { projects: { slug: string }[]; milestones: Record<string, unknown[]>; cursor: number };
@@ -115,7 +115,7 @@ describe("the Unix socket transport", () => {
     const dir = socketDir();
     cleanup.push(() => rmSync(dir, { recursive: true, force: true }));
     const socketPath = path.join(dir, "loops.sock");
-    const host = await createHost({ loopsUrl: "http://127.0.0.1:8091", loopsSocket: socketPath, key: "chl_x", keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 60 } });
+    const host = await createHost({ loopsUrl: "http://127.0.0.1:1", loopsSocket: socketPath, key: "chl_x", keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 60 } });
     cleanup.push(() => host.close());
     // Down once the host's first attempt on the socket was refused (waited for; never read off health's bounded wait).
     await waitFor("loops down over the socket", async () => (await read(host.url)).loops === "down");
