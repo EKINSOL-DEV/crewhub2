@@ -11,7 +11,8 @@ presentation; it runs the scripted demo source (`@crewhub/demo`) or, in live mod
 director runtimes are each built from a config, and the chat (`src/state/chat.ts`) from one of
 two adapters, the demo's dock or the live Chat panel; `src/state/page.ts` reads the page's address and
 source decision once, and `src/state/runtimes.ts` builds the page's runtimes from it and holds
-their hooks. In demo mode
+their hooks. The dialogs and panels over the town are one
+module too (`src/state/overlays.ts`): which are open, where the focus returns, what Escape closes. In demo mode
 nothing reaches the network and everything is labelled as demo; in live mode the
 Connect screens (`src/state/connect.ts`, `components/ConnectPage.tsx`) stand in for the
 town until the host has found crewhub-loops, this browser is paired and the key is accepted.
