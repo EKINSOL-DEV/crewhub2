@@ -18,3 +18,7 @@ export const DECOY_PORT: number | null;
 export function refusesConnect(args: unknown[], decoy?: number | null): string | null;
 export function listenTarget(args: unknown[]): { port?: number; host?: string };
 export function refusesListen(args: unknown[], decoy?: number | null): string | null;
+export const GUARD_FILE: string;
+export const CHILD_FORMS: string[];
+export function handDownEnv(env: Record<string, string | undefined>, parent?: Record<string, string | undefined>, guardFile?: string): Record<string, string | undefined>;
+export function guardedArgs(args: unknown[], parent?: Record<string, string | undefined>, guardFile?: string): unknown[];
