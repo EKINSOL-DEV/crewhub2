@@ -11,8 +11,9 @@
  *     or ~/.config/crewhub-loops (Nicky's folders), or a relative `settings.json` / `run/api.sock` (what `createHost`
  *     reads when a test leaves the app data folder empty) is refused before it is opened. `~` is $HOME and also the
  *     user's home from the user database (getpwuid, round 56), so a test that moves HOME is still refused the real ones;
- *   - a real host's run file, `<TMPDIR>/crewhub-world-host-<port>.json` for a port 1024 to 49151 (a real host's chosen
- *     port; a test's host listens on port 0 and lands at 49152 or up), is refused in the real TMPDIR (round 56): the
+ *   - a real host's run file, `<TMPDIR>/crewhub-world-host-<port>.json` for a port 1024 to 32767 (a real host's chosen
+ *     port; a test's host listens on port 0 and lands in the ephemeral range, 32768-60999 on Linux and 49152-65535 on
+ *     macOS, round 56b), is refused in the real TMPDIR (round 56): the
  *     first preloaded process's, handed down in CREWHUB_TEST_REAL_TMPDIR, as well as each process's own.
  * A refusal throws an Error whose message starts with "no-app-reach:" and sets the process's exit code to 1, so the test
  * file fails even when the code under test swallows the error (a discovery probe reports "down" and goes on). With
@@ -22,7 +23,8 @@
  * CREWHUB_TEST_GUARD_DECOY=<port> (round 56, for the guard's own tests only): the guard refuses that one port too, on the
  * same path (connect and listen, logged in record mode, thrown in guard mode). A guard test picks a port of its own and
  * proves a refusal on it: no test aims at a named port, not even to show it is refused. Only a whole number in
- * 49152-65535 (the ephemeral range, where a test's own port-0 listener lands) counts; anything else is ignored.
+ * 1024-65535 counts (a test's own port-0 listener lands at 32768-60999 on Linux and 49152-65535 on macOS, round 56b; the
+ * knob only adds a refusal, so a wider range opens nothing); anything else is ignored.
  *
  * CREWHUB_TEST_GUARD_HOME=<absolute folder> (round 56, the guard's own tests only) adds a decoy home whose three folders
  * are refused as well; it never replaces $HOME or the user's home. CREWHUB_TEST_REAL_TMPDIR adds, never replaces, too.
@@ -77,12 +79,13 @@ export function realTmpDirs(env = process.env, own = tmpdir()) {
   return [...out];
 }
 const TMP_DIRS = realTmpDirs();
-/** A real host's run file: `crewhub-world-host-<port>.json` with a port a person chooses (1024 to 49151), not a test's. */
+/** A real host's run file: `crewhub-world-host-<port>.json` with a port a person chooses (1024 to 32767, below both
+    ephemeral ranges: Linux 32768-60999, macOS 49152-65535), not a test's. */
 export function isRealRunFile(file, tmpDirs = TMP_DIRS) {
   const match = /^crewhub-world-host-(\d+)\.json$/.exec(path.basename(file));
   if (match === null) return false;
   const port = Number(match[1]);
-  return port >= 1024 && port <= 49151 && tmpDirs.includes(path.dirname(file));
+  return port >= 1024 && port <= 32767 && tmpDirs.includes(path.dirname(file));
 }
 export const APP_PORTS = [8091, 8000, 9443];
 /** Ports a test connects to never, each with whose it is (round 55): every connect of `npm test` goes to a port 0 listener. */
@@ -94,11 +97,11 @@ export const OTHER_PORTS = new Map([
   [5180, "the world host's default port, where somebody's npm run world listens"],
   [5173, "the Vite dev server's port"],
 ]);
-/** The decoy port of `CREWHUB_TEST_GUARD_DECOY`, or null: a whole number in 49152-65535, else ignored. */
+/** The decoy port of `CREWHUB_TEST_GUARD_DECOY`, or null: a whole number in 1024-65535, else ignored. */
 export function decoyOf(text) {
   if (typeof text !== "string" || !/^\d+$/.test(text)) return null;
   const port = Number(text);
-  return port >= 49152 && port <= 65535 ? port : null;
+  return port >= 1024 && port <= 65535 ? port : null;
 }
 export const DECOY_PORT = decoyOf(process.env.CREWHUB_TEST_GUARD_DECOY);
 const DECOY_WORDS = "the guard test's decoy (CREWHUB_TEST_GUARD_DECOY)";

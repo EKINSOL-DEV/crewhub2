@@ -16,7 +16,7 @@ planted roads, and the order a day round runs the mutants in. **No mutant of the
 **Since then** (round 55, `task/r55-guard`) it also refuses a connect to 8291 to 8293, 8391, 5180 and 5173, and a
 listen on 8091, 8000, 9443, 8291 to 8293, 8391 and 5180: the table's TCP and listen rows below are history for those
 ports. **Round 56** (`task/r56-guard-home`) closed two more: the folders are refused under the user's own home
-(`os.userInfo().homedir`) as well as `$HOME`, and a real host's run file (`crewhub-world-host-<1024 to 49151>.json`)
+(`os.userInfo().homedir`) as well as `$HOME`, and a real host's run file (`crewhub-world-host-<1024 to 32767>.json`, below both ephemeral ranges since round 56b: Linux's port 0 lands at 32768)
 directly in the real `TMPDIR` is refused, also in a child that moves its `TMPDIR` (the first process hands the real one
 down). A child given an explicit env without that hand-down *and* a moved `TMPDIR` still guards only its own. The rest
 of the table still holds:
