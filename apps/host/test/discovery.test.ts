@@ -82,7 +82,7 @@ describe("the discovery", () => {
     );
     try {
       assert.equal(await discovery.start(), null);
-      assert.deepEqual(discovery.lookedFor(), ["app-port http://127.0.0.1:8091"]);
+      assert.ok(lines.some((l) => l.startsWith("loops not found (looked for app-port http://127.0.0.1:8091);")), lines.join("\n"));
       // It keeps looking: two more probes after the first pass, each answered "nobody", and still nothing found.
       const afterStart = probes;
       await waitFor("two more probes", () => probes >= afterStart + 2);
