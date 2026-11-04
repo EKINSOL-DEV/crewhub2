@@ -46,6 +46,16 @@ test("resume: after= or cursor=, never both; an after is a non-negative safe int
   assert.throws(() => parseResume(q("after=x"), "7"), WireError, "a bad after query is refused even with a header");
 });
 
+test("resume: digits and nothing else are an integer, though Number reads more; a cursor in the header is trimmed too (round 62, r62-mut-a: wire.ts:43, 65)", () => {
+  const q = (s: string) => new URLSearchParams(s);
+  for (const bad of ["after=1e3", "after=0x10", "after=1.0", "after=7%20"]) {
+    const e = refused(() => parseResume(q(bad)), bad);
+    assert.deepEqual({ status: e.status, message: e.message }, { status: 400, message: "Invalid after" }, bad);
+  }
+  assert.deepEqual(parseResume(q(""), "1e3"), { after: null, cursor: "1e3" }, "a header that Number could read is still a cursor");
+  assert.deepEqual(parseResume(q(""), " s7w7xabc "), { after: null, cursor: "s7w7xabc" });
+});
+
 test("the heartbeat line: v, type, seq, the cursor of now (none for a loops before CL-406), ts last", () => {
   const now = new Date("2026-11-04T20:00:00.000Z");
   assert.deepEqual(Object.entries(heartbeatLine(41, "tok", now)), [["v", 1], ["type", "heartbeat"], ["seq", 41], ["cursor", "tok"], ["ts", "2026-11-04T20:00:00.000Z"]]);
