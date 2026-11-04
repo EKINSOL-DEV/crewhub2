@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { amendHistory, applyEdit, canRedo, canUndo, commitHistory, createHistory, currentDocument, redoHistory, undoHistory, type TownContext, type TownDocument, type TownHistory } from "@crewhub/world-model";
 import type { HostAnswer, HostTownOp, TownConflictSent, TownReadSent, TownWrittenSent } from "@crewhub/loops-client";
-import { CONFLICT_NOTE, IMPORTED_NOTE, UNREADABLE_NOTE, createHostTownStore, townStoreFor, type HostTownTransport } from "../src/state/hostTown.ts";
+import { CONFLICT_NOTE, IMPORTED_NOTE, NO_DB_NOTE, UNREADABLE_NOTE, createHostTownStore, townStoreFor, type HostTownTransport } from "../src/state/hostTown.ts";
 import { createTownStore } from "../src/state/townStore.ts";
 
 const CONTEXT: TownContext = { knownStyles: ["greenhouse"], builtinIds: [] };
@@ -184,6 +184,29 @@ test("another browser's write first: the conflict takes the host's town and says
   for (const l of host.listeners) l(4);
   await flush();
   assert.equal(store.rev, 4);
+});
+
+test("a host that cannot name a town yet (rev null): offline, with the note for no database and the store's own for no loops; nothing written (review-h2 1)", async () => {
+  const empty = createTownStore({ context: CONTEXT, indexedDB: null }).state.doc;
+  for (const reason of ["no_world_db", "no_loops"] as const) {
+    const host = fakeHost({ rev: 1, document: empty });
+    const read = host.transport.read;
+    host.transport.read = async () => ({ status: 200, body: { installation: null, rev: null, document: null, reason } satisfies TownReadSent });
+    const { local, store } = make(host, 15);
+    try {
+      await store.load();
+      assert.equal(store.rev, null, `${reason}: no revision`);
+      assert.equal(store.state.storage, "memory", `${reason}: the browser's own store serves`);
+      // No database is said (NO_DB_NOTE); no loops is not: the browser's own store's note stands (here, no IndexedDB).
+      assert.equal(store.state.storageNote, reason === "no_world_db" ? NO_DB_NOTE : local.state.storageNote, `${reason}: the note`);
+      assert.deepEqual(host.writes, [], `${reason}: nothing imported or written`);
+    } finally {
+      // The host names its town after all: the offline retry takes it, and the store's retry stops (nothing left running).
+      host.transport.read = read;
+    }
+    while (store.rev !== 1) await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.equal(store.state.storage, "host", `${reason}: the host's town once it is named`);
+  }
 });
 
 test("offline: the browser keeps editing and says so; when the host answers again its town is offered as the next revision", async () => {

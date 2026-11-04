@@ -135,15 +135,16 @@ describe("the wire's contract: what the host and the stubs write, the page's rea
     assert.equal(conflict.status, 409);
     assert.deepEqual(readTownConflict(409, conflict.body), conflict.body, "the conflict, with the host's town");
     const undone = await put({ op: "undo", baseRev: 1 });
-    assert.deepEqual(readTownWritten(200, undone.body), undone.body);
+    assert.deepEqual(readTownWritten(undone.status, undone.body), undone.body);
     // A backup copy beside the database (the file is copied whole: journal_mode DELETE), read back as this installation's town.
     copyFileSync(db.file, path.join(path.dirname(db.file), "world.db.bak-v1"));
     const backups = await get(worldApiPath("/town/backups"));
-    assert.deepEqual(readTownBackups(200, backups.body), backups.body);
+    assert.equal(backups.status, 200);
+    assert.deepEqual(readTownBackups(backups.status, backups.body), backups.body);
     assert.deepEqual((readTownBackups(200, backups.body) ?? { backups: [] }).backups.map((b) => [b.name, b.version]), [["world.db.bak-v1", 1]]);
     const backup = await get(worldApiPath("/town/backups/{name}", { name: "world.db.bak-v1" }));
     assert.equal(backup.status, 200);
-    assert.deepEqual(readTownBackup(200, backup.body), backup.body);
+    assert.deepEqual(readTownBackup(backup.status, backup.body), backup.body);
     // A host with no database, and one with no loops found: a 200 that names the reason (the page's offline note).
     const bare = await testHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", keySource: "env", pairing: "off", log: () => undefined });
     cleanup.push(() => bare.close());
@@ -218,5 +219,13 @@ describe("the wire's contract: what the host and the stubs write, the page's rea
     assert.equal(response.status, 403);
     assert.deepEqual(readConnectAnswer(403, body), body);
     assert.equal(body.error, "key_rejected", "the host's word (host.ts connect), not one of the stub's own");
+    // A request's own fault: the host's word is validation_error (review-h2 2), for a key that is no key and a body that is no JSON.
+    const noKey = await fetch(`${stub.url}${worldApiPath("/connect")}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: "nope" }) });
+    const noKeyBody = (await noKey.json()) as Record<string, unknown>;
+    assert.equal(noKey.status, 400);
+    assert.deepEqual(readConnectAnswer(noKey.status, noKeyBody), noKeyBody);
+    assert.equal(noKeyBody.error, "validation_error");
+    const noJson = await fetch(`${stub.url}${worldApiPath("/connect")}`, { method: "POST", headers: { "content-type": "application/json" }, body: "{" });
+    assert.equal(((await noJson.json()) as Record<string, unknown>).error, "validation_error");
   });
 });
