@@ -30,10 +30,10 @@ export interface ChatFollow {
 }
 
 export interface Chat {
-  /** Where a bubble tap, a card's Chat button, an answer row or the chip (null) opens the chat for an agent. */
-  open(agent: string | null): ChatOpening;
-  /** Where an answer row goes, in words: the agent, the row's action and its note. */
-  answerTarget(answer: Pick<Answer, "agentId" | "agentName">): AnswerTarget;
+  /** Where a bubble tap, a card's Chat button, an answer row or the chip (null) opens the chat for an agent. Safe to pass unbound. */
+  readonly open: (agent: string | null) => ChatOpening;
+  /** Where an answer row goes, in words: the agent, the row's action and its note. Safe to pass unbound. */
+  readonly answerTarget: (answer: Pick<Answer, "agentId" | "agentName">) => AnswerTarget;
   /** Whether the chat has a panel of its own: a card then shows a Chat button. */
   readonly panel: boolean;
   /** The copied dock's api (api/client sends every request of the dock here); null in live, where there is no dock. */
@@ -59,6 +59,8 @@ function placementOf(model: WorldModel, agentId: string): AgentPlacement | null 
    chat part), and the pins' key (components/bubbles/queries.ts `dmKeys.pins`, a verbatim copy this module cannot load). */
 const DM_KEYS: QueryKey[] = [["dm-messages"], ["dm-threads"]];
 const SNAPSHOT_KEYS: QueryKey[] = [["dm-threads"], ["dm-messages"], ["dm-summary"], ["agents"]];
+// Kept here, not imported: queries.ts would close the cycle chat → queries → api/client → runtimes → chat, and it does
+// not load in node. A test reads queries.ts's text and holds the two equal (test/chat.test.ts).
 export const PINS_QUERY_KEY: QueryKey = ["bubbles-pins"];
 /** The person's pins, kept so a reload keeps them (loops keeps them on the server; the demo has none). */
 export const PINS_KEY = "crewhub.world.bubbles.pins";
@@ -120,7 +122,7 @@ export function demoChat(config: DemoChatConfig): Chat {
   };
   return {
     open: (agent) => ({ card: agent }),
-    answerTarget(answer) {
+    answerTarget: (answer) => {
       const placed = placementOf(world.state.model, answer.agentId);
       const name = placed?.displayName ?? answer.agentName ?? answer.agentId;
       return { agent: { key: placed?.key ?? answer.agentId, name }, action: `Open ${name}'s card`, note: null };
@@ -175,7 +177,7 @@ export function liveChat(config: LiveChatConfig): Chat {
   };
   return {
     open: (agent) => ({ panel: agent === null ? null : { key: agent, name: agentNameOf(world.state.model, agent) } }),
-    answerTarget(answer) {
+    answerTarget: (answer) => {
       const model = world.state.model;
       const placed = placementOf(model, answer.agentId);
       return answerTarget(answer, placed ? agentCardFacts(model, world.projection.facts, placed.key) : null);

@@ -117,7 +117,7 @@ class WorldRuntime {
   readonly epochMs: number;
   /**
    * The chat dock's demo source: the world's own, or (stress fixture) a separate scripted demo for the dock only. Null in
-   * live mode: the dock then shows the sign-in link (the chat is phase 2).
+   * live mode: a live page has no dock; its chat is crewhub-loops' own, in the Chat panel (state/chat.ts `liveChat`).
    */
   readonly chat: DemoSource | null;
   /** The live source's standing with its host; null for the demo, which is always there. */

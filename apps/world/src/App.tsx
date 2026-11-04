@@ -314,6 +314,12 @@ function World() {
   const selectedAgent = selection.selected?.kind === "agent" ? selection.selected.key : null;
   const agentName = useCallback((key: string) => agentNameOf(model, key), [model]);
   const follow = useCallback((key: string | null) => void dispatch({ type: "follow", key }), []);
+  const openSettings = useCallback(() => {
+    returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setSettingsOpen(true);
+  }, []);
+  // The page's chat (state/chat.ts): it follows the host's health and the building you are in; its navigations open Settings.
+  const talk = useChat({ health: hostHealth, leadId: inside?.lead.id ?? null, openSettings });
   // Opening the chat for an agent (a bubble tap, a card's Chat button, an answer row; null: the chip) goes where the
   // page's chat (state/chat.ts) says: the agent's card in the demo, whose chat is its scripted dock, or the Chat panel,
   // whose Escape and close button return the focus to the opener.
@@ -340,10 +346,6 @@ function World() {
   const closeText = useCallback(() => {
     setTextOpen(false);
     returnFocus.current?.focus();
-  }, []);
-  const openSettings = useCallback(() => {
-    returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setSettingsOpen(true);
   }, []);
   const closeSettings = useCallback(() => {
     setSettingsOpen(false);
@@ -382,8 +384,6 @@ function World() {
   useEffect(() => {
     if (textOpen) textRegion.current?.focus();
   }, [textOpen]);
-  // The page's chat (state/chat.ts): it follows the host's health and the building you are in; its navigations open Settings.
-  const talk = useChat({ health: hostHealth, leadId: inside?.lead.id ?? null, openSettings });
   useEffect(() => {
     if (settingsOpen) settingsCard.current?.querySelector<HTMLElement>("button")?.focus();
   }, [settingsOpen]);
