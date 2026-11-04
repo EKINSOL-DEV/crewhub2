@@ -20,8 +20,8 @@ import type {
   Ticket,
   WatchdogResponse,
 } from "./types.ts";
-import type { ChatLine, ConnectionState, ConnectionStatus, HostSourceOptions, LoopsSnapshot, SourceMessage, WorldSource, ChatThreadFact } from "./source.ts";
-import { worldApiPath } from "./hostWire.ts";
+import type { ConnectionState, ConnectionStatus, HostSourceOptions, LoopsSnapshot, SourceMessage, WorldSource } from "./source.ts";
+import { type HostHealth, type HostKeyState, type HostStreamState, readChatLine, readHostHealth, readThreadFacts, worldApiPath } from "./hostWire.ts";
 import {
   type Result,
   validateBoardResponse,
@@ -39,130 +39,6 @@ import {
   warnOnce,
 } from "./validate.ts";
 
-/** How the host found crewhub-loops (spec addendum "a smooth connection", part 1). */
-export interface HostDiscovery {
-  /** `searching`: nothing answers yet; the host looks again every 5 s. */
-  state: "found" | "searching";
-  /** What found it: the env URL or socket (the scripted road), or the Mac app's socket or port from its data folder. */
-  via?: "env-url" | "env-socket" | "app-socket" | "app-port";
-  /** The URL or socket path (paired browsers only; absent before pairing). */
-  target?: string;
-}
-
-/**
- * The host's key: none yet (the Connect screen), being checked, rejected by loops, ok, or `unchecked`: the host holds a
- * key but crewhub-loops has not answered about it (down, restarting, a 5xx, a timeout); it is checked again when loops
- * answers. Only a definite 401 or 403 from a loops whose health answers makes a key `rejected`; a rejected key stays on
- * disk with its reason until a new one is pasted or it is forgotten.
- */
-export interface HostKeyState {
-  state: "none" | "unchecked" | "checking" | "rejected" | "ok";
-  /** The key's agent name (`agent-<name>.key`, or the principal loops answered); paired browsers only. */
-  name?: string;
-  /** Where the key came from: the environment's file, the host's stored key, or the old default file. Paired only. */
-  source?: "env" | "stored" | "default";
-  /** Why loops rejected it, in words a person can act on (a probe or reader key, an unknown key). Never the key. */
-  reason?: string;
-  /** When the host re-checks a rejected key with loops by itself (ISO time): a bot re-enabled in loops comes back then. */
-  recheckAt?: string;
-}
-
-/**
- * The chat's road (round 12; one road since round 19): present as `key` when this crewhub-loops lets the world's own key
- * read the chat (a viewer key, `world/viewer-key`), so the agents' answers come as bubbles over the key's own stream;
- * `unknown` (round 29) while the host cannot say yet (no link to loops, the key unchecked or being checked), so the
- * page decides no road on it; absent when the host knows the key does not read the chat (an older loops, a plain
- * external bot's key, loops' chat bubbles feature off): no bubbles over the key, and the world says the ways. The
- * sign-in road (`signed-out`, `signed-in`, `expired`, a person's session kept by the host) went with the switch to the
- * viewer key (decision 9).
- */
-export interface HostSessionState {
-  state: "key" | "unknown";
-}
-
-/** The host's one upstream stream. */
-export interface HostStreamState {
-  /**
-   * `idle`: no stream (no loops found or no key yet); `busy`: loops refused the stream with 429 `too_many_streams`
-   * (four streams per key: another host or tab uses this key; the host retries after `Retry-After`); the rest as
-   * `HostHealth.loops`.
-   */
-  state: "idle" | "ok" | "down" | "unauthorized" | "busy";
-  /** Why the stream is not ok, in words a person can act on (`busy`: "stream budget exhausted (429): …"). */
-  reason?: string;
-  /** The last `seq` the host holds (paired only). */
-  cursor?: number;
-  /** When the last event arrived, ISO 8601 (paired only). */
-  lastEventAt?: string;
-  /** Reconnects since the host started (loops' 300 s end counts). */
-  reconnects: number;
-}
-
-/**
- * Where the host's list of archived projects (closed buildings) comes from: `list`, loops listed them itself (a key that
- * may ask `includeArchived`); `log`, read from loops' event log in this run; `remembered`, from the host's own file of an
- * earlier run (this loops would not let the host read its log from the start); `none`, nothing known yet. The stream's
- * own `project.archived` and `project.restored` events count on top of any of them.
- */
-export interface HostArchiveState {
-  source: "list" | "log" | "remembered" | "none";
-  /** How many projects the host knows as archived. */
-  count: number;
-  /** When the list was learnt or last changed, ISO 8601. */
-  at?: string;
-  /** The slugs (paired browsers only). */
-  slugs?: string[];
-}
-
-/**
- * The host's last snapshot assembly, so the page can say "Reading 12 projects from crewhub-loops…" while the first
- * snapshot loads: `idle` before any, `reading` with the reads done so far (and the project count once the list is
- * in), `ready` with what it cost, `failed` with the reason the snapshot route answered.
- */
-export type HostSnapshotState =
-  | { state: "idle" }
-  | { state: "reading"; reads: number; projects?: number }
-  | { state: "ready"; projects: number; reads: number; ms: number }
-  | { state: "failed"; reason: string };
-
-/** The honest states of the connection (spec addendum "a smooth connection", part 4). Before pairing: states only. */
-export interface HostConnection {
-  discovery: HostDiscovery;
-  key: HostKeyState;
-  stream: HostStreamState;
-  /** Absent on a host from before the archive memory. */
-  archived?: HostArchiveState;
-  /** Absent on a host from before the step list. */
-  snapshot?: HostSnapshotState;
-  /** The chat's road: `key` when the world's key reads the chat on this loops (bubbles); absent when it does not. */
-  session?: HostSessionState;
-}
-
-/** `GET /world-api/health`. Never the key. */
-export interface HostHealth {
-  loops: "ok" | "down" | "unauthorized";
-  /** The key's agent name; `""` while the host has no key (then `connection.key.state` is `none`). */
-  keyName: string;
-  /** Always false since the builder-key fallback went; kept for hosts from before. */
-  sharedKey: boolean;
-  /** Discovery, key and stream states; absent on a host from before the smooth connection. */
-  connection?: HostConnection;
-  loopsCommit?: string;
-  /** The version the host read first in this run, when loops answered another since (loops updated under the host). */
-  loopsCommitBefore?: string;
-  cursor?: number;
-  /** The origin of crewhub-loops' web app (the API's URL; on the Mac both share 8091), for the sign-in link. */
-  loopsWebUrl?: string;
-  /** How the host reaches loops: `tcp` (the URL) or `unix` (the app's socket). Absent on a host from before the seam. */
-  transport?: "tcp" | "unix";
-  /** Whether this browser carries a valid pairing cookie (plan 3.5). Absent on a host from before pairing. */
-  paired?: boolean;
-  /** `off` only in development; then every request counts as paired. */
-  pairing?: "on" | "off";
-  /** The id of the checkout the host runs from (apps/host `checkout.ts`): a dev server refuses another checkout's host. */
-  checkout?: string;
-}
-
 /** The source's clocks, with their defaults. Tests inject short ones. */
 export interface HostSourceTimings {
   /** No message of any kind for this long → `stale`. Default 40 s (two loops heartbeats plus slack). */
@@ -178,6 +54,8 @@ export interface HostSourceTimings {
 
 const DEFAULT_TIMINGS: HostSourceTimings = { staleMs: 40_000, teamPollMs: 30_000, retryMinMs: 500, retryMaxMs: 10_000, firstRetryMaxMs: 2000 };
 
+const oneOf = <T extends string>(value: unknown, values: readonly T[]): T | undefined => (values.includes(value as T) ? (value as T) : undefined);
+
 /** What the host puts on the stream (ready-team-map: "Host → browser"). */
 type StreamMessage =
   /** `key`: the host's own word on its key (round 11); a host from before sends none. */
@@ -192,96 +70,6 @@ type StreamMessage =
   /** The installation's town document changed on the host (round 20): the town runtime refetches it. */
   | { type: "town"; rev: unknown };
 
-/** An agent's line as the host sends it (`ChatLine` of the source, the same shape). */
-export type HostChatLine = ChatLine;
-
-/** A chat line from the host, strictly: the ids and the text as non-empty strings, the name when given. */
-export function readChatLine(value: unknown): ChatLine | null {
-  const raw = value as Partial<Record<keyof ChatLine, unknown>> | null | undefined;
-  if (!raw || typeof raw.agentId !== "string" || raw.agentId === "" || typeof raw.text !== "string" || raw.text === "" || typeof raw.at !== "string" || typeof raw.messageId !== "string" || typeof raw.threadId !== "string") return null;
-  const out: ChatLine = { agentId: raw.agentId, text: raw.text, at: raw.at, messageId: raw.messageId, threadId: raw.threadId };
-  if (typeof raw.agentName === "string" && raw.agentName !== "") out.agentName = raw.agentName;
-  return out;
-}
-
-/** The thread facts from the host, strictly: a list; each row with its agent id, a stamp and a count, or it is dropped. */
-export function readThreadFacts(value: unknown): ChatThreadFact[] | null {
-  if (!Array.isArray(value)) return null;
-  const out: ChatThreadFact[] = [];
-  for (const row of value as Partial<Record<keyof ChatThreadFact, unknown>>[]) {
-    if (!row || typeof row.agentId !== "string" || row.agentId === "" || typeof row.lastMessageAt !== "string" || typeof row.unreadCount !== "number" || !Number.isInteger(row.unreadCount) || row.unreadCount < 0) continue;
-    out.push({ agentId: row.agentId, lastMessageAt: row.lastMessageAt, unreadCount: row.unreadCount });
-  }
-  return out;
-}
-
-const oneOf = <T extends string>(value: unknown, values: readonly T[]): T | undefined => (values.includes(value as T) ? (value as T) : undefined);
-
-/** The `connection` object of a health answer, or null when it is missing or malformed (an older host). Never the key. */
-export function readConnection(value: unknown): HostConnection | null {
-  if (value === null || typeof value !== "object") return null;
-  const raw = value as { discovery?: Partial<HostDiscovery>; key?: Partial<HostKeyState>; stream?: Partial<HostStreamState>; archived?: Partial<HostArchiveState>; snapshot?: unknown; session?: unknown };
-  const discoveryState = oneOf(raw.discovery?.state, ["found", "searching"]);
-  const keyState = oneOf(raw.key?.state, ["none", "unchecked", "checking", "rejected", "ok"]);
-  const streamState = oneOf(raw.stream?.state, ["idle", "ok", "down", "unauthorized", "busy"]);
-  if (discoveryState === undefined || keyState === undefined || streamState === undefined) return null;
-  const discovery: HostDiscovery = { state: discoveryState };
-  const via = oneOf(raw.discovery?.via, ["env-url", "env-socket", "app-socket", "app-port"]);
-  if (via !== undefined) discovery.via = via;
-  if (typeof raw.discovery?.target === "string") discovery.target = raw.discovery.target;
-  const key: HostKeyState = { state: keyState };
-  if (typeof raw.key?.name === "string") key.name = raw.key.name;
-  const source = oneOf(raw.key?.source, ["env", "stored", "default"]);
-  if (source !== undefined) key.source = source;
-  if (typeof raw.key?.reason === "string") key.reason = raw.key.reason;
-  if (typeof raw.key?.recheckAt === "string") key.recheckAt = raw.key.recheckAt;
-  const stream: HostStreamState = { state: streamState, reconnects: typeof raw.stream?.reconnects === "number" ? raw.stream.reconnects : 0 };
-  if (typeof raw.stream?.cursor === "number") stream.cursor = raw.stream.cursor;
-  if (typeof raw.stream?.lastEventAt === "string") stream.lastEventAt = raw.stream.lastEventAt;
-  if (typeof raw.stream?.reason === "string") stream.reason = raw.stream.reason;
-  const out: HostConnection = { discovery, key, stream };
-  const archiveSource = oneOf(raw.archived?.source, ["list", "log", "remembered", "none"]);
-  if (archiveSource !== undefined) {
-    const archived: HostArchiveState = { source: archiveSource, count: typeof raw.archived?.count === "number" ? raw.archived.count : 0 };
-    if (typeof raw.archived?.at === "string") archived.at = raw.archived.at;
-    if (Array.isArray(raw.archived?.slugs)) archived.slugs = raw.archived.slugs.filter((s): s is string => typeof s === "string");
-    out.archived = archived;
-  }
-  const snapshot = readSnapshotState(raw.snapshot);
-  if (snapshot !== null) out.snapshot = snapshot;
-  const session = readSessionState(raw.session);
-  if (session !== null) out.session = session;
-  return out;
-}
-
-/** The host's `connection.session`, strictly: `key` only; anything else (a host from before with a sign-in state) is dropped. */
-export function readSessionState(value: unknown): HostSessionState | null {
-  const raw = value as { state?: unknown } | null | undefined;
-  const state = oneOf(raw?.state, ["key", "unknown"]);
-  return state === undefined ? null : { state };
-}
-
-/** The `snapshot` of a connection, or null when it is missing or malformed. */
-export function readSnapshotState(value: unknown): HostSnapshotState | null {
-  if (value === null || typeof value !== "object") return null;
-  const raw = value as { state?: unknown; reads?: unknown; projects?: unknown; ms?: unknown; reason?: unknown };
-  const count = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : undefined);
-  switch (raw.state) {
-    case "idle":
-      return { state: "idle" };
-    case "reading": {
-      const projects = count(raw.projects);
-      return { state: "reading", reads: count(raw.reads) ?? 0, ...(projects === undefined ? {} : { projects }) };
-    }
-    case "ready":
-      return { state: "ready", projects: count(raw.projects) ?? 0, reads: count(raw.reads) ?? 0, ms: count(raw.ms) ?? 0 };
-    case "failed":
-      return { state: "failed", reason: typeof raw.reason === "string" ? raw.reason : "" };
-    default:
-      return null;
-  }
-}
-
 /** Asks the host for its health. `null` when nothing answers within `timeoutMs` or the answer is not a host's. */
 export async function probeHost(baseUrl = "", timeoutMs = 1500): Promise<HostHealth | null> {
   try {
@@ -290,21 +78,7 @@ export async function probeHost(baseUrl = "", timeoutMs = 1500): Promise<HostHea
       headers: { accept: "application/json" },
     });
     if (!response.ok) return null;
-    const body = (await response.json()) as Partial<HostHealth> | null;
-    if (body === null || typeof body !== "object") return null;
-    if (!["ok", "down", "unauthorized"].includes(body.loops as string) || typeof body.keyName !== "string") return null;
-    const health: HostHealth = { loops: body.loops as HostHealth["loops"], keyName: body.keyName, sharedKey: body.sharedKey === true };
-    if (typeof body.loopsCommit === "string") health.loopsCommit = body.loopsCommit;
-    if (typeof body.loopsCommitBefore === "string") health.loopsCommitBefore = body.loopsCommitBefore;
-    if (typeof body.cursor === "number") health.cursor = body.cursor;
-    if (typeof body.loopsWebUrl === "string" && /^https?:\/\//.test(body.loopsWebUrl)) health.loopsWebUrl = body.loopsWebUrl;
-    if (body.transport === "tcp" || body.transport === "unix") health.transport = body.transport;
-    if (typeof body.paired === "boolean") health.paired = body.paired;
-    if (body.pairing === "on" || body.pairing === "off") health.pairing = body.pairing;
-    if (typeof body.checkout === "string" && /^[0-9a-f]{6,64}$/.test(body.checkout)) health.checkout = body.checkout;
-    const connection = readConnection(body.connection);
-    if (connection !== null) health.connection = connection;
-    return health;
+    return readHostHealth(await response.json());
   } catch {
     return null;
   }

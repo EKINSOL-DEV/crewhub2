@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readThreadFacts } from "../src/hostSource.ts";
+import { readThreadFacts } from "../src/hostWire.ts";
 
 test("thread facts from the host (round 24): a list of rows with an agent id, a stamp and a count; a bad row is dropped, a non-list is null", () => {
   assert.deepEqual(readThreadFacts([{ agentId: "boing", lastMessageAt: "2026-10-22T07:05:00.174Z", unreadCount: 1 }]), [{ agentId: "boing", lastMessageAt: "2026-10-22T07:05:00.174Z", unreadCount: 1 }]);

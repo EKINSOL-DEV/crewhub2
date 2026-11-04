@@ -62,12 +62,13 @@ export {
   validateWatchdogResponse,
   warnOnce,
 } from "./validate.ts";
-export { WORLD_API_PREFIX, WORLD_ROUTES, fillPattern, isSegment, worldApiPath } from "./hostWire.ts";
+export { WORLD_API_PREFIX, WORLD_ROUTES, fillPattern, isSegment, worldApiPath, readChatLine, readThreadFacts } from "./hostWire.ts";
 export type { WorldRoute, WorldRoutePattern } from "./hostWire.ts";
 export { connectHost, createHostSource, forgetHostKey, prefetchSnapshot, probeHost, readHostTown, readHostTownBackup, readHostTownBackups, writeHostTown } from "./hostSource.ts";
 export type { HostTownOp } from "./hostSource.ts";
-export type { HostAnswer, HostArchiveState, HostChatLine, HostConnection, HostDiscovery, HostHealth, HostKeyState, HostSessionState, HostSnapshotState, HostSourceTimings, HostStreamState } from "./hostSource.ts";
-export { readConnection } from "./hostSource.ts";
+export type { HostAnswer, HostSourceTimings } from "./hostSource.ts";
+export type { HostArchiveState, HostConnection, HostDiscovery, HostHealth, HostHealthSent, HostKeyState, HostSessionState, HostSnapshotState, HostStreamState } from "./hostWire.ts";
+export { readConnection, readHostHealth } from "./hostWire.ts";
 export { ACTIVITY_TYPES, ACTIVITY_TYPES_QUERY, LOG_FACT_STATUSES, LOG_FACT_TYPES, LOG_RUNS_KEPT, openTicketsOf, quietCandidates, selectLogFacts } from "./logFacts.ts";
 export type { LogFacts, OpenTicket } from "./logFacts.ts";
 export {
