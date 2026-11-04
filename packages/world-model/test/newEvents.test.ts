@@ -131,3 +131,8 @@ test("round 9: a snapshot carries the quiet stretches and the runs the source re
   assert.ok(lines.some((l) => /^CL-85 has been quiet in Review for 45 min/.test(l)), lines.join("\n"));
   assert.ok(lines.includes('Automation "Label stale bugs" ran on CL-85: done.'));
 });
+
+test("round 54: a quiet stretch of a full hour is said in hours, one minute less in minutes", () => {
+  assert.equal(quietWords(59), "59 min");
+  assert.equal(quietWords(60), "1 h");
+});

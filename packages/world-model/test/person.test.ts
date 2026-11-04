@@ -213,3 +213,14 @@ test("where answers for a person by name, in both wordings", () => {
   assert.equal(where(after, "Nicky", undefined, "three-rooms"), "Nicky is a person in CL project; they just moved CL-1 to the Done rack.");
   assert.equal(where(reduce(T0 + 60_000), "Nicky"), 'No agent called "Nicky" is in CrewHub World.');
 });
+
+test("round 54: a queued carry is carrying from the very moment it starts", () => {
+  const { reduce, event } = world();
+  reduce(T0);
+  event(byPerson("t1", "CL-1", "review", 1_000));
+  reduce(T0 + 1_100);
+  event(byPerson("t2", "CL-2", "review", 2_000));
+  const queued = building(reduce(T0 + 2_500)).visits.find((v) => v.ticketKey === "CL-2")!;
+  assert.equal(queued.phase, "queued");
+  assert.equal(building(reduce(queued.startedAt)).visits.find((v) => v.ticketKey === "CL-2")?.phase, "carrying");
+});

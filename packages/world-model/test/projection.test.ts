@@ -150,6 +150,20 @@ test("ticket.archived removes the card and counts it for the lobby", () => {
   assert.equal(projection.facts.archivedTickets["crewhub-loops"], 1);
 });
 
+test("round 54: only ticket.unarchived is remembered for the flight back from the truck, and the lobby counts one less", () => {
+  const { projection } = setup();
+  const archived = envelope("ticket.archived", { batchId: null, batchSize: null, releaseId: null, reason: "single" }, { seq: 101, ticket: ticketRef });
+  projection.apply({ type: "event", envelope: archived });
+  projection.apply({ type: "event", envelope: envelope("ticket.unarchived", { batchId: null, releaseId: null }, { seq: 102, ticket: ticketRef }) });
+  projection.apply({ type: "event", envelope: envelope("ticket.updated", { changed: ["priority"] }, { seq: 103, ticket: ticketRef }) });
+  projection.apply({ type: "event", envelope: envelope("comment.deleted", { commentId: "cm_1", parentId: null }, { seq: 104, ticket: ticketRef }) });
+  assert.deepEqual(
+    projection.facts.unarchives.map((u) => [u.seq, u.slug, u.ticketId, u.ticketKey]),
+    [[102, "crewhub-loops", "tk_85", "CL-85"]],
+  );
+  assert.equal(projection.facts.archivedTickets["crewhub-loops"], 0);
+});
+
 test("stalled then resumed opens and clears the stall on the card", () => {
   const { projection } = setup();
   projection.apply({
@@ -366,4 +380,18 @@ test("round 54: a ticket read carries waitingOnHuman onto its card", async () =>
   projection.apply({ type: "event", envelope: envelope("ticket.updated", { changed: ["waiting_on"] }, { seq: 101, ticket: ticketRef }) });
   await scheduler.advance(250);
   assert.equal(projection.facts.cards.tk_85?.card.waitingOnHuman, true);
+});
+
+test("round 54: a re-read ticket brings its milestone onto the card, and a ticket without one gets none", async () => {
+  const { projection, scheduler, source } = setup();
+  const milestone = { id: "ms_3", key: "CL-M3", number: 3, title: "Launch", state: "active" as const };
+  source.tickets.set("tk_85", asTicket("planned", { milestone }));
+  projection.apply({ type: "event", envelope: envelope("ticket.updated", { changed: ["milestone"] }, { seq: 101, ticket: ticketRef }) });
+  await scheduler.advance(250);
+  assert.deepEqual(projection.facts.cards.tk_85?.card.milestone, milestone);
+
+  source.tickets.set("tk_85", asTicket("planned"));
+  projection.apply({ type: "event", envelope: envelope("ticket.updated", { changed: ["priority"] }, { seq: 102, ticket: ticketRef }) });
+  await scheduler.advance(250);
+  assert.equal("milestone" in projection.facts.cards.tk_85!.card, false);
 });

@@ -307,3 +307,16 @@ test("a mark a person cleared stays cleared, and an existing zone without a mark
   assert.ok(older.ok);
   assert.deepEqual([older.doc.zones?.[0]?.color, older.doc.zones?.[0]?.emblem], [null, null]);
 });
+
+test("round 54: adding a user prop again under its id replaces it in place; the other user props stay", () => {
+  const doc = builtTown();
+  const again = edit(doc, { type: "add-user-prop", prop: { ...example("floor-lamp"), provenance: { kind: "ticket", ticketKey: "CR-50" } } });
+  assert.deepEqual(
+    again.userProps.map((p) => [p.id, p.provenance]),
+    [
+      ["user:floor-lamp", { kind: "ticket", ticketKey: "CR-50" }],
+      ["user:workbench-with-lamp", { kind: "ticket", ticketKey: "CR-41" }],
+    ],
+  );
+  assert.deepEqual(again.placements, doc.placements);
+});

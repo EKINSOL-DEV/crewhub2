@@ -11,6 +11,7 @@ import type { LabelOut, Result, TicketCard } from "@crewhub/loops-client";
 import { describeWorld } from "../src/describe.ts";
 import { PERSON_CARRY_MS } from "../src/flights.ts";
 import { emptyMemory } from "../src/memory.ts";
+import { TURNED_DOWN_MS } from "../src/objects.ts";
 import { Projection } from "../src/projection.ts";
 import { extractPropRequest, propRequestsFromFacts } from "../src/propRequests.ts";
 import { reduceWorld } from "../src/reducer.ts";
@@ -245,4 +246,12 @@ test("D5: a rejected prop request is not imported; a plain Done after all is", (
   const c = world([card("t_41", "CR-41", "done", { labels: [prop], resolution: "rejected", resolutionReason: WHY })]);
   c.move("t_41", "CR-41", { from: "done", to: "done", position: 500.0 });
   assert.deepEqual(requests(c), []);
+});
+
+test("round 54: a Done ticket a person rejects afterwards is turned down for TURNED_DOWN_MS from the move", () => {
+  const { move, object } = world([card("t_1", "CR-1", "done")]);
+  const t1 = T0 + 60_000;
+  move("t_1", "CR-1", { from: "done", to: "done", position: 1000.0, resolution: "rejected", resolutionReason: WHY }, t1);
+  assert.equal(object("CR-1", t1 + 1_000).turnedDownUntil, t1 + TURNED_DOWN_MS);
+  assert.equal(object("CR-1", t1 + TURNED_DOWN_MS).turnedDownUntil, null);
 });
