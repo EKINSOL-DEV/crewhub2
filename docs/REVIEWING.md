@@ -143,7 +143,8 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
 ### 2.4 The world state and the town store
 
 - **Entry files.** `apps/world/src/main.tsx` (the gate: the source decision before anything loads), `state/world.ts`
-  (the one seam between data and presentation), `state/source.ts`, `packages/world-model/src/projection.ts`
+  (the one seam between data and presentation: the world runtime, built from its config), `state/page.ts` (the page
+  read once) and `state/runtimes.ts` (the page's runtimes and hooks), `state/source.ts`, `packages/world-model/src/projection.ts`
   (`SourceMessage`s in, `Facts` out, idempotent by `seq`), `reducer.ts`, `model.ts`, `townDocument.ts` (the format
   `crewhub-town/1` and its limits), `history.ts` (the pure undo), `state/townStore.ts` (IndexedDB),
   `state/hostTown.ts` (the host's town over it), `apps/host/src/worldDb.ts` (`node:sqlite`, migrations, backups, the

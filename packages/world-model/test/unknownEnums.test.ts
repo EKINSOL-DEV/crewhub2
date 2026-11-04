@@ -71,7 +71,7 @@ test("round 48 (r48-enums): a snapshot with values this build does not know load
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  const source = createHostSource({ baseUrl: url, timings: { staleMs: 60_000, teamPollMs: 60_000, retryMinMs: 10, retryMaxMs: 20 } });
+  const source = createHostSource({ baseUrl: url }, { timings: { staleMs: 60_000, teamPollMs: 60_000, retryMinMs: 10, retryMaxMs: 20 } });
   const projection = new Projection(source);
   const stop = source.start((message) => projection.apply(message));
   try {

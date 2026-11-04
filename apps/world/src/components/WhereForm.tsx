@@ -5,7 +5,7 @@
 import { useId, useMemo, useState } from "react";
 import { where, type AgentPlacement, type CivicWords, type RoomWording } from "@crewhub/world-model";
 import { Field } from "./primitives";
-import { useWorld } from "../state/world";
+import { useWorld } from "../state/runtimes";
 import { goneWords, whereChoice, type WhereChosen } from "../state/whereChoice";
 
 /** `civic`: what the town hall and the post office are called at the town's size (the lodge, the mailbox). `rooms`: the
