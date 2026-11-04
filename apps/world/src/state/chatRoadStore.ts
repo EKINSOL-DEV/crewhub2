@@ -1,58 +1,41 @@
 /* The chat road as this page sees it (round 28): the host's health (state/health: `connection.session` `key`, or
-   absent) and the page's own probe of road 2, combined by `decideChatRoad` (state/chatRoad, the pure contract) into one
-   `ChatRoadView` for every place that speaks of the chat. The probe (state/pageChat, road 2) tells its verdict with
-   `rememberPageProbe`; until it has, the probe is `unknown`, so the road is `key` or `none`. */
-import { useSyncExternalStore } from "react";
-import { chatRoadView, hostKeyReadsChatOf, type ChatRoadView, type PageProbe } from "./chatRoad.ts";
-import { getHealth, subscribeHealth } from "./health.ts";
-
-let probe: PageProbe = "unknown";
-const listeners = new Set<() => void>();
-
-/** The page's probe of road 2 said something: kept for everyone who shows the road. */
-export function rememberPageProbe(next: PageProbe): void {
-  if (next === probe) return;
-  probe = next;
-  for (const listener of listeners) listener();
-}
-
-export const subscribePageProbe = (listener: () => void) => {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-};
+   absent) and the page's own probe of road 2 (the chat stores' `probe`), combined by `decideChatRoad` (state/chatRoad, the
+   pure contract) into one `ChatRoadView` for every place that speaks of the chat. Until the probe has said something it
+   is `unknown`, so the road is `key` or `none`. The page's reader and `useChatRoad` are in state/runtimes.ts. */
+import { chatRoadView, hostKeyReadsChatOf, type ChatRoadView } from "./chatRoad.ts";
+import type { ChatStores } from "./chatStores.ts";
 
 /** The page's own origin, the exact value of loops' `CHL_WORLD_ORIGIN` for road 2; empty where there is no window (tests). */
-export function pageOrigin(): string {
+function pageOrigin(): string {
   return typeof location === "undefined" ? "" : location.origin;
 }
 
-/** The road from the last health read and the probe's verdict, as one value with what its words need. */
-export function currentChatRoad(): ChatRoadView {
-  const health = getHealth();
-  return chatRoadView({ hostKeyReadsChat: hostKeyReadsChatOf(health), pageProbe: probe, pageOrigin: pageOrigin() });
+export interface ChatRoadReader {
+  subscribe(listener: () => void): () => void;
+  /** The road now: the same object while nothing changed, so React does not re-render for an equal road. */
+  read(): ChatRoadView;
 }
 
-const subscribe = (listener: () => void) => {
-  const offHealth = subscribeHealth(listener);
-  const offProbe = subscribePageProbe(listener);
-  return () => {
-    offHealth();
-    offProbe();
+export function chatRoadReader(
+  stores: Pick<ChatStores, "probe" | "subscribe">,
+  health: { get(): Parameters<typeof hostKeyReadsChatOf>[0]; subscribe(listener: () => void): () => void },
+  origin: () => string = pageOrigin,
+): ChatRoadReader {
+  let last: ChatRoadView | null = null;
+  return {
+    subscribe(listener) {
+      const offHealth = health.subscribe(listener);
+      const offStores = stores.subscribe(listener);
+      return () => {
+        offHealth();
+        offStores();
+      };
+    },
+    read() {
+      const next = chatRoadView({ hostKeyReadsChat: hostKeyReadsChatOf(health.get()), pageProbe: stores.probe.get(), pageOrigin: origin() });
+      if (last !== null && last.road === next.road && last.hostKeyReadsChat === next.hostKeyReadsChat && last.pageProbe === next.pageProbe && last.pageOrigin === next.pageOrigin) return last;
+      last = next;
+      return next;
+    },
   };
-};
-
-let last: ChatRoadView | null = null;
-/** The same object while nothing changed, so React does not re-render for an equal road. */
-function snapshot(): ChatRoadView {
-  const next = currentChatRoad();
-  if (last !== null && last.road === next.road && last.hostKeyReadsChat === next.hostKeyReadsChat && last.pageProbe === next.pageProbe && last.pageOrigin === next.pageOrigin) return last;
-  last = next;
-  return next;
-}
-
-/** The chat road for this page, live: the health store and the probe's verdict. */
-export function useChatRoad(): ChatRoadView {
-  return useSyncExternalStore(subscribe, snapshot, snapshot);
 }
