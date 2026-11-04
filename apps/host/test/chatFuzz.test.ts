@@ -1,6 +1,6 @@
 /* Round 34: road 1's answers under fuzz, through the host. On the key's stream a `dm.created` envelope's payload names
-   a message, the host reads it by id with its key (`chatLineFromKey`) and hands the tabs a chat line; at the key check
-   it reads the threads (`threadFactsOf`). Both come from crewhub-loops and are read here over the stub. Seeded, a few
+   a message, the host reads it by id with its key (`chatPath.ts`, the dm readers of `@crewhub/loops-client`) and hands
+   the tabs a chat line; at the key check it reads the threads. Both come from crewhub-loops and are read here over the stub. Seeded, a few
    hundred inputs each (every one is a request round trip): payloads of any shape with ids of odd text, message
    answers of any shape and status, threads answers of any shape. What a tab sees: only well-shaped chat lines (the
    text never empty, never over 140 characters, never with a newline) and thread facts of the three fields; what loops
@@ -8,7 +8,7 @@
    still answering health. */
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
-import { LINE_MAX } from "../src/chatLine.ts";
+import { DM_LINE_MAX } from "@crewhub/loops-client";
 import { createLoopsStub, installation } from "./loopsStub.ts";
 import { openSse } from "./sse.ts";
 import { testHost } from "./testHost.ts";
@@ -88,7 +88,7 @@ describe("round 34 fuzz: road 1's answers through the host", () => {
     const chats = tab.messages.filter((m) => m.type === "chat").map((m) => m.chat as { agentId: unknown; agentName?: unknown; text: unknown; at: unknown; messageId: unknown; threadId: unknown });
     assert.ok(chats.length > 20, `lines reached the tab: ${chats.length}`);
     for (const chat of chats) {
-      assert.ok(typeof chat.text === "string" && chat.text !== "" && chat.text.length <= LINE_MAX && !/[\r\n]/.test(chat.text) && chat.text === chat.text.trim(), `a line's text: ${JSON.stringify(chat.text).slice(0, 80)}`);
+      assert.ok(typeof chat.text === "string" && chat.text !== "" && chat.text.length <= DM_LINE_MAX && !/[\r\n]/.test(chat.text) && chat.text === chat.text.trim(), `a line's text: ${JSON.stringify(chat.text).slice(0, 80)}`);
       assert.ok(typeof chat.agentId === "string" && typeof chat.messageId === "string" && typeof chat.threadId === "string" && typeof chat.at === "string", JSON.stringify(chat).slice(0, 120));
       assert.ok(chat.agentName === undefined || typeof chat.agentName === "string", JSON.stringify(chat).slice(0, 120));
       assert.deepEqual(Object.keys(chat).filter((k) => k !== "agentName").sort(), ["agentId", "at", "messageId", "text", "threadId"]);

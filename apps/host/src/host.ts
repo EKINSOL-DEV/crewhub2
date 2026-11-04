@@ -32,7 +32,7 @@ import { BACKUP_NAME, TOWN_BODY_LIMIT, TOWN_FORMAT, installationKey, listBackups
 import { type LoopsClient, createLoopsClient, isUnauthorized } from "./loops.ts";
 import { PAIR_PATH_PREFIX, PAIR_REFUSED_HTML, type Pairing, createPairing, pairCookieHeader } from "./pairing.ts";
 import { type ArchiveReport, type AssembledSnapshot, SnapshotError, type SnapshotStats, assembleSnapshot } from "./snapshot.ts";
-import { type ChatLine, firstLine } from "./chatLine.ts";
+import { type ChatPath, createChatPath } from "./chatPath.ts";
 import { type HostMessage, type LoopsState, type Upstream, createUpstream } from "./stream.ts";
 
 export interface HostOptions {
@@ -270,6 +270,8 @@ interface Link {
   found: Found;
   client: LoopsClient;
   upstream: Upstream;
+  /** The chat over the key on this link (chatPath.ts): the verdict, the threads' facts, the lines. */
+  chat: ChatPath;
 }
 
 export async function createHost(options: HostOptions): Promise<Host> {
@@ -386,97 +388,27 @@ export async function createHost(options: HostOptions): Promise<Host> {
     versions.last = version;
   };
 
-  /**
-   * Whether the current loops lets the key read the chat: a VIEWER key (`world/viewer-key`, L1: the key's own entry in
-   * `GET /api/agents` says `viewer: true`; a loops from before has no such field) whose `GET /api/dm/threads` answers
-   * 200. A plain external bot gets 200 there too, with its own (empty) threads, which is why the flag decides.
-   */
-  let keyReadsChat = false;
-  /**
-   * Whether the host has asked this loops, on this link, whether the key reads the chat (round 29, Medium 2): until it
-   * has (no link yet, loops not up at the start, the key still unchecked) health says `session: { state: "unknown" }`,
-   * so the page does not read "no session" as "the key does not read the chat" and take road 2 while the host is
-   * still connecting.
-   */
-  let chatKnown = false;
-  /**
-   * The chat threads' facts (round 24) where the key reads the chat: per agent, `lastMessageAt` and `unreadCount` from
-   * `GET /api/dm/threads` (the probe's own answer at the key check, read again after a `dm.*` event the key's stream
-   * sees, at most once a second), sent whole to every tab; null where the key does not read the chat. Whose unread
-   * (round 25; loops main #964 in round 28): loops counts it against the caller's read cursor, and for a viewer key
-   * against its maker's, the one person whose chat the key reads; `keyReadsChat` is true only for a viewer, so the
-   * count that travels is always the maker's, as loops' own chat head shows it. A plain key's count is never read.
-   */
-  let threadFacts: ChatThreadFact[] | null = null;
-  const THREADS_REFRESH_MS = 1000;
-  let threadsTimer: ReturnType<typeof setTimeout> | null = null;
-  function threadFactsOf(body: unknown): ChatThreadFact[] {
-    const rows = (body as { threads?: unknown } | null)?.threads;
-    if (!Array.isArray(rows)) return [];
-    const out: ChatThreadFact[] = [];
-    for (const row of rows as { agentId?: unknown; lastMessageAt?: unknown; unreadCount?: unknown }[]) {
-      if (typeof row?.agentId !== "string" || row.agentId === "" || typeof row.lastMessageAt !== "string") continue;
-      out.push({ agentId: row.agentId, lastMessageAt: row.lastMessageAt, unreadCount: typeof row.unreadCount === "number" && Number.isInteger(row.unreadCount) && row.unreadCount >= 0 ? row.unreadCount : 0 });
-    }
-    return out;
+  // --- The chat over the key (round 12; one module per link since round 59d, chatPath.ts): asked after the key check
+  // or when the stream accepts the key, fed the stream's dm events, disposed with the link. Its threads go to every
+  // tab, whole; its lines go out as `chat` messages (the bubbles). Health reads its verdict (`connection.session`).
+  function sendThreads(threads: ChatThreadFact[]): void {
+    for (const tab of tabs.values()) tab.send({ type: "threads", threads });
   }
-  function sendThreads(): void {
-    if (threadFacts === null) return;
-    for (const tab of tabs.values()) tab.send({ type: "threads", threads: threadFacts });
-  }
-  async function readsChat(client: LoopsClient, name: string): Promise<{ reads: boolean; threads: ChatThreadFact[]; viewer: boolean; status: number | null }> {
-    try {
-      const agents = await client.getJson<{ agents?: { id?: unknown; viewer?: unknown }[] }>("/api/agents");
-      const mine = agents.status === 200 ? agents.body?.agents?.find((a) => a.id === name) : undefined;
-      if (mine?.viewer !== true) return { reads: false, threads: [], viewer: false, status: null };
-      const threads = await client.getJson("/api/dm/threads");
-      return { reads: threads.status === 200, threads: threads.status === 200 ? threadFactsOf(threads.body) : [], viewer: true, status: threads.status };
-    } catch {
-      return { reads: false, threads: [], viewer: false, status: null };
-    }
-  }
-  /** The host's one line on the key's chat road, after the question was asked (at the check, or on the stream's accept). */
-  function tellChat(chat: { reads: boolean; threads: ChatThreadFact[]; viewer: boolean; status: number | null }): void {
-    if (chat.reads) log(`the key reads the chat on this crewhub-loops: only the chat of the person who made the key; their agents' answers come over its stream, no sign-in needed; ${chat.threads.length} chat thread(s)${chat.threads.length === 0 ? " (none yet is no error: the maker has not written to an agent)" : ""}`);
-    // Loops' chat bubbles feature switched off (Settings > Features) answers 409 feature_off to every chat read (round
-    // 29, Medium 3): a viewer key that reads nothing until it is switched on, said as that and not as "no viewer key".
-    else if (chat.viewer && chat.status === 409) log(`the key is a viewer but crewhub-loops' chat bubbles feature is switched off there (Settings > Features): no bubbles over the key until it is switched on (the host asks again at the next link)`);
-    else if (chat.viewer) log(`the viewer key reads no chat on this crewhub-loops (GET /api/dm/threads answered ${chat.status}): no bubbles over the key; a viewer key reads only the chat of the person who made it, so a key with no maker, or whose maker is no longer an enabled admin, reads none (make a new one in Settings > Agents > Connect CrewHub World), and chat bubbles switched off in crewhub-loops (Settings > Features) close the chat for everyone`);
-    else log(`the key does not read the chat on this crewhub-loops (no viewer key): no bubbles over the key; make a viewer key in Settings > Agents > Connect CrewHub World (it reads only its maker's chat), or set CHL_WORLD_ORIGIN to the world page's origin on that crewhub-loops so the page reads your own chat`);
-  }
-  /** After a `dm.*` event: the threads read again once (coalesced within THREADS_REFRESH_MS) and sent when the read answers. */
-  function refreshThreads(client: LoopsClient, upstream: Upstream): void {
-    if (threadsTimer !== null) return;
-    threadsTimer = setTimeout(() => {
-      threadsTimer = null;
-      void client
-        .getJson("/api/dm/threads")
-        .then(({ status, body }) => {
-          if (status !== 200 || link?.upstream !== upstream || !keyReadsChat) return;
-          threadFacts = threadFactsOf(body);
-          sendThreads();
-        })
-        .catch(() => undefined);
-    }, THREADS_REFRESH_MS);
-  }
-  /** An agent's `dm.created` on the key's stream: the message read by id with the key, as one chat line; null when not readable. */
-  async function chatLineFromKey(client: LoopsClient, payload: unknown): Promise<ChatLine | null> {
-    // Round 34 (found by the fuzz): a `dm.created` whose payload is null or no object threw out of the stream's loop.
-    if (typeof payload !== "object" || payload === null) return null;
-    const messageId = (payload as Record<string, unknown>)["messageId"];
-    const threadId = (payload as Record<string, unknown>)["threadId"];
-    const agentId = (payload as Record<string, unknown>)["agentId"];
-    if (typeof messageId !== "string" || typeof threadId !== "string" || typeof agentId !== "string") return null;
-    try {
-      const { status, body } = await client.getJson<{ message?: { bodyText?: unknown; createdAt?: unknown; author?: { displayName?: unknown } } }>(`/api/dm/messages/${encodeURIComponent(messageId)}`);
-      if (status !== 200 || typeof body?.message?.bodyText !== "string") return null;
-      const text = firstLine(body.message.bodyText);
-      if (text === "") return null;
-      const name = body.message.author?.displayName;
-      return { agentId, ...(typeof name === "string" ? { agentName: name } : {}), text, at: typeof body.message.createdAt === "string" ? body.message.createdAt : new Date().toISOString(), messageId, threadId };
-    } catch {
-      return null;
-    }
+  function chatPathFor(client: LoopsClient, keyName: string): ChatPath {
+    const chat: ChatPath = createChatPath({
+      client,
+      keyName,
+      log,
+      // Only for the link that stands: at the check inside relink no link stands yet, and the tabs get the threads as
+      // they attach (attach()); a line or a re-read of a link that is gone is dropped.
+      onThreads: (threads) => {
+        if (link?.chat === chat) sendThreads(threads);
+      },
+      onLine: (line) => {
+        if (link?.chat === chat) for (const tab of tabs.values()) tab.send({ type: "chat", chat: line });
+      },
+    });
+    return chat;
   }
 
   // --- A rejected key waits (round 8). No stream retries: each was a 401 and a health probe every 30 s. The host waits
@@ -550,7 +482,8 @@ export async function createHost(options: HostOptions): Promise<Host> {
     tab.unsubscribe = link.upstream.subscribe(tab.linked ? null : tab.cursor, (message) => tab.send(withKey(message)));
     tab.linked = true;
     // The chat threads' facts (round 24), when the key reads the chat: the tab gets the list as it stands.
-    if (threadFacts !== null) tab.send({ type: "threads", threads: threadFacts });
+    const threads = link.chat.threads();
+    if (threads !== null) tab.send({ type: "threads", threads });
     void link.upstream.start();
   }
 
@@ -563,18 +496,12 @@ export async function createHost(options: HostOptions): Promise<Host> {
       const old = link;
       if (old !== null) {
         link = null;
+        old.chat.dispose();
         for (const tab of tabs.values()) {
           tab.unsubscribe?.();
           tab.unsubscribe = null;
         }
         await old.upstream.stop();
-      }
-      keyReadsChat = false;
-      chatKnown = false;
-      threadFacts = null;
-      if (threadsTimer !== null) {
-        clearTimeout(threadsTimer);
-        threadsTimer = null;
       }
       if (found !== null) judgeMemory(found);
       if (found === null || holder === null) {
@@ -599,6 +526,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
         scheduleRecheck(mine);
         return;
       }
+      let chat: ChatPath;
       if (verdict.state === "ok") {
         mine.state = "ok";
         delete mine.reason;
@@ -607,16 +535,17 @@ export async function createHost(options: HostOptions): Promise<Host> {
         // Does this loops let the key read the chat (a viewer key, round 12)? Then the bubbles come over the key's own
         // stream; a loops that answers anything else (an older loops, a plain external bot's key) shows no bubbles, and
         // health says so by leaving `connection.session` out (round 19: the sign-in road is gone).
-        const chat = await readsChat(client, mine.name);
-        if (closed || holder !== mine || discovery.current() !== found) return;
-        keyReadsChat = chat.reads;
-        chatKnown = true;
-        threadFacts = chat.reads ? chat.threads : null;
-        tellChat(chat);
+        chat = chatPathFor(client, mine.name);
+        await chat.check();
+        if (closed || holder !== mine || discovery.current() !== found) {
+          chat.dispose();
+          return;
+        }
       } else {
         // Nothing is known about the key: it keeps the state it had (a fresh key stays unchecked), never rejected.
         mine.state = before === "checking" ? "unchecked" : before;
         log(`key ${mine.name} (${mine.source}) ${mine.state}: ${scrub(verdict.reason)}; the stream keeps trying`);
+        chat = chatPathFor(client, mine.name);
       }
       const upstreamOptions: Parameters<typeof createUpstream>[1] = { log: (line) => log(scrub(line)), healthy, onVersion: sawVersion };
       if (options.bufferSize !== undefined) upstreamOptions.bufferSize = options.bufferSize;
@@ -624,7 +553,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
       if (options.reconnectMs !== undefined) upstreamOptions.reconnectMs = options.reconnectMs;
       upstreamOptions.heartbeatMs = heartbeatMs;
       const upstream = createUpstream(client, upstreamOptions);
-      link = { found, client, upstream };
+      link = { found, client, upstream, chat };
       // The host's own ear on its stream, for as long as this link lives: the stream is the second opinion on the key
       // (a confirmed 401/403 is rejected, ok is ok, down says nothing), loops going away sends the discovery looking
       // again on the app's roads, and the archive events keep the memory of the closed buildings.
@@ -653,6 +582,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
             relinking = relinking.then(async () => {
               if (closed || link?.upstream !== upstream) return;
               link = null;
+              chat.dispose();
               for (const tab of tabs.values()) {
                 tab.unsubscribe?.();
                 tab.unsubscribe = null;
@@ -668,29 +598,15 @@ export async function createHost(options: HostOptions): Promise<Host> {
               log(`key ${mine.name} (${mine.source}) accepted on the stream`);
               // The key was never checked with a 200 (loops was not up at the host's start, round 29 High 1): the
               // check's own tail runs now, so health says whether the key reads the chat and the dm gate opens.
-              if (!chatKnown) {
-                void readsChat(client, mine.name).then((chat) => {
-                  if (closed || holder !== mine || link?.upstream !== upstream) return;
-                  keyReadsChat = chat.reads;
-                  chatKnown = true;
-                  threadFacts = chat.reads ? chat.threads : null;
-                  tellChat(chat);
-                  if (chat.reads) sendThreads();
-                });
-              }
+              if (chat.reads() === "unknown") void chat.check();
             }
           } else if (message.stream !== "busy" && appRoads) void discovery.refresh();
           return;
         }
-        // A `dm.*` event the key's stream sees (round 24): the threads' facts are read again once and sent to the tabs.
-        if (message.type === "event" && keyReadsChat && message.envelope.type.startsWith("dm.")) refreshThreads(client, upstream);
-        if (message.type === "event" && keyReadsChat && message.envelope.type === "dm.created" && message.envelope.actor.kind === "agent") {
-          void chatLineFromKey(client, message.envelope.payload).then((line) => {
-            if (line !== null && link?.upstream === upstream) for (const tab of tabs.values()) tab.send({ type: "chat", chat: line });
-          });
-          return;
-        }
-        if (message.type !== "event" || message.envelope.project === null) return;
+        if (message.type !== "event") return;
+        // A `dm.*` event the key's stream sees (round 24): the chat path reads the threads again and an agent's message as a line.
+        chat.onEvent(message.envelope);
+        if (message.envelope.project === null) return;
         const slug = message.envelope.project.slug;
         if (message.envelope.type === "project.archived") {
           learnt = true; // loops itself says this project is archived: a fact of this loops' own set
@@ -729,6 +645,10 @@ export async function createHost(options: HostOptions): Promise<Host> {
   /** The connection as health reports it: the states always, the details only when `detailed` (a paired browser). */
   function connection(detailed: boolean): HostConnection {
     const found = discovery.current();
+    // The chat path's verdict (chatPath.ts) in the two words health has used since round 29: the key reads the chat
+    // on the link that stands; the question was asked on it (no link: not asked).
+    const keyReadsChat = link?.chat.reads() === "yes";
+    const chatKnown = link !== null && link.chat.reads() !== "unknown";
     const out: HostConnection = {
       discovery: { state: found === null ? "searching" : "found" },
       key: { state: holder === null ? "none" : holder.state },
@@ -1357,13 +1277,14 @@ export async function createHost(options: HostOptions): Promise<Host> {
     },
     async close() {
       closed = true;
-      if (threadsTimer !== null) clearTimeout(threadsTimer);
-      threadsTimer = null;
       clearInterval(idleBeat);
       clearRecheck();
       discovery.stop();
       await relinking;
-      if (link !== null) await link.upstream.stop();
+      if (link !== null) {
+        link.chat.dispose();
+        await link.upstream.stop();
+      }
       for (const res of tabs.keys()) res.end();
       tabs.clear();
       await new Promise<void>((resolve) => {
