@@ -8,6 +8,7 @@
  * its own host and nothing else. Streams with `fetch` and a line reader over `response.body`: no EventSource, so
  * the cursor and the reconnect are ours. Nothing here ever throws out of the listener.
  */
+import { bearerHeaders } from "./pairingBearer.ts";
 import type {
   BoardResponse,
   CommentOut,
@@ -57,7 +58,7 @@ export async function probeHost(baseUrl = "", timeoutMs = 1500): Promise<HostHea
   try {
     const response = await fetch(`${baseUrl}${worldApiPath("/health")}`, {
       signal: AbortSignal.timeout(timeoutMs),
-      headers: { accept: "application/json" },
+      headers: { ...bearerHeaders(), accept: "application/json" },
     });
     if (!response.ok) return null;
     return readHostHealth(await response.json());
@@ -71,7 +72,7 @@ export async function probeHost(baseUrl = "", timeoutMs = 1500): Promise<HostHea
  * the moment the source decision says live, so the host assembles the snapshot while the world's module loads.
  */
 export function prefetchSnapshot(baseUrl = ""): Promise<Response> {
-  return fetch(`${baseUrl}${worldApiPath("/snapshot")}`, { headers: { accept: "application/json" } });
+  return fetch(`${baseUrl}${worldApiPath("/snapshot")}`, { headers: { ...bearerHeaders(), accept: "application/json" } });
 }
 
 /**
@@ -155,7 +156,7 @@ export function createHostSource(options: HostSourceOptions = {}, tuning: HostSo
   /** `path` is a wire path (`worldApiPath`): `/world-api/…`. */
   const url = (path: string) => `${base}${path}`;
   const get = (path: string, signal?: AbortSignal) =>
-    fetch(url(path), { signal: signal ?? null, headers: { ...extraHeaders, accept: "application/json" } });
+    fetch(url(path), { signal: signal ?? null, headers: { ...bearerHeaders(), ...extraHeaders, accept: "application/json" } });
   const SNAPSHOT = worldApiPath("/snapshot");
 
   /** Any message from the host: the stream is alive. Silence past `staleMs` is not: the stream is stale and healed. */
@@ -280,7 +281,7 @@ export function createHostSource(options: HostSourceOptions = {}, tuning: HostSo
   async function readStreamWith(signal: AbortSignal): Promise<"resnapshot" | "ended"> {
     let response: Response;
     try {
-      response = await fetch(url(worldApiPath("/stream", {}, { cursor: String(cursor) })), { signal, headers: { ...extraHeaders, accept: "text/event-stream" } });
+      response = await fetch(url(worldApiPath("/stream", {}, { cursor: String(cursor) })), { signal, headers: { ...bearerHeaders(), ...extraHeaders, accept: "text/event-stream" } });
     } catch {
       return "ended";
     }
@@ -608,9 +609,8 @@ async function hostRequest(method: "GET" | "POST" | "PUT" | "DELETE", url: strin
     const response = await fetch(url, {
       method,
       body,
-      credentials: "same-origin",
       signal: AbortSignal.timeout(timeoutMs),
-      headers: body === null ? { accept: "application/json" } : { accept: "application/json", "content-type": "application/json" },
+      headers: body === null ? { ...bearerHeaders(), accept: "application/json" } : { ...bearerHeaders(), accept: "application/json", "content-type": "application/json" },
     });
     const text = await response.text().catch(() => "");
     let parsed: unknown = null;

@@ -72,6 +72,8 @@ export { readConnection, readHostHealth, readHostMessage } from "./hostWire.ts";
 export type { HostMessage, LoopsState } from "./hostWire.ts";
 export { ACTIVITY_TYPES, ACTIVITY_TYPES_QUERY, LOG_FACT_STATUSES, LOG_FACT_TYPES, LOG_RUNS_KEPT, openTicketsOf, quietCandidates, selectLogFacts } from "./logFacts.ts";
 export type { LogFacts, OpenTicket } from "./logFacts.ts";
+export { PAIRING_KEY, PAIR_FRAGMENT, PAIR_HEADER, answerTabs, askTabsForPairing, bearerHeaders, clearPairing, readPairing, redeemPairToken, storePairing, takeFragmentToken, tokenFromHash } from "./pairingBearer.ts";
+export type { PairOutcome } from "./pairingBearer.ts";
 export {
   PAGE_CHAT_EVENT_TYPES,
   PAGE_CHAT_EVENTS_LIMIT,

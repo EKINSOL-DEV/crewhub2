@@ -47,6 +47,8 @@ const ROUTES = [
   { pattern: "/connect", kind: "local", query: [], methods: ["POST", "DELETE"] },
   // The dev server of this checkout tells the host its loopback origin (devOrigin.ts); a program's request, never a page's.
   { pattern: "/dev-origin", kind: "local", query: [], methods: ["POST"] },
+  // The page exchanges a one-time token for this tab's bearer (round 27, pairing.ts); before the pairing gate.
+  { pattern: "/pair", kind: "local", query: [], methods: ["POST"] },
   { pattern: "/town", kind: "local", query: [], methods: ["GET", "PUT"] },
   { pattern: "/town/export", kind: "local", query: [] },
   { pattern: "/town/backups", kind: "local", query: [] },
@@ -215,6 +217,8 @@ export interface HostHealth {
   paired?: boolean;
   /** `off` only in development; then every request counts as paired. */
   pairing?: "on" | "off";
+  /** How many days a pairing may go unused before the host refuses it (round 27); 0 never. */
+  pairingIdleDays?: number;
   /** The id of the checkout the host runs from (apps/host `checkout.ts`): a dev server refuses another checkout's host. */
   checkout?: string;
   /** The loopback origins this checkout's dev server told the host this run (`devOrigin.ts`); absent when none, and on a host from before. */
@@ -336,6 +340,7 @@ export function readHostHealth(value: unknown): HostHealth | null {
   if (body.transport === "tcp" || body.transport === "unix") health.transport = body.transport;
   if (typeof body.paired === "boolean") health.paired = body.paired;
   if (body.pairing === "on" || body.pairing === "off") health.pairing = body.pairing;
+  if (typeof body.pairingIdleDays === "number" && body.pairingIdleDays >= 0) health.pairingIdleDays = body.pairingIdleDays;
   if (typeof body.checkout === "string" && /^[0-9a-f]{6,64}$/.test(body.checkout)) health.checkout = body.checkout;
   if (Array.isArray(body.devOrigins)) health.devOrigins = body.devOrigins.filter((origin): origin is string => typeof origin === "string");
   const connection = readConnection(body.connection);

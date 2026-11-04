@@ -15,6 +15,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { lostIn } from "./chatSoak.mjs";
 import { loopsUrlOption } from "./toolGuard.ts";
 import { ownPort } from "./toolGuard.ts";
+import { pairedTab } from "./world.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -105,10 +106,10 @@ export async function startLive(opts, { preview = false, keyReadsChat = false } 
     describe,
     /** The host the tool started: its `connection()` tells the upstream stream's state and reconnects (round 27). */
     host,
-    /** Pairs the page's context: the one-time link, which lands on `/`. */
+    /** Pairs the page's tab (round 27, per tab): the one-time link, whose fragment the page exchanges for this tab's bearer. */
     async pair(page) {
       await page.goto(host.mintPairLink(preview ? undefined : origin));
-      await page.waitForURL((url) => url.pathname === "/", { timeout: 10000 });
+      await pairedTab(page);
     },
     async close() {
       await host.close().catch(() => undefined);
