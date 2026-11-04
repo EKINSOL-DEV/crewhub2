@@ -18,7 +18,7 @@
 import type { HostArchiveState } from "@crewhub/loops-client";
 import { isSegment } from "./allowList.ts";
 import { type ArchiveRecord, type ArchiveStore, normaliseSlugs, plainTime } from "./archiveStore.ts";
-import type { ArchiveReport } from "./snapshot.ts";
+import type { ArchiveReport, KnownArchived } from "./snapshot.ts";
 
 export interface ArchiveMemoryOptions {
   /** Where the memory lives across runs; absent: remembered for this run only (nothing read, nothing written). */
@@ -50,6 +50,13 @@ export interface ArchiveMemory {
   slugs(): ReadonlySet<string>;
   /** Health's `connection.archived`; the slugs, sorted, only when `detailed` (a paired browser). */
   state(detailed: boolean): HostArchiveState;
+  /**
+   * The snapshot's `archived` option, for an assembly starting now (round 60, A1): asked when the snapshot reaches the
+   * archived projects, it answers this link's stream set as it is then (`seen`, live: an archive heard meanwhile
+   * counts), followed by the set as it stood when the assembly started (`slugs`), and whether that set had any. A
+   * relink during the assembly leaves the getter on the link it started on.
+   */
+  forSnapshot(): () => KnownArchived;
 }
 
 /** Whether a memory on disk belongs to the loops at `target`: it names that target, or none (the format before round 34). */
@@ -134,6 +141,11 @@ export function createArchiveMemory(options: ArchiveMemoryOptions): ArchiveMemor
       const out: HostArchiveState = { source, count: slugs.size, ...(at === undefined ? {} : { at }) };
       if (detailed) out.slugs = normaliseSlugs(slugs);
       return out;
+    },
+    forSnapshot() {
+      const stream = seen;
+      const started = slugs;
+      return () => ({ slugs: [...stream, ...started], remembered: started.size > 0 });
     },
   };
 }
