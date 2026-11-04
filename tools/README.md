@@ -74,7 +74,13 @@ streams per key.
 playback); `lib/rig.mjs` (round 60) is the rig a tool stands on, a host over a loops (the in-process fake, a real one
 by URL and key, or a keyless host discovering one), served or behind your Vite, paired or not, with the tools' quick
 timings and the close order inside it (`regress.mjs`'s groups, `lib/live.mjs`, `lib/connectStub.mjs` and
-`road2proof.mjs` start theirs through it; `scripts/test/rig.test.ts` pins it); `lib/shots.mjs` is the view walker
+`road2proof.mjs` start theirs through it; `scripts/test/rig.test.ts` pins it); `lib/page.mjs` (round 60) is a tool's
+page: the context by width and theme (a phone up to 480 wide is a touch device 812 high, anything wider a window 900
+high), the stored settings, the watch, the CPU throttle, the pairing step and the address in one `openPage`, the wait
+for the page's state (`waitFor`: canvas, dressed, perf, first-frame) and the page's locators as one table (the Connect
+screens, the connection chip, the text view, the breadcrumb, the labels, the polite line); every tool but `pixcheck.mjs`
+(its contexts are no touch devices, for pixel identity) and `profile.mjs` (any viewport size) opens its pages through
+it (`scripts/test/page.test.ts` pins the pure part); `lib/shots.mjs` is the view walker
 behind `shots.mjs` and `castworld.mjs`.
 
 **What the page leaves for a script.** Besides the `world:town-dressed` mark the scripts wait for (and `world:snapshot`,

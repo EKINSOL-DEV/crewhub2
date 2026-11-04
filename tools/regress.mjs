@@ -126,6 +126,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } 
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { cli, dressed, launch, list, problemLines, seek, speed, watch } from "./lib/world.mjs";
+import { announced, chip as chipOf, chipWord, connectTitle, contextOptions, drawn, labels, level, levels, openPage, readTextView as text, screenShown, textView as sheet, trail, untilChip } from "./lib/page.mjs";
 import { createConnectStub } from "./lib/connectStub.mjs";
 import { createLoopsWebStub } from "./lib/loopsWebStub.mjs";
 import { isProbeRefusal } from "./lib/probeRefusal.ts";
@@ -186,14 +187,9 @@ async function group(name, run) {
   info(`group ${name}: ${mine.filter((r) => r.pass).length}/${mine.length} in ${seconds} s`);
 }
 
-async function open(options = {}) {
-  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light", ...options });
-  const p = await ctx.newPage();
-  watch(p, origin, problems);
-  // --cpu-throttle: the page's CPU slowed through the browser's own throttle (a slow machine on purpose, for the timed checks).
-  if (cpuThrottle > 1) await (await ctx.newCDPSession(p)).send("Emulation.setCPUThrottlingRate", { rate: cpuThrottle });
-  return p;
-}
+/** A page of this run (lib/page.mjs): a light 1440 window unless `options` say a phone or a theme, watched, and with
+ * --cpu-throttle its CPU slowed through the browser's own throttle (a slow machine on purpose, for the timed checks). */
+const open = (options = {}) => openPage(browser, { origin, problems, cpuThrottle, ...options });
 async function town(p, settle, url = BASE) {
   await p.goto(url);
   await dressed(p);
@@ -237,52 +233,13 @@ const road2Ask = (x) => {
  * resource" line for that same URL. Nothing else (lib/probeRefusal.ts, the rule a11y.mjs shares since round 32).
  */
 const probeRefusal = (x) => isProbeRefusal(x, allLoopsOrigins());
-const sheet = (p) => p.locator("#text-view");
-/** Opens the text view (T), reads it and closes it again. */
-const text = async (p) => {
-  await p.keyboard.press("t");
-  await p.waitForTimeout(400);
-  const t = await sheet(p).innerText().catch(() => "");
-  await p.keyboard.press("Escape");
-  return t;
-};
 const canvas = (p) => p.locator("canvas").first();
 const crumbs = async (p) => (await p.locator("header, .breadcrumb, nav").first().innerText().catch(() => "")).replace(/\s+/g, " ").trim();
 /** The chip in the header that says the data is scripted; since the scenario picker it is a button, "Demo: <scenario>". */
 const demoChip = (p) => p.locator("header .demo-word, header .chip").filter({ hasText: /^Demo\b/ }).first();
-/** The breadcrumb: how many levels it shows and the name of the current one. */
-const trail = (p) => p.locator("nav.world-breadcrumb");
-const levels = (p) => trail(p).getAttribute("data-levels").catch(() => null);
-const level = async (p) => (await trail(p).locator(".crumb-current").innerText().catch(() => "")).trim();
 /** The entered building's slug as the scene has it; undefined outside a dev build. */
 const entered = (p) => p.evaluate(() => globalThis.__town?.view?.entered);
-/** How many of the elements `selector` finds are drawn: a box on screen, not hidden, not faded out. */
-const drawn = (p, selector) =>
-  p.evaluate((selector) => {
-    const shown = (e) => {
-      const box = e.getBoundingClientRect();
-      const style = getComputedStyle(e);
-      return box.width > 0 && box.height > 0 && style.visibility !== "hidden" && Number(style.opacity) > 0.05 && e.closest(".anchor")?.checkVisibility?.({ opacityProperty: true, visibilityProperty: true }) !== false;
-    };
-    return [...document.querySelectorAll(selector)].filter(shown).length;
-  }, selector);
-/** The labels that show over the scene: every element of the label layer that is drawn and not faded out. */
-const labels = (p, selector = ".world-labels .anchor *") =>
-  p.evaluate((selector) => {
-    const shown = (e) => {
-      const box = e.getBoundingClientRect();
-      const style = getComputedStyle(e);
-      return box.width > 0 && box.height > 0 && style.visibility !== "hidden" && Number(style.opacity) > 0.05 && e.closest(".anchor")?.checkVisibility?.({ opacityProperty: true, visibilityProperty: true }) !== false;
-    };
-    return [...document.querySelectorAll(selector)].filter((e) => e.children.length === 0 || e.matches(".room-sign, .town-sign")).filter(shown).length;
-  }, selector);
 const walkersWalking = (p) => p.evaluate(() => [...(globalThis.__town?.walks?.walkers?.() ?? [])].filter((x) => x.walking).length).catch(() => -1);
-/** What the polite status line says after a key, as one string. */
-const announced = async (p, key, settle = 500) => {
-  await p.keyboard.press(key);
-  await p.waitForTimeout(settle);
-  return (await p.locator("[aria-live=polite]").allInnerTexts()).join(" ").replace(/\s+/g, " ").trim();
-};
 /** Where the visitor stands in walk mode (`__town.visitor`: room id, world x and z, building, the camera's yaw), or null outside it. */
 const visitor = (p) => p.evaluate(() => globalThis.__town?.visitor ?? null).catch(() => null);
 /** The visitor's stroll in world units a second (apps/world/src/world/visitor.ts WALK_SPEED). */
@@ -564,7 +521,7 @@ await group("walk", async () => {
 
   // 11. Phone and dark
   for (const scheme of ["light", "dark"]) {
-    p = await open({ viewport: { width: 375, height: 812 }, colorScheme: scheme, hasTouch: true, isMobile: true });
+    p = await open({ width: 375, theme: scheme });
     await town(p, 2500);
     await shot(p, `12-375-${scheme}-town`);
     const sc = await p.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
@@ -576,7 +533,7 @@ await group("walk", async () => {
     ok(`375 ${scheme}: building signs have 40px hit pads`, pads.length > 0 && pads.every((n) => n >= 40), pads.join(","));
     await p.context().close();
   }
-  p = await open({ colorScheme: "dark" });
+  p = await open({ theme: "dark" });
   await town(p, 2500);
   await shot(p, "13-dark-town");
   await p.context().close();
@@ -736,7 +693,7 @@ await group("demo", async () => {
   // renders: a route of this check's own, the app has no switch for it. Its console errors are the throw's, on purpose,
   // so this page keeps its own list instead of the run's.
   {
-    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
+    const ctx = await browser.newContext(contextOptions());
     await ctx.route(/\/src\/components\/AgentCard\.tsx(\?|$)/, async (route) => {
       // Read through the context's request client (the module as Vite serves it), then served rewritten.
       const original = await ctx.request.get(route.request().url());
@@ -843,10 +800,7 @@ await group("demo", async () => {
 // group's browsers say false, as a person's does, so the fresh-browser road is the real one.
 await group("tour", async () => {
   const person = async (options = {}) => {
-    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light", ...options });
-    await ctx.addInitScript(() => Object.defineProperty(navigator, "webdriver", { get: () => false }));
-    const pg = await ctx.newPage();
-    watch(pg, origin, problems, "tour");
+    const pg = await openPage(browser, { origin, problems, tag: "tour", initScripts: [() => Object.defineProperty(navigator, "webdriver", { get: () => false })], ...options });
     return pg;
   };
   const overlaps = (a, b) => !!a && !!b && a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
@@ -905,7 +859,7 @@ await group("tour", async () => {
   await pg.keyboard.press("Escape");
   await pg.context().close();
   // A phone: the card spans the width at the far edge from what it describes, inside the screen, no horizontal scroll.
-  const phone = await person({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true, colorScheme: "dark" });
+  const phone = await person({ width: 375, theme: "dark" });
   await phone.goto(BASE);
   await dressed(phone, 60000).catch(() => {});
   const phoneCard = phone.locator(".tour-card");
@@ -938,19 +892,9 @@ await group("live", async () => {
   const liveBase = `${liveOrigin}/`;
   const pairing = typeof host.mintPairLink === "function";
   info(`live: fake on 127.0.0.1:${fake.port}, loops web stub on 127.0.0.1:${web.port}, host on 127.0.0.1:${host.port} ${served ? "serving apps/world/dist" : `behind the Vite proxy on ${origin} (Vite started with CREWHUB_WORLD_PORT=${hostPort})`}; pairing ${pairing ? "on" : "not present"}`);
-  const openLive = async (into = problems) => {
-    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
-    const pg = await ctx.newPage();
-    watch(pg, liveOrigin, into, "live");
-    return pg;
-  };
-  const chip = (pg) => pg.locator(".connection-chip").first();
-  const state = (pg) => chip(pg).getAttribute("data-connection").catch(() => null);
-  /** Waits for the connection chip to say `wanted` and answers what it says then. */
-  const until = async (pg, wanted, timeout) => {
-    await pg.waitForSelector(`.connection-chip[data-connection="${wanted}"]`, { timeout }).catch(() => {});
-    return state(pg);
-  };
+  const openLive = (into = problems) => openPage(browser, { origin: liveOrigin, problems: into, tag: "live" });
+  const chip = chipOf;
+  const until = untilChip;
   try {
     if (pairing) {
       // Without the cookie: the API refuses and the world asks to pair, naming the command and never the link. The
@@ -1093,9 +1037,8 @@ await group("live", async () => {
       await pg.keyboard.press("Escape");
       await pg.waitForTimeout(300);
     }
-    const phone = await browser.newContext({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true, colorScheme: "light" });
-    const ph = await phone.newPage();
-    watch(ph, liveOrigin, problems, "live phone");
+    const ph = await openPage(browser, { origin: liveOrigin, width: 375, problems, tag: "live phone" });
+    const phone = ph.context();
     // A new context has no pairing cookie: the phone pairs first, as the desktop page did.
     if (pairing) await ph.goto(host.mintPairLink(served ? undefined : origin));
     await ph.goto(liveBase);
@@ -1229,9 +1172,8 @@ await group("chat", async () => {
   const keyOrigin = rig2.origin;
   info(`chat (key road): fake on 127.0.0.1:${fake2.port} whose key reads the chat, host on 127.0.0.1:${host2.port}`);
   const own2 = [];
-  const ctx2 = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
-  const pg2 = await ctx2.newPage();
-  watch(pg2, keyOrigin, own2, "chat key");
+  const pg2 = await openPage(browser, { origin: keyOrigin, problems: own2, tag: "chat key" });
+  const ctx2 = pg2.context();
   try {
     await pg2.goto(`${keyOrigin}/`);
     await pg2.waitForSelector("canvas", { timeout: 60000 }).catch(() => {});
@@ -1366,9 +1308,8 @@ await group("chat", async () => {
       await pg2.waitForTimeout(300);
     }
     // A phone, dark: the same answer; the bubble fits the width and stays clear of the label there too.
-    const phoneCtx = await browser.newContext({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true, colorScheme: "dark" });
-    const ph2 = await phoneCtx.newPage();
-    watch(ph2, keyOrigin, own2, "chat key phone");
+    const ph2 = await openPage(browser, { origin: keyOrigin, width: 375, theme: "dark", problems: own2, tag: "chat key phone" });
+    const phoneCtx = ph2.context();
     try {
       await ph2.goto(`${keyOrigin}/`);
       await ph2.waitForSelector("canvas", { timeout: 60000 }).catch(() => {});
@@ -1410,9 +1351,8 @@ await group("chat", async () => {
   const noneOrigin = rig3.origin;
   info(`chat (no chat road): fake on 127.0.0.1:${fake3.port} whose key does not read the chat, host on 127.0.0.1:${host3.port}`);
   const own3 = [];
-  const ctx3 = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
-  const pg3 = await ctx3.newPage();
-  watch(pg3, noneOrigin, own3, "chat none");
+  const pg3 = await openPage(browser, { origin: noneOrigin, problems: own3, tag: "chat none" });
+  const ctx3 = pg3.context();
   try {
     await pg3.goto(`${noneOrigin}/`);
     await pg3.waitForSelector("canvas", { timeout: 60000 }).catch(() => {});
@@ -1475,9 +1415,8 @@ await group("chat", async () => {
   fake4.setWorldOrigin(pageOrigin4);
   info(`chat (road 2): fake on 127.0.0.1:${fake4.port} with CHL_WORLD_ORIGIN=${pageOrigin4}, host on 127.0.0.1:${host4.port} naming the fake as the loops web origin`);
   const own4 = [];
-  const ctx4 = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
-  const pg4 = await ctx4.newPage();
-  watch(pg4, pageOrigin4, own4, "chat road 2");
+  const pg4 = await openPage(browser, { origin: pageOrigin4, problems: own4, tag: "chat road 2" });
+  const ctx4 = pg4.context();
   const asks4 = [];
   pg4.on("request", (r) => {
     if (!r.url().startsWith(fake4.url)) return;
@@ -1579,10 +1518,8 @@ await group("town", async () => {
   info(`town: fake on 127.0.0.1:${fake.port}, host on 127.0.0.1:${port} ${served ? "serving apps/world/dist" : `behind the Vite proxy on ${origin}`}; databases ${dbs.map((d) => d.file).join(" and ")}`);
   const contexts = [];
   const openPaired = async () => {
-    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
-    contexts.push(ctx);
-    const pg = await ctx.newPage();
-    watch(pg, liveOrigin, problems, "town");
+    const pg = await openPage(browser, { origin: liveOrigin, problems, tag: "town" });
+    contexts.push(pg.context());
     // The town store's own log lines (`[town] …`), for the detail of a failed check.
     pg.townLog = [];
     pg.on("console", (m) => {
@@ -1797,11 +1734,9 @@ await group("town", async () => {
     dbs.push(propDb);
     try {
       host = await rig.restart({ loopsUrl: propFake.url, key: propFake.key, keyName: propFake.keyName, worldDb: propDb });
-      const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
-      contexts.push(ctx);
-      const pg = await ctx.newPage();
       const own = [];
-      watch(pg, liveOrigin, own, "town");
+      const pg = await openPage(browser, { origin: liveOrigin, problems: own, tag: "town" });
+      contexts.push(pg.context());
       const reads = [];
       await pg.route("**/world-api/tickets/CR-37", async (route) => {
         reads.push(Date.now());
@@ -1867,20 +1802,15 @@ await group("ops", async () => {
   const opsBase = `${opsOrigin}/`;
   info(`ops: fake on 127.0.0.1:${port}, host on 127.0.0.1:${host.port} ${served ? "serving apps/world/dist" : `behind the Vite proxy on ${origin} (Vite started with CREWHUB_WORLD_PORT=${hostPort})`}, the key store under ${configDir}`);
   const own = [];
-  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
-  const pg = await ctx.newPage();
-  watch(pg, opsOrigin, own, "ops");
+  const pg = await openPage(browser, { origin: opsOrigin, problems: own, tag: "ops" });
+  const ctx = pg.context();
   const chip = pg.locator(".connection-chip").first();
   const chipState = () => chip.getAttribute("data-connection").catch(() => null);
   const until = async (wanted, timeout) => {
     await pg.waitForSelector(`.connection-chip[data-connection="${wanted}"]`, { timeout }).catch(() => {});
     return chipState();
   };
-  const screen = (which, timeout) =>
-    pg
-      .waitForSelector(`.connect-page[data-screen="${which}"]`, { timeout })
-      .then(() => true)
-      .catch(() => false);
+  const screen = (which, timeout) => screenShown(pg, which, timeout);
   const hostApi = (p) => pg.request.get(`${opsOrigin}/world-api${p}`).then((r) => r.json());
   /**
    * Opens the Connection panel, waits until its facts (one line) satisfy `wanted` (the panel asks the host when it
@@ -2003,19 +1933,11 @@ await group("connect", async () => {
   const hostPort = Number(opts["host-port"]);
   if (!Number.isInteger(hostPort) || hostPort <= 0) opts.fail("--host-port <port> must be a port number");
   const GOOD_KEY = "chl_" + "stubKEY-_0123456789abcdefghijklmnopqrstuvwx".slice(0, 43);
-  const screen = (pg, which, timeout = 15000) =>
-    pg
-      .waitForSelector(`.connect-page[data-screen="${which}"]`, { timeout })
-      .then(() => true)
-      .catch(() => false);
-  const title = async (pg) => (await pg.locator("#connect-title").innerText().catch(() => "")).replace(/\s+/g, " ").trim();
-  const chip = (pg) => pg.locator(".connection-chip").first();
-  const chipState = (pg) => chip(pg).getAttribute("data-connection").catch(() => null);
-  /** Waits for the connection chip to say `wanted` and answers what it says then. */
-  const until = async (pg, wanted, timeout) => {
-    await pg.waitForSelector(`.connection-chip[data-connection="${wanted}"]`, { timeout }).catch(() => {});
-    return chipState(pg);
-  };
+  const screen = (pg, which, timeout = 15000) => screenShown(pg, which, timeout);
+  const title = connectTitle;
+  const chip = chipOf;
+  const chipState = chipWord;
+  const until = untilChip;
   const keyField = (pg) => pg.getByLabel("Access key");
   /** Types a key into the field and submits it with Enter, as a person does. */
   const paste = async (pg, key) => {
@@ -2049,12 +1971,7 @@ await group("connect", async () => {
   // other tab's stream meets when it reconnects after a Forget elsewhere (the stub ends the streams; a real host keeps them).
   const expected = (x) => x.kind === "console" && (/status of (401|403)/.test(x.text) || (/\[connect stub other tab\]/.test(x.text) && /status of 503/.test(x.text)));
   const own = [];
-  const openConnect = async (label) => {
-    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
-    const pg = await ctx.newPage();
-    watch(pg, origin, own, label);
-    return pg;
-  };
+  const openConnect = (label) => openPage(browser, { origin, problems: own, tag: label });
 
   /** Half one: every screen in order against the stub, on one page; the stub decides the host's state, the page follows by polling. */
   async function stubHalf() {
@@ -2200,10 +2117,9 @@ await group("connect", async () => {
     if (!folderVerdict.ok) opts.fail(`--loops-app-data: ${folderVerdict.reason}`);
     const portVerdict = appDataPort(readFileSync(path.join(appData, "settings.json"), "utf8"));
     if (!portVerdict.ok) opts.fail(`--loops-app-data ${appData}: ${portVerdict.reason}`);
-    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
-    const pg = await ctx.newPage();
+    const pg = await openPage(browser, { origin, problems: own, tag: `connect ${parsed.port}` });
+    const ctx = pg.context();
     const half = (words) => `connect (${parsed.port}): ${words}`;
-    watch(pg, origin, own, `connect ${parsed.port}`);
     const health = await pg.request.get(`${loopsUrl}/api/health`, { timeout: 2000 }).then((r) => (r.ok() ? r.json() : null)).catch(() => null);
     if (!health?.ok) {
       info(`connect: the real half skipped, ${parsed.port} is down`);
@@ -2685,9 +2601,8 @@ await group("real", async () => {
   if (!urlVerdict.ok) opts.fail(`${envFile}: LOOPS_DEV_URL ${urlVerdict.reason}`);
   const loopsPort = parsed.port;
   // Every read of this group goes through the browser's request context (a tool makes no network call of its own).
-  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
-  const pg = await ctx.newPage();
-  watch(pg, origin, problems, "real");
+  const pg = await openPage(browser, { origin, problems, tag: "real" });
+  const ctx = pg.context();
   const health = await pg.request.get(`${loopsUrl}/api/health`, { timeout: 2000 }).then((r) => (r.ok() ? r.json() : null)).catch(() => null);
   if (!health?.ok) {
     info(`real: skipped, ${loopsPort} is down`);

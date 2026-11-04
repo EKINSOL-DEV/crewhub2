@@ -30,6 +30,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { timeworldTarget } from "./lib/timeworldArgs.ts";
 import { appDataPort, ownAppData, ownPort } from "./lib/toolGuard.ts";
 import { cli, launch } from "./lib/world.mjs";
+import { openPage } from "./lib/page.mjs";
 
 const USAGE =
   "node tools/timeworld.mjs --port <port> (--fake <port> [--scenario studio] | --loops-env <file> [--app-data <dir>]) [--cold] [--runs 1] [--config-dir <dir>] [--out <dir>] [--tag time] [--json <file>] [--swiftshader]";
@@ -160,8 +161,8 @@ async function run(env, browser, index) {
     at(await stopHost(child.pid));
     return { steps, hostLines, failed: true };
   }
-  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
-  const page = await ctx.newPage();
+  const page = await openPage(browser);
+  const ctx = page.context();
   const problems = [];
   page.on("pageerror", (e) => problems.push(`pageerror ${e.message}`));
   page.on("console", (m) => m.type() === "error" && problems.push(`console ${m.text()}`));
