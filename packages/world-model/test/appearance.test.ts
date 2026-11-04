@@ -60,6 +60,7 @@ const ROWS: Row[] = [
   { name: "a fading done", agent: { caption: { kind: "done", text: "merged", ticketKey: "CH-2", until: NOW + 3999 } }, figure: ["idle", false, false, false, "idle"], label: ["idle", null, "idle", null, "planned"], words: ["idle", "Idle.", false] },
   { name: "a done that stays", agent: { caption: { kind: "done", text: "merged", ticketKey: "CH-2", until: null } }, figure: ["idle", false, false, false, "idle"], label: ["idle", null, "idle", "done", "planned"], words: ["idle", "Idle.", false] },
   { name: "the hand outranks an alert", agent: { posture: "raised-hand", laneStatus: "blocked", alerts: ["stalled CH-3"] }, figure: ["blocked", false, true, false, "waiting"], label: ["blocked", "blocked", "blocked", "blocked", "blocked"], words: ["blocked on a prompt", "Asks for help.", true] },
+  { name: "blocked, stale: the tag, the dot and the bubble go by the snapshot", agent: { posture: "raised-hand", laneStatus: "blocked" }, freshness: STALE, figure: ["blocked", false, false, false, "waiting"], label: ["unknown", since, since, null, "stalled"], words: ["blocked on a prompt", "Asks for help.", true] },
   { name: "the desk ticket waits on a person", agent: {}, desk: { waiting: true }, figure: ["idle", true, false, false, "waiting"], label: ["idle", null, "idle", null, "planned"], words: ["idle", "Idle.", false] },
   { name: "working, its desk waits", agent: working, desk: { waiting: true }, figure: ["working", true, false, false, "waiting"], label: ["working", null, "working", null, "working"], words: ["working", "Working.", false] },
   { name: "a stalled ticket dims the lamp", agent: working, desk: { waiting: true, stalled: true }, figure: ["working", true, false, false, "dim"], label: ["working", null, "working", null, "working"], words: ["working", "Working.", false] },
@@ -77,23 +78,25 @@ const ROWS: Row[] = [
   { name: "nobody at a stalled desk", agent: null, desk: { stalled: true }, figure: ["idle", false, false, false, "dim"] },
 ];
 
-test("every surface of an agent agrees, row by row (the appearance table)", () => {
-  for (const row of ROWS) {
-    const a = row.agent === null ? null : agent("ada", row.agent);
-    const f = figureLook(a, row.desk);
-    assert.deepEqual([f.pose, f.waiting, f.alert, f.proxy, f.lamp], row.figure, `${row.name}: the figure`);
-    if (!a) continue;
-    const view = { freshness: row.freshness ?? FRESH, now: NOW };
-    const look = agentLook(a, view, row.workingIn);
-    assert.deepEqual([look.tone, look.tag, look.words, look.bubble?.kind ?? null, look.chip], row.label, `${row.name}: the labels`);
-    const words = agentWords(a);
-    assert.deepEqual([words.lane, words.search, words.asksHelp], row.words, `${row.name}: the sentences`);
-    // A lane status on its own reads as the agent's own pill does (a proxy's pill says where it works instead).
-    const lane = laneLook(a.laneStatus, view.freshness);
-    assert.equal(lane.chip, look.chip, `${row.name}: the chip`);
-    if (a.presence === "real") assert.equal(lane.words, look.words, `${row.name}: the lane words`);
-  }
+test("every surface of an agent agrees, row by row (the appearance table)", async (t) => {
+  for (const row of ROWS) await t.test(row.name, () => checkRow(row));
 });
+
+function checkRow(row: Row): void {
+  const a = row.agent === null ? null : agent("ada", row.agent);
+  const f = figureLook(a, row.desk);
+  assert.deepEqual([f.pose, f.waiting, f.alert, f.proxy, f.lamp], row.figure, `${row.name}: the figure`);
+  if (!a) return;
+  const view = { freshness: row.freshness ?? FRESH, now: NOW };
+  const look = agentLook(a, view, row.workingIn);
+  assert.deepEqual([look.tone, look.tag, look.words, look.bubble?.kind ?? null, look.chip], row.label, `${row.name}: the labels`);
+  const words = agentWords(a);
+  assert.deepEqual([words.lane, words.search, words.asksHelp], row.words, `${row.name}: the sentences`);
+  // A lane status on its own reads as the agent's own pill does (a proxy's pill says where it works instead).
+  const lane = laneLook(a.laneStatus, view.freshness);
+  assert.equal(lane.chip, look.chip, `${row.name}: the chip`);
+  if (a.presence === "real") assert.equal(lane.words, look.words, `${row.name}: the lane words`);
+}
 
 test("the bubbles say who and what in their titles; the figure's look is filled in place when given one", () => {
   const ask = agentLook(agent("ada", { displayName: "Ada", caption: { kind: "question", text: "which branch?", ticketKey: "CH-9", until: null } }), { freshness: FRESH, now: NOW });
