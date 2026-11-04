@@ -1,6 +1,6 @@
 /**
  * The demo storyline: sixteen minutes of loops-level actions at 1x, then it loops. The times
- * below are the authored ones; `buildScript(seed)` adds a small seeded jitter and keeps the
+ * below are the authored ones; `buildStory(story, seed)` adds a small seeded jitter and keeps the
  * authored order, so every seed tells the same story at slightly different moments.
  * CONTENT.md walks through it minute by minute.
  */
@@ -422,10 +422,6 @@ export function buildStory(story: Story, seed: number): ScriptEntry[] {
 
 /** The storyline of "Small team", the default scenario. */
 export const SMALL_TEAM_STORY: Story = { durationMs: SCRIPT_DURATION_MS, storyline, probeSilence: PROBE_SILENCE };
-
-export function buildScript(seed: number): ScriptEntry[] {
-  return buildStory(SMALL_TEAM_STORY, seed);
-}
 
 /**
  * The on-demand prop request (build mode's "Request a prop", demo only): the same flow as the

@@ -7,7 +7,7 @@ import { archivedWords } from "./archive.ts";
 import { pinnedCard, quietWords, runWords } from "./board.ts";
 import { roleInferred, roleWords } from "./roleWords.ts";
 import { roomLabel } from "./rooms.ts";
-import { DESK_WORDS, HALL_LABELS, HALL_PLACES, RACK_KINDS, RACK_NAMES, ROLE_DESK_WORDS, hallOf, isRackKind, placeWords as placeWordsOf, type Hall, type RoomWording, type WordingOptions } from "./halls.ts";
+import { DESK_WORDS, HALL_LABELS, RACK_KINDS, RACK_NAMES, ROLE_DESK_WORDS, doneWord, hallOf, isRackKind, placeWords, roomPlaceWords, type Hall, type RoomWording, type WordingOptions } from "./halls.ts";
 import type {
   AgentPlacement,
   Building,
@@ -15,7 +15,6 @@ import type {
   Room,
   TextLine,
   TicketStatus,
-  TransitPlace,
   WorkObject,
   WorldModel,
 } from "./model.ts";
@@ -141,7 +140,7 @@ function describeBuilding(building: Building, add: Add, buildingName: (slug: str
     add(
       section,
       r.publishedAt
-        ? `${name}: published at ${r.publishedAt}; a banner hangs in ${rooms === "classic" ? "the lobby" : "Administration"}.`
+        ? `${name}: published at ${r.publishedAt}; a banner hangs in ${placeWords("lobby", rooms)}.`
         : `${name}: ${r.state}.`,
     );
   }
@@ -152,23 +151,15 @@ function describeBuilding(building: Building, add: Add, buildingName: (slug: str
   for (const run of building.automationRuns) add(section, `${runWords(run)}.`);
   if (building.archivedCount > 0) {
     const n = `${building.archivedCount} ${building.archivedCount === 1 ? "ticket" : "tickets"}`;
-    add(
-      section,
-      rooms === "classic"
-        ? `${n} archived from Dispatch; the truck took them away and the lobby keeps the count.`
-        : `${n} archived from the Done rack; the truck took them away and the archive counter in Administration keeps the count.`,
-    );
+    // The classic lobby keeps the count itself; in three-rooms its archive counter does.
+    const counter = rooms === "classic" ? placeWords("lobby", rooms) : `the archive counter ${roomPlaceWords("lobby", rooms)}`;
+    add(section, `${n} archived from ${placeWords("dispatch", rooms)}; the truck took them away and ${counter} keeps the count.`);
   }
 
   for (const agent of building.agents) describeAgent(section, agent, add, buildingName, rooms);
   for (const visit of building.visits) describeVisit(section, visit, add, rooms);
   if (rooms === "classic") for (const room of building.rooms) describeRoom(building, room, add);
   else describeHalls(building, add);
-}
-
-/** Where a person puts the package: the Done rack, or Dispatch in the classic building. */
-export function doneWord(rooms: RoomWording): string {
-  return rooms === "classic" ? "Dispatch" : "Done";
 }
 
 /**
@@ -201,8 +192,8 @@ function describeAgent(section: string, agent: AgentPlacement, add: Add, buildin
 
 /** Three-rooms: "on the floor, at a worker desk", "in the lead's office", "in Administration". */
 function homePlace(agent: AgentPlacement): string {
-  const hall = hallOf(agent.room!);
-  return hall === "floor" ? `${HALL_PLACES.floor}, at ${DESK_WORDS[agent.role]}` : HALL_PLACES[hall];
+  const words = roomPlaceWords(agent.room!, "three-rooms");
+  return hallOf(agent.room!) === "floor" ? `${words}, at ${DESK_WORDS[agent.role]}` : words;
 }
 
 function describeRoom(building: Building, room: Room, add: Add): void {
@@ -296,10 +287,6 @@ function describeHalls(building: Building, add: Add): void {
   const office = sectionOf("office");
   add(office, `${hallSummary(building, "office")}.`);
   for (const object of inHall("office")) describeObject(office, object, building, add, "three-rooms");
-}
-
-function placeWords(place: TransitPlace, rooms: RoomWording): string {
-  return placeWordsOf(place, rooms);
 }
 
 function describeObject(section: string, object: WorkObject, building: Building, add: Add, rooms: RoomWording): void {

@@ -8,7 +8,7 @@
  * shape is rejected, so there is nowhere to put text that could appear as an agent's speech).
  */
 import { roomLabel } from "./rooms.ts";
-import { roomPlaceWords, type RoomWording } from "./halls.ts";
+import { ROOM_KINDS, placeWords, roomPlaceWords, type RoomWording } from "./halls.ts";
 import type { AgentKey, AgentPlacement, Building, RoomKind, WorldModel } from "./model.ts";
 
 export const MAX_INTENTS_PER_PLAN = 8;
@@ -64,18 +64,6 @@ const SHAPES: Record<Intent["kind"], readonly string[]> = {
   gather: ["kind", "agents", "room", "ttlMs"],
   stay: ["kind", "agent", "ttlMs"],
 };
-const ROOM_KINDS: readonly string[] = [
-  "lobby",
-  "lead-office",
-  "workers",
-  "analyst",
-  "design",
-  "storage",
-  "planning",
-  "review",
-  "dispatch",
-  "meeting",
-];
 const TAG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 export interface Located {
@@ -129,7 +117,7 @@ export function parseIntent(raw: unknown): Intent | string {
   switch (kind) {
     case "goToProp":
       if (!isKey(raw.agent)) return "agent is missing";
-      if (typeof raw.room !== "string" || !ROOM_KINDS.includes(raw.room)) return "room is not a room kind";
+      if (typeof raw.room !== "string" || !ROOM_KINDS.includes(raw.room as RoomKind)) return "room is not a room kind";
       if (typeof raw.tag !== "string" || !TAG.test(raw.tag) || raw.tag.length > 24) return "tag is not a kebab-case prop tag";
       return { kind, agent: raw.agent, room: raw.room as RoomKind, tag: raw.tag, ttlMs: ttl };
     case "visitAgent":
@@ -249,27 +237,29 @@ const TAG_WORDS: Readonly<Record<string, string>> = {
   gather: "meeting table",
 };
 
-/** The thing a prop tag stands for when the building has three halls: the piles are racks, the meeting table a huddle. */
-const HALL_TAG_WORDS: Readonly<Record<string, string>> = {
-  planning: "Planning rack",
-  review: "Review rack",
-  storage: "Backlog rack",
-  dispatch: "Done rack",
-  gather: "huddle table",
+/** The room a prop tag's thing stands in when the building has three halls: the piles are racks, the meeting table
+    the huddle; halls.ts says the place. */
+const HALL_TAG_ROOMS: Readonly<Record<string, RoomKind>> = {
+  planning: "planning",
+  review: "review",
+  storage: "storage",
+  dispatch: "dispatch",
+  gather: "meeting",
 };
 
 /** One sentence for the text view, e.g. "cr-dev-1 goes to the coffee machine in the lobby" (classic) or "… in
     Administration" (three-rooms: the room's hall). No speech. */
 export function describeIntent(model: WorldModel, intent: Intent, rooms: RoomWording = "classic"): string {
   const name = (key: AgentKey) => locate(model, key)?.agent.displayName ?? key;
-  const words = (tag: string) => (rooms === "three-rooms" ? HALL_TAG_WORDS[tag] : undefined) ?? TAG_WORDS[tag] ?? tag.replace(/-/g, " ");
+  const thing = (tag: string) =>
+    rooms === "three-rooms" && Object.hasOwn(HALL_TAG_ROOMS, tag) ? placeWords(HALL_TAG_ROOMS[tag]!, rooms) : `the ${TAG_WORDS[tag] ?? tag.replace(/-/g, " ")}`;
   switch (intent.kind) {
     case "goToProp":
-      return `${name(intent.agent)} goes to the ${words(intent.tag)} ${roomPlaceWords(intent.room, rooms)}`;
+      return `${name(intent.agent)} goes to ${thing(intent.tag)} ${roomPlaceWords(intent.room, rooms)}`;
     case "visitAgent":
       return `${name(intent.agent)} visits ${name(intent.target)}`;
     case "gather":
-      return `${intent.agents.map(name).join(", ")} gather ${rooms === "classic" ? "in the meeting room" : "at the huddle table"}`;
+      return `${intent.agents.map(name).join(", ")} gather ${rooms === "classic" ? roomPlaceWords("meeting", rooms) : `at ${placeWords("meeting", rooms)}`}`;
     case "stay":
       return `${name(intent.agent)} stays where it is`;
   }
