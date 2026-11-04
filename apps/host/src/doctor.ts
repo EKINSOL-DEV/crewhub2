@@ -196,6 +196,8 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
     };
     await read<{ projects: { slug: string }[] }>("projects", "/api/projects", (b) => `${b.projects.length} project${b.projects.length === 1 ? "" : "s"}${b.projects.length === 0 ? " (no buildings yet: make one in crewhub-loops)" : `: ${b.projects.map((p) => p.slug).join(", ")}`}`);
     await read<{ agents: unknown[] }>("agents", "/api/agents", (b) => {
+      // A body without a list is no agents answer: `read` says the read failed, as it did when `.find` threw (review-h5).
+      if (!Array.isArray(b.agents)) throw new TypeError("agents is no list");
       // The key's own entry says what kind of bot it is (keyBot.ts, the one reader; the chat path asks the same fact).
       // A viewer (the "Connect CrewHub World" card, loops main) reads only: loops refuses the rest before the route runs.
       // `read` runs only where the key was accepted, so its name is known.
