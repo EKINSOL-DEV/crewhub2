@@ -56,7 +56,7 @@ export interface View {
   flight: { id: number; anchor: string; reach?: number };
 }
 
-export const NO_SELECTION: Selection = { hover: null, selected: null };
+const NO_SELECTION: Selection = { hover: null, selected: null };
 
 export const HOME_VIEW: View = {
   entered: null,
@@ -150,7 +150,7 @@ const everyAgent = (model: ViewFacts["model"]): AgentPlacement[] => [...model.bu
 export const agentNameOf = (model: ViewFacts["model"], key: string): string => everyAgent(model).find((a) => a.key === key)?.displayName ?? key;
 
 /** What the focus ring says about a building: its counts and its lead, or that it is archived. */
-export function describeBuilding(model: ViewFacts["model"], index: number): string {
+function describeBuilding(model: ViewFacts["model"], index: number): string {
   const b = model.buildings[index];
   if (!b) return "";
   if (b.archived) return `${b.name} (${b.key}), archived: ${archivedWords(b.archivedAt, model.now)}${b.archivedBy ? ` by ${b.archivedBy}` : ""}. ${countsLine(b.counts)}. Enter to look inside.`;
@@ -230,7 +230,8 @@ export function stepView(view: View, intent: ViewIntent, facts: ViewFacts): View
     case "jumpActive":
       return same(view, intent.building === view.likely ? view : { ...view, likely: intent.building });
     case "hover":
-      if (intent.index === null) return same(view, view);
+      // The same building again changes nothing (a Tab back onto its sign): no render.
+      if (intent.index === null || (view.focused === intent.index && view.ringVisible)) return same(view, view);
       return same(view, { ...view, focused: intent.index, ringVisible: true });
     case "focusRoom":
       return focusRoom(intent.kind, intent.zoom);

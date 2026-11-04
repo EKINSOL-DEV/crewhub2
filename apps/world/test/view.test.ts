@@ -210,6 +210,7 @@ test("the stage's keys in the town: the arrows show and move the ring and descri
   const hovered = stepView(HOME_VIEW, { type: "hover", index: 1 }, t);
   assert.deepEqual([hovered.view.focused, hovered.view.ringVisible, hovered.say], [1, true, null]);
   assert.equal(stepView(HOME_VIEW, { type: "hover", index: null }, t).view, HOME_VIEW);
+  assert.equal(stepView(hovered.view, { type: "hover", index: 1 }, t).view, hovered.view, "the same building again is the same view: no render (review-c2 N3)");
 });
 
 test("the stage's keys inside: the arrows move the room focus from the lobby, Enter zooms to the focused room or opens a selected agent's card", () => {

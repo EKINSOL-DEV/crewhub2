@@ -42,7 +42,7 @@ import { describeCasts } from "./world/castText";
 import { describeZones, townKeeping, townKeepingWords } from "./world/zoneText";
 import { styleRegistry } from "./world/style";
 import { crumbs, districtsOf, homeName, isRegion, jumpEntries, needsOf, needsWords, summarise, summaryWords, type Crumb, type DistrictPlace, type JumpEntry, type Place } from "./world/wayfinding";
-import { agentNameOf, hereOf, HOME_VIEW, stepView, type View, type ViewIntent, type ViewStep } from "./state/view";
+import { agentNameOf, hereOf, HOME_VIEW, insideOf, placeOf, stepView, type View, type ViewIntent, type ViewStep } from "./state/view";
 import { toggleDetails, useDetails } from "./state/details";
 import { toggleFps } from "./state/fps";
 import { readRoleOverrides, writeRoleOverrides } from "./state/roleOverrides";
@@ -153,7 +153,7 @@ function World() {
 
   const buildings = model.buildings;
   const plan = useTownPlan(model, town.doc);
-  const inside = buildings.find((b) => b.slug === entered) ?? null;
+  const inside = insideOf(view, buildings);
   // The districts in use: a building stands in the district of its plot (after a regroup that is not its zone's).
   const districtKey = `${model.zones.map((z) => `${z.id}:${z.name}:${z.order}`).join("|")}#${model.buildings.map((b) => `${b.slug}:${b.zoneId}`).join("|")}`;
   const districts = useMemo(() => {
@@ -267,16 +267,18 @@ function World() {
   // held that render's whole scope; this one holds nothing but the ref). It steps the module with this render's facts,
   // keeps the ref and the state, says the sentence, and closes the page's overlay the view asks closed.
   const dispatch = useStable((intent: ViewIntent): ViewStep => {
-    const step = stepView(viewRef.current, intent, { model, districts, plan, rooms });
-    if (step.view !== viewRef.current) {
+    const before = viewRef.current;
+    const step = stepView(before, intent, { model, districts, plan, rooms });
+    if (step.view !== before) {
       viewRef.current = step.view;
       setView(step.view);
     }
     if (step.say !== null) setAnnouncement(step.say);
     if (step.close === "text") closeText();
     else if (step.close === "build") build.toggle();
-    /* The agent card closes (Escape, its close button): a focus that was in the card goes to the scene, not to the body (round 21). */
-    if (intent.type === "closeCard") {
+    /* The agent card closes (its close button, or Escape reaching it in the chain): a focus that was in the card goes to
+       the scene, not to the body (round 21; tools/a11y.mjs checks the canvas has it). */
+    if (intent.type === "closeCard" || (intent.type === "escape" && before.card && !step.view.card)) {
       requestAnimationFrame(() => {
         if (document.activeElement === null || document.activeElement === document.body) focusScene();
       });
@@ -565,7 +567,7 @@ function World() {
   }, [pageChatOrigin, keyReadsChat]);
   const trailNames = { home: homeName(districts), district: here?.name ?? null, building: inside?.name ?? null, room: inside && zoomed ? roomName(inside, zoomed, rooms) : null };
   const trail = useMemo(
-    () => crumbs({ district: here?.id ?? null, building: inside?.slug ?? null, room: inside ? zoomed : null }, trailNames),
+    () => crumbs(placeOf(view, districts), trailNames),
     // The names decide; the object is new each render.
     [here?.id, inside?.slug, zoomed, JSON.stringify(trailNames)],
   );

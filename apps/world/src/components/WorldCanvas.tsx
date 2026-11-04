@@ -22,7 +22,7 @@ import { useDayNight } from "../state/daynight";
 import { useFps } from "../state/fps";
 import { FpsOverlay } from "./FpsOverlay";
 import type { Pick } from "../world/buildingView";
-import { hereOf, type Selection, type View, type ViewIntent } from "../state/view";
+import { hereOf, insideOf, type Selection, type View, type ViewIntent } from "../state/view";
 import { buildingTemplate } from "../world/buildingTemplate";
 import { assignDesks, placeObjects } from "../world/interiorLayout";
 import { roomName, sameRoom, shortRoomName, signState } from "../world/roomWords";
@@ -47,8 +47,6 @@ import { type Said, type SaidMap, saidBy, saidLabel } from "../state/said";
 import { markLabel, type SaidMark } from "../world/saidText";
 import { Chip } from "./primitives";
 import { needsOf, needsPinWords, needsTotal, needsWords, summarise, summaryWords, activeWords, type DistrictPlace } from "../world/wayfinding";
-
-export type { Selection };
 
 interface Props {
   model: WorldModel;
@@ -264,7 +262,7 @@ export default function WorldCanvas(props: Props) {
 
   const { model, onIntent } = props;
   const walking = props.view.walk !== null;
-  const inside = model.buildings.find((b) => b.slug === props.view.entered) ?? null;
+  const inside = insideOf(props.view, model.buildings);
   const compact = useCompact();
   const card = useAgentCard(props, inside, compact, portrait);
   return (
