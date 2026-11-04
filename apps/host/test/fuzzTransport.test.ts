@@ -11,12 +11,13 @@ import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { after, before, describe, it } from "node:test";
-import { createHost, type Host } from "../src/host.ts";
+import type { Host } from "../src/host.ts";
 import { checkKey } from "../src/keyCheck.ts";
 import { createLoopsClient } from "../src/loops.ts";
 import { SnapshotError, readTail } from "../src/snapshot.ts";
 import { Rng, assertPrototypeClean, oddJsonText, oddString, oddValue, replay } from "./fuzz.ts";
 import { type LoopsStub, createLoopsStub, installation } from "./loopsStub.ts";
+import { testHost } from "./testHost.ts";
 
 const KEY = "chl_fuzz_transport_key_0123456789";
 const STATUSES = [200, 200, 200, 201, 204, 206, 301, 302, 304, 307, 308, 400, 401, 403, 404, 409, 410, 418, 429, 500, 502, 503, 599];
@@ -188,7 +189,7 @@ describe("fuzz: a passthrough through the host", () => {
   let answer: { status: number; body: unknown } = { status: 200, body: {} };
   before(async () => {
     stub = await createLoopsStub({ ...installation(), routes: { ...installation().routes, "/api/tickets/AT-1": () => answer } });
-    host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, log: (line) => lines.push(line) });
+    host = await testHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, log: (line) => lines.push(line) });
   });
   after(async () => {
     await host.close();

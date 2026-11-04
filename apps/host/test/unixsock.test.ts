@@ -9,11 +9,11 @@ import { createServer, type Server, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, it } from "node:test";
-import { createHost } from "../src/host.ts";
 import { createLoopsClient } from "../src/loops.ts";
 import { createUnixTransport } from "../src/transport.ts";
 import { createLoopsStub, envelope, installation } from "./loopsStub.ts";
 import { openSse } from "./sse.ts";
+import { testHost } from "./testHost.ts";
 import { waitFor } from "./wait.ts";
 
 const read = async (url: string) => (await (await fetch(`${url}/world-api/health`)).json()) as Record<string, any>;
@@ -32,12 +32,12 @@ describe("the Unix socket transport", () => {
     cleanup.length = 0;
   });
 
-  async function start(stubOptions: Parameters<typeof createLoopsStub>[0] = {}, hostOptions: Partial<Parameters<typeof createHost>[0]> = {}) {
+  async function start(stubOptions: Parameters<typeof createLoopsStub>[0] = {}, hostOptions: Partial<Parameters<typeof testHost>[0]> = {}) {
     const dir = socketDir();
     cleanup.push(() => rmSync(dir, { recursive: true, force: true }));
     const stub = await createLoopsStub({ ...installation(), socketPath: path.join(dir, "loops.sock"), ...stubOptions });
     cleanup.push(() => stub.close());
-    const host = await createHost({ loopsUrl: "http://127.0.0.1:1", loopsSocket: stub.socketPath as string, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 20, max: 40 }, ...hostOptions });
+    const host = await testHost({ loopsUrl: "http://127.0.0.1:1", loopsSocket: stub.socketPath as string, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 20, max: 40 }, ...hostOptions });
     cleanup.push(() => host.close());
     // A settled host: the key checked and the stream open over the socket (never assumed from the clock).
     await waitFor("the stream over the socket", async () => (await read(host.url)).connection.stream.state === "ok");
@@ -51,7 +51,7 @@ describe("the Unix socket transport", () => {
     assert.equal(health.loops, "ok");
     assert.equal(health.cursor, 1);
     assert.equal(health.loopsWebUrl, "http://127.0.0.1:8091", "a socket has no origin: the app's default names the web app for the sign-in link (text only, never asked)");
-    const named = await createHost({ loopsUrl: "http://127.0.0.1:1", loopsWebUrl: "http://127.0.0.1:8291/", loopsSocket: stub.socketPath as string, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 } });
+    const named = await testHost({ loopsUrl: "http://127.0.0.1:1", loopsWebUrl: "http://127.0.0.1:8291/", loopsSocket: stub.socketPath as string, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 } });
     cleanup.push(() => named.close());
     assert.equal(((await (await fetch(`${named.url}/world-api/health`)).json()) as { loopsWebUrl: string }).loopsWebUrl, "http://127.0.0.1:8291", "loopsWebUrl names another web app when given");
     const snapshot = (await (await fetch(`${host.url}/world-api/snapshot`)).json()) as { projects: { slug: string }[]; milestones: Record<string, unknown[]>; cursor: number };
@@ -115,7 +115,7 @@ describe("the Unix socket transport", () => {
     const dir = socketDir();
     cleanup.push(() => rmSync(dir, { recursive: true, force: true }));
     const socketPath = path.join(dir, "loops.sock");
-    const host = await createHost({ loopsUrl: "http://127.0.0.1:1", loopsSocket: socketPath, key: "chl_x", keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 60 } });
+    const host = await testHost({ loopsUrl: "http://127.0.0.1:1", loopsSocket: socketPath, key: "chl_x", keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 60 } });
     cleanup.push(() => host.close());
     // Down once the host's first attempt on the socket was refused (waited for; never read off health's bounded wait).
     await waitFor("loops down over the socket", async () => (await read(host.url)).loops === "down");
@@ -162,7 +162,7 @@ describe("the Unix socket transport", () => {
 describe("health over TCP", () => {
   it('says transport: "tcp"', async () => {
     const stub = await createLoopsStub(installation());
-    const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", retryMs: { min: 20, max: 100 } });
+    const host = await testHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", retryMs: { min: 20, max: 100 } });
     try {
       await waitFor("the stream", async () => (await read(host.url)).loops === "ok");
       assert.equal((await read(host.url)).transport, "tcp");

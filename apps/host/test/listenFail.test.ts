@@ -4,7 +4,7 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
-import { createHost } from "../src/host.ts";
+import { testHost } from "./testHost.ts";
 
 const timers = () => process.getActiveResourcesInfo().filter((kind) => kind === "Timeout").length;
 
@@ -18,7 +18,7 @@ describe("a host that cannot listen", () => {
     writeFileSync(path.join(appData, "settings.json"), JSON.stringify({ port }));
     try {
       const before = timers();
-      await assert.rejects(createHost({ port, pairing: "off", log: () => undefined, discovery: { appData, answers: async () => false } }), /EADDRINUSE/);
+      await assert.rejects(testHost({ port, pairing: "off", log: () => undefined, discovery: { appData, answers: async () => false } }), /EADDRINUSE/);
       assert.equal(timers(), before, "the idle heartbeat of a host that never listened keeps running and holds the process open");
     } finally {
       await new Promise<void>((resolve) => blocker.close(() => resolve()));

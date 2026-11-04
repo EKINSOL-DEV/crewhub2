@@ -9,9 +9,10 @@ import assert from "node:assert/strict";
 import { maxHeaderSize, request } from "node:http";
 import { after, before, describe, it } from "node:test";
 import { LOOPS_READS, WORLD_API_PREFIX, WORLD_ROUTES, allowedLoopsPath, fillPattern, isSegment, matchWorldRoute } from "../src/allowList.ts";
-import { createHost, type Host } from "../src/host.ts";
+import type { Host } from "../src/host.ts";
 import { PROTO_KEYS, Rng, assertPrototypeClean, oddString, replay, safeEncode } from "./fuzz.ts";
 import { type LoopsStub, createLoopsStub, installation } from "./loopsStub.ts";
+import { testHost } from "./testHost.ts";
 
 const SEEDS = [34001, 34002, 34003];
 const PATTERNS = [...WORLD_ROUTES.map((r) => r.pattern), ...LOOPS_READS.map((r) => r.pattern)];
@@ -130,7 +131,7 @@ describe("fuzz: the allow-list through a host", () => {
   const lines: string[] = [];
   before(async () => {
     stub = await createLoopsStub(installation());
-    host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, log: (line) => lines.push(line) });
+    host = await testHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, log: (line) => lines.push(line) });
   });
   after(async () => {
     await host.close();

@@ -8,10 +8,11 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, it } from "node:test";
-import { createHost, type Host } from "../src/host.ts";
+import type { Host } from "../src/host.ts";
 import { MIGRATIONS, openWorldDb, type Migration, type WorldDb } from "../src/worldDb.ts";
 import { createLoopsStub, installation, type LoopsStub } from "./loopsStub.ts";
 import { openSse } from "./sse.ts";
+import { testHost } from "./testHost.ts";
 import { waitFor } from "./wait.ts";
 
 /** A port nobody listens on right now (bound once on the loopback and closed again). */
@@ -40,11 +41,11 @@ describe("the town routes", () => {
     dir = "";
   });
 
-  async function start(extra: Partial<Parameters<typeof createHost>[0]> = {}) {
+  async function start(extra: Partial<Parameters<typeof testHost>[0]> = {}) {
     stub = await createLoopsStub(installation());
     dir = mkdtempSync(path.join(tmpdir(), "chw-town-"));
     db = openWorldDb(dir);
-    host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", keySource: "env", pairing: "off", retryMs: { min: 20, max: 100 }, worldDb: db, ...extra });
+    host = await testHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", keySource: "env", pairing: "off", retryMs: { min: 20, max: 100 }, worldDb: db, ...extra });
     await waitFor("the stream", async () => ((await (await fetch(`${host!.url}/world-api/health`)).json()) as { connection: { stream: { state: string } } }).connection.stream.state === "ok");
     return { host, stub, db };
   }
@@ -113,7 +114,7 @@ describe("the town routes", () => {
     assert.equal(db!.getTown("127.0.0.1-1")?.rev, undefined);
     // Paired hosts refuse an unpaired browser as they do every other route.
     await host!.close();
-    host = await createHost({ loopsUrl: stub!.url, key: stub!.key, keyName: "crewhub-world", keySource: "env", pairing: "on", retryMs: { min: 20, max: 100 }, worldDb: db! });
+    host = await testHost({ loopsUrl: stub!.url, key: stub!.key, keyName: "crewhub-world", keySource: "env", pairing: "on", retryMs: { min: 20, max: 100 }, worldDb: db! });
     assert.equal((await get("/town")).status, 401);
     assert.equal((await put({ document: DOC(0), baseRev: 0 })).status, 401);
   });
@@ -138,7 +139,7 @@ describe("the town routes", () => {
 
   it("without a world database the route says so; without a loops found the town has no installation yet", async () => {
     stub = await createLoopsStub(installation());
-    host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", keySource: "env", pairing: "off", retryMs: { min: 20, max: 100 } });
+    host = await testHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", keySource: "env", pairing: "off", retryMs: { min: 20, max: 100 } });
     const none = await get("/town");
     assert.deepEqual([none.status, await none.json()], [200, { installation: null, rev: null, document: null, reason: "no_world_db" }], "a read is no error, only no revision");
     assert.equal((await put({ document: DOC(0), baseRev: 0 })).status, 503, "a write is refused with the reason");
@@ -152,7 +153,7 @@ describe("the town routes", () => {
     const appData = mkdtempSync(path.join(tmpdir(), "chw-app-"));
     try {
       writeFileSync(path.join(appData, "settings.json"), `{"port": ${await freePort()}}\n`);
-      host = await createHost({ discovery: { appData, intervalMs: 40 }, pairing: "off", retryMs: { min: 20, max: 100 }, worldDb: db });
+      host = await testHost({ discovery: { appData, intervalMs: 40 }, pairing: "off", retryMs: { min: 20, max: 100 }, worldDb: db });
       const lost = await get("/town");
       assert.deepEqual([lost.status, ((await lost.json()) as { reason: string; rev: unknown }).reason, ((await (await get("/town")).json()) as { rev: unknown }).rev], [200, "no_loops", null]);
       assert.equal((await put({ document: DOC(0), baseRev: 0 })).status, 503);
@@ -182,7 +183,7 @@ describe("the town routes' history and backups (round 21)", () => {
     stub = await createLoopsStub(installation());
     dir = mkdtempSync(path.join(tmpdir(), "chw-town-"));
     db = openWorldDb(dir);
-    host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", keySource: "env", pairing: "off", retryMs: { min: 20, max: 100 }, worldDb: db });
+    host = await testHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", keySource: "env", pairing: "off", retryMs: { min: 20, max: 100 }, worldDb: db });
     await waitFor("the stream", async () => ((await (await fetch(`${host!.url}/world-api/health`)).json()) as { connection: { stream: { state: string } } }).connection.stream.state === "ok");
     const tab = await openSse(`${host.url}/world-api/stream?cursor=0`);
     try {
@@ -216,7 +217,7 @@ describe("the town routes' history and backups (round 21)", () => {
     const old = openWorldDb(dir, { migrations: [MIGRATIONS[0] as Migration] });
     old.close();
     db = openWorldDb(dir);
-    host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", keySource: "env", pairing: "off", retryMs: { min: 20, max: 100 }, worldDb: db });
+    host = await testHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", keySource: "env", pairing: "off", retryMs: { min: 20, max: 100 }, worldDb: db });
     await waitFor("the stream", async () => ((await (await fetch(`${host!.url}/world-api/health`)).json()) as { connection: { stream: { state: string } } }).connection.stream.state === "ok");
     const key = ((await (await get("/town")).json()) as { installation: string }).installation;
     const listed = (await (await get("/town/backups")).json()) as { installation: string; backups: { name: string; version: number }[] };

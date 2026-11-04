@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
-import { createHost } from "../src/host.ts";
 import { createLoopsClient } from "../src/loops.ts";
 import { BUSY_REASON, type HostMessage, createUpstream } from "../src/stream.ts";
 import { type LoopsStub, createLoopsStub, envelope, installation } from "./loopsStub.ts";
 import { openSse } from "./sse.ts";
+import { testHost } from "./testHost.ts";
 import { GENEROUS_MS, POLL_MS, waitFor } from "./wait.ts";
 
 const isEvent = (seq: number) => (m: Record<string, unknown>) => m.type === "event" && (m.envelope as { seq: number }).seq === seq;
@@ -26,9 +26,9 @@ describe("the shared stream", () => {
     cleanup.length = 0;
   });
   const quick = { retryMs: { min: 20, max: 100 }, reconnectMs: { min: 20, max: 40 } };
-  async function start(stubOptions: Parameters<typeof createLoopsStub>[0] = {}, hostOptions: Partial<Parameters<typeof createHost>[0]> = {}) {
+  async function start(stubOptions: Parameters<typeof createLoopsStub>[0] = {}, hostOptions: Partial<Parameters<typeof testHost>[0]> = {}) {
     const stub = await createLoopsStub({ ...installation(), ...stubOptions });
-    const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", ...quick, log: () => undefined, ...hostOptions });
+    const host = await testHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", ...quick, log: () => undefined, ...hostOptions });
     cleanup.push(() => stub.close(), () => host.close());
     return { stub, host };
   }
@@ -217,7 +217,7 @@ describe("the shared stream", () => {
     // loops forgot the log up to 150: a host whose first stream asks for 150 is told 410, the clients re-snapshot
     const gone = await createLoopsStub({ ...installation(), older: true, events: [envelope(150, "ticket.created")], minAfter: 151 });
     cleanup.push(() => gone.close());
-    const goneHost = await createHost({ loopsUrl: gone.url, key: gone.key, keyName: "crewhub-world", pairing: "off", ...quick, log: () => undefined });
+    const goneHost = await testHost({ loopsUrl: gone.url, key: gone.key, keyName: "crewhub-world", pairing: "off", ...quick, log: () => undefined });
     cleanup.push(() => goneHost.close());
     const b = await openSse(`${goneHost.url}/world-api/stream?cursor=150`);
     cleanup.push(async () => b.close());
@@ -227,7 +227,7 @@ describe("the shared stream", () => {
 
   it("goes down and comes back: status messages, host heartbeats, and a reset when the tail went backwards", async () => {
     const first = await createLoopsStub({ ...installation(), events: [envelope(1, "ticket.created"), envelope(2, "ticket.created")] });
-    const host = await createHost({ loopsUrl: first.url, key: first.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 60 }, reconnectMs: { min: 20, max: 40 }, log: () => undefined });
+    const host = await testHost({ loopsUrl: first.url, key: first.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 60 }, reconnectMs: { min: 20, max: 40 }, log: () => undefined });
     cleanup.push(() => host.close());
     const a = await openSse(`${host.url}/world-api/stream?cursor=2`);
     cleanup.push(async () => a.close());
@@ -310,7 +310,7 @@ describe("the stream's tab cap and the snapshot's own failures (round 26)", () =
   it("holds at most MAX_TABS tabs; the next one is 503 too_many_tabs and the rest go on (review N3)", async () => {
     const { MAX_TABS } = await import("../src/host.ts");
     const stub = await createLoopsStub({ ...installation() });
-    const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, log: () => undefined });
+    const host = await testHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, log: () => undefined });
     const tabs: { close(): void }[] = [];
     try {
       for (let i = 0; i < MAX_TABS; i++) tabs.push(await openSse(`${host.url}/world-api/stream?cursor=0`));
@@ -331,7 +331,7 @@ describe("the stream's tab cap and the snapshot's own failures (round 26)", () =
     const lines: string[] = [];
     // The memory road too: a store handing back a slug the file's own filter would have dropped (an older file, a bug).
     const archiveStore = { file: "(memory)", read: () => ({ slugs: ["c/d"], at: "2026-10-22T00:00:00Z" }), save: () => undefined };
-    const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, archiveStore, log: (line) => lines.push(line) });
+    const host = await testHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, archiveStore, log: (line) => lines.push(line) });
     try {
       const a = await openSse(`${host.url}/world-api/stream?cursor=1`);
       try {
@@ -363,7 +363,7 @@ describe("the stream's tab cap and the snapshot's own failures (round 26)", () =
     const listed = routes["/api/projects"] as (url: URL) => { status: number; body: { projects: { slug: string }[] } };
     const stub = await createLoopsStub({ ...installation(), routes: { ...routes, "/api/projects": (url: URL) => { const answer = listed(url); return answer.status === 200 ? { status: 200, body: { projects: [...answer.body.projects, { ...answer.body.projects[0], id: "pr_odd", slug: "a/b", key: "AB", name: "odd" }] } } : answer; } } });
     const lines: string[] = [];
-    const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, log: (line) => lines.push(line) });
+    const host = await testHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, log: (line) => lines.push(line) });
     try {
       await waitFor("the stream", async () => ((await (await fetch(`${host.url}/world-api/health`)).json()) as { loops: string }).loops === "ok");
       const r = await fetch(`${host.url}/world-api/snapshot`);

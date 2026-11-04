@@ -3,9 +3,10 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
-import { createHost, type Host } from "../src/host.ts";
+import type { Host } from "../src/host.ts";
 import { type LoopsStub, createLoopsStub, installation } from "./loopsStub.ts";
 import { openSse } from "./sse.ts";
+import { testHost } from "./testHost.ts";
 
 describe("static files and the host's own heartbeat", () => {
   let stub: LoopsStub;
@@ -17,7 +18,7 @@ describe("static files and the host's own heartbeat", () => {
     await writeFile(path.join(dir, "index.html"), "<!doctype html><title>World</title>");
     await writeFile(path.join(dir, "assets", "index-a1b2c3d4e5.js"), "console.log(1)");
     stub = await createLoopsStub(installation());
-    host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", staticDir: dir, retryMs: { min: 20, max: 100 }, heartbeatMs: 100 });
+    host = await testHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", staticDir: dir, retryMs: { min: 20, max: 100 }, heartbeatMs: 100 });
   });
   after(async () => {
     await host.close();

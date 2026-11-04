@@ -41,3 +41,33 @@ export function testHost(options: HostOptions): Promise<Host> {
   if (problem !== null) return Promise.reject(new Error(problem));
   return createHost(options);
 }
+
+/**
+ * The files of `apps/host/test` that may still call `createHost(` themselves (round 57d sweep), each with why. Every
+ * other file builds its hosts with `testHost`. The list shrinks: a file here that no longer calls `createHost(` fails
+ * the lint until it is taken off; a file not here yet (an answer branch's new test) may be named before it arrives.
+ */
+export const CREATE_HOST_ALLOWED: ReadonlyMap<string, string> = new Map([
+  ["testHost.ts", "the helper itself"],
+  ["testHost.test.ts", "the lint's own examples, as text"],
+  ["health.test.ts", "task/q3-health-less changes its createHost calls: moving them would conflict"],
+  ["pairing.test.ts", "task/r27-tab-pairing and task/q1-cookie-expiry change its createHost calls: moving them would conflict"],
+  ["e2e.test.ts", "task/r27-tab-pairing changes the lines around its createHost call: moving it would conflict"],
+  ["fuzzGuards.test.ts", "task/r27-tab-pairing changes the lines around its createHost call: moving it would conflict"],
+  ["dmReadCap.test.ts", "task/q14-dm-read-cap adds it with createHost calls of its own"],
+  ["bodyCap.test.ts", "task/q15-body-cap adds it with createHost calls of its own"],
+]);
+
+/**
+ * The lint (pure): for each test file, given as its name and text, what is wrong with its `createHost(` calls. A file
+ * off the list must call none; a file on the list (but the helper) must still call one, or it comes off the list.
+ */
+export function createHostLint(files: readonly { name: string; text: string }[], allowed: ReadonlyMap<string, string> = CREATE_HOST_ALLOWED): string[] {
+  const problems: string[] = [];
+  for (const { name, text } of files) {
+    const calls = (text.match(/\bcreateHost\(/g) ?? []).length;
+    if (calls > 0 && !allowed.has(name)) problems.push(`${name}: ${calls} createHost( call(s); build the host with testHost (testHost.ts)`);
+    if (calls === 0 && allowed.has(name) && name !== "testHost.ts") problems.push(`${name}: on CREATE_HOST_ALLOWED but calls no createHost( any more; take it off the list`);
+  }
+  return problems;
+}

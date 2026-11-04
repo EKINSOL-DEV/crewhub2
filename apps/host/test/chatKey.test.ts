@@ -8,11 +8,11 @@
  */
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
-import { createHost } from "../src/host.ts";
 import { createLoopsStub, installation } from "./loopsStub.ts";
 import { openSse } from "./sse.ts";
 import { createServer } from "node:net";
 import type { AddressInfo } from "node:net";
+import { testHost } from "./testHost.ts";
 import { waitFor } from "./wait.ts";
 
 /** A port nothing listens on right now (a stub takes it a moment later, as a loops that starts after the host). */
@@ -34,7 +34,7 @@ describe("the chat over the key, where loops allows it", () => {
   });
   async function startHost(stubUrl: string, key: string) {
     const lines: string[] = [];
-    const host = await createHost({ loopsUrl: stubUrl, key, keyName: "crewhub-world", keySource: "env", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, log: (line) => lines.push(line) });
+    const host = await testHost({ loopsUrl: stubUrl, key, keyName: "crewhub-world", keySource: "env", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, log: (line) => lines.push(line) });
     cleanup.push(() => host.close());
     const health = async () => (await (await fetch(`${host.url}/world-api/health`)).json()) as Record<string, any>;
     await waitFor("the stream", async () => (await health()).connection.stream.state === "ok");
@@ -131,7 +131,7 @@ describe("the chat over the key, where loops allows it", () => {
   it("round 29 (High 1): loops not up at the host's start (the env URL road), the key accepted on the stream later: the host asks then whether the key reads the chat, health gains session key, the threads reach the tab and the dm gate opens", async () => {
     const port = await freePort();
     const lines: string[] = [];
-    const host = await createHost({ loopsUrl: `http://127.0.0.1:${port}`, key: "k-late", keyName: "crewhub-world", keySource: "env", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, log: (line) => lines.push(line) });
+    const host = await testHost({ loopsUrl: `http://127.0.0.1:${port}`, key: "k-late", keyName: "crewhub-world", keySource: "env", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, log: (line) => lines.push(line) });
     cleanup.push(() => host.close());
     const health = async () => (await (await fetch(`${host.url}/world-api/health`)).json()) as Record<string, any>;
     const before = await health();
@@ -154,7 +154,7 @@ describe("the chat over the key, where loops allows it", () => {
   it("round 29 (Medium 2): health says session unknown while the host has no link, absent once it knows the key does not read the chat, key once it knows it does", async () => {
     const port = await freePort();
     const lines: string[] = [];
-    const host = await createHost({ loopsUrl: `http://127.0.0.1:${port}`, key: "k-plain", keyName: "crewhub-world", keySource: "env", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, log: (line) => lines.push(line) });
+    const host = await testHost({ loopsUrl: `http://127.0.0.1:${port}`, key: "k-plain", keyName: "crewhub-world", keySource: "env", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, log: (line) => lines.push(line) });
     cleanup.push(() => host.close());
     const health = async () => (await (await fetch(`${host.url}/world-api/health`)).json()) as Record<string, any>;
     assert.deepEqual((await health()).connection.session, { state: "unknown" });
