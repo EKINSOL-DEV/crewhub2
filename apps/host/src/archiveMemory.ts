@@ -12,8 +12,13 @@
  * nothing never writes an empty list over it. The file as it stands is kept current by every save (round 47, the
  * review's F1), so a target found again judges the file as it is now, not as it was when the host started.
  *
- * Beside the set, each link keeps the slugs archived over its own stream (`seen`): a snapshot reads them one by one
- * whatever the set says since (they used to be the upstream's own `archivedSlugs()`).
+ * Beside the set, each link keeps the slugs archived over its own stream: a snapshot reads them one by one whatever
+ * the set says since (they used to be the upstream's own `archivedSlugs()`).
+ *
+ * A link's facts come through the handle `linked()` returns (round 61, A5's second race): the stream's events, a
+ * snapshot's report, the getter an assembly reads. A handle whose link is no longer the current one is deaf, and says
+ * so in the log: the report of a snapshot an old link was still assembling can no longer land under the new link's
+ * name, however late it comes.
  */
 import type { Envelope, HostArchiveState } from "@crewhub/loops-client";
 import { isSegment } from "./allowList.ts";
@@ -28,13 +33,8 @@ export interface ArchiveMemoryOptions {
   now?: () => string;
 }
 
-export interface ArchiveMemory {
-  /**
-   * A new link to the loops at `target` (every relink that found one, before its stream starts): the link's own
-   * stream set starts empty, and a target other than the last one judges the memory on disk again (the set empties
-   * first: nothing learnt from another loops holds for this one).
-   */
-  linked(target: string): void;
+/** One link's way into the memory: its facts count while the link is the current one, and are dropped after. */
+export interface ArchiveLink {
   /**
    * An event on the link's stream: `project.archived` adds its project's slug, `project.restored` takes it back, any
    * other type changes nothing. `project` may be anything on the wire: null is no project, no object is no slug; an
@@ -46,21 +46,24 @@ export interface ArchiveMemory {
   /** A snapshot's report: the archived set loops confirmed, and where it came from. */
   reported(report: ArchiveReport): void;
   /**
-   * The slugs archived over this link's stream, path segments only. Live: a snapshot under way reads it when it gets
-   * to the archived projects.
-   */
-  seen(): ReadonlySet<string>;
-  /** The set as it stands. A change makes a new set, so a snapshot keeps the one it started with. */
-  slugs(): ReadonlySet<string>;
-  /** Health's `connection.archived`; the slugs, sorted, only when `detailed` (a paired browser). */
-  state(detailed: boolean): HostArchiveState;
-  /**
    * The snapshot's `archived` option, for an assembly starting now (round 60, A1): asked when the snapshot reaches the
-   * archived projects, it answers this link's stream set as it is then (`seen`, live: an archive heard meanwhile
-   * counts), followed by the set as it stood when the assembly started (`slugs`), and whether that set had any. A
-   * relink during the assembly leaves the getter on the link it started on.
+   * archived projects, it answers this link's stream set as it is then (live: an archive heard meanwhile counts),
+   * followed by the set as it stood when the assembly started, and whether that set had any. A relink during the
+   * assembly leaves the getter on the link it started on.
    */
   forSnapshot(): () => KnownArchived;
+}
+
+export interface ArchiveMemory {
+  /**
+   * A new link to the loops at `target` (every relink that found one, before its stream starts): the link's own
+   * stream set starts empty, and a target other than the last one judges the memory on disk again (the set empties
+   * first: nothing learnt from another loops holds for this one). The handle is the link's; the one before is deaf
+   * from here.
+   */
+  linked(target: string): ArchiveLink;
+  /** Health's `connection.archived`; the slugs, sorted, only when `detailed` (a paired browser). */
+  state(detailed: boolean): HostArchiveState;
 }
 
 /** Whether a memory on disk belongs to the loops at `target`: it names that target, or none (the format before round 34). */
@@ -76,9 +79,10 @@ export function createArchiveMemory(options: ArchiveMemoryOptions): ArchiveMemor
   let source: HostArchiveState["source"] = "none";
   let slugs: ReadonlySet<string> = new Set();
   let at: string | undefined;
-  let seen = new Set<string>();
   /** The target the memory was judged for, so a target change judges it again; the file is saved under it. */
   let judgedFor: string | null = null;
+  /** The handle of the link that stands; a fact through any other handle is dropped. */
+  let current: ArchiveLink | null = null;
   /** True once this loops told the host its own set, or the memory on disk is this loops' own: then the file is written. */
   let learnt = false;
 
@@ -105,62 +109,80 @@ export function createArchiveMemory(options: ArchiveMemoryOptions): ArchiveMemor
     }
   }
 
+  /** The judgement of the memory on disk for a target other than the last one. */
+  function judge(target: string): void {
+    if (judgedFor === target) return;
+    judgedFor = target;
+    learnt = false;
+    source = "none";
+    slugs = new Set();
+    at = undefined;
+    if (onDisk === null) return;
+    if (!belongsTo(onDisk, target)) {
+      log(`${store?.file} remembers ${onDisk.target}, not ${target}: ignored (kept until this crewhub-loops' own archived projects are learnt)`);
+      return;
+    }
+    learnt = true;
+    slugs = new Set(onDisk.slugs);
+    source = "remembered";
+    at = onDisk.at;
+    log(`remembered ${projects(onDisk.slugs.length)} from ${store?.file} (learnt ${onDisk.at === "" ? "at an unknown time" : plainTime(onDisk.at)}${onDisk.target === undefined ? ", from an unnamed crewhub-loops" : ""})`);
+  }
+
+  function handle(target: string): ArchiveLink {
+    /** The slugs archived over this link's stream, path segments only; live, a snapshot under way reads it. */
+    const seen = new Set<string>();
+    const gone = (what: string): boolean => {
+      if (current === link) return false;
+      log(`${what} of a link that is gone (${target}): ignored`);
+      return true;
+    };
+    const link: ArchiveLink = {
+      heard(envelope) {
+        if (gone(`archive event ${envelope.seq} (${envelope.type})`)) return;
+        if (!Object.hasOwn(envelope, "project")) {
+          log(`the archive memory ignores event ${envelope.seq} (${envelope.type}): it has no project key`);
+          return;
+        }
+        // No project (null, as most events carry) is nothing for the memory, as the ear judged it before round 60.
+        if (envelope.project === null) return;
+        const { type } = envelope;
+        const project: unknown = envelope.project;
+        const slug: unknown = typeof project === "object" ? (project as { slug?: unknown }).slug : undefined;
+        // The link's own set keeps a slug only when it is one (round 34): a slug that is no segment would make every
+        // snapshot fail on its read (`/api/projects/{slug}` refused by the allow-list, review F8), and `project` may be
+        // anything on the wire. The set itself filters the same way (`normaliseSlugs`).
+        if (type === "project.archived") {
+          if (isSegment(slug)) seen.add(slug);
+          learnt = true; // loops itself says this project is archived: a fact of this loops' own set
+          remember([...slugs, slug as string], null);
+        } else if (type === "project.restored") {
+          if (isSegment(slug)) seen.delete(slug);
+          remember([...slugs].filter((s) => s !== slug), null);
+        }
+      },
+      reported(report) {
+        if (gone("archive report")) return;
+        remember(report.slugs, report.source);
+      },
+      forSnapshot() {
+        const started = slugs;
+        return () => ({ slugs: [...seen, ...started], remembered: started.size > 0 });
+      },
+    };
+    return link;
+  }
+
   return {
     linked(target) {
-      seen = new Set();
-      if (judgedFor === target) return;
-      judgedFor = target;
-      learnt = false;
-      source = "none";
-      slugs = new Set();
-      at = undefined;
-      if (onDisk === null) return;
-      if (!belongsTo(onDisk, target)) {
-        log(`${store?.file} remembers ${onDisk.target}, not ${target}: ignored (kept until this crewhub-loops' own archived projects are learnt)`);
-        return;
-      }
-      learnt = true;
-      slugs = new Set(onDisk.slugs);
-      source = "remembered";
-      at = onDisk.at;
-      log(`remembered ${projects(onDisk.slugs.length)} from ${store?.file} (learnt ${onDisk.at === "" ? "at an unknown time" : plainTime(onDisk.at)}${onDisk.target === undefined ? ", from an unnamed crewhub-loops" : ""})`);
+      judge(target);
+      current = handle(target);
+      return current;
     },
-    heard(envelope) {
-      if (!Object.hasOwn(envelope, "project")) {
-        log(`the archive memory ignores event ${envelope.seq} (${envelope.type}): it has no project key`);
-        return;
-      }
-      // No project (null, as most events carry) is nothing for the memory, as the ear judged it before round 60.
-      if (envelope.project === null) return;
-      const { type } = envelope;
-      const project: unknown = envelope.project;
-      const slug: unknown = typeof project === "object" ? (project as { slug?: unknown }).slug : undefined;
-      // The link's own set keeps a slug only when it is one (round 34): a slug that is no segment would make every
-      // snapshot fail on its read (`/api/projects/{slug}` refused by the allow-list, review F8), and `project` may be
-      // anything on the wire. The set itself filters the same way (`normaliseSlugs`).
-      if (type === "project.archived") {
-        if (isSegment(slug)) seen.add(slug);
-        learnt = true; // loops itself says this project is archived: a fact of this loops' own set
-        remember([...slugs, slug as string], null);
-      } else if (type === "project.restored") {
-        if (isSegment(slug)) seen.delete(slug);
-        remember([...slugs].filter((s) => s !== slug), null);
-      }
-    },
-    reported(report) {
-      remember(report.slugs, report.source);
-    },
-    seen: () => seen,
-    slugs: () => slugs,
     state(detailed) {
       const out: HostArchiveState = { source, count: slugs.size, ...(at === undefined ? {} : { at }) };
       if (detailed) out.slugs = normaliseSlugs(slugs);
       return out;
-    },
-    forSnapshot() {
-      const stream = seen;
-      const started = slugs;
-      return () => ({ slugs: [...stream, ...started], remembered: started.size > 0 });
     },
   };
 }

@@ -14,7 +14,7 @@
  * `chatKey`, `connect`, `health`, `e2e` and the fuzzes through the host.
  */
 import type { HostConnection, HostKeyState, HostMessage, HostSnapshotState, LoopsState, ChatThreadFact } from "@crewhub/loops-client";
-import { createArchiveMemory } from "./archiveMemory.ts";
+import { type ArchiveLink, createArchiveMemory } from "./archiveMemory.ts";
 import type { ArchiveStore } from "./archiveStore.ts";
 import { type ChatPath, createChatPath } from "./chatPath.ts";
 import { DEFAULT_LOOPS_URL, type KeySource } from "./config.ts";
@@ -149,6 +149,8 @@ export interface Connection {
 /** The link to loops: a client and the one upstream stream, for one target and one key, with the chat path on it. */
 interface Link {
   found: Found;
+  /** The memory's handle for this link: a fact through it after the link is gone is dropped (round 61, A5's second race). */
+  archive: ArchiveLink;
   client: LoopsClient;
   upstream: Upstream;
   chat: ChatPath;
@@ -320,8 +322,8 @@ export function createConnection(options: ConnectionOptions): Connection {
       const found = discovery.current();
       const old = link;
       if (old !== null) await unlink(old);
-      if (found !== null) archive.linked(targetText(found.target));
-      if (found === null || holder === null) {
+      const handle = found === null ? null : archive.linked(targetText(found.target));
+      if (found === null || holder === null || handle === null) {
         for (const tab of tabs.values()) attach(tab);
         return;
       }
@@ -363,7 +365,7 @@ export function createConnection(options: ConnectionOptions): Connection {
       if (timings.retryMs !== undefined) upstreamOptions.retryMs = timings.retryMs;
       if (timings.reconnectMs !== undefined) upstreamOptions.reconnectMs = timings.reconnectMs;
       const upstream = createUpstream(client, upstreamOptions);
-      link = { found, client, upstream, chat };
+      link = { found, client, upstream, chat, archive: handle };
       // The connection's own ear on its stream, for as long as this link lives: the stream is the second opinion on
       // the key (a confirmed 401/403 is rejected, ok is ok, down says nothing), loops going away sends the discovery
       // looking again on the app's roads, the dm events feed the chat path and the archive events the memory of the
@@ -395,7 +397,7 @@ export function createConnection(options: ConnectionOptions): Connection {
         if (message.type !== "event") return;
         // A `dm.*` event the key's stream sees (round 24): the chat path reads the threads again and an agent's message as a line.
         chat.onEvent(message.envelope);
-        archive.heard(message.envelope);
+        handle.heard(message.envelope);
       });
       for (const tab of tabs.values()) attach(tab);
       // The first attempt decides the states a connect answers with; it is bounded by the read timeout. A first
@@ -434,13 +436,13 @@ export function createConnection(options: ConnectionOptions): Connection {
   let shared: { upstream: Upstream; resets: number; result: Promise<AssembledSnapshot> } | null = null;
 
   /** One assembly, with its progress in `snapshotState` as it goes (health shows it to the page). */
-  async function assemble(client: LoopsClient, upstream: Upstream): Promise<AssembledSnapshot> {
+  async function assemble(client: LoopsClient, upstream: Upstream, handle: ArchiveLink): Promise<AssembledSnapshot> {
     snapshotState = { state: "reading", reads: 0 };
     const out = await assembleSnapshot(client, {
       cursor: upstream.cursor(),
-      archived: archive.forSnapshot(),
+      archived: handle.forSnapshot(),
       observer: holder === null ? null : holder.name,
-      onArchive: (report: ArchiveReport) => archive.reported(report),
+      onArchive: (report: ArchiveReport) => handle.reported(report),
       onProgress: (progress) => {
         if (snapshotState.state !== "reading") return;
         snapshotState = { state: "reading", reads: progress.reads, ...(progress.projects === null ? {} : { projects: progress.projects }) };
@@ -456,14 +458,14 @@ export function createConnection(options: ConnectionOptions): Connection {
     await relinking;
     const why = unavailableNow();
     if (why !== null || link === null) return { kind: "unavailable", reason: why ?? "loops_down" };
-    const { client, upstream } = link;
+    const { client, upstream, archive: handle } = link;
     await upstream.start();
     if (upstream.state() !== "ok") return { kind: "unavailable", reason: upstream.state() === "unauthorized" ? "unauthorized" : "loops_down" };
     // The key's own principal rides along as the observer: the world never shows it as a figure. One assembly for
     // the tabs that ask while it runs; only the request that started it says the step.
     const resets = upstream.resets();
     const current = shared !== null && shared.upstream === upstream && shared.resets === resets ? shared : null;
-    const mine = current ?? { upstream, resets, result: assemble(client, upstream) };
+    const mine = current ?? { upstream, resets, result: assemble(client, upstream, handle) };
     if (current === null) {
       shared = mine;
       const done = () => {
