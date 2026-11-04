@@ -1,7 +1,7 @@
 /* The world database (round 20): the file and its modes, one row per installation, the revision check, migrations
    with a backup copy, the installation key, and no warning on this Node. Temp folders only. */
 import assert from "node:assert/strict";
-import { copyFileSync, existsSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
+import { copyFileSync, existsSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
@@ -176,6 +176,30 @@ describe("the world database's history (round 21)", () => {
       assert.deepEqual(listBackups(path.join(dir, "nowhere")), []);
     } finally {
       two.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("lists the backups newest schema first, and by name within one schema (round 54, r54-mut-host2: worldDb.ts:165)", () => {
+    const dir = temp();
+    try {
+      for (const name of ["world.db.bak-v1", "world.db.bak-v3", "world.db.bak-v01", "world.db.bak-v2", "world.db.bak-v10"]) writeFileSync(path.join(dir, name), "x");
+      assert.deepEqual(listBackups(dir).map((b) => b.name), ["world.db.bak-v10", "world.db.bak-v3", "world.db.bak-v2", "world.db.bak-v01", "world.db.bak-v1"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("a world.db that is there but holds no schema yet (an empty file) is migrated without a backup copy (round 54, r54-mut-host2: worldDb.ts:214)", () => {
+    const dir = temp();
+    writeFileSync(path.join(dir, WORLD_DB_NAME), "");
+    const db = openWorldDb(dir);
+    try {
+      assert.equal(db.version, MIGRATIONS.length);
+      assert.deepEqual(db.backups, []);
+      assert.deepEqual(readdirSync(dir), [WORLD_DB_NAME], "no world.db.bak-v0");
+    } finally {
+      db.close();
       rmSync(dir, { recursive: true, force: true });
     }
   });
