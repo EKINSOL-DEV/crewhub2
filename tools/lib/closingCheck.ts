@@ -8,8 +8,9 @@
      the Connect screen), and a read that lands while the port is closed is refused. The browser prints it as
      "Failed to load resource: net::ERR_CONNECTION_REFUSED" (RESET when the close cut it), which the page can neither
      catch nor silence. Recorded runs (030bbb70, 4 of 8 town runs) heard it 8 to 24 ms after the close began and up
-     to about 15 ms after the next host listened: the line reaches the tool after the refusal. RESTART_GRACE_MS is that
-     lag's allowance, with room for a loaded machine, and far short of the 2.6 s between two restarts.
+     to about 15 ms after the next host listened, and a full run under load (53c50f4a) up to 43 ms after: the line
+     reaches the tool after the refusal. RESTART_GRACE_MS is that lag's allowance, with room for a loaded machine, and
+     far short of the 2.6 s between two restarts.
    Tested by scripts/test/closingCheck.test.ts, on a recorded run with the flake. */
 
 import { isProbeRefusal, type PageProblem } from "./probeRefusal.ts";
