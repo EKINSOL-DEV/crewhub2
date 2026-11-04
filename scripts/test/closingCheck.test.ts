@@ -104,3 +104,23 @@ test("the Forget admission is exact: that tab, a /world-api/ read, a 503, inside
   assert.equal(connectGroupAdmits({ kind: "console", text: "[connect stub] Failed to load resource: the server responded with a status of 401 (Unauthorized)", pageOrigin: "http://127.0.0.1:5393" }), true);
   assert.equal(connectGroupAdmits({ kind: "console", text: "[connect stub] Failed to load resource: the server responded with a status of 404 (Not Found)", pageOrigin: "http://127.0.0.1:5393" }), false);
 });
+
+/* Round 62's mutation run: what the rows above left open. */
+test("the refusal is the whole line: anything before it or after it is another line and fails", () => {
+  assert.equal(failing(plus(5, { text: "[town] Again: Failed to load resource: net::ERR_CONNECTION_REFUSED" })).length, 1, "words before it");
+  assert.equal(failing(plus(5, { text: `${REFUSED} (retrying)` })).length, 1, "words after it");
+});
+
+test("a blamed URL that does not parse fails the line in both rules, and throws in neither", () => {
+  assert.equal(failing(plus(5, { url: "not a url" })).length, 1, "the whole-run check");
+  assert.equal(admits({ ...the503, at: WINDOW.from + 10, url: "not a url" }, forget.forgets), false, "the connect group's rule");
+});
+
+test("the connect group's status is the browser's words, the tab's tag is the whole tag, its read is a /world-api/ path from the root, and no Forget noted is none", () => {
+  const inside = { ...the503, at: WINDOW.from + 10 };
+  assert.equal(admits(inside, forget.forgets), true, "the row every other row here changes one thing of");
+  assert.equal(admits({ kind: "console", text: "[connect stub] Build 403 failed", pageOrigin: WINDOW.pageOrigin }, forget.forgets), false, "a 403 that is no status");
+  assert.equal(admits({ ...inside, url: `${WINDOW.pageOrigin}/assets/world-api/x` }, forget.forgets), false, "/world-api/ further down the path");
+  assert.equal(admits({ ...inside, text: the503.text.replace("[connect stub] ", "[connect stub]") }, forget.forgets), false, "the tag without its space");
+  assert.equal(admits(inside), false, "no second argument: no Forget");
+});
