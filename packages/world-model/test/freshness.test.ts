@@ -47,3 +47,15 @@ test("freshnessWords: the three surfaces' words for a missing, a stale and a fre
   assert.deepEqual(freshnessWords(fresh), { short: null, sentence: `Team snapshot from ${TS}, 30 s old.`, whyUnknown: "" });
   assert.equal(freshnessWords({ teamTs: TS, ageSeconds: null, stale: false }).sentence, `Team snapshot from ${TS}, 0 s old.`, "a fresh snapshot with no age is said 0 s old, as before");
 });
+
+test("a Freshness built by hand, no stamp yet not stale (the building sign's lead chip, the view's words): the lane keeps its words, the Town line still says no snapshot", () => {
+  // `freshnessOf` never makes this one; the page does (WorldCanvas.tsx builds `{ stale, teamTs, ageSeconds: null }`). `short` follows
+  // `stale` alone, as the lane chip did; the sentences follow the stamp first, as the text view and the director did.
+  const byHand: Freshness = { teamTs: null, ageSeconds: null, stale: false };
+  assert.deepEqual(freshnessWords(byHand), {
+    short: null,
+    sentence: "No team snapshot: no team probe has reported to this crewhub-loops, so every agent's status is unknown.",
+    whyUnknown: " No team probe has reported to this crewhub-loops, so a status stays unknown until one does.",
+  });
+  assert.equal(freshnessWords({ teamTs: TS, ageSeconds: 900, stale: true }).short, `stale since ${clock(TS)}`);
+});

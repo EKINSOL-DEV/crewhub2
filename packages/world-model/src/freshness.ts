@@ -28,28 +28,34 @@ export interface FreshnessWords {
   whyUnknown: string;
 }
 
-/** The words each surface says for `freshness`; every sentence as its surface said it before round 61. */
+/**
+ * The words each surface says for `freshness`; every sentence as its surface said it before round 61. `short` follows
+ * `stale` alone (the lane chip did); the sentences read the stamp first (the text view and the director did). The two
+ * agree on every `Freshness` from `freshnessOf`; they differ for one built by hand with no stamp yet not stale (the
+ * building sign's lead chip), where the lane keeps its words and the Town line still says there is no snapshot.
+ */
 export function freshnessWords(freshness: Freshness): FreshnessWords {
-  const { teamTs } = freshness;
+  const { teamTs, stale } = freshness;
+  const since = clockTime(teamTs);
+  const short = stale ? (since ? `stale since ${since}` : "status unknown") : null;
   if (teamTs === null)
     return {
-      short: "status unknown",
+      short,
       sentence: "No team snapshot: no team probe has reported to this crewhub-loops, so every agent's status is unknown.",
       whyUnknown: " No team probe has reported to this crewhub-loops, so a status stays unknown until one does.",
     };
-  if (freshness.stale) {
-    const since = clockTime(teamTs);
+  if (stale)
     return {
-      short: since ? `stale since ${since}` : "status unknown",
+      short,
       sentence: `The team snapshot is stale since ${teamTs}: every agent's status shows as unknown.`,
       whyUnknown: ` The team snapshot is stale since ${teamTs}, so a status shows as unknown until a fresh one.`,
     };
-  }
-  return { short: null, sentence: `Team snapshot from ${teamTs}, ${freshness.ageSeconds ?? 0} s old.`, whyUnknown: "" };
+  return { short, sentence: `Team snapshot from ${teamTs}, ${freshness.ageSeconds ?? 0} s old.`, whyUnknown: "" };
 }
 
-/** "HH:MM" in the viewer's local time, or null for an unreadable timestamp. */
-function clockTime(iso: string): string | null {
+/** "HH:MM" in the viewer's local time, or null for a missing or unreadable timestamp. */
+function clockTime(iso: string | null): string | null {
+  if (!iso) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
