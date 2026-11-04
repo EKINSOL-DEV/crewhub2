@@ -11,8 +11,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, it } from "node:test";
 import { createArchiveStore } from "../src/archiveStore.ts";
-import { createHost } from "../src/host.ts";
 import { createLoopsStub, envelope, installation } from "./loopsStub.ts";
+import { testHost } from "./testHost.ts";
 import { waitFor } from "./wait.ts";
 
 function archived(seq: number, slug: string) {
@@ -42,7 +42,7 @@ describe("the archive memory across a switch of the loops found (round 44)", () 
     const dir = mkdtempSync(path.join(tmpdir(), "chw-memory-"));
     cleanup.push(() => rmSync(dir, { recursive: true, force: true }));
     const store = createArchiveStore(path.join(dir, "crewhub-world"));
-    const host = await createHost({ discovery: { appData, intervalMs: 40 }, key: a.key, keyName: "crewhub-world", keySource: "env", archiveStore: store, pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 20, max: 100 } });
+    const host = await testHost({ discovery: { appData, intervalMs: 40 }, key: a.key, keyName: "crewhub-world", keySource: "env", archiveStore: store, pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 20, max: 100 } });
     cleanup.push(() => host.close());
     const health = async () => (await (await fetch(`${host.url}/world-api/health`)).json()) as Record<string, any>;
     const snapshot = async () => (await (await fetch(`${host.url}/world-api/snapshot`)).json()) as Record<string, any>;
@@ -130,7 +130,7 @@ describe("the archive memory across a switch of the loops found (round 44)", () 
     const store = createArchiveStore(path.join(dir, "crewhub-world"));
     // The file at the host's start: A's, with one slug.
     store.save({ slugs: ["old-a"], at: "2026-10-27T00:00:00.000Z", target: aUrl });
-    const host = await createHost({ discovery: { appData, intervalMs: 40 }, key, keyName: "crewhub-world", keySource: "env", archiveStore: store, pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 20, max: 100 } });
+    const host = await testHost({ discovery: { appData, intervalMs: 40 }, key, keyName: "crewhub-world", keySource: "env", archiveStore: store, pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 20, max: 100 } });
     cleanup.push(() => host.close());
     const health = async () => (await (await fetch(`${host.url}/world-api/health`)).json()) as Record<string, any>;
     const file = () => JSON.parse(readFileSync(store.file, "utf8")) as { slugs: string[]; at: string; target?: string };

@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { createHost } from "../src/host.ts";
 import { createLoopsStub, installation } from "./loopsStub.ts";
 import { openSse } from "./sse.ts";
+import { testHost } from "./testHost.ts";
 
 describe("the key", () => {
   it("appears in no response of the host, even when loops echoes the Authorization header", async () => {
     const stub = await createLoopsStub({ ...installation(), echoAuth: true, events: [] });
-    const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 } });
+    const host = await testHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 } });
     try {
       const paths = ["/world-api/health", "/world-api/snapshot", "/world-api/tickets/AT-1", "/world-api/tickets/AT-999", "/world-api/projects/nope", "/world-api/board/nope", "/world-api/nothing", "/world-api/project-groups"];
       for (const path of paths) {
