@@ -387,6 +387,8 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
 
   /** Any message from the host: the stream is alive. Silence past `staleMs` is not: the stream is stale and healed. */
   function touched(): void {
+    // A stopped source arms nothing (a listener may stop it on the very snapshot that would arm the timer).
+    if (!running) return;
     if (staleTimer !== null) clearTimeout(staleTimer);
     staleTimer = setTimeout(() => {
       staleTimer = null;
