@@ -12,14 +12,12 @@ import test from "node:test";
 import {
   PAGE_CHAT_EVENTS_LIMIT,
   PAGE_CHAT_INIT,
-  PAGE_CHAT_LINE_MAX,
   POLL_HIDDEN_MS,
   POLL_MAX_MS,
   POLL_MS,
   eventsUrl,
   REPROBE_MS,
   REPROBE_SLOW_MS,
-  firstLine,
   isLoopbackOrigin,
   messageUrl,
   pageGet,
@@ -28,8 +26,6 @@ import {
   probePageChat,
   probeVerdict,
   readEvents,
-  readPageChatLine,
-  readThreads,
   reprobeDelay,
   threadMessagesUrl,
   threadsUrl,
@@ -119,12 +115,7 @@ test("the probe: one GET of the threads; the threads come with an on verdict; a 
   assert.equal(gone.calls.length, 2);
 });
 
-test("the readers: threads leniently, events to the agents' new messages with the cursor, a message to one line cut as the host cuts it", () => {
-  assert.deepEqual(readThreads({ threads: [{ agentId: "a", lastMessageAt: "t", unreadCount: 2 }, { agentId: "", lastMessageAt: "t" }, { agentId: "b", lastMessageAt: "t", unreadCount: -1 }, null] }), [
-    { agentId: "a", lastMessageAt: "t", unreadCount: 2 },
-    { agentId: "b", lastMessageAt: "t", unreadCount: 0 },
-  ]);
-  assert.deepEqual(readThreads(null), []);
+test("the events page: the agents' new messages with the cursor; the person's own message, an answered event, a foreign type and an id outside the shape are not an agent's line", () => {
   const page = readEvents({
     events: [
       { seq: 1, type: "dm.created", actor: { id: "nicky", kind: "user" }, payload: { threadId: "t1", messageId: "m1", agentId: "crewhub-lead" } },
@@ -136,30 +127,10 @@ test("the readers: threads leniently, events to the agents' new messages with th
     lastSeq: 5,
     cursor: "c.next",
   });
-  assert.deepEqual(page.agentDms, [{ messageId: "m2", threadId: "t1", agentId: "crewhub-lead" }], "the person's own message, the answered event and a foreign type are not an agent's line; an id outside the shape is dropped");
+  assert.deepEqual(page.agentDms, [{ messageId: "m2", threadId: "t1", agentId: "crewhub-lead" }]);
   assert.equal(page.dmEvents, 4);
   assert.equal(page.cursor, "c.next");
   assert.deepEqual(readEvents({ events: [], lastSeq: 0 }), { agentDms: [], dmEvents: 0, cursor: null });
-  const ids = { messageId: "m2", threadId: "t1", agentId: "crewhub-lead" };
-  assert.deepEqual(readPageChatLine(ids, { message: { id: "m2", bodyText: "\n\nFirst line here.\nSecond", createdAt: "2026-10-22T21:00:00Z", author: { id: "crewhub-lead", kind: "agent", displayName: "CrewHub lead" } } }), {
-    agentId: "crewhub-lead",
-    agentName: "CrewHub lead",
-    text: "First line here.",
-    at: "2026-10-22T21:00:00Z",
-    messageId: "m2",
-    threadId: "t1",
-  });
-  assert.equal(readPageChatLine(ids, { message: { bodyText: "hi", author: { kind: "user" } } }), null, "a person's message is no bubble");
-  assert.equal(readPageChatLine(ids, { message: { bodyText: "   \n  " } }), null, "an empty line is no bubble");
-  assert.equal(readPageChatLine(ids, null), null);
-  const long = "x".repeat(200);
-  assert.equal(firstLine(long).length, 140);
-  assert.ok(firstLine(long).endsWith("…"));
-});
-
-test("a first line of exactly PAGE_CHAT_LINE_MAX characters is kept whole; one more is cut to that length with an ellipsis (round 54, r54-mut-client)", () => {
-  assert.equal(firstLine("x".repeat(PAGE_CHAT_LINE_MAX)), "x".repeat(PAGE_CHAT_LINE_MAX));
-  assert.equal(firstLine("x".repeat(PAGE_CHAT_LINE_MAX + 1)), `${"x".repeat(PAGE_CHAT_LINE_MAX - 1)}…`);
 });
 
 test("one poll: the events, each agent message by id, the threads again when a dm event came; a 401 is signed out, a 410 is the cursor gone", async () => {

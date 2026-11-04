@@ -8,7 +8,7 @@
  */
 import type { Envelope, HostKeyState, ChatThreadFact } from "@crewhub/loops-client";
 import { type LoopsClient, type StreamResume, isUnauthorized } from "./loops.ts";
-import type { ChatLine } from "./chatLine.ts";
+import type { ChatLine } from "@crewhub/loops-client";
 import { isSegment } from "./allowList.ts";
 import { SnapshotError, isSeq, readTail } from "./snapshot.ts";
 
@@ -28,7 +28,7 @@ export type HostMessage =
   | { type: "status"; loops: LoopsState; stream?: "busy"; reason?: string; key?: HostKeyState["state"] }
   | { type: "event"; envelope: Envelope }
   | { type: "heartbeat"; seq: number; ts: string }
-  /** An agent's message to the person, read by the host with its own key where loops lets it (chatLine.ts): a bubble. */
+  /** An agent's message to the person, read by the host with its own key where loops lets it (chatPath.ts): a bubble. */
   | { type: "chat"; chat: ChatLine }
   /** The installation's town document changed on the host (round 20, worldDb.ts): the browsers refetch `/world-api/town`. */
   | { type: "town"; rev: number }

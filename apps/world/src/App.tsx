@@ -48,9 +48,9 @@ import { toggleFps } from "./state/fps";
 import { readRoleOverrides, writeRoleOverrides } from "./state/roleOverrides";
 import { useBuildMode } from "./state/build";
 import { useDark, useTheme } from "./state/theme";
-import { townRuntime, useTown } from "./state/town";
+import { townRuntime, useConnection, useConnectionKey, useDirectorFeed, useTown, useWorld, worldRuntime } from "./state/runtimes";
 import type { TownLayer } from "./world/propLayer";
-import { scenarioChoices, SOURCE, useConnection, useConnectionKey, useWorld, worldRuntime } from "./state/world";
+import { pageConfig } from "./state/page";
 import { translate } from "./i18n";
 import { probeHost, type ConnectionState, type HostHealth } from "@crewhub/loops-client";
 import type { Pick } from "./world/buildingView";
@@ -60,7 +60,6 @@ import { DirectorLog } from "./components/DirectorLog";
 import { PresenceSettings } from "./components/PresenceSettings";
 import { WhereForm } from "./components/WhereForm";
 import { civicWords } from "./world/settlementDressing";
-import { useDirectorFeed } from "./state/director";
 import type { CameraAction } from "./world/TownScene";
 import { mmss } from "./world/townLayout";
 import { describePlan } from "./world/townPlan";
@@ -819,9 +818,12 @@ const SPEEDS: readonly { speed: PlaybackSpeed; label: string }[] = [
   { speed: 16, label: "16x" },
 ];
 
+/** The source this page runs on, decided before mount (state/page.ts reads it once). */
+const SOURCE = pageConfig().source;
+
 /* The chrome around the scene, memoised: the world model changes many times a second under load, and none of these show
    it, so they render only when their own props change. */
-const SCENARIO_CHOICES = scenarioChoices();
+const SCENARIO_CHOICES = pageConfig().scenarioChoices;
 
 const Corner = memo(function Corner({
   demo,

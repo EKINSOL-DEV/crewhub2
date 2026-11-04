@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { DIRECTOR_MODEL, PRESENCE_LIMITS, type PresenceSettings as Settings } from "@crewhub/world-model";
 import { Chip, Field } from "./primitives";
 import { setAmbient, useAmbient } from "../state/ambient";
-import { directorRuntime, useDirector } from "../state/director";
+import { directorRuntime, useDirector } from "../state/runtimes";
 import { AMBIENT_CHOICES, type Ambient } from "../world/movement";
 import "../styles/presence.css";
 

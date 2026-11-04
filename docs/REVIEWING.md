@@ -107,8 +107,9 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
 
 - **Entry files.** `apps/world/src/state/chatRoad.ts` (the road is one value, `key`, `page` or `none`, and every
   sentence the panels say), `packages/loops-client/src/pageChat.ts` (road 2's client), `apps/world/src/state/pageChat.ts`
-  (its runner), `said.ts` (the bubbles and the Recent answers list); road 1 is `readsChat` and `relink` in
-  `apps/host/src/host.ts` with `chatLine.ts`; road A is `components/ChatPanel.tsx`; `scripts/bubbles-copy.ts`
+  (its runner), `said.ts` (the bubbles and the Recent answers list); road 1 is `apps/host/src/chatPath.ts` (one module
+  per link: the verdict, the threads' facts, the lines), wired in `relink` of `apps/host/src/host.ts`; both roads read
+  loops' answers through `packages/loops-client/src/dm.ts`; road A is `components/ChatPanel.tsx`; `scripts/bubbles-copy.ts`
   (`npm run check:copy`) checks the code copied verbatim from crewhub-loops against its source commit; it is skipped
   when no crewhub-loops checkout sits beside this one, so always on CI.
 - **What it does.** Road A frames crewhub-loops' own web app in the Chat panel. Road 1: the host's viewer key reads
@@ -139,7 +140,8 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
 ### 2.4 The world state and the town store
 
 - **Entry files.** `apps/world/src/main.tsx` (the gate: the source decision before anything loads), `state/world.ts`
-  (the one seam between data and presentation), `state/source.ts`, `packages/world-model/src/projection.ts`
+  (the one seam between data and presentation: the world runtime, built from its config), `state/page.ts` (the page
+  read once) and `state/runtimes.ts` (the page's runtimes and hooks), `state/source.ts`, `packages/world-model/src/projection.ts`
   (`SourceMessage`s in, `Facts` out, idempotent by `seq`), `reducer.ts`, `model.ts`, `townDocument.ts` (the format
   `crewhub-town/1` and its limits), `history.ts` (the pure undo), `state/townStore.ts` (IndexedDB),
   `state/hostTown.ts` (the host's town over it), `apps/host/src/worldDb.ts` (`node:sqlite`, migrations, backups, the

@@ -24,20 +24,17 @@
  * verdict take their inputs; `probePageChat` and `pollPageChat` call `fetch` (the one injected, the page's by default).
  */
 import type { ChatLine, ChatThreadFact } from "./source.ts";
+import { type AgentDm, isMessageId, readAgentDm, readDmLine, readThreads } from "./dm.ts";
 
 /** The two event types the road may ask for (loops forces them through the origin; naming them is the honest shape). */
 export const PAGE_CHAT_EVENT_TYPES = "dm.created,dm.answered";
 /** The largest page loops gives through the origin; a larger `limit` is clamped there, so none is asked. */
 export const PAGE_CHAT_EVENTS_LIMIT = 50;
-/** The first line of a message, at most this many characters (the host's rule for a bubble's line). */
-export const PAGE_CHAT_LINE_MAX = 140;
-
 /** The one request shape of the road: a GET with the person's cookie and nothing of our own. Frozen: a test pins it. */
 export const PAGE_CHAT_INIT: Readonly<RequestInit> = Object.freeze({ method: "GET", credentials: "include" });
 
 /** The one segment shape of a loops agent name, as loops' own route pattern has it. */
 const AGENT = /^[a-z0-9][a-z0-9-]{0,31}$/;
-const MESSAGE_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 /** `<origin>/api/dm/threads`. `origin` is the loops web origin the host names in its health (`loopsWebUrl`). */
 export function threadsUrl(origin: string): string {
@@ -50,7 +47,7 @@ export function threadMessagesUrl(origin: string, agent: string): string {
 }
 /** `<origin>/api/dm/messages/<id>`; an id outside loops' own shape is refused here. */
 export function messageUrl(origin: string, messageId: string): string {
-  if (!MESSAGE_ID.test(messageId)) throw new Error(`not a message id: ${messageId}`);
+  if (!isMessageId(messageId)) throw new Error(`not a message id: ${messageId}`);
   return `${origin}/api/dm/messages/${messageId}`;
 }
 /**
@@ -136,25 +133,6 @@ export async function probePageChat(origin: string, fetchFn: FetchLike = default
   return { verdict: probeVerdict(answer, somethingAnswered), threads: [], detail: `${answer.reason}; something answered: ${somethingAnswered}` };
 }
 
-/** The threads' facts from a `GET /api/dm/threads` answer, leniently (loops' camelCase; a row without its facts is dropped). */
-export function readThreads(body: unknown): ChatThreadFact[] {
-  const rows = (body as { threads?: unknown } | null)?.threads;
-  if (!Array.isArray(rows)) return [];
-  const out: ChatThreadFact[] = [];
-  for (const row of rows as { agentId?: unknown; lastMessageAt?: unknown; unreadCount?: unknown }[]) {
-    if (typeof row?.agentId !== "string" || row.agentId === "" || typeof row.lastMessageAt !== "string") continue;
-    out.push({ agentId: row.agentId, lastMessageAt: row.lastMessageAt, unreadCount: typeof row.unreadCount === "number" && Number.isInteger(row.unreadCount) && row.unreadCount >= 0 ? row.unreadCount : 0 });
-  }
-  return out;
-}
-
-/** An agent's `dm.created` among the events, by its ids; the person's own messages and the other types are not it. */
-export interface AgentDm {
-  messageId: string;
-  threadId: string;
-  agentId: string;
-}
-
 /** One events page as the poll reads it: the agents' new messages (ids only), whether any `dm.*` event came, the next cursor. */
 export interface EventsPage {
   agentDms: AgentDm[];
@@ -168,32 +146,13 @@ export function readEvents(body: unknown): EventsPage {
   const events = Array.isArray(raw?.events) ? (raw.events as unknown[]) : [];
   const agentDms: AgentDm[] = [];
   let dmEvents = 0;
-  for (const event of events as { type?: unknown; actor?: { kind?: unknown; id?: unknown }; payload?: { messageId?: unknown; threadId?: unknown; agentId?: unknown } }[]) {
+  for (const event of events as { type?: unknown }[]) {
     if (typeof event?.type !== "string" || !event.type.startsWith("dm.")) continue;
     dmEvents += 1;
-    const payload = event.payload;
-    if (event.type !== "dm.created" || event.actor?.kind !== "agent" || typeof payload?.messageId !== "string" || typeof payload.threadId !== "string" || typeof payload.agentId !== "string") continue;
-    if (!MESSAGE_ID.test(payload.messageId)) continue;
-    agentDms.push({ messageId: payload.messageId, threadId: payload.threadId, agentId: payload.agentId });
+    const dm = readAgentDm(event);
+    if (dm !== null) agentDms.push(dm);
   }
   return { agentDms, dmEvents, cursor: typeof raw?.cursor === "string" && raw.cursor !== "" ? raw.cursor : null };
-}
-
-/** The first non-empty line of a message, at most PAGE_CHAT_LINE_MAX characters, an ellipsis after (the host's rule). */
-export function firstLine(text: string): string {
-  const line = text.replace(/\r/g, "").split("\n").find((l) => l.trim() !== "")?.trim() ?? "";
-  return line.length > PAGE_CHAT_LINE_MAX ? `${line.slice(0, PAGE_CHAT_LINE_MAX - 1)}…` : line;
-}
-
-/** The bubble's line from a `GET /api/dm/messages/{id}` answer, read leniently as the host reads it; null when it is not an agent's readable message. */
-export function readPageChatLine(ids: AgentDm, body: unknown): ChatLine | null {
-  const message = (body as { message?: { bodyText?: unknown; createdAt?: unknown; author?: { displayName?: unknown; kind?: unknown } } } | null)?.message;
-  if (!message || typeof message.bodyText !== "string") return null;
-  if (message.author?.kind !== undefined && message.author.kind !== "agent") return null;
-  const text = firstLine(message.bodyText);
-  if (text === "") return null;
-  const name = message.author?.displayName;
-  return { agentId: ids.agentId, ...(typeof name === "string" && name !== "" ? { agentName: name } : {}), text, at: typeof message.createdAt === "string" ? message.createdAt : new Date().toISOString(), messageId: ids.messageId, threadId: ids.threadId };
 }
 
 /**
@@ -262,7 +221,7 @@ export async function pollPageChat(origin: string, resume: { cursor: string } | 
     if (read.status === 409) return { kind: "chat-off" };
     if (read.status === 404) continue;
     if (read.status !== 200) return { kind: "failed", reason: `the message ${ids.messageId} answered ${read.status}` };
-    const line = readPageChatLine(ids, read.body);
+    const line = readDmLine(ids, read.body);
     if (line !== null) lines.push(line);
   }
   let threads: ChatThreadFact[] | null = null;
