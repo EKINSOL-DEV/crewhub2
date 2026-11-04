@@ -377,6 +377,8 @@ head by merging that head into it, never by a rebase; the answer branch itself s
 | `36f8e1b` | C8, an agent's appearance | the same five ports | `c850b66` 1517 / `14feea2` 1515 |
 | `78880fe` | C6, host health in the page | q14 → `port/task/q14-dm-read-cap@5894792`; q15 → `port/task/q15-body-cap@f336f0c`; q3 → `port/task/q3-health-less@f336f0c`; `tab` → `port/task/r27-tab-pairing@780d645`; `cookie+expiry` → `port/task/q1-cookie-expiry@780d645` | `b2ec62a` 1531 / `98e2d29` 1528 |
 | `2072e9a` | C1, the connection module | q14 → `port/task/q14-dm-read-cap@f2276db`; q15 → `port/task/q15-body-cap@f2276db`; q3 → `port/task/q3-health-less@f2276db`; `tab` → `port/task/r27-tab-pairing@e5f79a9`; `cookie+expiry` → `port/task/q1-cookie-expiry@e5f79a9` | `1e2bb7e` 1533 / `94f3df2` 1530 |
+| `f65cfcc` | C9, the chat seam | the same five ports | `5e6fe53` 1538 / `435117b` 1535 |
+| `d907708` | the timing tests made deterministic | the same five ports | `ea1b0ab` 1538 / `64b6ecd` 1535 |
 
 To replay Nicky's answers on such a head, pass each port named on its row: for example, on `2072e9a`,
 `node tools/answers-replay.mjs 2072e9a cookie+expiry q3 q8 q11 q14 q15 --check --use q14=port/task/q14-dm-read-cap@f2276db --use q15=port/task/q15-body-cap@f2276db --use q3=port/task/q3-health-less@f2276db --use cookie+expiry=port/task/q1-cookie-expiry@e5f79a9`

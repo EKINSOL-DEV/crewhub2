@@ -108,7 +108,7 @@ deepening.
 
 ## Where it stands
 
-As of 14:28 on 4 November (59d). The branch head is the one reviewed or merged.
+As of 15:03 on 4 November (59d): **all nine are merged** (`f65cfcc`), each reviewed by a fresh reviewer and merged by the safe order. The branch head is the one merged.
 
 
 | Candidate | Branch head | State | Answer branches | Merge |
@@ -121,4 +121,4 @@ As of 14:28 on 4 November (59d). The branch head is the one reviewed or merged.
 | C6 | `780d6454` | merged (reviewed: review-c6; regress nine groups 183/184 with the known town console flake, a11y 189/189, pixcheck 74/74 identical) | r27 and q1 by ports `@780d645` (r27's tab step moved into the health module's probe) | `78880fe` |
 | C8 | `54e0577f` | merged (reviewed: review-c8, one table row added; regress 139/140 with the known town console flake, a11y 189/189, pixcheck 74/74 identical) | all clean | `36f8e1b` |
 | C2 | `4cd23a5` | merged (reviewed: review-c2, the Escape focus fix re-checked; regress 160/160, a11y 189/189 with the new focus assert, pixcheck 74/74 identical) | all clean | `2e2df46` |
-| C9 | `a43fa24a` | in review (review-c9); the head being merged in | clean against the ports standing | |
+| C9 | `619080dd` | merged (reviewed: review-c9, three small fixes; regress eight groups 177/177, a11y 189/189, pixcheck 74/74 identical) | clean against the five ports standing | `f65cfcc` |
