@@ -253,6 +253,13 @@ order, then question 1's branch last; every hand merge then happens in that last
   `createHost(` calls, and four files whose calls `q3`, `r27` and `q1` change). The seven merge cleanly onto every
   head. The replays on `717e9b0`: `tab` `86c5481`, 1406 / 1406; `cookie+expiry` `f85a702`, 1404 / 1404. No rule of the
   plan changed.
+- **Round 58d, a second day round: the guard's gaps.** Only tools, scripts, tests and docs changed. Two merges on
+  `5bcbad7`: `0274ad6` (regress `--real`; the fake's refused ports a subset of the named list) and `0961778` (the test
+  guard hands itself down to a child given an explicit env, keeps `process.kill` to the test's own live children and
+  `node:sqlite` to its temp folders). The guard now reaches the answer branches' test children too, and both replays
+  stay green. The seven merge cleanly onto every head. The replays on `0961778`: `tab` `2c42c5c`, 1424 / 1424;
+  `cookie+expiry` `109d933`, 1422 / 1422. No rule of the plan changed. Held, not merged: `task/r58d-state-medium`
+  (page code; a night browser run first).
 - **The `cookie+expiry` and `cookie` rows, rehearsed in round 37** (detached checkouts; the five independent branches
   then the question-1 branch): the five alone on `e55ef42`, check 1070 of 1070; the five then `q1-cookie-expiry` (A,
   then B), check 1075 of 1075 on `e55ef42` and again on `761db9f` (`769434a`); the five then `r27-tab-pairing`, check
