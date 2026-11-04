@@ -35,6 +35,14 @@ const MESSAGE = { message: { id: "dm_k1", bodyText: "Done with the lamp.\nNext: 
 const dm = (type: string, actor: Envelope["actor"], payload: Envelope["payload"]): Envelope => ({ v: 1, seq: 1, ts: "t", type, project: null, ticket: null, actor, recipientIds: [], payload });
 const AGENT_DM = dm("dm.created", { id: "boing", kind: "agent" }, { threadId: "dmt_boing", messageId: "dm_k1", agentId: "boing" });
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 5));
+/** Waits until `ready` holds (polled, no deadline a loaded machine could miss short of 10 s): timing-proof (arch-ports, round 59d). */
+async function until(ready: () => boolean, what: string): Promise<void> {
+  const started = Date.now();
+  while (!ready()) {
+    if (Date.now() - started > 10_000) throw new Error(`waited 10 s for ${what}`);
+    await tick();
+  }
+}
 
 function build(answers: Parameters<typeof fakeLoops>[0], refreshMs = 10) {
   const loops = fakeLoops(answers);
@@ -112,11 +120,10 @@ describe("the viewer key's chat path", () => {
     chat.onEvent(AGENT_DM);
     chat.onEvent(dm("dm.answered", { id: "boing", kind: "agent" }, { threadId: "dmt_boing", messageId: "dm_p9" }));
     chat.onEvent(dm("ticket.moved", { id: "boing", kind: "agent" }, {}));
-    await tick();
+    // The message's read starts in onEvent itself, before any timer can run; the one re-read comes after refreshMs.
+    await until(() => asked.includes("/api/dm/threads") && said.length > 0, "the re-read and the line");
     assert.deepEqual(said, [{ agentId: "boing", agentName: "Boing", text: "Done with the lamp.", at: "2026-10-21T20:00:00.000Z", messageId: "dm_k1", threadId: "dmt_boing" }]);
-    assert.deepEqual(asked, ["/api/dm/messages/dm_k1"], "the agent's message read by id; the person's never; no threads yet");
-    await new Promise<void>((resolve) => setTimeout(resolve, 25));
-    assert.deepEqual(asked, ["/api/dm/messages/dm_k1", "/api/dm/threads"], "one re-read for the three dm events");
+    assert.deepEqual(asked, ["/api/dm/messages/dm_k1", "/api/dm/threads"], "the agent's message read by id first, the person's never, then one re-read for the three dm events");
     assert.deepEqual(threads.at(-1), [{ agentId: "boing", lastMessageAt: "2026-10-22T08:00:00.000Z", unreadCount: 2 }]);
     assert.deepEqual(chat.threads(), threads.at(-1));
     assert.equal(THREADS_REFRESH_MS, 1000);
@@ -139,7 +146,8 @@ describe("the viewer key's chat path", () => {
     for (const id of ["dm_404", "dm_bad", "dm_err"]) chat.onEvent(dm("dm.created", { id: "boing", kind: "agent" }, { threadId: "dmt_boing", messageId: id, agentId: "boing" }));
     chat.onEvent({ ...AGENT_DM, payload: null as unknown as Envelope["payload"] });
     chat.onEvent(dm("dm.created", { id: "boing", kind: "agent" }, { threadId: "dmt_boing", messageId: "m/3", agentId: "boing" }));
-    await new Promise<void>((resolve) => setTimeout(resolve, 30));
+    await until(() => asked.filter((p) => p === "/api/dm/threads").length === 2, "the re-read");
+    await tick();
     assert.deepEqual(said, []);
     assert.deepEqual(asked.filter((p) => p.startsWith("/api/dm/messages/")), ["/api/dm/messages/dm_404", "/api/dm/messages/dm_bad", "/api/dm/messages/dm_err"], "the odd id and the null payload are never read");
     assert.equal(asked.filter((p) => p === "/api/dm/threads").length, 2, "the check's read and the one re-read");
@@ -173,9 +181,11 @@ describe("the viewer key's chat path", () => {
     await live.chat.check();
     live.asked.length = 0;
     live.chat.onEvent(AGENT_DM);
-    await tick();
+    // The message's read has started (onEvent asks the client at once); the re-read timer is set; dispose before either answers.
+    const answer = open as unknown as (() => void) | null;
+    assert.ok(answer !== null, "the message read started in onEvent");
     live.chat.dispose();
-    open!();
+    answer();
     await new Promise<void>((resolve) => setTimeout(resolve, 30));
     assert.deepEqual(live.said, [], "the line in flight is dropped");
     assert.deepEqual(live.asked, ["/api/dm/messages/dm_k1"], "the re-read timer was cleared: no threads read");
