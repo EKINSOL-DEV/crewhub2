@@ -3,6 +3,7 @@ export interface ContextOptionsIn {
   width?: number;
   theme?: "light" | "dark";
   dpr?: number;
+  touch?: boolean | null;
   reducedMotion?: "reduce" | "no-preference" | null;
 }
 export function viewportFor(width: number): { viewport: { width: number; height: number }; isMobile?: boolean; hasTouch?: boolean };

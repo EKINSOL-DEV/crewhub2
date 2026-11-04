@@ -17,6 +17,17 @@ test("the context options: the defaults are a light 1440 window at scale 1 with 
   assert.deepEqual(contextOptions(), { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, colorScheme: "light" });
   assert.deepEqual(contextOptions({ width: 375, theme: "dark", reducedMotion: "reduce" }), { viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1, colorScheme: "dark", reducedMotion: "reduce" });
   assert.deepEqual(contextOptions({ width: 1440, dpr: 2 }), { viewport: { width: 1440, height: 900 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, colorScheme: "light" }, "a device scale above 1 is a touch device whatever the width (perf.mjs's phone at 2x)");
+  // `touch` says it outright (review-t2, 2): perf.mjs's phone scenarios at scale 1 measure a 375 window that is no touch device.
+  assert.deepEqual(contextOptions({ width: 375, touch: false }), { viewport: { width: 375, height: 812 }, deviceScaleFactor: 1, colorScheme: "light" }, "a phone-sized window, no touch");
+  assert.deepEqual(contextOptions({ width: 1440, touch: true }), { viewport: { width: 1440, height: 900 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1, colorScheme: "light" }, "a touch device at any width");
+});
+
+test("openPage refuses Playwright's own context keys: a caller says width, theme, dpr and touch, never a viewport (review-t2, N1)", async () => {
+  const { browser, moves } = fakeBrowser();
+  for (const options of [{ viewport: { width: 375, height: 812 } }, { colorScheme: "dark" }, { isMobile: true }, { hasTouch: true }, { deviceScaleFactor: 2 }]) {
+    await assert.rejects(openPage(browser, options as never), /openPage: .*width, theme, dpr and touch/, JSON.stringify(options));
+  }
+  assert.deepEqual(moves, [], "nothing opened");
 });
 
 /** A browser that records the context it was asked for and the page's moves, in order. */

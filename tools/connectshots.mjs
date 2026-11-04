@@ -20,7 +20,7 @@
      no-loops or pair (no pair link) the host must be in that state itself.
    Output in --out: <tag><state>-<theme>-<width>.png. Prints connectshots: <passed>/<total> last; exit 0 at full marks. */
 import { cli, launch, list, problemLines, watch } from "./lib/world.mjs";
-import { openPage, screen, waitChip } from "./lib/page.mjs";
+import { contextOptions, openPage, screen, waitChip } from "./lib/page.mjs";
 import { createConnectStub } from "./lib/connectStub.mjs";
 import { isProbeRefusal } from "./lib/probeRefusal.ts";
 import { ownPort } from "./lib/toolGuard.ts";
@@ -76,7 +76,8 @@ async function realRun() {
   const wanted = REAL_ORDER.filter((s) => states.includes(s));
   for (const theme of themes)
     for (const width of widths) {
-      const ctx = await browser.newContext({ ...viewport(width), deviceScaleFactor: 1, colorScheme: theme });
+      // The real path keeps its own context: the cookies of the one-time link travel from the first context to the rest.
+      const ctx = await browser.newContext(contextOptions({ width, theme }));
       const p = await ctx.newPage();
       watch(p, opts.origin, problems, `${theme} ${width}`);
       if (opts["pair-link"] && cookies === null) {
