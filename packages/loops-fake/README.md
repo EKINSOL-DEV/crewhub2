@@ -98,6 +98,12 @@ lead (404 unknown, 403 otherwise, as loops' `dm.py`; round 61, W2). With `worldO
 origin passes only as a GET on loops' four world routes, with the CORS headers, and any other `Origin` is 403
 `origin_forbidden`.
 
+Loops' wire grammar, the pure pieces, is written once in `src/wire.ts` and spoken by two servers: this fake and the
+host's test stub (`apps/host/test/loopsStub.ts`, which imports it from `@crewhub/loops-fake`): the error envelope
+(`errorBody`, `WireError`), where a read or a stream resumes (`parseResume`: `after=` or `cursor=`, never both, else
+the `Last-Event-ID` header), the heartbeat line (`heartbeatLine`, `ts` last) and the 429 answer (`tooManyStreams`,
+`RETRY_AFTER_S`). Each server seals and opens its own cursors and keeps its own server loop (round 61, W3).
+
 Everything else is 404 `not_found`; on a known route any method but GET or HEAD is 405 `method_not_allowed`, except
 login and logout (POST only) and the stream (GET only). Auth: 401 `unauthenticated` without a key, 401
 `invalid_api_key` with a wrong one, 400 `ambiguous_auth` with a key and any cookie.

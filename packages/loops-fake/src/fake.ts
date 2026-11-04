@@ -19,6 +19,7 @@ import { type DemoSource, type ScenarioId, DEMO_PERSON, createDemoApi, createDem
 import type { CommentOut, Envelope, LoopsSnapshot, PlaybackSpeed, PrincipalRef, TicketStatus } from "@crewhub/loops-client";
 import { TICKET_STATUSES } from "@crewhub/loops-client";
 import { withKeyBot } from "./lanes.ts";
+import { WireError, heartbeatLine, ndjsonLine, parseResume, tooManyStreams } from "./wire.ts";
 
 export interface LoopsFakeOptions {
   /** TCP port on 127.0.0.1; 0 (the default) picks a free one. */
@@ -167,8 +168,6 @@ export const BUILDER_KEY_MESSAGE = "This key reads tickets, comments and attachm
 const DEFAULT_BUFFER = 2000;
 /** Loops admits 4 open streams per principal (`api/stream.py` `MAX_STREAMS_PER_PRINCIPAL`), the fifth is 429. */
 export const MAX_STREAMS_PER_KEY = 4;
-/** Loops' `Retry-After` on 429 `too_many_streams`. */
-export const RETRY_AFTER_S = 5;
 /** Loops' message for a sealed cursor that cannot be used (`api/cursor.py` `expired`). */
 export const CURSOR_EXPIRED_MESSAGE = "The cursor cannot be used: fetch the events again and continue from there";
 /** A demo loop resets the storyline; the fake moves the log past the gap so every older cursor is expired. */
@@ -178,24 +177,8 @@ const PAGE_MAX = 100;
 const EVENTS_LIMIT_MAX = 500;
 const SESSION_COOKIE = "chl_session";
 
-class ApiError extends Error {
-  readonly status: number;
-  readonly code: string;
-  readonly headers: Record<string, string>;
-  constructor(status: number, code: string, message: string, headers: Record<string, string> = {}) {
-    super(message);
-    this.status = status;
-    this.code = code;
-    this.headers = headers;
-  }
-}
-
-const notFound = () => new ApiError(404, "not_found", "Not found");
-const invalid = (message: string) => new ApiError(400, "validation_error", message);
-
-function encode(line: unknown): string {
-  return `${JSON.stringify(line)}\n`;
-}
+const notFound = () => new WireError(404, "not_found", "Not found");
+const invalid = (message: string) => new WireError(400, "validation_error", message);
 
 /** A small JSON body (the sign-in), or null when it is not JSON; more than 8 kB is refused as loops refuses it. */
 function readJson(req: IncomingMessage): Promise<Record<string, unknown> | null> {
@@ -205,7 +188,7 @@ function readJson(req: IncomingMessage): Promise<Record<string, unknown> | null>
     req.on("data", (chunk: Buffer) => {
       size += chunk.length;
       if (size > 8192) {
-        reject(new ApiError(413, "payload_too_large", "The request body is limited to 8192 bytes"));
+        reject(new WireError(413, "payload_too_large", "The request body is limited to 8192 bytes"));
         req.destroy();
         return;
       }
@@ -278,7 +261,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
   }
   /** `(S, W)` of a token this fake sealed and whose watermark is not above the log, else the one 410. */
   function openCursor(token: string): { seen: number; checked: number } {
-    const expired = () => new ApiError(410, "cursor_expired", CURSOR_EXPIRED_MESSAGE);
+    const expired = () => new WireError(410, "cursor_expired", CURSOR_EXPIRED_MESSAGE);
     let raw: Buffer;
     try {
       raw = Buffer.from(token, "base64url");
@@ -322,7 +305,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     const answer = await demoApi.handle("GET", `${url.pathname}${url.search}`);
     if (answer.status >= 400) {
       const { code, message } = (answer.body as { error: { code: string; message: string } }).error;
-      throw new ApiError(answer.status, code, message);
+      throw new WireError(answer.status, code, message);
     }
     return answer.body;
   }
@@ -402,7 +385,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
 
   function writeLine(stream: OpenStream, line: unknown, sentSeq: number): void {
     if (stream.closed) return;
-    stream.res.write(encode(line));
+    stream.res.write(ndjsonLine(line));
     stream.lastSent = sentSeq;
     armHeartbeat(stream);
   }
@@ -413,8 +396,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
       stream.timer = null;
       if (stream.closed) return;
       // CL-406: the heartbeat's cursor says "everything up to the tail is judged" for the public position.
-      const line = { v: 1, type: "heartbeat", seq: stream.lastSent, cursor: sealCursor(stream.lastSent, seq), ts: new Date().toISOString() };
-      writeLine(stream, line, stream.lastSent);
+      writeLine(stream, heartbeatLine(stream.lastSent, sealCursor(stream.lastSent, seq), new Date()), stream.lastSent);
     }, heartbeatMs);
   }
 
@@ -452,12 +434,12 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     if (header === undefined) {
       if (!hasSession) return null;
       const token = cookies.split(";").map((c) => c.trim()).find((c) => c.startsWith(`${SESSION_COOKIE}=`))?.slice(SESSION_COOKIE.length + 1) ?? "";
-      if (!sessions.has(token)) throw new ApiError(401, "unauthenticated", "Authentication required");
+      if (!sessions.has(token)) throw new WireError(401, "unauthenticated", "Authentication required");
       return personPrincipal;
     }
     const [scheme, token] = header.split(/\s+/, 2);
-    if (scheme?.toLowerCase() !== "bearer" || token !== key) throw new ApiError(401, "invalid_api_key", "Invalid API key");
-    if (req.headers.cookie !== undefined) throw new ApiError(400, "ambiguous_auth", "Send either a session cookie or an API key");
+    if (scheme?.toLowerCase() !== "bearer" || token !== key) throw new WireError(401, "invalid_api_key", "Invalid API key");
+    if (req.headers.cookie !== undefined) throw new WireError(400, "ambiguous_auth", "Send either a session cookie or an API key");
     return principal;
   }
 
@@ -487,41 +469,24 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     return types;
   }
 
-  function afterOf(url: URL): number | null {
-    const raw = url.searchParams.get("after");
-    if (raw === null) return null;
-    if (!/^\d+$/.test(raw) || !Number.isSafeInteger(Number(raw))) throw invalid("Invalid after");
-    return afterAt(Number(raw));
-  }
-
   function afterAt(value: number): number {
-    if (value < floor) throw new ApiError(410, "cursor_expired", CURSOR_EXPIRED_MESSAGE);
+    if (value < floor) throw new WireError(410, "cursor_expired", CURSOR_EXPIRED_MESSAGE);
     return value;
   }
 
   /**
-   * Where a read or a stream resumes (`routers/events.py` `resolve_resume` and `open_cursor`): `after=` or
-   * `cursor=`, never both (400); else a `Last-Event-ID` header, an integer as `after` and anything else judged as a
-   * sealed cursor (the `after` query wins over the header, CL-403). `S` is the public position, `W` where the
-   * scanning starts.
+   * Where a read or a stream resumes: the wire's grammar (`parseResume`: `after=` or `cursor=` or a `Last-Event-ID`
+   * header), then this fake's own judgement (`open_cursor`): a cursor it sealed opens to `S` (the public position) and
+   * `W` (where the scanning starts); an `after` below the floor is 410.
    */
   function resumeOf(url: URL, req: IncomingMessage): { after: number | null; scanFrom: number | null } {
-    const opened = (token: string) => {
-      if (token.length > 512) throw new ApiError(410, "cursor_expired", CURSOR_EXPIRED_MESSAGE);
-      const { seen, checked } = openCursor(token);
+    const resume = parseResume(url.searchParams, req.headers["last-event-id"]);
+    if (resume.cursor !== null) {
+      if (resume.cursor.length > 512) throw new WireError(410, "cursor_expired", CURSOR_EXPIRED_MESSAGE);
+      const { seen, checked } = openCursor(resume.cursor);
       return { after: seen, scanFrom: checked };
-    };
-    const token = url.searchParams.get("cursor");
-    if (token !== null) {
-      if (url.searchParams.has("after")) throw invalid("Send either cursor or after, not both");
-      return opened(token);
     }
-    const after = afterOf(url);
-    const header = req.headers["last-event-id"];
-    if (after !== null || header === undefined) return { after, scanFrom: null };
-    const text = String(header).trim();
-    if (/^\d+$/.test(text) && Number.isSafeInteger(Number(text))) return { after: afterAt(Number(text)), scanFrom: null };
-    return opened(text);
+    return { after: resume.after === null ? null : afterAt(resume.after), scanFrom: null };
   }
 
   // Routes
@@ -542,30 +507,30 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     if (!known) throw notFound();
     // The person's sign-in (public; loops: no CSRF, an absent Origin is fine) and sign-out (round 12).
     if (at("auth", "login")) {
-      if (req.method !== "POST") throw new ApiError(405, "method_not_allowed", "Method not allowed");
+      if (req.method !== "POST") throw new WireError(405, "method_not_allowed", "Method not allowed");
       const body = await readJson(req);
-      if (body?.["id"] !== person.id || body?.["password"] !== person.password) throw new ApiError(401, "bad_credentials", "Unknown account or wrong password");
+      if (body?.["id"] !== person.id || body?.["password"] !== person.password) throw new WireError(401, "bad_credentials", "Unknown account or wrong password");
       const token = `sess_${randomBytes(16).toString("hex")}`;
       sessions.add(token);
       res.setHeader("set-cookie", [`${SESSION_COOKIE}=${token}; HttpOnly; Max-Age=2592000; Path=/; SameSite=lax`, `chl_device=dev_${randomBytes(6).toString("hex")}; HttpOnly; Max-Age=31536000; Path=/api/auth; SameSite=lax`]);
       return { user: { ...personPrincipal, role: "admin", theme: null, themeDefault: "system", activitySeenSeq: 0, isOwner: true } };
     }
     if (at("auth", "logout")) {
-      if (req.method !== "POST") throw new ApiError(405, "method_not_allowed", "Method not allowed");
+      if (req.method !== "POST") throw new WireError(405, "method_not_allowed", "Method not allowed");
       const who = authenticate(req);
-      if (who === null || who.kind !== "user") throw new ApiError(401, "unauthenticated", "Authentication required");
+      if (who === null || who.kind !== "user") throw new WireError(401, "unauthenticated", "Authentication required");
       const token = (req.headers.cookie ?? "").split(";").map((c) => c.trim()).find((c) => c.startsWith(`${SESSION_COOKIE}=`))?.slice(SESSION_COOKIE.length + 1) ?? "";
       sessions.delete(token);
       res.statusCode = 204;
       res.end();
       return undefined;
     }
-    if (req.method !== "GET" && req.method !== "HEAD") throw new ApiError(405, "method_not_allowed", "Method not allowed");
+    if (req.method !== "GET" && req.method !== "HEAD") throw new WireError(405, "method_not_allowed", "Method not allowed");
     // The builder key (CL-120) opens an exact table of reads and nothing else; of the routes the fake serves, these.
     // Loops' guard refuses it on a public route too, before any handler.
     const builderRead = at("tickets", "*") || at("tickets", "*", "comments") || at("auth", "me");
     if (builderKey && !builderRead && req.headers.authorization !== undefined && authenticate(req) !== null) {
-      throw new ApiError(403, "forbidden", BUILDER_KEY_MESSAGE);
+      throw new WireError(403, "forbidden", BUILDER_KEY_MESSAGE);
     }
 
     if (at("health")) {
@@ -574,7 +539,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
       try {
         caller = authenticate(req);
       } catch (error) {
-        if (error instanceof ApiError && error.code === "ambiguous_auth") throw error;
+        if (error instanceof WireError && error.code === "ambiguous_auth") throw error;
       }
       return {
         ok: true,
@@ -586,7 +551,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
       };
     }
     const caller = authenticate(req);
-    if (caller === null) throw new ApiError(401, "unauthenticated", "Authentication required");
+    if (caller === null) throw new WireError(401, "unauthenticated", "Authentication required");
     const viewer: "key" | "person" = caller.kind === "user" ? "person" : "key";
     // The chat (dm.py): any principal reads, but a key reads only the threads it is part of; the fake's key is in none.
     // A thread's messages page newest-last at 50 with `before` (`limit` 1 to 100), and the agent must be an enabled lead
@@ -594,11 +559,11 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     const readsChat = viewer === "person" || keyReadsChat;
     if (at("dm", "threads")) return readsChat ? viaDemoApi(url) : { threads: [] };
     if (at("dm", "threads", "*", "messages")) {
-      if (!readsChat) throw new ApiError(403, "forbidden", "Not a participant of this thread");
+      if (!readsChat) throw new WireError(403, "forbidden", "Not a participant of this thread");
       return viaDemoApi(url);
     }
     if (at("dm", "messages", "*")) {
-      if (!readsChat) throw new ApiError(403, "forbidden", "Not a participant of this thread");
+      if (!readsChat) throw new WireError(403, "forbidden", "Not a participant of this thread");
       for (const thread of await source.getDmThreads()) {
         const message = (await source.getDmMessages(thread.agentId)).find((m) => m.id === parts[3]);
         if (message !== undefined) return { message };
@@ -614,7 +579,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     // as the login says.
     if (at("auth", "me")) return { principal: { ...caller, role: caller.kind === "user" ? "admin" : "lead", theme: null, themeDefault: "system" } };
     if (at("projects")) {
-      if (url.searchParams.get("includeArchived") === "true") throw new ApiError(403, "forbidden", INCLUDE_ARCHIVED_MESSAGE);
+      if (url.searchParams.get("includeArchived") === "true") throw new WireError(403, "forbidden", INCLUDE_ARCHIVED_MESSAGE);
       const snapshot = await snapshotOf();
       return { projects: snapshot.projects, orderRevision: 3 };
     }
@@ -648,7 +613,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
       const features = await source.getProjectFeatures(slug);
       if (features === null) throw notFound();
       const feature = parts[3] as "milestones" | "releases";
-      if (!features[feature]) throw new ApiError(409, "feature_off", `The project has ${feature} off`);
+      if (!features[feature]) throw new WireError(409, "feature_off", `The project has ${feature} off`);
       if (feature === "milestones") {
         const paged = page(await source.getMilestones(slug), url);
         return { milestones: paged.items, nextCursor: paged.nextCursor };
@@ -712,9 +677,9 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     // MAX_STREAMS_PER_KEY open streams per key.
     const streamTypes = typesOf(url);
     const resume = resumeOf(url, req);
-    if (req.method === "HEAD") throw new ApiError(405, "method_not_allowed", "Method not allowed");
+    if (req.method === "HEAD") throw new WireError(405, "method_not_allowed", "Method not allowed");
     if ([...streams].filter((x) => x.viewer === viewer).length >= MAX_STREAMS_PER_KEY) {
-      throw new ApiError(429, "too_many_streams", "Too many open event streams", { "retry-after": String(RETRY_AFTER_S) });
+      throw tooManyStreams();
     }
     openStream(res, resume.after ?? (viewer === "person" ? seq : visibleTail), resume.scanFrom ?? resume.after ?? seq, viewer, streamTypes);
     return undefined;
@@ -763,10 +728,10 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
    */
   function worldGate(req: IncomingMessage, url: URL): void {
     const refused = (req.method !== "GET") || req.headers.authorization !== undefined || url.pathname.includes("%") || !WORLD_ROUTES.some((route) => route.test(url.pathname));
-    if (refused) throw new ApiError(403, "origin_forbidden", "Origin not allowed");
+    if (refused) throw new WireError(403, "origin_forbidden", "Origin not allowed");
     if (url.pathname === "/api/events") {
       const wanted = url.searchParams.getAll("types").flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean);
-      if (wanted.some((type) => !WORLD_EVENT_TYPES.includes(type))) throw new ApiError(403, "origin_forbidden", "Origin not allowed");
+      if (wanted.some((type) => !WORLD_EVENT_TYPES.includes(type))) throw new WireError(403, "origin_forbidden", "Origin not allowed");
       const limitRaw = url.searchParams.get("limit");
       const limit = limitRaw !== null && /^\d{1,4}$/.test(limitRaw) ? Math.min(Number(limitRaw), WORLD_EVENTS_LIMIT) || WORLD_EVENTS_LIMIT : WORLD_EVENTS_LIMIT;
       url.searchParams.delete("types");
@@ -784,7 +749,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     const cors = (code: string | null) => (world && code !== "origin_forbidden" ? { "access-control-allow-origin": worldOrigin as string, "access-control-allow-credentials": "true", vary: "Origin" } : {});
     const handle = async (): Promise<unknown> => {
       if (world) worldGate(req, url);
-      else if (worldOrigin !== null && origin !== undefined) throw new ApiError(403, "origin_forbidden", "Origin not allowed");
+      else if (worldOrigin !== null && origin !== undefined) throw new WireError(403, "origin_forbidden", "Origin not allowed");
       return route(req, res, url);
     };
     handle()
@@ -795,8 +760,8 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
         res.end(req.method === "HEAD" ? undefined : text);
       })
       .catch((error: unknown) => {
-        const api = error instanceof ApiError ? error : new ApiError(500, "internal", "Internal error");
-        const text = JSON.stringify({ error: { code: api.code, message: api.message, detail: null } });
+        const api = error instanceof WireError ? error : new WireError(500, "internal", "Internal error");
+        const text = JSON.stringify(api.body);
         res.writeHead(api.status, { "content-type": "application/json", "content-length": Buffer.byteLength(text), ...api.headers, ...cors(api.code) });
         res.end(text);
       });
