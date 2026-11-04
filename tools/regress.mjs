@@ -13,11 +13,11 @@
      connect the connect flow (spec addendum "a smooth connection"), 25 checks in two halves, both behind your Vite
            (started with CREWHUB_WORLD_PORT=<host-port>; apps/world/dist is never looked at here, whatever the live
            group does with it). Against the stub host of lib/connectStub.mjs, on --host-port, always: one page meets
-           every screen in order (No crewhub-loops found, Pair this browser naming `npm run world`, Connect with a
+           every screen in order (No crewhub-loops found, Pair this tab naming `npm run world`, Connect with a
            masked field, a key typed and Enter: the field empty again and the host checking, rejected with loops'
            reason, the focus back on the key field, and Forget this key, which brings Connect back, crewhub-loops not answering, then the town with the
            Live chip and no reload), the key in no DOM, storage or URL, the Connection panel's facts and Escape, the
-           stub's `unpaired` state (a host that no longer knows the browser: Pair this browser over the live tab,
+           stub's `unpaired` state (a host that no longer knows the browser: Pair this tab over the live tab,
            and the town back by itself once paired again) and, on a second page, the Stream busy chip over the town
            (loops' 429); every screen asks the host's health every 2.5 s, not back to back (round 48). Against the REAL development loops, only when real is asked for (in --groups or by --real; the env file and the skip rules of `real`, plus
            --loops-app-data, default ~/crewhub-loops-dev, which must hold a settings.json): a keyless host the tool
@@ -45,7 +45,7 @@
            director section tagged "scripted" on every line, off and on; a quick plan over the fake's events whose
            intents read "scripted director:"; the kill switch; no non-GET request from the page while it ran),
            Loops down after the fake closes, Live again
-           after a new fake on the same port, and, when the host has pairing, the pairing page without a cookie and
+           after a new fake on the same port, and, when the host has pairing, the pairing page without the bearer and
            the world after the one-time link. When `apps/world/dist` exists (after `npm run build`) the host serves
            it on a free port and the browser opens the host directly; otherwise the host listens on --host-port
            (required, a port of your own: never 5180, the host's default, nor the Mac app's) and the browser opens your Vite, which must have been started
@@ -125,7 +125,7 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { cli, dressed, launch, list, problemLines, seek, speed, watch } from "./lib/world.mjs";
+import { cli, dressed, hostGet, launch, list, pairedTab, problemLines, seek, speed, watch } from "./lib/world.mjs";
 import { createConnectStub } from "./lib/connectStub.mjs";
 import { createLoopsWebStub } from "./lib/loopsWebStub.mjs";
 import { isProbeRefusal } from "./lib/probeRefusal.ts";
@@ -957,7 +957,7 @@ await group("live", async () => {
   };
   try {
     if (pairing) {
-      // Without the cookie: the API refuses and the world asks to pair, naming the command and never the link. The
+      // Without the bearer: the API refuses and the world asks to pair, naming the command and never the link. The
       // refused request is a console error in the browser (it is what it is meant to be), so it is kept apart.
       const own = [];
       const bare = await openLive(own);
@@ -966,8 +966,8 @@ await group("live", async () => {
       await bare.waitForTimeout(3000);
       const page = await bare.locator(".pair-page").count();
       const body = (await bare.locator("body").innerText().catch(() => "")).replace(/\s+/g, " ");
-      ok("pairing: /world-api answers 401 without a cookie", status === 401, String(status));
-      ok("pairing: the world asks to pair this browser", page > 0 && /Pair this browser/i.test(body) && /npm run world/.test(body) && !/\/pair\//.test(body), body.slice(0, 160));
+      ok("pairing: /world-api answers 401 without the bearer", status === 401, String(status));
+      ok("pairing: the world asks to pair this tab", page > 0 && /Pair this tab/i.test(body) && /npm run world/.test(body) && !/\/pair\//.test(body), body.slice(0, 160));
       await shot(bare, "22-pair-page");
       await bare.context().close();
       problems.push(...own.filter((x) => !/401/.test(x.text)));
@@ -975,11 +975,12 @@ await group("live", async () => {
 
     const pg = await openLive();
     if (pairing) {
-      // Behind the Vite proxy the link must open on Vite's origin (it proxies /pair); on the host's own when it serves dist.
+      // Behind the Vite proxy the link must open on Vite's origin (the page exchanges the fragment's token at the proxied
+      // POST /world-api/pair); on the host's own when it serves dist. The tab keeps the bearer, the URL loses the token.
       const link = host.mintPairLink(served ? undefined : origin);
       await pg.goto(link);
-      await pg.waitForTimeout(500);
-      ok("pairing: the one-time link lands on /", new URL(pg.url()).pathname === "/" && new URL(pg.url()).origin === liveOrigin, new URL(pg.url()).pathname);
+      const stored = await pairedTab(pg).then(() => true, () => false);
+      ok("pairing: the one-time link lands on /, the token gone from the URL and the bearer in this tab's sessionStorage", stored && new URL(pg.url()).pathname === "/" && new URL(pg.url()).hash === "" && new URL(pg.url()).origin === liveOrigin, `${pg.url()}, stored ${stored}`);
     }
     await pg.goto(liveBase);
     await pg.waitForSelector("canvas", { timeout: 60000 }).catch(() => {});
@@ -1101,8 +1102,11 @@ await group("live", async () => {
     const phone = await browser.newContext({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true, colorScheme: "light" });
     const ph = await phone.newPage();
     watch(ph, liveOrigin, problems, "live phone");
-    // A new context has no pairing cookie: the phone pairs first, as the desktop page did.
-    if (pairing) await ph.goto(host.mintPairLink(served ? undefined : origin));
+    // A new context has no paired tab: the phone pairs first, as the desktop page did.
+    if (pairing) {
+      await ph.goto(host.mintPairLink(served ? undefined : origin));
+      await pairedTab(ph).catch(() => {});
+    }
     await ph.goto(liveBase);
     await ph.waitForSelector("canvas", { timeout: 60000 }).catch(() => {});
     await until(ph, "live", 20000);
@@ -1503,7 +1507,8 @@ await group("chat", async () => {
   pg4.on("request", (r) => {
     if (!r.url().startsWith(fake4.url)) return;
     const url = new URL(r.url());
-    asks4.push({ method: r.method(), path: url.pathname, query: url.search, type: r.resourceType() });
+    // `pair`: whether the ask carried the tab's pairing header (round 31: the bearer is for the host, never for loops).
+    asks4.push({ method: r.method(), path: url.pathname, query: url.search, type: r.resourceType(), pair: r.headers()["x-world-pair"] !== undefined });
   });
   try {
     const login4 = await ctx4.request.post(`${fake4.url}/api/auth/login`, { data: { id: fake4.person.id, password: fake4.person.password } });
@@ -1564,6 +1569,8 @@ await group("chat", async () => {
     });
     const corsLines4 = own4.filter((x) => x.kind === "console" && /CORS|ERR_FAILED/.test(x.text));
     ok("chat (road 2): every fetch the page made to the fake was a GET on the four routes (the threads, the events poll with types dm.created,dm.answered and limit 50, from=tail then the sealed cursor, a message by id); no CORS line in the console", own4Asks.length >= 3 && bad4.length === 0 && badQuery4.length === 0 && events4.length >= 1 && own4Asks.some((a) => a.path.startsWith("/api/dm/messages/")) && corsLines4.length === 0, `${own4Asks.length} fetches: ${[...new Set(own4Asks.map((a) => `${a.method} ${a.path.replace(/\/[A-Za-z0-9_-]+$/, (m) => (a.path.startsWith("/api/dm/messages/") ? "/<id>" : m))}`))].join(", ")}; ${bad4.length} off the shape, ${badQuery4.length} bad poll quer${badQuery4.length === 1 ? "y" : "ies"}; ${corsLines4.length} CORS line(s)`);
+    const paired4 = asks4.filter((a) => a.pair);
+    ok(`chat (road 2, round 31): none of the page's ${asks4.length} asks of the fake (its fetches and the frame's document) carried the tab's pairing header x-world-pair: the bearer stays with the host`, asks4.length >= 3 && paired4.length === 0, paired4.map((a) => `${a.type} ${a.method} ${a.path}`).join(" "));
     problems.push(...own4.filter((x) => !(x.kind === "external" && x.url === `${fake4.url}/`) && !(x.kind === "console" && /status of 404/.test(x.text))));
     problems.push(...own4.filter((x) => x.kind === "console" && /status of 404/.test(x.text) && x.url !== `${fake4.url}/`));
   } finally {
@@ -1614,7 +1621,7 @@ await group("town", async () => {
     });
     if (typeof host.mintPairLink === "function") {
       await pg.goto(host.mintPairLink(served ? undefined : origin));
-      await pg.waitForTimeout(300);
+      await pairedTab(pg).catch(() => {});
     }
     await pg.goto(liveBase);
     await pg.waitForSelector(".connection-chip[data-connection=\"live\"]", { timeout: 30000 }).catch(() => {});
@@ -1640,7 +1647,7 @@ await group("town", async () => {
     await pg.waitForTimeout(400);
   };
   const hostTown = async (pg) => {
-    const r = await pg.request.get(`${liveOrigin}/world-api/town`).catch(() => null);
+    const r = await hostGet(pg, `${liveOrigin}/world-api/town`).catch(() => null);
     const body = r ? await r.json().catch(() => null) : null;
     return { status: r ? r.status() : 0, rev: body?.rev ?? null, zones: (body?.document?.zones ?? []).map((z) => z.id) };
   };
@@ -1767,7 +1774,7 @@ await group("town", async () => {
 
     // 6. A restore is previewed and confirmed, never silent: a town file with Zone 1 renamed is imported in Settings >
     // Town; the preview names the rename; Cancel changes nothing; the same import confirmed renames it on the host.
-    const current = await first.request.get(`${liveOrigin}/world-api/town`).then((r) => r.json()).catch(() => null);
+    const current = await hostGet(first, `${liveOrigin}/world-api/town`).then((r) => r.json()).catch(() => null);
     const renamed = JSON.parse(JSON.stringify(current.document));
     for (const z of renamed.zones ?? []) if (z.id === "zone-1") z.name = "Harbour";
     const file = { name: "harbour.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(renamed)) };
@@ -1783,7 +1790,7 @@ await group("town", async () => {
     await first.keyboard.press("Escape");
     await first.waitForTimeout(500);
     const dialogGone = (await first.locator(".restore-sheet").count()) === 0;
-    const revAfterCancel = (await first.request.get(`${liveOrigin}/world-api/town`).then((r) => r.json()).catch(() => null))?.rev;
+    const revAfterCancel = (await hostGet(first, `${liveOrigin}/world-api/town`).then((r) => r.json()).catch(() => null))?.rev;
     ok(
       "town: an import opens a preview that names the change, with the focus inside; Escape cancels and nothing changes",
       /renamed "Harbour"/.test(previewText) && /1 change\./.test(previewText) && focused === "Cancel" && dialogGone && revAfterCancel === current.rev,
@@ -1794,7 +1801,7 @@ await group("town", async () => {
     await shot(first, "35-town-restore-preview");
     await first.locator(".restore-sheet").getByRole("button", { name: "Restore", exact: true }).click();
     await atRev(first, current.rev + 1);
-    const afterRestore = await first.request.get(`${liveOrigin}/world-api/town`).then((r) => r.json()).catch(() => null);
+    const afterRestore = await hostGet(first, `${liveOrigin}/world-api/town`).then((r) => r.json()).catch(() => null);
     const restoreNote = (await first.locator(".settings-sheet").innerText().catch(() => "")).replace(/\s+/g, " ");
     await first.keyboard.press("Escape");
     await atRev(second, current.rev + 1);
@@ -2106,7 +2113,7 @@ await group("connect", async () => {
       await stub.setState("pair");
       const pair = await screen(pg, "pair");
       const pairBody = (await pg.locator(".connect-page").innerText().catch(() => "")).replace(/\s+/g, " ");
-      ok("connect: Pair this browser names npm run world and never a link", pair && /Pair this browser/.test(pairBody) && /npm run world/.test(pairBody) && !/\/pair\//.test(pairBody), pairBody.slice(0, 120));
+      ok("connect: Pair this tab names npm run world and never a link", pair && /Pair this tab/.test(pairBody) && /npm run world/.test(pairBody) && !/\/pair\//.test(pairBody), pairBody.slice(0, 120));
       await stub.setState("connect");
       const connect = await screen(pg, "connect");
       ok("connect: the Connect screen offers a masked key field", connect && (await keyField(pg).getAttribute("type").catch(() => null)) === "password");
@@ -2174,7 +2181,7 @@ await group("connect", async () => {
       // Stale, and comes back by itself once it is paired again.
       await stub.setState("unpaired");
       const pairAgain = await screen(pg, "pair", 20000);
-      ok("connect: a live tab the host no longer knows shows Pair this browser", pairAgain, pairAgain ? "" : `chip ${await chipState(pg)}`);
+      ok("connect: a live tab the host no longer knows shows Pair this tab", pairAgain, pairAgain ? "" : `chip ${await chipState(pg)}`);
       await shot(pg, "40-connect-pair-again");
       await stub.setState("connected");
       const again = await until(pg, "live", 20000);
@@ -2282,14 +2289,15 @@ await group("connect", async () => {
     });
     let host = await createHost(hostOptions());
     info(`connect: loops on 127.0.0.1:${parsed.port} (version ${health.version}); a keyless host on 127.0.0.1:${host.port} looking in ${appData}, its folder ${configDir}, pairing on, behind the Vite proxy on ${origin}`);
-    const hostApi = (p) => pg.request.get(`${origin}/world-api${p}`).then((r) => r.json());
+    const hostApi = (p) => hostGet(pg, `${origin}/world-api${p}`).then((r) => r.json());
     try {
       await pg.goto(host.mintPairLink(origin));
+      await pairedTab(pg).catch(() => {});
       const landed = new URL(pg.url());
       const connect = await screen(pg, "connect", 20000);
       const first = await hostApi("/health").catch(() => null);
       ok(half("the one-time link lands on the Connect screen of a keyless host that found loops"),
-        landed.pathname === "/" && landed.origin === origin && connect && first?.paired === true && first?.connection?.discovery?.state === "found" && first?.connection?.key?.state === "none",
+        landed.pathname === "/" && landed.hash === "" && landed.origin === origin && connect && first?.paired === true && first?.connection?.discovery?.state === "found" && first?.connection?.key?.state === "none",
         `${landed.pathname}; loops ${first?.connection?.discovery?.state} via ${first?.connection?.discovery?.via}, key ${first?.connection?.key?.state}`,
       );
       await shot(pg, "42-connect-real-connect");
