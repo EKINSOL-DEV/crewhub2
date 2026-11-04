@@ -5,7 +5,9 @@
  * Two rules read it, and nothing else holds a copy:
  *   - the test preload `scripts/no-app-reach.mjs` refuses a connect to every one and a listen on all but Vite's;
  *   - the tools' rule `tools/lib/toolGuard.ts` refuses every one as a tool's own port, and every one as a tool's target
- *     but the development loops', which a tool reaches only with its `--real` flag.
+ *     but the development loops', which a tool reaches only with its `--real` flag;
+ *   and the seed tool's URL guard (`tools/lib/seed.ts`) refuses the Mac app's three (round 60, pk-P3). The Mac app's
+ *   data folder is spelled once beside this file, in `app-data.mjs`.
  * A plain `.mjs` with no imports, so the preload can load it before anything else; `named-ports.d.mts` has its types.
  * The test is `scripts/test/namedPorts.test.ts`. */
 
