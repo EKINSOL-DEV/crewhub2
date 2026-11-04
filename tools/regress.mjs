@@ -521,7 +521,7 @@ await group("walk", async () => {
 
   // 11. Phone and dark
   for (const scheme of ["light", "dark"]) {
-    p = await open({ viewport: { width: 375, height: 812 }, colorScheme: scheme, hasTouch: true, isMobile: true });
+    p = await open({ width: 375, theme: scheme });
     await town(p, 2500);
     await shot(p, `12-375-${scheme}-town`);
     const sc = await p.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
@@ -533,7 +533,7 @@ await group("walk", async () => {
     ok(`375 ${scheme}: building signs have 40px hit pads`, pads.length > 0 && pads.every((n) => n >= 40), pads.join(","));
     await p.context().close();
   }
-  p = await open({ colorScheme: "dark" });
+  p = await open({ theme: "dark" });
   await town(p, 2500);
   await shot(p, "13-dark-town");
   await p.context().close();
@@ -859,7 +859,7 @@ await group("tour", async () => {
   await pg.keyboard.press("Escape");
   await pg.context().close();
   // A phone: the card spans the width at the far edge from what it describes, inside the screen, no horizontal scroll.
-  const phone = await person({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true, colorScheme: "dark" });
+  const phone = await person({ width: 375, theme: "dark" });
   await phone.goto(BASE);
   await dressed(phone, 60000).catch(() => {});
   const phoneCard = phone.locator(".tour-card");
