@@ -8,7 +8,8 @@ The renderer reads only the `WorldModel` contract from `packages/world-model`.
 presentation; it runs the scripted demo source (`@crewhub/demo`) or, in live mode, the host source
 (`createHostSource` from `@crewhub/loops-client`, which reads the world's own host at
 `/world-api`) through the projection, `reduceWorld` and `describeWorld`. The world, town and
-director runtimes are each built from a config; `src/state/page.ts` reads the page's address and
+director runtimes are each built from a config, and the chat (`src/state/chat.ts`) from one of
+two adapters, the demo's dock or the live Chat panel; `src/state/page.ts` reads the page's address and
 source decision once, and `src/state/runtimes.ts` builds the page's runtimes from it and holds
 their hooks. In demo mode
 nothing reaches the network and everything is labelled as demo; in live mode the

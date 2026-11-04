@@ -1,7 +1,7 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type Ref } from "react";
 import { ArrowLeft, BookOpen, ChevronRight, CircleHelp, Eye, FlaskConical, Hammer, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Footprints, Scan, Search, Settings, Sun, Tags, X } from "lucide-react";
-import { QueryClientProvider } from "@tanstack/react-query";
-import { agentCardFacts, CIVIC_WORDS, describeTownDocument, describeWorld, roleWords, ruleProps, zoningOf, type AgentPlacement, type CivicWords, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomWording, type TextLine, type WorldModel } from "@crewhub/world-model";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { CIVIC_WORDS, describeTownDocument, describeWorld, roleWords, ruleProps, zoningOf, type AgentPlacement, type CivicWords, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomWording, type TextLine, type WorldModel } from "@crewhub/world-model";
 import type { PropModel } from "@crewhub/world-engine";
 import { Bubbles } from "./components/bubbles/Bubbles";
 import { TownSettings } from "./components/TownSettings";
@@ -18,10 +18,8 @@ import { useChatRoad } from "./state/chatRoadStore";
 import { FirstSnapshot } from "./components/FirstSnapshot";
 import { ConnectPage } from "./components/ConnectPage";
 import { useRecentAnswers, useSaid, type Answer } from "./state/said";
-import { answerTarget, type AnswerTarget } from "./state/recentAnswers";
+import type { AnswerTarget } from "./state/recentAnswers";
 import { useHealthNeed, useHostHealth, useLiveScreen } from "./state/health";
-import { hostKeyReadsChat, loopsOriginOf } from "./state/pageChat";
-import { startPageChat } from "./state/pageChatPage";
 import { installSoakProbe } from "./state/soak";
 import { pageReads } from "./state/soakPage";
 import { markWords, saidLines, saidMarks, type SaidMark } from "./world/saidText";
@@ -33,7 +31,7 @@ import { useWindowKeydown } from "./state/windowKeys";
 import { Button, Card, Chip, Field, Menu } from "./components/primitives";
 import { SceneBoundary } from "./components/SceneBoundary";
 import WorldCanvas from "./components/WorldCanvas";
-import { createChatQueryClient, useChatEvents, useChatNavigation, useChatView } from "./state/chat";
+import { shouldRetry } from "./api/client";
 import { useAmbient } from "./state/ambient";
 import { useCast } from "./state/cast";
 import { castRegistry } from "./world/cast";
@@ -47,7 +45,7 @@ import { toggleFps } from "./state/fps";
 import { readRoleOverrides, writeRoleOverrides } from "./state/roleOverrides";
 import { useBuildMode } from "./state/build";
 import { useDark, useTheme } from "./state/theme";
-import { townRuntime, useConnection, useConnectionKey, useDirectorFeed, useTown, useWorld, worldRuntime } from "./state/runtimes";
+import { townRuntime, useChat, useConnection, useConnectionKey, useDirectorFeed, useTown, useWorld, worldRuntime } from "./state/runtimes";
 import type { TownLayer } from "./world/propLayer";
 import { pageConfig } from "./state/page";
 import { translate } from "./i18n";
@@ -92,7 +90,8 @@ function useStable<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) 
 }
 
 export function App() {
-  const [queryClient] = useState(createChatQueryClient);
+  // The copied chat's query client, with the defaults loops' AppProviders gives its own.
+  const [queryClient] = useState(() => new QueryClient({ defaultOptions: { queries: { staleTime: 5_000, retry: shouldRetry } } }));
   return (
     <QueryClientProvider client={queryClient}>
       <World />
@@ -315,30 +314,24 @@ function World() {
   const selectedAgent = selection.selected?.kind === "agent" ? selection.selected.key : null;
   const agentName = useCallback((key: string) => agentNameOf(model, key), [model]);
   const follow = useCallback((key: string | null) => void dispatch({ type: "follow", key }), []);
-  // The Chat panel opens from the chip (no agent) or from a card (that agent); Escape and its close button return the
-  // focus to the opener. Never in the demo, whose chat is its own scripted dock.
+  // Opening the chat for an agent (a bubble tap, a card's Chat button, an answer row; null: the chip) goes where the
+  // page's chat (state/chat.ts) says: the agent's card in the demo, whose chat is its scripted dock, or the Chat panel,
+  // whose Escape and close button return the focus to the opener.
   const openChat = useStable((key: string | null) => {
+    const opening = talk.open(key);
+    if ("card" in opening) {
+      if (opening.card !== null) pick({ kind: "agent", key: opening.card }, false);
+      return;
+    }
     chatReturn.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setChat({ agent: key ? { key, name: agentName(key) } : null });
+    setChat({ agent: opening.panel });
     setAnnouncement(translate("world.chat.panel.announce"));
   });
   const closeChat = useCallback(() => {
     setChat(null);
     chatReturn.current?.focus();
   }, []);
-  const placementOf = (agentId: string) => [...model.buildings.flatMap((b) => b.agents), ...model.townHall, ...model.postOffice].find((a) => a.name === agentId || a.key === agentId) ?? null;
-  const answerTargetOf = useStable((a: Answer): AnswerTarget => {
-    const placed = placementOf(a.agentId);
-    if (model.mode === "demo") {
-      const name = placed?.displayName ?? a.agentName ?? a.agentId;
-      return { agent: { key: placed?.key ?? a.agentId, name }, action: `Open ${name}'s card`, note: null };
-    }
-    return answerTarget(a, placed ? agentCardFacts(model, worldRuntime().projection.facts, placed.key) : null);
-  });
-  const openAnswer = useStable((a: Answer, target: AnswerTarget) => {
-    if (model.mode === "demo") pick({ kind: "agent", key: target.agent?.key ?? a.agentId }, false);
-    else openChat(target.agent?.key ?? null);
-  });
+  const openAnswer = useStable((_a: Answer, target: AnswerTarget) => openChat(target.agent?.key ?? null));
 
   const openText = useCallback(() => {
     returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -389,9 +382,8 @@ function World() {
   useEffect(() => {
     if (textOpen) textRegion.current?.focus();
   }, [textOpen]);
-  useChatEvents();
-  useChatView(inside?.lead.id ?? null);
-  useChatNavigation(openSettings);
+  // The page's chat (state/chat.ts): it follows the host's health and the building you are in; its navigations open Settings.
+  const talk = useChat({ health: hostHealth, leadId: inside?.lead.id ?? null, openSettings });
   useEffect(() => {
     if (settingsOpen) settingsCard.current?.querySelector<HTMLElement>("button")?.focus();
   }, [settingsOpen]);
@@ -543,15 +535,6 @@ function World() {
   // when either opens on a live page (state/health.ts, the `glance` need), so the words are the host's current ones.
   useHealthNeed(!demo && textOpen ? "glance" : null);
   useHealthNeed(!demo && chat !== null ? "glance" : null);
-  // Road 2 of the chat (round 28, state/pageChat.ts): on a live page whose host's key does not read the chat, the page
-  // asks crewhub-loops itself at the origin the host names, and polls the person's own conversation when loops lets this
-  // origin read it; the lines go to the said store like the host's. Restarted when the host's word changes.
-  const pageChatOrigin = demo ? null : loopsOriginOf(hostHealth);
-  const keyReadsChat = hostKeyReadsChat(hostHealth);
-  useEffect(() => {
-    if (pageChatOrigin === null) return;
-    return startPageChat({ loopsOrigin: pageChatOrigin, hostKeyReadsChat: keyReadsChat });
-  }, [pageChatOrigin, keyReadsChat]);
   const trailNames = { home: homeName(districts), district: here?.name ?? null, building: inside?.name ?? null, room: inside && zoomed ? roomName(inside, zoomed, rooms) : null };
   const trail = useMemo(
     () => crumbs(placeOf(view, districts), trailNames),
@@ -609,7 +592,7 @@ function World() {
             <WorldCanvas
               model={model}
               said={said}
-              onSaidTap={(key) => (demo ? pick({ kind: "agent", key }, false) : openChat(key))}
+              onSaidTap={openChat}
               marks={marks}
               plan={plan}
               view={view}
@@ -622,7 +605,7 @@ function World() {
               onAnnounce={setAnnouncement}
               town={townLayer}
               onBuild={build.pointer}
-              onChat={demo ? null : openChat}
+              onChat={talk.panel ? openChat : null}
             />
           </SceneBoundary>
         )}
@@ -631,7 +614,7 @@ function World() {
 
       {connectionOpen && connection && <ConnectionPanel state={connection} onClose={closeConnection} />}
 
-      {chat && !demo && <ChatPanel agent={chat.agent} health={hostHealth} road={chatRoad} full={narrow} answers={answers} recentEmpty={recentEmptyWords("live", chatRoad)} targetOf={answerTargetOf} onAnswer={openAnswer} onClose={closeChat} />}
+      {chat && <ChatPanel agent={chat.agent} health={hostHealth} road={chatRoad} full={narrow} answers={answers} recentEmpty={recentEmptyWords("live", chatRoad)} targetOf={talk.answerTarget} onAnswer={openAnswer} onClose={closeChat} />}
 
       {jumpOpen && <JumpList entries={jumps} onJump={jump} onClose={closeJump} onActive={jumpActive} />}
 
@@ -694,7 +677,7 @@ function World() {
 
       {playback && <PlaybackBar playback={playback} />}
 
-      {(textOpen || graphicsFailed) && <TextView civic={civic} rooms={rooms} ref={textRegion} lines={textLines} connection={connection} chat={chatPlaceLine(demo ? "demo" : "live", chatRoad)} marks={marks} answers={answers} recentEmpty={recentEmptyWords(demo ? "demo" : "live", chatRoad)} targetOf={answerTargetOf} onAnswer={openAnswer} fallback={graphicsFailed} onClose={graphicsFailed ? null : closeText} districts={districts} onGo={graphicsFailed ? null : go} />}
+      {(textOpen || graphicsFailed) && <TextView civic={civic} rooms={rooms} ref={textRegion} lines={textLines} connection={connection} chat={chatPlaceLine(demo ? "demo" : "live", chatRoad)} marks={marks} answers={answers} recentEmpty={recentEmptyWords(demo ? "demo" : "live", chatRoad)} targetOf={talk.answerTarget} onAnswer={openAnswer} fallback={graphicsFailed} onClose={graphicsFailed ? null : closeText} districts={districts} onGo={graphicsFailed ? null : go} />}
     </div>
   );
 }

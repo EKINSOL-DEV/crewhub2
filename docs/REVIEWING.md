@@ -106,8 +106,10 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
 ### 2.3 The chat roads
 
 - **Entry files.** `apps/world/src/state/chatRoad.ts` (the road is one value, `key`, `page` or `none`, and every
-  sentence the panels say), `packages/loops-client/src/pageChat.ts` (road 2's client), `apps/world/src/state/pageChat.ts`
-  (its runner), `said.ts` (the bubbles and the Recent answers list); road 1 is `apps/host/src/chatPath.ts` (one module
+  sentence the panels say), `apps/world/src/state/chat.ts` (the page's chat: one interface, a demo adapter over the
+  copied dock and a live one that opens the Chat panel and restarts road 2 when the host's word changes; its page
+  wiring is `chatRuntime` in `state/runtimes.ts`), `packages/loops-client/src/pageChat.ts` (road 2's client),
+  `apps/world/src/state/pageChat.ts` (its runner), `said.ts` (the bubbles and the Recent answers list); road 1 is `apps/host/src/chatPath.ts` (one module
   per link: the verdict, the threads' facts, the lines), wired in `relink` of `apps/host/src/host.ts`; both roads read
   loops' answers through `packages/loops-client/src/dm.ts`; road A is `components/ChatPanel.tsx`; `scripts/bubbles-copy.ts`
   (`npm run check:copy`) checks the code copied verbatim from crewhub-loops against its source commit; it is skipped
@@ -125,7 +127,7 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
   `sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"`
   and `allow="clipboard-write"` (`state/chatPanel.ts`, `CHAT_FRAME_SANDBOX`), another origin, so it cannot reach the world. A message id is shown
   once (round 29, Low 6). The poll runs every 5 s shown, 60 s hidden, per open page (question 9).
-- **Pinned by.** `apps/world/test/pageChat.test.ts` (362 lines), `chatRoad.test.ts`, `said.test.ts`,
+- **Pinned by.** `apps/world/test/pageChat.test.ts` (362 lines), `chat.test.ts` (both adapters), `chatRoad.test.ts`, `said.test.ts`,
   `recentAnswers.test.ts`, `chatPanel.test.ts`; `packages/loops-client/test/pageChat.test.ts` (the header names,
   against a real loopback server); `apps/host/test/chatKey.test.ts`; `scripts/scan-model-calls.ts` (fetch is allowed
   in two browser files, `hostSource.ts` and `pageChat.ts`; beside them only the host, the fake and two tools that write
@@ -371,8 +373,8 @@ all 64 `file:line` point to the mutated line at `9a765f0`, and every New test st
 | 3 road 2 | the poll sends `after=` instead of the cursor | `pageChat.ts:64` | `pageChat.test.ts` (both packages) |
 | 3 road 2 | a 409 not read as `chat-off` | `pageChat.ts:115` | `pageChat.test.ts` |
 | 3 road 2 | `origin-not-set` and `unreachable` swapped | `pageChat.ts:118` | `pageChat.test.ts` (both packages) |
-| 3 road 2 | the page probes before the host has said | `apps/world/src/state/pageChat.ts:221` | `pageChat.test.ts` |
-| 3 road 2 | a loops elsewhere is asked (`remote` never) | `state/pageChat.ts:227` | `pageChat.test.ts` |
+| 3 road 2 | the page probes before the host has said | `apps/world/src/state/pageChat.ts:211` | `pageChat.test.ts` |
+| 3 road 2 | a loops elsewhere is asked (`remote` never) | `state/pageChat.ts:217` | `pageChat.test.ts` |
 | 3 contract | the host's no read as not said | `apps/world/src/state/chatRoad.ts:37` | `chatRoad.test.ts`, `pageChat.test.ts` |
 | 4 town store | a write on a stale revision accepted | `apps/host/src/worldDb.ts:288` | `worldDb.test.ts`, `town.test.ts` |
 | 4 town store | an undo step that cannot be taken writes a revision | `worldDb.ts:311` | `worldDb.test.ts`, `town.test.ts` |

@@ -17,7 +17,6 @@ import {
   type TownZoning,
   type WorldModel,
 } from "@crewhub/world-model";
-import { demoChatLine, isAgentDm } from "./demoSaid.ts";
 
 export interface WorldState {
   model: WorldModel;
@@ -174,17 +173,6 @@ class WorldRuntime {
         outlets.threads(message.threads);
         return;
       }
-      // The demo's own dock answers (round 17, state/demoSaid.ts): the scripted reply's dm.created, read back from the
-      // demo's thread, feeds the same store, so the demo shows the bubble, the mark and the Recent answers row too.
-      if (message.type === "event" && this.demo !== null && isAgentDm(message.envelope)) {
-        const demo = this.demo;
-        const { agentId } = message.envelope.payload;
-        const envelope = message.envelope;
-        void demo.getDmMessages(agentId).then((messages) => {
-          const line = demoChatLine(envelope, messages, this.#agentName(agentId));
-          if (line !== null) outlets.said(line);
-        });
-      }
       this.projection.apply(message);
     });
     this.projection.onChange(() => this.#schedule());
@@ -197,13 +185,6 @@ class WorldRuntime {
 
   get state(): WorldState {
     return this.#state;
-  }
-
-  /** The display name of an agent in the current model (a figure anywhere: a building, the town hall, the post office), or null for one the model does not place. */
-  #agentName(agentId: string): string | null {
-    const model = this.#state.model;
-    for (const a of [...model.buildings.flatMap((b) => b.agents), ...model.townHall, ...model.postOffice]) if (a.name === agentId) return a.displayName;
-    return null;
   }
 
   /** The scripted demo behind the world, or null when the world runs the stress fixture or the live host. */
