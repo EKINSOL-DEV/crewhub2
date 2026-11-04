@@ -53,6 +53,7 @@ describe("loops' health, read once", () => {
     const rows: { what: string; answer: Answer; health: { status: number; ok: boolean; version?: string } }[] = [
       { what: "ok false", answer: { status: 200, body: JSON.stringify({ ok: false, version: "x" }) }, health: { status: 200, ok: false, version: "x" } },
       { what: "a version that is a number", answer: { status: 200, body: JSON.stringify({ ok: true, version: 7 }) }, health: { status: 200, ok: true } },
+      { what: "ok that is truthy but not true", answer: { status: 200, body: JSON.stringify({ ok: "yes", version: "x" }) }, health: { status: 200, ok: false, version: "x" } },
       { what: "a 503 with ok", answer: { status: 503, body: JSON.stringify({ ok: true }) }, health: { status: 503, ok: false } },
       { what: "a 403 (a limited key would get it; keyless never does)", answer: { status: 403, body: "{}" }, health: { status: 403, ok: false } },
       { what: "not JSON", answer: { status: 200, body: "<html>another program</html>" }, health: { status: 200, ok: false } },
