@@ -19,12 +19,14 @@ describe("loops' health, read once", () => {
   });
 
   /** A server answering `GET /api/health` as told, remembering each request's Authorization header. */
-  async function serve(answer: Answer): Promise<{ url: string; authorizations: (string | undefined)[]; paths: string[] }> {
+  async function serve(answer: Answer): Promise<{ url: string; authorizations: (string | undefined)[]; paths: string[]; accepts: (string | undefined)[] }> {
     const authorizations: (string | undefined)[] = [];
     const paths: string[] = [];
+    const accepts: (string | undefined)[] = [];
     const server = createServer((req, res) => {
       authorizations.push(req.headers.authorization);
       paths.push(req.url ?? "");
+      accepts.push(req.headers.accept);
       const send = () => {
         res.writeHead(answer.status, { "content-type": "application/json" });
         res.end(answer.body);
@@ -37,7 +39,7 @@ describe("loops' health, read once", () => {
     server.closeAllConnections;
     cleanup.push(() => server.closeAllConnections());
     const { port } = server.address() as AddressInfo;
-    return { url: `http://127.0.0.1:${port}`, authorizations, paths };
+    return { url: `http://127.0.0.1:${port}`, authorizations, paths, accepts };
   }
   const target = (url: string) => ({ transport: "tcp" as const, url });
 
@@ -74,6 +76,25 @@ describe("loops' health, read once", () => {
     assert.equal(await loopsAnswers(target(url)), false);
     const slow = await serve({ status: 200, body: JSON.stringify({ ok: true }), delayMs: 400 });
     assert.equal(await loopsHealth(target(slow.url), 50), null, "a health that takes longer than the timeout is no answer");
+  });
+
+  it("it asks for JSON (round 62, r62-mut-a: loopsHealth.ts:23)", async () => {
+    const s = await serve({ status: 200, body: JSON.stringify({ ok: true }) });
+    await loopsHealth(target(s.url));
+    assert.deepEqual(s.accepts, ["application/json"]);
+  });
+
+  it("loopsAnswers keeps the caller's timeout: a health later than it is no answer (round 62, r62-mut-a: loopsHealth.ts:46)", async () => {
+    const slow = await serve({ status: 200, body: JSON.stringify({ ok: true }), delayMs: 400 });
+    assert.equal(await loopsAnswers(target(slow.url), 50), false);
+  });
+
+  it("with no timeout given, 1.5 s bounds both readers: an answer at 2.5 s comes too late (round 62, r62-mut-a: loopsHealth.ts:40, 45)", async () => {
+    // The server is in this process: its 2.5 s timer cannot fire before the readers' 1.5 s, however loaded the machine.
+    const late = await serve({ status: 200, body: JSON.stringify({ ok: true }), delayMs: 2500 });
+    const [health, answers] = await Promise.all([loopsHealth(target(late.url)), loopsAnswers(target(late.url))]);
+    assert.equal(health, null);
+    assert.equal(answers, false);
   });
 
   it("the client's health(): the same reader over its keyless transport with its read timeout; the key never leaves", async () => {
