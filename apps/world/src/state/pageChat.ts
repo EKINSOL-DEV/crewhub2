@@ -7,10 +7,10 @@
    is on).
 
    The runner is pure in its inputs (the fetch, the clock, hidden and online, the stores' two writers), so a test drives
-   it in milliseconds; the page's wiring (state/pageChatPage.ts `startPageChat`) hands it the browser's. The store keeps what the panel and
-   the tools read: the probe's verdict, the loops origin asked, whether the poll runs, how many polls, the last failure.
-   The page's wiring is state/pageChatPage.ts (the browser's fetch, hidden and online, the stores, the chat road store),
-   kept apart so this module and its test load under node without the world. */
+   it in milliseconds; the page's wiring (state/runtimes.ts `pageRoad`, which the live chat of state/chat.ts restarts
+   when the host's word changes) hands it the browser's. The store keeps what the panel and the tools read: the probe's
+   verdict, the loops origin asked, whether the poll runs, how many polls, the last failure. This module imports nothing
+   of the page, so it and its test load under node without the world. */
 import {
   isLoopbackOrigin,
   pollDelay,
@@ -23,7 +23,7 @@ import {
   type HostHealth,
   type PageProbe,
 } from "@crewhub/loops-client";
-import { decideChatRoad, hostKeyReadsChatOf, type ChatRoad } from "./chatRoad.ts";
+import { decideChatRoad, type ChatRoad } from "./chatRoad.ts";
 import { loopsWebUrl } from "./source.ts";
 
 export interface PageChatState {
@@ -48,7 +48,7 @@ const INITIAL: PageChatState = { probe: "unknown", origin: null, road: "none", p
 
 let current: PageChatState = INITIAL;
 const listeners = new Set<() => void>();
-/** The page's wiring (state/pageChatPage.ts) publishes the runner's state here. */
+/** The page's wiring (state/runtimes.ts `pageRoad`) publishes the runner's state here. */
 export function publishPageChat(next: Partial<PageChatState>): void {
   current = { ...current, ...next };
   for (const listener of listeners) listener();
@@ -61,11 +61,6 @@ export const subscribePageChat = (listener: () => void) => {
   };
 };
 export const getPageChat = () => current;
-
-/** The host's word on its key, as the contract reads it (chatRoad.ts `hostKeyReadsChatOf`): true, false, or null while the host has not said. */
-export function hostKeyReadsChat(health: Pick<HostHealth, "connection"> | null | undefined): boolean | null {
-  return hostKeyReadsChatOf(health);
-}
 
 /**
  * The origin the page asks: the loops web origin the host names (the API is on the same origin), never anything else;
