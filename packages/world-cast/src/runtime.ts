@@ -14,6 +14,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import type { FigurePiece, FigurePiecesHolder, StaticPart } from "@crewhub/world-style";
 import { figureColor, hashKey, perchPlacement, wave, type PerchPlacement } from "./figure.ts";
+import { MOTION_CHANNELS } from "./names.ts";
 import type {
   Cast,
   CastManifest,
@@ -35,8 +36,6 @@ import type {
 } from "./index.ts";
 
 const DEG = Math.PI / 180;
-/** A joint's nine channels, in this order: rotation, offset, scale (x, y, z each). */
-const CHANNELS = ["rotation.x", "rotation.y", "rotation.z", "offset.x", "offset.y", "offset.z", "scale.x", "scale.y", "scale.z"];
 /** A stale figure fades this far towards the kit's `stale` grey and is a little see-through; a proxy is an echo. */
 const STALE_FADE = 0.75;
 const STALE_OPACITY = 0.8;
@@ -288,7 +287,7 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
   const compile = (list: readonly Motion[] | undefined): Wave[] =>
     (list ?? []).flatMap((m) => {
       const joint = joints.get(m.joint);
-      const channel = CHANNELS.indexOf(m.channel);
+      const channel = MOTION_CHANNELS.indexOf(m.channel);
       if (!joint || channel < 0) return [];
       return [
         {
