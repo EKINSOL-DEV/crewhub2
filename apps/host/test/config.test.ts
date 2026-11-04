@@ -138,9 +138,9 @@ describe("a setting that holds an http(s) URL (round 60, H7: one rule for the si
   ];
   for (const [name, read] of settings) {
     it(`${name} answers the origin, and refuses anything else by its own name`, () => {
-      assert.equal(read("http://127.0.0.1:8291/some/path?q=1"), "http://127.0.0.1:8291");
-      assert.equal(read("  https://world.example/  "), "https://world.example");
-      for (const bad of ["not a url", "ftp://world.example", "javascript:alert(1)", "/just/a/path"]) {
+      assert.equal(read("http://127.0.0.1:5381/some/path?q=1"), "http://127.0.0.1:5381");
+      assert.equal(read("  https://localhost:5381/  "), "https://localhost:5381");
+      for (const bad of ["not a url", "ftp://localhost", "javascript:alert(1)", "/just/a/path"]) {
         assert.throws(() => read(bad), (error: unknown) => error instanceof ConfigError && error.message === `${name} must be an http(s) URL`, bad);
       }
     });
