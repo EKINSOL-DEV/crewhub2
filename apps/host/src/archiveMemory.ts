@@ -150,11 +150,14 @@ export function createArchiveMemory(options: ArchiveMemoryOptions): ArchiveMemor
         const slug: unknown = typeof project === "object" ? (project as { slug?: unknown }).slug : undefined;
         // The link's own set keeps a slug only when it is one (round 34): a slug that is no segment would make every
         // snapshot fail on its read (`/api/projects/{slug}` refused by the allow-list, review F8), and `project` may be
-        // anything on the wire. The set itself filters the same way (`normaliseSlugs`).
+        // anything on the wire. The set itself filters the same way (`normaliseSlugs`). An archive event with such a
+        // slug teaches nothing (round 62, H-2): it used to set `learnt` and save all the same, so an empty list went
+        // over another loops' memory on disk, against the rule at the top (a run that found nothing never writes one).
         if (type === "project.archived") {
-          if (isSegment(slug)) seen.add(slug);
+          if (!isSegment(slug)) return;
+          seen.add(slug);
           learnt = true; // loops itself says this project is archived: a fact of this loops' own set
-          remember([...slugs, slug as string], null, target);
+          remember([...slugs, slug], null, target);
         } else if (type === "project.restored") {
           if (isSegment(slug)) seen.delete(slug);
           remember([...slugs].filter((s) => s !== slug), null, target);

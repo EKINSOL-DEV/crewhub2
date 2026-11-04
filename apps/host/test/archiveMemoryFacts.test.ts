@@ -192,6 +192,24 @@ describe("the archive memory, fed facts", () => {
     assert.equal(lines.at(-1), "remembered 1 archived project in /config/archived.json");
   });
 
+  it("an archive event whose slug is no segment teaches nothing: another loops' memory stays on disk, nothing is written, no time learnt (round 62, H-2)", () => {
+    // Before the fix every project.archived set `learnt` and saved, so a slug the set refuses (`a/b`, `{}`, 7) wrote an
+    // empty list over B's memory under A's name: B's closed buildings forgotten (the module's own rule at the top).
+    for (const project of [{ slug: "a/b", key: "K" }, {}, { slug: 7, key: "K" }, { slug: "", key: "K" }]) {
+      const store = memoryStore({ slugs: ["other"], at: T0, target: B });
+      const { m, lines } = memory(store);
+      const a = m.linked(A);
+      a.heard(heard("project.archived", project));
+      assert.deepEqual(store.saves, [], `written for ${JSON.stringify(project)}: ${JSON.stringify(store.saves)}; log: ${lines.join(" | ")}`);
+      assert.deepEqual(store.disk, { slugs: ["other"], at: T0, target: B });
+      assert.deepEqual(m.state(true), { source: "none", count: 0, slugs: [] }, "not even a time learnt");
+      assert.equal(lines.length, 1, "the judgement line only, no remembered line");
+      // A real slug after it teaches the set as before: the file is written then, under A, with that slug alone.
+      a.heard(heard("project.archived", { slug: "beacon", key: "K" }));
+      assert.deepEqual(store.saves, [{ slugs: ["beacon"], at: "2026-11-04T12:00:00.000Z", target: A }]);
+    }
+  });
+
   it("writes this loops' own set over another loops' memory once a snapshot read the list or the whole log, even an empty set", () => {
     for (const source of ["list", "log"] as const) {
       const store = memoryStore({ slugs: ["other"], at: T0, target: B });
