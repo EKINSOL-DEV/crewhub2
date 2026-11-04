@@ -5,14 +5,12 @@ import {
   CAST_ROLES,
   applyFigurePatch,
   createCast,
-  figureColor,
   measureFigure,
   referenceKit,
   validateCastManifest,
   validateFigure,
   validateFigurePatch,
   validatePerson,
-  wave,
   type CastManifest,
   type FigureExtension,
   type FigureSpec,
@@ -20,7 +18,9 @@ import {
   type Perch,
   type WorkPlace,
 } from "../src/index.ts";
-import { castProblems, sightProblems } from "../src/index.ts";
+import { castProblems } from "../src/index.ts";
+import { sightProblems } from "../src/contract.ts";
+import { figureColor, wave } from "../src/figure.ts";
 
 const manifest: CastManifest = {
   format: "crewhub-cast/1",
