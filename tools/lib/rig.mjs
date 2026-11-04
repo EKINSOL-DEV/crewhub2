@@ -46,7 +46,8 @@ export const TEST_TIMINGS = { retryMs: { min: 100, max: 500 }, reconnectMs: { mi
  * close() }`: `origin` is the page address's origin (the host's own when it serves, else the Vite's); `host` is the one
  * standing now (a `restart` closes it and starts the next with `patch` over the same options, on the same port when the
  * host serves); `loopsAgain(options)` starts a new fake after the caller closed the old one (an outage, on the same port).
- * `close()` closes the host, then the fake, then the web stub, each failure swallowed.
+ * `close()` closes the host, then the fake, then the web stub, each failure swallowed. A host that cannot listen (its port
+ * taken) rejects `startRig` with the host's error after the fake and the web stub it started are closed (round 62, T-1).
  */
 export async function startRig({ loops, web = false, serve, pairing = "on", host: extra = {}, timings = TEST_TIMINGS, log = null, onLoops = (made) => made } = {}) {
   if (!loops || typeof loops !== "object") throw new Error("startRig: loops is a fake, a url or a discovery");
@@ -85,7 +86,16 @@ export async function startRig({ loops, web = false, serve, pairing = "on", host
       : { ...base, ...patch, port: hostPort, ...(serve.origin === undefined ? {} : { allowedOrigins: [serve.origin] }) };
   // Serving beside a Vite origin (regress's rule), the host takes a free port: no port of the caller's is taken, the
   // browser opens the host directly. Serving with no Vite origin named (--preview, the road-2 proof), it takes `hostPort`.
-  let host = await createHost(hostOptionsFor({}, served && serve.origin === undefined && hostPort !== 0 ? hostPort : undefined));
+  let host;
+  try {
+    host = await createHost(hostOptionsFor({}, served && serve.origin === undefined && hostPort !== 0 ? hostPort : undefined));
+  } catch (error) {
+    // The host could not listen (its port taken by a host of an earlier run): what the rig started before it is closed
+    // here, each failure swallowed, so the refusal leaves no fake and no web stub behind; the host's own error is the answer.
+    if (fake !== null) await fake.close().catch(() => undefined);
+    if (webStub !== null) await webStub.close().catch(() => undefined);
+    throw error;
+  }
   const origin = served ? host.url : (serve.origin ?? host.url);
   const link = () => host.mintPairLink(served ? undefined : serve.origin);
   return {
