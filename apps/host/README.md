@@ -16,7 +16,7 @@ smooth connection" below):
   then the archived projects from the event log (round 2) and, round 9, the open quiet stretches and the latest
   automation runs from the log ("The snapshot carries what only the log holds" below), handed over as `quiet` and
   `automationRuns`. Paged lists are followed to the last page. `groups` is `[]` until loops has project groups (L22). The reads run in
-  parallel under a cap (`snapshotConcurrency`, default 6; `mapLimit` in `src/snapshot.ts` keeps the projects' order)
+  parallel under a cap of 6 (`mapLimit` in `src/snapshot.ts` keeps the projects' order)
   and are timed and counted; health's `connection.snapshot` says how far the assembly is (`idle`, `reading` with
   the reads done and the project count once the list is in, `ready` with what it cost, `failed` with the reason), so
   the world can say "Reading 12 projects from crewhub-loops…" while the first snapshot loads. Health itself answers

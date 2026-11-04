@@ -10,7 +10,8 @@ import { useBuildingPlan } from "./buildingPlan";
 import type { Pick } from "../world/buildingView";
 import { cellAt, checkGhost, freeCellIn, resolveBuildingPlacements, roomSite, type GhostCheck } from "../world/placements";
 import type { Ghost } from "../world/propLayer";
-import { townRuntime, type TownState } from "./town";
+import { townRuntime } from "./runtimes";
+import type { TownState } from "./town";
 
 export interface Spot {
   room: RoomKind;
