@@ -112,7 +112,7 @@ export function worldSources(page: SourcePage, options: { scheduler: Scheduler; 
   return { source, chat: demo };
 }
 
-export class WorldRuntime {
+class WorldRuntime {
   readonly source: WorldSource;
   /** Source time at the first loop's start (ms): the day-night drift counts the time of day from it. */
   readonly epochMs: number;
@@ -277,6 +277,8 @@ export class WorldRuntime {
     return { model, text: describeWorld(model), playback: this.source.playback };
   }
 }
+
+export type { WorldRuntime };
 
 export function createWorldRuntime(config: WorldRuntimeConfig): WorldRuntime {
   return new WorldRuntime(config);

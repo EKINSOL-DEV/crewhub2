@@ -68,7 +68,7 @@ function applyEdits(doc: TownDocument, edits: readonly TownEdit[], context: Town
   return { ok: true, doc: next };
 }
 
-export class TownRuntime {
+class TownRuntime {
   readonly context: TownContext;
   readonly store: TownStore;
   /** Placement ids to materialise the next time the scene shows them. */
@@ -254,6 +254,8 @@ export class TownRuntime {
     this.#announce(`${ticketKey} is done: ${name} joined the catalogue${result.placementId ? " and appeared in the town" : ""}.${result.note ? ` Note: ${result.note}.` : ""}`);
   }
 }
+
+export type { TownRuntime };
 
 export function createTownRuntime(config: TownRuntimeConfig): TownRuntime {
   return new TownRuntime(config);

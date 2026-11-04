@@ -167,7 +167,7 @@ export function setSourceDecision(value: SourceDecision): void {
   decision = value;
 }
 
-/** A first snapshot read ahead by main.tsx (`prefetchSnapshot`), for the host source the world's module creates at import. */
+/** A first snapshot read ahead by main.tsx (`prefetchSnapshot`), for the host source state/runtimes.ts creates on the first `worldRuntime()` call. */
 let firstSnapshot: HostSourceOptions["firstSnapshot"];
 
 export function setFirstSnapshot(value: HostSourceOptions["firstSnapshot"]): void {

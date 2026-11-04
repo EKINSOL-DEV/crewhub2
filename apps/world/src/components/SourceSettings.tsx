@@ -9,7 +9,7 @@ import { Field } from "./primitives";
 
 export function SourceSettings() {
   const { t } = useT();
-  const SOURCE = pageConfig().source;
+  const source = pageConfig().source;
   // The host's health as last read, not the one the page started with: a key pasted while Live is another bot's (round 48).
   const health = useHostHealth();
   const choose = (value: SourceSetting) => {
@@ -17,11 +17,11 @@ export function SourceSettings() {
     globalThis.location.assign(hrefWithoutOverride(globalThis.location));
   };
   const reason =
-    SOURCE.reason === "url"
-      ? t("world.source.reason.url", { source: SOURCE.override ?? "" })
-      : SOURCE.reason === "probe-silent"
+    source.reason === "url"
+      ? t("world.source.reason.url", { source: source.override ?? "" })
+      : source.reason === "probe-silent"
         ? t("world.source.reason.probe-silent", { ms: PROBE_TIMEOUT_MS })
-        : t(`world.source.reason.${SOURCE.reason}`);
+        : t(`world.source.reason.${source.reason}`);
   return (
     <fieldset className="source-settings">
       <legend className="label">{t("world.source.setting")}</legend>
@@ -31,8 +31,8 @@ export function SourceSettings() {
         label={t("world.source.setting")}
         hideLabel
         className="source-setting"
-        hint={SOURCE.setting === "auto" ? t("world.source.hint.auto", { ms: PROBE_TIMEOUT_MS }) : t("world.source.hint.fixed")}
-        value={SOURCE.setting}
+        hint={source.setting === "auto" ? t("world.source.hint.auto", { ms: PROBE_TIMEOUT_MS }) : t("world.source.hint.fixed")}
+        value={source.setting}
         onChange={(e) => choose(e.currentTarget.value as SourceSetting)}
       >
         {SOURCE_SETTINGS.map((value) => (
@@ -42,11 +42,11 @@ export function SourceSettings() {
         ))}
       </Field>
       <p className="hint source-now">
-        {t(`world.source.now.${SOURCE.source}`)} {reason}
+        {t(`world.source.now.${source.source}`)} {reason}
       </p>
       <p className="hint source-host">
         {t("world.source.hostUrl", { url: hostUrl(globalThis.location?.origin ?? "") })}
-        {health && ` ${t(SOURCE.source === "live" && health.keyName ? "world.source.observer" : "world.source.keyName", { name: health.keyName })}`}
+        {health && ` ${t(source.source === "live" && health.keyName ? "world.source.observer" : "world.source.keyName", { name: health.keyName })}`}
         {health?.sharedKey && ` ${t("world.source.sharedKey")}`}
       </p>
     </fieldset>
