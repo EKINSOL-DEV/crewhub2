@@ -8,7 +8,6 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { type ArchiveMemory, belongsTo, createArchiveMemory } from "../src/archiveMemory.ts";
 import type { ArchiveRecord, ArchiveStore } from "../src/archiveStore.ts";
-import type { KnownArchived } from "../src/snapshot.ts";
 
 const A = "http://127.0.0.1:41001";
 const B = "/tmp/loops-b.sock";
@@ -35,7 +34,7 @@ function memoryStore(initial: ArchiveRecord | null = null) {
  * What a snapshot makes of the archived getter's answer: the slugs in first-occurrence order (the snapshot dedups them,
  * and that order is its read order), and the flag. A getter that dedups itself answers the same (review-a1 2).
  */
-const asked = (archived: () => KnownArchived) => {
+const asked = (archived: ReturnType<ArchiveMemory["forSnapshot"]>) => {
   const known = archived();
   return { slugs: [...new Set(known.slugs)], remembered: known.remembered };
 };
