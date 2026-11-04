@@ -23,7 +23,11 @@ database for world information.
 - **Source of facts.** crewhub-loops is the only source of facts. A small
   CrewHub host process runs next to it. The host:
   - reads crewhub-loops over its socket with a read-only agent key
-  - keeps facts in memory only
+  - keeps facts in memory only, with one exception: the slugs of the archived
+    projects it learnt, kept in `archived.json` in its own folder for the loops
+    they were learnt from (`apps/host/src/archiveMemory.ts`), so a loops that
+    will not read its event log from the start still shows its closed
+    buildings; loops confirms each one at every snapshot
   - owns a SQLite world database with layout, props, roles, settings and
     director plans
   - serves the browser world after pairing

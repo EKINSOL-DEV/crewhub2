@@ -1,7 +1,7 @@
 /* The town's plot grid and the words the town labels use. Pure: no Three.js, no DOM, so it runs under `node --test`.
    World units: x east, z south (towards the home camera); the civic row (post office, square, town hall) sits behind
    the building rows. Streets run between the plots; a green belt rings the town (townDressing.ts dresses both). */
-import type { Freshness, LaneStatus, TicketStatus } from "@crewhub/world-model";
+import { laneLook, type Freshness, type LaneStatus, type TicketStatus } from "@crewhub/world-model";
 
 export const TOWN_COLUMNS = 4;
 export const TOWN_ROWS = 3;
@@ -93,24 +93,9 @@ export function countsLine(counts: Record<TicketStatus, number>): string {
   return STATUS_ORDER.map((s) => `${counts[s]} ${STATUS_WORD[s]}`).join(", ");
 }
 
-/** "HH:MM" in the viewer's local time, or null for a missing or unreadable timestamp. */
-export function clockTime(iso: string | null): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-
-/**
- * The words for an agent's lane status. A stale snapshot overrides every lane: it reads "stale since HH:MM", or
- * "status unknown" before the first snapshot (agents-and-states.md: older than 5 minutes is unknown).
- */
+/** The short words for a lane status (the appearance module's `laneLook`), by the name App.tsx reads them. */
 export function laneWords(status: LaneStatus, freshness: Freshness): string {
-  if (freshness.stale) {
-    const since = clockTime(freshness.teamTs);
-    return since ? `stale since ${since}` : "status unknown";
-  }
-  return status === "unknown" ? "status unknown" : status;
+  return laneLook(status, freshness).words;
 }
 
 /** "mm:ss" for the playback bar; minutes are not capped at 59. */

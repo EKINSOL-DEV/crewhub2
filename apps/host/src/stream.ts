@@ -6,35 +6,18 @@
  * short jittered pause, on errors a backoff, on 429 `Retry-After`, on 410 a reset. Exactly one stream is open at any
  * time. While loops is down the host beats itself every `heartbeatMs`.
  */
-import type { Envelope, HostKeyState, ChatThreadFact } from "@crewhub/loops-client";
+import type { Envelope, HostMessage, LoopsState } from "@crewhub/loops-client";
 import { type LoopsClient, type StreamResume, isUnauthorized } from "./loops.ts";
-import type { ChatLine } from "@crewhub/loops-client";
-import { isSegment } from "./allowList.ts";
 import { SnapshotError, isSeq, readTail } from "./snapshot.ts";
 
-export type LoopsState = "ok" | "down" | "unauthorized";
+/**
+ * What a tab hears (`HostMessage`) and the host's tri-state word on loops (`LoopsState`) are the wire's, defined once in
+ * loops-client's `hostWire.ts` (round 59d, C7); named here again for the host's own importers.
+ */
+export type { HostMessage, LoopsState };
 
 /** Why the stream is `busy`: loops admits four streams per key. */
 export const BUSY_REASON = "stream budget exhausted (429): another host or tab uses this key";
-
-export type HostMessage =
-  /**
-   * `stream: "busy"` with the reason when loops refused the stream with 429 (`loops` stays `down` for the world from before).
-   * `key` is the host's own word on its key (`HostConnection.key.state`: none, unchecked, checking, rejected, ok), stamped by
-   * the host on every status it sends a tab: `loops` keeps one legacy word, "unauthorized", for no key and for a rejected
-   * key alike, so after a Forget in another tab a tab hears `unauthorized, key none` and shows the Connect screen, and for a
-   * key loops revoked `unauthorized, key rejected`. The upstream itself sends no key; the host adds it.
-   */
-  | { type: "status"; loops: LoopsState; stream?: "busy"; reason?: string; key?: HostKeyState["state"] }
-  | { type: "event"; envelope: Envelope }
-  | { type: "heartbeat"; seq: number; ts: string }
-  /** An agent's message to the person, read by the host with its own key where loops lets it (chatPath.ts): a bubble. */
-  | { type: "chat"; chat: ChatLine }
-  /** The installation's town document changed on the host (round 20, worldDb.ts): the browsers refetch `/world-api/town`. */
-  | { type: "town"; rev: number }
-  /** The chat threads' facts (round 24), where loops lets the key read the chat: the whole list, at attach and after a `dm.*` event. */
-  | { type: "threads"; threads: ChatThreadFact[] }
-  | { type: "reset"; reason: "gone" | "reconnected" | "cursor" };
 
 export interface UpstreamOptions {
   bufferSize?: number;
@@ -65,8 +48,6 @@ export interface Upstream {
   cursor(): number;
   /** The loops version from `GET /api/health`, when known. */
   loopsVersion(): string | undefined;
-  /** Slugs the host saw archived through `project.archived` events since it started. */
-  archivedSlugs(): ReadonlySet<string>;
   /** Connection attempts after the first one (loops' 300 s end counts, so does every retry while down). */
   reconnects(): number;
   /** The reason while loops refuses the stream with 429 `too_many_streams`; null otherwise. */
@@ -125,7 +106,6 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
   let attempts = 0;
   let lastEventAt: string | undefined;
   let busyReason: string | null = null;
-  const archived = new Set<string>();
   const listeners = new Set<(message: HostMessage) => void>();
   /** Clients that subscribed with a cursor before the host knew its own: judged at the first connection. */
   const pending = new Map<(message: HostMessage) => void, number>();
@@ -196,11 +176,6 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
       const dropped = buffer.shift() as Envelope;
       bufferFrom = dropped.seq;
     }
-    // The slug is kept only when it is one (round 34): a slug that is no segment would make every snapshot fail on
-    // its read (`/api/projects/{slug}` refused by the allow-list, review F8), and `project` may be anything on the wire.
-    const slug = (envelope.project as { slug?: unknown } | null | undefined)?.slug;
-    if (envelope.type === "project.archived" && isSegment(slug)) archived.add(slug);
-    if (envelope.type === "project.restored" && isSegment(slug)) archived.delete(slug);
     // Every type passes, the ones events.md at 053b5f47 did not list too: the browser's validators judge the payload.
     broadcast({ type: "event", envelope });
   }
@@ -398,7 +373,6 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
     state: () => state,
     cursor: () => cursor,
     loopsVersion: () => version,
-    archivedSlugs: () => archived,
     reconnects: () => Math.max(0, attempts - 1),
     lastEventAt: () => lastEventAt,
     busy: () => busyReason,
