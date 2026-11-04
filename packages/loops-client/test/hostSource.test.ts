@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { after, test } from "node:test";
-import { createHostSource, prefetchSnapshot, probeHost } from "../src/hostSource.ts";
+import { type HostSourceTuning, createHostSource, prefetchSnapshot, probeHost } from "../src/hostSource.ts";
 import { worldApiPath } from "../src/hostWire.ts";
 import type { ConnectionState, HostSourceOptions, LoopsSnapshot, SourceMessage } from "../src/source.ts";
 
@@ -165,10 +165,11 @@ async function startHost(): Promise<FakeHost> {
 
 /** Runs a source and collects what it sends; resolves helpers wait for a condition with a short deadline. */
 // Typed (round 50, r48-live N2): an option the public type does not name fails `npm run typecheck`, as for a caller.
-function observe(url: string, extra: HostSourceOptions = {}) {
+// The clocks and the gap rule are the source's test seam (round 59d, C7), apart from the page's options.
+function observe(url: string, extra: HostSourceOptions = {}, tuning: HostSourceTuning = {}) {
   const messages: SourceMessage[] = [];
   const states: ConnectionState[] = [];
-  const source = createHostSource({ baseUrl: url, timings: TIMINGS, ...extra });
+  const source = createHostSource({ baseUrl: url, ...extra }, { timings: TIMINGS, ...tuning });
   source.connection!.onChange(() => states.push(source.connection!.state()));
   const stop = source.start((message) => messages.push(message));
   stops.push(stop);
@@ -254,7 +255,7 @@ test("a reset message → catching-up, a fresh snapshot, then live", async () =>
 
 test("a seq gap → catching-up and a fresh snapshot when resnapshotOnGap is on", async () => {
   const host = await startHost();
-  const run = observe(host.url, { resnapshotOnGap: true });
+  const run = observe(host.url, {}, { resnapshotOnGap: true });
   await run.until(() => host.cursors.length === 1, "the stream");
   host.cursor = 105;
   host.push({ type: "event", envelope: envelope(101) });
@@ -316,7 +317,7 @@ test("the page coming back into view while stale heals at once: the hanging read
   try {
     const host = await startHost();
     // A long back-off, so that only a heal explains a quick second ask.
-    const run = observe(host.url, { timings: { ...TIMINGS, staleMs: 60_000, retryMinMs: 10, retryMaxMs: 10 } });
+    const run = observe(host.url, {}, { timings: { ...TIMINGS, staleMs: 60_000, retryMinMs: 10, retryMaxMs: 10 } });
     await run.until(() => host.cursors.length === 1, "the stream");
     // The host ends the stream and the next open hangs (the laptop's lid closed under it): stale, one ask on its way for ever.
     host.hang = true;
@@ -498,7 +499,7 @@ test("round 48 (r48-live): a team read that was out when a fresh snapshot came i
 
 test("reads: ticket {ticket}, 404 → null, 409 feature_off → [], groups []", async () => {
   const host = await startHost();
-  const source = createHostSource({ baseUrl: host.url, timings: TIMINGS });
+  const source = createHostSource({ baseUrl: host.url }, { timings: TIMINGS });
   assert.equal((await source.getTicket("CL-85"))?.key, "CL-85");
   assert.equal(await source.getTicket("CL-999"), null);
   assert.equal(await source.getProject("nope"), null);
@@ -552,7 +553,7 @@ test("before the first snapshot the retry is capped at firstRetryMaxMs; after it
     return mocked(fn, ms, ...args);
   };
   globalThis.setTimeout = spy as unknown as typeof setTimeout;
-  const run = observe(host.url, { timings: { ...TIMINGS, staleMs: 60_000, retryMinMs: 10, retryMaxMs: 400, firstRetryMaxMs: 30 } });
+  const run = observe(host.url, {}, { timings: { ...TIMINGS, staleMs: 60_000, retryMinMs: 10, retryMaxMs: 400, firstRetryMaxMs: 30 } });
   let taken = 0; // the pauses checked so far: each call takes the next one (a reset asks at once, without a pause)
   const askAfterPause = async (n: number, delay: number): Promise<void> => {
     await settle(() => pauses.length > taken, `the pause before ask ${n}`);
@@ -600,7 +601,7 @@ test("unpaired after a back-off that grew while the host was away: the next ask 
     return mocked(fn, ms, ...args);
   };
   globalThis.setTimeout = spy as unknown as typeof setTimeout;
-  const run = observe(host.url, { timings: { ...TIMINGS, staleMs: 60_000, retryMinMs: 10, retryMaxMs: 400, firstRetryMaxMs: 30 } });
+  const run = observe(host.url, {}, { timings: { ...TIMINGS, staleMs: 60_000, retryMinMs: 10, retryMaxMs: 400, firstRetryMaxMs: 30 } });
   const pauseThenTick = async (n: number, delay: number, what: string): Promise<void> => {
     await settle(() => pauses.length >= n, `pause ${n} (${what})`);
     assert.equal(pauses[n - 1], delay, `pause ${n} (${what}): ${pauses.join(",")}`);
@@ -705,7 +706,7 @@ test("round 55: stop clears the stale timer: a source started again is not made 
   // 11 s only a timer the stop left running could fire, and it would call the second, live run stale and heal it.
   const host = await startHost();
   t.mock.timers.enable({ apis: ["setTimeout"] });
-  const run = observe(host.url, { timings: { ...TIMINGS, staleMs: 10_000 } });
+  const run = observe(host.url, {}, { timings: { ...TIMINGS, staleMs: 10_000 } });
   try {
     await settle(() => run.state() === "live" && host.cursors.length === 1, "the first run live, its stream open");
     t.mock.timers.tick(6_000);
@@ -747,7 +748,7 @@ test("round 55: a listener that stops the source on its first snapshot leaves no
     cleared.add(handle);
     return mockedClear(handle as Parameters<typeof clearTimeout>[0]);
   }) as unknown as typeof clearTimeout;
-  const source = createHostSource({ baseUrl: host.url, timings: { ...TIMINGS, staleMs: 10_000 } });
+  const source = createHostSource({ baseUrl: host.url }, { timings: { ...TIMINGS, staleMs: 10_000 } });
   let stopFirst = (): void => {};
   let stopped = false;
   stopFirst = source.start((message) => {

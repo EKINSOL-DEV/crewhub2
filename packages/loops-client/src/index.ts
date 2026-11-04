@@ -66,7 +66,7 @@ export { WORLD_API_PREFIX, WORLD_ROUTES, fillPattern, isSegment, worldApiPath, r
 export type { WorldRoute, WorldRoutePattern } from "./hostWire.ts";
 export { connectHost, createHostSource, forgetHostKey, prefetchSnapshot, probeHost, readHostTown, readHostTownBackup, readHostTownBackups, writeHostTown } from "./hostSource.ts";
 export type { HostTownOp } from "./hostSource.ts";
-export type { HostAnswer, HostSourceTimings } from "./hostSource.ts";
+export type { HostAnswer } from "./hostSource.ts";
 export type { HostArchiveState, HostConnection, HostDiscovery, HostHealth, HostHealthSent, HostKeyState, HostSessionState, HostSnapshotState, HostStreamState } from "./hostWire.ts";
 export { readConnection, readHostHealth, readHostMessage } from "./hostWire.ts";
 export type { HostMessage, LoopsState } from "./hostWire.ts";

@@ -74,13 +74,28 @@ export function prefetchSnapshot(baseUrl = ""): Promise<Response> {
   return fetch(`${baseUrl}${worldApiPath("/snapshot")}`, { headers: { accept: "application/json" } });
 }
 
-export function createHostSource(options: HostSourceOptions = {}): WorldSource {
+/**
+ * The source's test seam (round 59d, C7): what a test turns to run in milliseconds or to pin a fact, never the page.
+ * `createHostSource` takes it as its second argument; the page passes `HostSourceOptions` alone.
+ */
+export interface HostSourceTuning {
+  /** The clocks (tests make them short); see `HostSourceTimings`. */
+  timings?: Partial<HostSourceTimings>;
+  /**
+   * Re-snapshot when an event's `seq` skips past `cursor + 1`. Default false: loops filters the stream per
+   * principal (events.py), so gaps between the seqs a key may see are normal; continuity is the host's job (it
+   * resumes with `after=` and sends `reset` when it cannot prove it). Tests turn it on.
+   */
+  resnapshotOnGap?: boolean;
+}
+
+export function createHostSource(options: HostSourceOptions = {}, tuning: HostSourceTuning = {}): WorldSource {
   const base = options.baseUrl ?? "";
   const extraHeaders = options.headers ?? {};
   /** The snapshot read ahead, taken once by the first `start()`. */
   let ahead = options.firstSnapshot;
-  const timings: HostSourceTimings = { ...DEFAULT_TIMINGS, ...stripUndefined(options.timings ?? {}) };
-  const resnapshotOnGap = options.resnapshotOnGap ?? false;
+  const timings: HostSourceTimings = { ...DEFAULT_TIMINGS, ...stripUndefined(tuning.timings ?? {}) };
+  const resnapshotOnGap = tuning.resnapshotOnGap ?? false;
 
   const listeners = new Set<(message: SourceMessage) => void>();
   const changeListeners = new Set<() => void>();
