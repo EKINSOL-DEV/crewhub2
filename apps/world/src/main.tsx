@@ -2,7 +2,7 @@ import "@fontsource-variable/archivo";
 import "./styles/tokens.css";
 import "./styles/kit.css";
 import "./styles/world.css";
-import { lazy, StrictMode, Suspense, type ComponentType } from "react";
+import { lazy, StrictMode, Suspense, useRef, type ComponentType, type ReactElement } from "react";
 import { createRoot } from "react-dom/client";
 import { ThemeProvider } from "./state/theme";
 import { prefetchSnapshot, probeHost, type HostHealth, type HostSourceOptions } from "@crewhub/loops-client";
@@ -30,15 +30,20 @@ const LazyApp = lazy(loadApp);
    (no loops found, pair this browser, connect, checking, key rejected) and follows the host's health (state/health.ts,
    which starts with the decision's read; the screen keeps it fresh) until nothing stands between the browser and the
    town; then the world loads, with the fresh decision recorded first (state/world.ts reads it at import). The demo and a
-   silent host go straight to the world. */
+   silent host go straight to the world. Once the world shows, the gate is done: a later read (loops down while Live) is
+   the chip's story and the App's screens' (state/health.ts `screenOver`), never the gate's, so the world it let through
+   is kept, the same element, whatever the health says next. */
 function Gate({ initial, app }: { initial: SourceDecision; app: ComponentType | null }) {
   const health: HostHealth | null = useHostHealth();
+  const world = useRef<ReactElement | null>(null);
+  if (world.current !== null) return world.current;
   const decision: SourceDecision = { ...initial, health };
   const screen = connectScreen(decision);
   if (screen === null || decision.health === null) {
     setSourceDecision(decision);
     const App = app ?? LazyApp;
-    return <App />;
+    world.current = <App />;
+    return world.current;
   }
   return <ConnectPage screen={screen} />;
 }
