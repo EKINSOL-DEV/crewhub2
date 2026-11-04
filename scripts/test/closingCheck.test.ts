@@ -37,6 +37,9 @@ test("a refusal outside every window still fails: before a restart, after its gr
   assert.deepEqual(failing(plus(width + RESTART_GRACE_MS + 1)), [REFUSED], "a millisecond after the grace");
   assert.deepEqual(failing(plus((run.restarts[1]!.from - first.from) / 2)), [REFUSED], "half-way to the next restart");
   assert.deepEqual(failing(plus(width + RESTART_GRACE_MS)), [], "the grace's last millisecond is inside");
+  // The grace's size, not only its edge (review-a7 1): the lag seen is at most 43 ms, the next restart 2.6 s away; a
+  // refusal 1001 ms after the new host listens is outside whatever the constant says, so the constant cannot grow past it.
+  assert.deepEqual(failing(plus(width + 1001)), [REFUSED], "1001 ms after the new host listens: outside, at a fixed distance");
   assert.deepEqual(failing(plus(0)), [], "the close's first millisecond is inside");
 });
 
