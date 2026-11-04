@@ -5,10 +5,13 @@
  * `after`, and the honest `lastSeq` of CL-390 (a filter that matches nothing answers `after`, so the old tail trick
  * says 0). It records every request it sees with its time, and the most streams that were ever open at once.
  * On 127.0.0.1 port 0: loopback to the test itself, no network; or on a Unix socket (`socketPath`) for the host's
- * socket transport. (The full fake is `packages/loops-fake`.)
+ * socket transport. (The full fake is `packages/loops-fake`; loops' wire grammar, the pure pieces, is its `wire.ts`,
+ * imported here: the error envelope, where a read or a stream resumes, the heartbeat line, the 429 answer. The
+ * stub's own moments, its server loop and its canned content stay here.)
  */
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
+import { RETRY_AFTER_S, type Resume, WireError, errorBody as error, heartbeatLine, ndjsonLine, parseResume, tooManyStreams } from "@crewhub/loops-fake";
 import { TICKET_STATUSES } from "@crewhub/loops-client";
 
 export interface StubRequest {
@@ -122,8 +125,6 @@ export interface LoopsStub {
 
 export const DEFAULT_KEY = "chl_test_secret_key_0123456789abcdef";
 
-const error = (code: string, message: string) => ({ error: { code, message, detail: null } });
-
 export function envelope(seq: number, type: string, extra: Partial<Envelope> = {}): Envelope {
   return {
     v: 1,
@@ -166,9 +167,20 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
   };
   const withCursor = (body: Record<string, unknown>, seen: number, checked: number) => (older ? body : { ...body, cursor: seal(seen, checked) });
 
-  function send(res: ServerResponse, status: number, body: unknown): void {
-    res.writeHead(status, { "content-type": "application/json" });
+  function send(res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}): void {
+    res.writeHead(status, { "content-type": "application/json", ...headers });
     res.end(JSON.stringify(body));
+  }
+
+  /** Where a read or a stream resumes, by the wire's grammar; a refused ask is answered here and `null` returned. */
+  function resumeOf(req: IncomingMessage, res: ServerResponse, url: URL): Resume | null {
+    try {
+      return parseResume(url.searchParams, req.headers["last-event-id"]);
+    } catch (refused) {
+      if (!(refused instanceof WireError)) throw refused;
+      send(res, refused.status, refused.body, refused.headers);
+      return null;
+    }
   }
 
   function handle(req: IncomingMessage, res: ServerResponse): void {
@@ -216,9 +228,10 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
       return message === undefined ? send(res, 404, error("not_found", "No such message")) : send(res, 200, { message });
     }
     if (p === "/api/events") {
-      const token = url.searchParams.get("cursor");
-      if (token !== null && url.searchParams.has("after")) return send(res, 400, error("validation_error", "Send either cursor or after, not both"));
-      let after = Number(url.searchParams.get("after") ?? "0");
+      const resume = resumeOf(req, res, url);
+      if (resume === null) return;
+      const token = resume.cursor;
+      let after = resume.after ?? 0;
       if (token !== null) {
         const opened = older ? null : open(token);
         if (opened === null) return send(res, 410, error("cursor_expired", `The cursor cannot be used${detail}`));
@@ -243,9 +256,10 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
       return send(res, 200, withCursor({ events: page, lastSeq: seen }, seen, lastSeq()));
     }
     if (p === "/api/events/stream") {
-      const token = url.searchParams.get("cursor");
-      if (token !== null && url.searchParams.has("after")) return send(res, 400, error("validation_error", "Send either cursor or after, not both"));
-      let after = Number(url.searchParams.get("after") ?? String(lastSeq()));
+      const resume = resumeOf(req, res, url);
+      if (resume === null) return;
+      const token = resume.cursor;
+      let after = resume.after ?? lastSeq();
       if (token !== null) {
         const opened = older ? null : open(token);
         if (opened === null) return send(res, 410, error("cursor_expired", `The cursor cannot be used${detail}`));
@@ -254,14 +268,13 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
       if (options.minAfter !== undefined && after < options.minAfter) return send(res, 410, error("cursor_expired", `after=${after} is gone${detail}`));
       if (busyLeft > 0) {
         busyLeft -= 1;
-        res.writeHead(429, { "content-type": "application/json", "retry-after": options.busy?.retryAfter ?? "5" });
-        res.end(JSON.stringify(error("too_many_streams", "Too many open event streams")));
-        return;
+        const busy = tooManyStreams(options.busy?.retryAfter ?? RETRY_AFTER_S);
+        return send(res, busy.status, busy.body, busy.headers);
       }
       opened += 1;
       res.writeHead(200, { "content-type": "application/x-ndjson" });
       res.flushHeaders();
-      for (const e of events) if (e.seq > after) res.write(`${JSON.stringify(e)}\n`);
+      for (const e of events) if (e.seq > after) res.write(ndjsonLine(e));
       streams.add(res);
       maxConcurrent = Math.max(maxConcurrent, streams.size);
       res.on("close", () => streams.delete(res));
@@ -309,16 +322,12 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
       const seq = event.seq ?? lastSeq() + 1;
       const full = envelope(seq, event.type, { ...event, seq });
       events.push(full);
-      for (const res of streams) res.write(`${JSON.stringify(full)}\n`);
+      for (const res of streams) res.write(ndjsonLine(full));
       return full;
     },
     heartbeat() {
-      const line = JSON.stringify(withCursor({ v: 1, type: "heartbeat", seq: lastSeq() }, lastSeq(), lastSeq()));
-      // `ts` last, as loops writes it
-      const beat = JSON.parse(line) as Record<string, unknown>;
-      beat.ts = new Date().toISOString();
-      const text = JSON.stringify(beat);
-      for (const res of streams) res.write(`${text}\n`);
+      const text = ndjsonLine(heartbeatLine(lastSeq(), older ? null : seal(lastSeq(), lastSeq()), new Date()));
+      for (const res of streams) res.write(text);
     },
     endStreams() {
       for (const res of streams) res.end();
