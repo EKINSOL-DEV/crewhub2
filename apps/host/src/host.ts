@@ -395,17 +395,19 @@ export async function createHost(options: HostOptions): Promise<Host> {
     for (const tab of tabs.values()) tab.send({ type: "threads", threads });
   }
   function chatPathFor(client: LoopsClient, keyName: string): ChatPath {
+    // Only for the link that stands, with the key it was built for, while the host runs: at the check inside relink
+    // no link stands yet, and the tabs get the threads as they attach (attach()); a line or a re-read of a link that
+    // is gone, or whose key was forgotten or replaced while a check was in flight (review-c4, 1), is dropped.
+    const live = (): boolean => !closed && link?.chat === chat && holder?.name === keyName;
     const chat: ChatPath = createChatPath({
       client,
       keyName,
       log,
-      // Only for the link that stands: at the check inside relink no link stands yet, and the tabs get the threads as
-      // they attach (attach()); a line or a re-read of a link that is gone is dropped.
       onThreads: (threads) => {
-        if (link?.chat === chat) sendThreads(threads);
+        if (live()) sendThreads(threads);
       },
       onLine: (line) => {
-        if (link?.chat === chat) for (const tab of tabs.values()) tab.send({ type: "chat", chat: line });
+        if (live()) for (const tab of tabs.values()) tab.send({ type: "chat", chat: line });
       },
     });
     return chat;
@@ -1277,6 +1279,8 @@ export async function createHost(options: HostOptions): Promise<Host> {
     },
     async close() {
       closed = true;
+      // The chat path first (review-c4, 2): no threads re-read fires from a closing host while relinking settles.
+      link?.chat.dispose();
       clearInterval(idleBeat);
       clearRecheck();
       discovery.stop();

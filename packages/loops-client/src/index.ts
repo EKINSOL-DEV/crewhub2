@@ -91,5 +91,5 @@ export {
   threadsUrl,
 } from "./pageChat.ts";
 export type { EventsPage, FetchLike, PageAnswer, PageProbe, PollOutcome } from "./pageChat.ts";
-export { DM_LINE_MAX, firstLine, isMessageId, readAgentDm, readDmLine, readThreads } from "./dm.ts";
+export { DM_LINE_MAX, firstLine, readAgentDm, readDmLine, readThreads } from "./dm.ts";
 export type { AgentDm } from "./dm.ts";
