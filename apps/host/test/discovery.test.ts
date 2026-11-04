@@ -104,7 +104,7 @@ describe("the roads as they are said (round 60, H7: one wording for the log line
   it("says each road's way and target, in the order of the candidates; `say` words the target and nothing else", () => {
     assert.deepEqual(roadsOf({ ...noApp, loopsUrl: "http://127.0.0.1:5381" }), ["env-url http://127.0.0.1:5381"]);
     assert.deepEqual(roadsOf({ ...noApp, loopsSocket: "/home/me/loops.sock" }, (target) => target.replace("/home/me", "~")), ["env-socket ~/loops.sock"]);
-    const both = { ...noApp, statPath: () => ({ isSocket: true, isDirectory: false, isFile: false }) as never, readFile: () => JSON.stringify({ port: 5381 }) };
+    const both = { ...noApp, statPath: () => ({ isSocket: true }), readFile: () => JSON.stringify({ port: 5381 }) };
     const roads = roadsOf(both, (target) => `<${target}>`);
     assert.deepEqual(roads.map((r) => r.split(" ")[0]), candidates(both).map((c) => c.via));
     assert.ok(roads.every((r, i) => r.endsWith(`<${targetText(candidates(both)[i]!.target)}>`)), roads.join(", "));
