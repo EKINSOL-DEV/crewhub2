@@ -363,3 +363,16 @@ the deepening's head, and `--use <key>=<ref>` (repeatable; key `q3`, `q8`, `q11`
 `cookie+expiry`) merges that port at the answer branch's step, under the same rules. The command line is pure and
 tested (`parseArgs`, `branchOf`): a `--use` for a step the run does not take, a key named twice, an answer branch's own
 name or a ref that starts with a dash is refused before anything runs. The answer branches stay untouched.
+
+**Which port stands for which answer branch, by head** (the Lead keeps this current; a port is carried forward to a new
+head by merging that head into it, never by a rebase; the answer branch itself stays as Nicky's):
+
+| Head of `feat/world-demo` | Deepening merged | Ports standing (the rest merge cleanly as themselves) | Replays (`tab` / `cookie+expiry`) |
+| --- | --- | --- | --- |
+| `53c46ad` | C4, the chat path | q14 → `port/task/q14-dm-read-cap@5894792` | `6394fb2` 1444 / `54b126c` 1442 |
+| `e3e21f8` | C3, the world runtimes | q14 → `port/task/q14-dm-read-cap@5894792`; `cookie+expiry` → `port/task/q1-cookie-expiry@e6c5a34` | `ae05bc2` 1457 / `e25381b` 1455 |
+| `29261f5` | C5, the archive memory | the same two ports | `5e650fd` 1472 / `7bca93b` 1470 |
+
+To replay Nicky's answers on such a head, pass each port named on its row: for example
+`node tools/answers-replay.mjs 29261f5 cookie+expiry q3 q8 q11 q14 q15 --check --use q14=port/task/q14-dm-read-cap@5894792 --use cookie+expiry=port/task/q1-cookie-expiry@e6c5a34`.
+The port branches are local to the merge worktree's repository until crewy pushes them.

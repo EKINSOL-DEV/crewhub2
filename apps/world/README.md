@@ -4,10 +4,13 @@ This workspace renders CrewHub World: the crewhub-loops projects as a small town
 Start it from the repository root with `npm run dev`.
 
 The renderer reads only the `WorldModel` contract from `packages/world-model`.
-`src/state/world.ts` (`useWorld`) is the one seam between data and presentation; it
-runs the scripted demo source (`@crewhub/demo`) or, in live mode, the host source
+`src/state/world.ts` (the world runtime, read with `useWorld`) is the one seam between data and
+presentation; it runs the scripted demo source (`@crewhub/demo`) or, in live mode, the host source
 (`createHostSource` from `@crewhub/loops-client`, which reads the world's own host at
-`/world-api`) through the projection, `reduceWorld` and `describeWorld`. In demo mode
+`/world-api`) through the projection, `reduceWorld` and `describeWorld`. The world, town and
+director runtimes are each built from a config; `src/state/page.ts` reads the page's address and
+source decision once, and `src/state/runtimes.ts` builds the page's runtimes from it and holds
+their hooks. In demo mode
 nothing reaches the network and everything is labelled as demo; in live mode the
 Connect screens (`src/state/connect.ts`, `components/ConnectPage.tsx`) stand in for the
 town until the host has found crewhub-loops, this browser is paired and the key is accepted.

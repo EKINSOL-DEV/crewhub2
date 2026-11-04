@@ -12,7 +12,7 @@
  * Tests: `connection.test.ts` and the moved host tests go through this interface against the loops stub, no HTTP;
  * `chatKey`, `connect`, `health`, `e2e` and the fuzzes through the host.
  */
-import type { HostConnection, HostKeyState, HostSnapshotState, ChatThreadFact } from "@crewhub/loops-client";
+import type { HostConnection, HostKeyState, HostMessage, HostSnapshotState, LoopsState, ChatThreadFact } from "@crewhub/loops-client";
 import { createArchiveMemory } from "./archiveMemory.ts";
 import type { ArchiveStore } from "./archiveStore.ts";
 import { type ChatPath, createChatPath } from "./chatPath.ts";
@@ -22,7 +22,7 @@ import { checkKey } from "./keyCheck.ts";
 import type { KeyStore } from "./keyStore.ts";
 import { type LoopsClient, type LoopsResponse, createLoopsClient } from "./loops.ts";
 import { type ArchiveReport, type AssembledSnapshot, SnapshotError, type SnapshotStats, assembleSnapshot } from "./snapshot.ts";
-import { type HostMessage, type LoopsState, type Upstream, createUpstream } from "./stream.ts";
+import { type Upstream, createUpstream } from "./stream.ts";
 
 /** What the stream's 401 or 403 means for a key that was accepted before: health's `connection.key.reason`. */
 export const STREAM_REFUSED_REASON = "crewhub-loops refused the key on the event stream (401 or 403): it was revoked or its bot disabled meanwhile. Paste a new access key, or forget this one.";
