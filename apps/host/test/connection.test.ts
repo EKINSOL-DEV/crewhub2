@@ -331,7 +331,7 @@ describe("the connection to loops", () => {
     assert.deepEqual(stub.requests.slice(reads).map((r) => r.path), [], "the connection read loops after it was closed");
   });
 
-  it("an event with no project key reaches the tabs and is dropped by the memory with a warning, never thrown in the broadcast (round 54's fuzz finding)", async () => {
+  it("an event with no project key reaches the tabs and is ignored by the memory, said in the log, never thrown in the broadcast (round 54's fuzz finding)", async () => {
     const stub = await createLoopsStub({ ...installation() });
     cleanup.push(() => stub.close());
     const { conn, lines } = start({ loopsUrl: stub.url, key: stub.key });
@@ -345,7 +345,7 @@ describe("the connection to loops", () => {
     const second = stub.emit({ type: "ticket.updated", project: null, ticket: null, actor: { id: "x", kind: "user" }, recipientIds: [], payload: {} });
     await waitFor("the second event at the tab", () => heard.some((m) => m.type === "event" && m.envelope.seq === second.seq));
     assert.ok(heard.some((m) => m.type === "event" && m.envelope.seq === first.seq), "the tab heard the event without a project key: the ear is after it, not in its way");
-    assert.ok(lines.some((l) => new RegExp(`event ${first.seq} \\(project\\.archived\\) has no project key: dropped`).test(l)), lines.join("\n"));
+    assert.ok(lines.some((l) => new RegExp(`the archive memory ignores event ${first.seq} \\(project\\.archived\\): it has no project key`).test(l)), lines.join("\n"));
     assert.ok(!lines.some((l) => /unreadable line skipped/.test(l)), "the line was readable; nothing threw in the broadcast");
     assert.deepEqual(conn.state(true).archived, { source: "none", count: 0, slugs: [] }, "nothing entered the memory");
   });

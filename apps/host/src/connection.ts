@@ -209,7 +209,8 @@ export function createConnection(options: ConnectionOptions): Connection {
       const found = discovery.current();
       return found === null ? null : targetText(found.target);
     },
-    log,
+    // Scrubbed, as the upstream's lines are: an envelope's `type` is text from loops.
+    log: (line) => log(scrub(line)),
   });
 
   // --- loops' version: the first one this run read and the last one, so an upgrade under the host is said (health's

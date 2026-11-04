@@ -39,9 +39,10 @@ export interface ArchiveMemory {
   linked(target: string): void;
   /**
    * An event on the link's stream: `project.archived` adds its project's slug, `project.restored` takes it back, any
-   * other type changes nothing. `project` may be anything on the wire: null is no project, no object is no slug; an envelope with
-   * no `project` key at all (loops breaking its contract) is dropped with a warning, never an error (round 54's fuzz
-   * finding: a throw here broke the upstream's broadcast, and the tabs after the ear never heard the event).
+   * other type changes nothing. `project` may be anything on the wire: null is no project, no object is no slug; an
+   * envelope with no `project` key at all (loops breaking its contract) is ignored, said in the log, never an error
+   * (round 54's fuzz finding: a throw here broke the upstream's broadcast, and the tabs after the ear never heard
+   * the event; they still hear it, only the memory ignores it).
    */
   heard(envelope: Envelope): void;
   /** A snapshot's report: the archived set loops confirmed, and where it came from. */
@@ -119,7 +120,7 @@ export function createArchiveMemory(options: ArchiveMemoryOptions): ArchiveMemor
     },
     heard(envelope) {
       if (!Object.hasOwn(envelope, "project")) {
-        log(`event ${envelope.seq} (${envelope.type}) has no project key: dropped`);
+        log(`the archive memory ignores event ${envelope.seq} (${envelope.type}): it has no project key`);
         return;
       }
       // No project (null, as most events carry) is nothing for the memory, as the ear judged it before round 60.

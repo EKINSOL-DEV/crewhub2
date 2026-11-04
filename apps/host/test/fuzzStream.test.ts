@@ -49,7 +49,7 @@ function planBody(rng: Rng, from: number): Plan {
     if (kind <= 3) {
       next += rng.int(1, 3);
       seqs.push(next);
-      const project = rng.chance(0.5) ? { slug: rng.pick(["atlas", "beacon", "a/b", "", " ", "x".repeat(129), oddString(rng, 2, 0)]), key: "AT" } : rng.pick([null, 5, "atlas", [], { slug: 7 }]);
+      const project = rng.chance(0.5) ? { slug: rng.pick(["atlas", "beacon", "a/b", "", " ", "x".repeat(129), oddString(rng, 2, 0)]), key: "AT" } : rng.pick([null, 5, "atlas", [], { slug: 7 }, undefined]); // undefined: JSON drops the key, the shape of round 54's finding
       lines.push(JSON.stringify({ v: 1, seq: next, ts: new Date(1_760_000_000_000 + next).toISOString(), type: rng.pick(["ticket.updated", "project.archived", "project.restored", "dm.created", oddString(rng, 2, 0)]), project, ticket: null, actor: { id: "x", kind: rng.pick(["agent", "user", 5]) }, recipientIds: [], payload: oddValue(rng) }));
     } else if (kind === 4) {
       // An odd seq: a boundary number, a non-finite as JSON text, a duplicate, a lower one, a string, nothing.

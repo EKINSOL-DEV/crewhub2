@@ -51,16 +51,17 @@ const heard = (type: string, project: unknown): Envelope => ({ v: 1, seq: 1, ts:
 const bare = (type: string): Envelope => JSON.parse(JSON.stringify({ ...heard(type, "gone"), project: undefined })) as Envelope;
 
 describe("the archive memory, fed facts", () => {
-  it("drops an event with no project key with a warning: nothing changes, nothing throws (round 54's fuzz finding)", () => {
+  it("ignores an event with no project key and says so: nothing changes, nothing throws (round 54's fuzz finding)", () => {
     const { m, lines } = memory(memoryStore());
     m.linked(A);
     assert.equal("project" in bare("project.archived"), false, "the vehicle: no key at all");
     m.heard(bare("project.archived"));
     m.heard(bare("ticket.updated"));
-    assert.deepEqual(lines, ["event 1 (project.archived) has no project key: dropped", "event 1 (ticket.updated) has no project key: dropped"]);
+    assert.deepEqual(lines, ["the archive memory ignores event 1 (project.archived): it has no project key", "the archive memory ignores event 1 (ticket.updated): it has no project key"]);
     assert.deepEqual([...m.seen()], []);
     assert.deepEqual(m.state(true), { source: "none", count: 0, slugs: [] });
     m.heard(heard("project.archived", null));
+    assert.equal(m.state(false).at, undefined, "null is nothing: not even a time learnt, no file written");
     m.heard(heard("project.archived", 5));
     m.heard(heard("project.archived", { slug: "atlas", key: "AT" }));
     assert.equal(lines.filter((l) => /has no project key/.test(l)).length, 2, "a project that is null or no object is no warning, as before");
