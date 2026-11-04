@@ -69,7 +69,8 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
   kept in memory, never logged, never in a body, scrubbed from loops' error text; stored 0600 in a 0700 folder.
   *Unpaired health* says the states and, today, the bot's name, the cursor and loops' version (question 3).
 - **Pinned by.** `apps/host/test/pairing.test.ts` (309 lines), `guard.test.ts`, `devOrigin.test.ts`,
-  `runFile.test.ts`, `static.test.ts`, `keyStates.test.ts`, `connect.test.ts`, `e2e.test.ts`, `key.test.ts` (every
+  `runFile.test.ts`, `static.test.ts`, `connection.test.ts` (the key's states through the connection module's
+  interface, round 59d), `connect.test.ts`, `e2e.test.ts`, `key.test.ts` (every
   response grepped for the key); the regress groups `connect` (every Connect screen in order) and `ops`
   (loops stopped, the key revoked, loops upgraded under the host).
 - **Fuzzed (round 34).** The Host and Origin guards, the pairing cookie and link token, the dev-origin decision,
@@ -94,7 +95,7 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
   the cursor by itself (the state review of round 27, F3). The fake must say what loops says
   ([LOOPS_REAL_VS_FAKE.md](LOOPS_REAL_VS_FAKE.md) lists where the real one differed).
 - **Pinned by.** `allowList.test.ts`, `stream.test.ts`, `unixsock.test.ts`, `snapshot.test.ts`, `discovery.test.ts`,
-  `loopsVersion.test.ts`; `packages/loops-client/test/hostSource.test.ts`, `validate.test.ts` (against the 15
+  `connection.test.ts` (loops' version); `packages/loops-client/test/hostSource.test.ts`, `validate.test.ts` (against the 15
   recorded answers), `hostConnect.test.ts`, `hostConnection.test.ts`; the fake's own tests; the regress groups `live`
   (over the fake and a host the tool starts), `real` (against a real development crewhub-loops), `ops`.
 - **Fuzzed (round 34).** The allow-list's path and query matching in process and through the host
