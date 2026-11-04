@@ -31,6 +31,7 @@ way (a developer per candidate, a fresh reviewer per branch, ports where met, th
 | W11 a desk top's height once | `8ebf0a3` | pixels identical |
 | H5 the key's bot read once (`keyBot.ts`) | `4f2f1a1` | the doctor says viewer for a bot flagged viewer and reader, as keyCheck judges it |
 | H6 the key's state machine in `keyHolder.ts` | `81a4203` | **the recheck timer stays in `connection.ts`**: moving it edits lines q3's and q14's ports change; a follow-up once they are decided |
+| H4 loops' health read by one reader (`loopsHealth.ts`) | `e3da2c1` | `LoopsClient.health()` replaces `getPublicJson`; `readVersion` keeps its catch; q15 by a re-cut port |
 | P3 the text view as one pure module (`world/textView.ts`) | `8f73080` | |
 | P4 the chat's page stores as one runtime (`createChatStores`) | `1923c70` | q11's first port (one import line) |
 | T3 regress's groups as files (`tools/regress/`) | `20cda0c` | r27 by a new port |
