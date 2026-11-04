@@ -142,23 +142,26 @@ test("the storyline's speeds are the page's four; another throws and leaves the 
   assert.equal(source.playback.speed(), 4);
 });
 
-test("a read and an outside action go by the clock, between two lines too; an outside action says the state changed", async () => {
+test("a read goes by the clock, between two lines too", async () => {
   const run = startDemo({ speed: 1 });
-  let changes = 0;
-  run.source.playback.onChange(() => (changes += 1));
   run.source.playback.seek(at("9:30"));
   run.play(3_700);
-  const nowIso = new Date(run.source.now()).toISOString();
-  const position = run.source.playback.positionMs();
-  assert.equal(position, at("9:30") + 3_700);
+  assert.equal(run.source.playback.positionMs(), at("9:30") + 3_700);
   const agents = await run.source.getAgents();
   assert.ok(agents.some((a) => a.lastSeenAt === new Date(run.source.now() - 40_000).toISOString()), "a read's clock is now, not the last line's");
+});
+
+test("an outside action goes by the clock, with no read before it, and says the state changed", () => {
+  const run = startDemo({ speed: 1 });
+  run.source.playback.seek(at("9:30"));
+  run.play(3_700);
+  let changes = 0;
+  run.source.playback.onChange(() => (changes += 1));
   const sent = run.messages.length;
-  changes = 0;
   run.source.act({ type: "probe" });
   assert.equal(changes, 1);
   const line = run.messages.slice(sent).find((m) => m.type === "event");
-  assert.equal(line?.type === "event" && line.envelope.ts, nowIso);
+  assert.equal(line?.type === "event" && line.envelope.ts, new Date(run.source.now()).toISOString());
 });
 
 test("a prop request in the next loop runs as in the first: the on-demand ids start afresh", () => {
