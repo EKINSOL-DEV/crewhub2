@@ -53,7 +53,8 @@ smooth connection" below):
   such a body means a broken loops or something else answering at its URL.
 - **The chat over the key** (round 12; road 1 of the two roads since round 28): on a crewhub-loops whose viewer key may read the chat (L1,
   crewhub-loops main since #959: the key's own entry in `GET /api/agents` says `viewer: true` and `GET /api/dm/threads` answers 200), the host
-  reads an agent's `dm.created` on its own stream by id with the key (`src/chatLine.ts`: the first line, at most 140 characters) and hands the
+  reads an agent's `dm.created` on its own stream by id with the key (`src/chatPath.ts`, one module per link, with the dm readers of
+  `@crewhub/loops-client`: the first line, at most 140 characters) and hands the
   tabs a `chat` stream message, the speech bubble; `connection.session` says `{ "state": "key" }`. A viewer key reads only the chat of the
   person who made it (`agent_keys.made_by`, #964): that person's messages and the agents' answers to them; a key with no maker reads no chat,
   and a thread list that answers 200 and empty is no error (the host's log says so). On a loops that does not let the key read the chat (an

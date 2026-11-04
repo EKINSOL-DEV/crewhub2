@@ -94,7 +94,8 @@ test("readHostMessage: lenient on a loops word or a key word it does not know, s
   assert.equal(read({ type: "threads", threads: "none" }), "$.threads: expected a list of thread facts");
   assert.deepEqual(read({ type: "threads", threads: [{ agentId: "ag-1", lastMessageAt: "t", unreadCount: -1 }, 7] }), { type: "threads", threads: [] }, "a bad row is dropped, the list stands");
   assert.match(String(read({ type: "event", envelope: { ...envelope(101), v: 2 } })), /^\$\.envelope\.v: /, "the envelope's own validator, its path under envelope");
-  assert.equal(read({ type: "reset" }), "$.reason: expected one of gone, reconnected, cursor, got undefined");
+  assert.deepEqual(read({ type: "reset" }), { type: "reset", reason: "gone" }, "a reset without a reason still resets (the page re-snapshots whatever the reason, which it never reads)");
+  assert.deepEqual(read({ type: "reset", reason: 7 }), { type: "reset", reason: "gone" });
   assert.deepEqual(read({ type: "reset", reason: "restored" }), { type: "reset", reason: "restored" }, "a newer host's reason passes through");
   assert.equal(read({ type: "sing" }), '$.type: unknown message type "sing"');
   assert.equal(read({}), "$.type: unknown message type undefined");
