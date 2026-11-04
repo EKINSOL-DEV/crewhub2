@@ -1,16 +1,17 @@
 /* The Connect screens (spec addendum "a smooth connection"): one screen per state of the host's connection, shown instead of
    the town until the host has loops, this browser is paired and a key is accepted (state/connect.ts `connectScreen`). The page
-   polls the host's health every few seconds, so starting the app, pairing or a key the host checks all move the screen by
-   themselves; the gate (main.tsx) swaps in the world when the screen is gone. The key field holds a pasted key in component
+   holds the host health's `screen` need (state/health.ts: a read every 2.5 s), so starting the app, pairing or a key the
+   host checks all move the screen by themselves; the gate (main.tsx) swaps in the world when the screen is gone. The key field holds a pasted key in component
    state only, masked, until the request is sent and not a moment longer; the page never shows more than its last four
    characters. Copy from the i18n file; the kit's Card, Button and Field; the Pair screen's content comes from PairPage.tsx.
    One live region (sr-only, always mounted) says each screen once as it arrives (its title and one line) and the answer to
    a pasted key; the words that tick ("last asked 3 s ago") are not live, so a screen reader is never read a clock. */
 import { ExternalLink, KeyRound, RefreshCw, ShieldAlert, Search, Unplug } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { connectHost, forgetHostKey, probeHost, type HostHealth } from "@crewhub/loops-client";
+import { connectHost, forgetHostKey } from "@crewhub/loops-client";
 import { useT } from "../i18n";
 import { connectOutcome, keyTail, looksLikeKey, normaliseKey, relativeTime, untilTime, type ConnectOutcome, type ConnectScreen } from "../state/connect";
+import { askHealth, BLANK_HEALTH, useHealthNeed, useHealthView } from "../state/health";
 import { loopsWebUrl } from "../state/source";
 import { PairContent, switchToDemo } from "./PairPage";
 import { Button, Card, Field } from "./primitives";
@@ -20,53 +21,42 @@ function emphasised(text: string) {
   return text.split("**").map((part, index) => (index % 2 === 1 ? <strong key={index}>{part}</strong> : part));
 }
 
-/** How often the page asks the host while a screen shows; the host itself looks for loops every 5 s. */
-export const CONNECT_POLL_MS = 2500;
 /** The loops web page where an external bot is made (apps/web/src/routes.tsx: /settings/agents). */
 export const LOOPS_AGENTS_PATH = "/settings/agents";
 
 interface ConnectPageProps {
+  /** The screen the gate or the App derived from the host's health (state/health.ts); a new read moves it. */
   screen: ConnectScreen;
-  health: HostHealth;
-  /** A fresh health answer; the gate recomputes the screen from it. */
-  onHealth: (health: HostHealth) => void;
-  pollMs?: number;
 }
 
-export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS }: ConnectPageProps) {
+/** Asks the host now; the screen follows its answer (state/health.ts). */
+const ask = askHealth;
+
+export function ConnectPage({ screen }: ConnectPageProps) {
   const { t } = useT();
-  const [askedAt, setAskedAt] = useState<number>(() => Date.now());
+  // A screen keeps the health fresh while it shows (the host itself looks for loops every 5 s). The need asks at once:
+  // over a live tab (the key revoked while Live) the health the App holds is from before, without loops' reason; the
+  // gate's screens get a fresh read too, which costs one request.
+  useHealthNeed("screen");
+  const view = useHealthView();
+  const health = view.health ?? BLANK_HEALTH;
+  const [shownAt] = useState<number>(() => Date.now());
+  const askedAt = view.read?.at ?? shownAt;
   const [now, setNow] = useState<number>(() => Date.now());
   const [outcome, setOutcome] = useState<ConnectOutcome | "sent" | null>(null);
   const [busy, setBusy] = useState(false);
   const [forgetting, setForgetting] = useState<"busy" | "done" | string | null>(null);
   const [spoken, setSpoken] = useState("");
   const live = useRef(true);
-  // Read through a ref: the gate (main.tsx) hands a new `onHealth` on every render, and every answer is a render, so a
-  // poll that restarted with it asked the host back to back, thousands of times a second (round 48).
-  const latestOnHealth = useRef(onHealth);
-  latestOnHealth.current = onHealth;
-
-  const ask = useCallback(async () => {
-    const fresh = await probeHost("", 1500);
-    if (!live.current) return;
-    setAskedAt(Date.now());
-    if (fresh !== null) latestOnHealth.current(fresh);
-  }, []);
 
   useEffect(() => {
     live.current = true;
-    // Ask at once: over a live tab (the key revoked while Live) the health the App holds is from before, without
-    // loops' reason; the gate's screens get a fresh read too, which costs one request.
-    void ask();
-    const timer = setInterval(() => void ask(), pollMs);
     const clock = setInterval(() => setNow(Date.now()), 1000);
     return () => {
       live.current = false;
-      clearInterval(timer);
       clearInterval(clock);
     };
-  }, [ask, pollMs]);
+  }, []);
 
   // A new screen from the host (checking → rejected, or the town) makes the last request's words stale.
   useEffect(() => {
@@ -82,9 +72,9 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
       setBusy(false);
       const result = connectOutcome(answer.status, answer.body);
       setOutcome(result);
-      void ask();
+      ask();
     },
-    [ask],
+    [],
   );
 
   /** The rejected screen's "Forget this key": the host drops its stored key and this screen becomes the Connect screen. */
@@ -94,8 +84,8 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
     if (!live.current) return;
     const result = connectOutcome(answer.status, answer.body);
     setForgetting(result.kind === "ok" ? "done" : result.kind === "not-paired" ? t("world.connect.key.notPaired") : (result.reason ?? t("world.connect.key.failed")));
-    void ask();
-  }, [ask, t]);
+    ask();
+  }, [t]);
 
   const title =
     screen === "no-loops"

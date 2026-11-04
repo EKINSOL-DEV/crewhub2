@@ -33,7 +33,7 @@ import { ADMIN_DOOR, officeWindowRun } from "./threeRoomTemplate";
 import { assignDesks, placeObjects, roomCentre, SHELF_PITCH, type DeskSlot, type ObjectLayout, type Surface } from "./interiorLayout";
 import { mergeStatic } from "./mergeStatic";
 import { Closing } from "./closing.ts";
-import { archivedSince } from "@crewhub/world-model";
+import { archivedSince, figureLook } from "@crewhub/world-model";
 import { restMatrices } from "./matrixPass";
 import { ObjectLayer } from "./objectLayer";
 import { cellAt, footprintPose, resolveBuildingPlacements, type BuildingPlacements } from "./placements";
@@ -41,7 +41,7 @@ import { PropLayer, type TownLayer } from "./propLayer";
 import { figureRole, figureState, type FigureFacts } from "./figureState";
 import { LAWN_PAVING } from "./navigation";
 import type { RobotCrowd } from "./robotCrowd";
-import { deskItems, DRESS_PREFIX, dressingSeed, isThreeRoom, lampLane, RACKS, roomDecor, type DecorItem } from "./roomDressing";
+import { deskItems, DRESS_PREFIX, dressingSeed, isThreeRoom, RACKS, roomDecor, type DecorItem } from "./roomDressing";
 import type { Bounds } from "./townLayout";
 import type { Walker, WorkSpot } from "./walks";
 import type { PersonWalker } from "./personWalks";
@@ -1388,7 +1388,7 @@ export class BuildingView {
     const laneOf = (desk: DeskSlot, stalled: boolean) => {
       const agent = b.agents.find((a) => a.key === desk.agentKey) ?? null;
       const waiting = !!agent && agent.deskTicketKey !== null && b.objects.some((o) => o.key === agent.deskTicketKey && o.waitingOnHuman);
-      return lampLane(agent, waiting, stalled);
+      return figureLook(agent, { waiting, stalled }).lamp;
     };
     const signature = JSON.stringify([
       [...this.desks.values()].map((d) => d.propId + d.room + (threeRoom ? laneOf(d, false) : "")),
