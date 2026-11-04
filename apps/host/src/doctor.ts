@@ -9,6 +9,7 @@ import { createConnection } from "node:net";
 import { homedir } from "node:os";
 import path from "node:path";
 import { ARCHIVE_MEMORY_NAME, parseArchiveMemory, plainTime } from "./archiveStore.ts";
+import { belongsTo } from "./archiveMemory.ts";
 import { ConfigError, type KeyFiles, type LoadedKey, type PathKind, type ServerConfig, keyFilesOf, loadKey, loadServerConfig, statPath, configFolderLine } from "./config.ts";
 import { type DiscoveryInput, type Found, candidates, discoverOnce, loopsHealth, targetText } from "./discovery.ts";
 import { checkKey } from "./keyCheck.ts";
@@ -251,9 +252,10 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
       const n = memory.slugs.length;
       const what = `${n} archived project${n === 1 ? "" : "s"}${n === 0 ? "" : ` (${memory.slugs.join(", ")})`}`;
       const when = memory.at === "" ? "" : `, learnt ${plainTime(memory.at)}`;
-      // The memory belongs to one loops: another loops' is said and ignored until this one's own set is learnt.
-      if (memory.target !== undefined && found !== null && memory.target !== targetText(found.target))
-        warn("archive", `${tilde(archiveFile, home)} remembers ${what} from ${tilde(memory.target, home)}${when}, not from ${tilde(targetText(found.target), home)}: the host ignores it and keeps it until it learns this crewhub-loops' own archived projects (give a run against another loops its own CREWHUB_WORLD_CONFIG_DIR)`);
+      // The memory belongs to one loops (archiveMemory.ts asked): another loops' is said and ignored until this one's own
+      // set is learnt.
+      if (found !== null && !belongsTo(memory, targetText(found.target)))
+        warn("archive", `${tilde(archiveFile, home)} remembers ${what} from ${tilde(memory.target as string, home)}${when}, not from ${tilde(targetText(found.target), home)}: the host ignores it and keeps it until it learns this crewhub-loops' own archived projects (give a run against another loops its own CREWHUB_WORLD_CONFIG_DIR)`);
       else ok("archive", `remembers ${what} from ${memory.target === undefined ? "an unnamed loops" : tilde(memory.target, home)}${when}; loops is asked about each at every snapshot`);
     }
   }

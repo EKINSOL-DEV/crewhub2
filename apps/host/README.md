@@ -193,7 +193,7 @@ The host starts with neither loops nor a key and reports the honest states; the 
   judged ("the quiet judged per ticket" on loops main). The facts go with the
   snapshot as the envelopes they are (`quiet`, `automationRuns`); the step line says "from the log 2 quiet, 3 runs";
   past the page cap no quiet is handed over (undecided is never shown), the runs read so far are.
-- **The closed buildings are remembered** (`src/archiveStore.ts`): the slugs the event log or the stream taught go
+- **The closed buildings are remembered** (`src/archiveMemory.ts`, the file `src/archiveStore.ts`): the slugs the event log or the stream taught go
   to `<configDir>/archived.json` (0600, written whole, only when the set changed), so a loops that will not read its
   log from the start (the fake after a restart answers 410) still shows them on the next start; every remembered
   slug is confirmed with `GET /api/projects/{slug}` before it counts, and a restored project leaves the file. The
