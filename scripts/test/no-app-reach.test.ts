@@ -32,7 +32,7 @@ test("the rules: the Mac app's ports on any host, its data folder, Nicky's folde
     assert.match(refusesConnect([String(port)]) ?? "", /Mac app's port/, `port ${port} as a string`);
   }
   assert.deepEqual(APP_PORTS, [8091, 8000, 9443]);
-  assert.equal(refusesConnect([{ port: 8291, host: "127.0.0.1" }]), null, "the development loops' port is not the app's");
+  assert.doesNotMatch(refusesConnect([{ port: 8291, host: "127.0.0.1" }]) ?? "", /Mac app's port/, "the development loops' port is not the app's (noAppReachPorts.test.ts refuses it as its own)");
   assert.equal(refusesConnect([{ port: 0, host: "127.0.0.1" }]), null);
   assert.match(refusesConnect([{ path: path.join(APP_DATA, "run", "api.sock") }]) ?? "", /Mac app's data folder/);
   assert.match(refusesConnect(["run/api.sock"]) ?? "", /app data folder was left empty/);
@@ -40,7 +40,7 @@ test("the rules: the Mac app's ports on any host, its data folder, Nicky's folde
   // net.connect(), http and fetch call Socket#connect with their normalized arguments, one array of [options, callback].
   assert.deepEqual(connectTarget([[{ port: 8091, host: "127.0.0.1" }, () => undefined]]), { port: 8091, host: "127.0.0.1" });
   assert.match(refusesConnect([[{ port: 8091, host: "127.0.0.1" }, () => undefined]]) ?? "", /Mac app's port/, "the normalized form net.connect() uses");
-  assert.equal(refusesConnect([[{ port: 8291, host: "127.0.0.1" }, () => undefined]]), null);
+  assert.equal(refusesConnect([[{ port: 51234, host: "127.0.0.1" }, () => undefined]]), null, "an ephemeral port is a test's own");
   assert.deepEqual(connectTarget([5180]), { port: 5180, host: "localhost" });
   assert.deepEqual(connectTarget(["/tmp/x.sock"]), { path: "/tmp/x.sock" });
 

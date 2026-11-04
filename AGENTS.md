@@ -132,8 +132,10 @@ fallback for unsupported graphics. Do not make color the only status signal.
   - A test or tool that could start a host sets its own `CREWHUB_WORLD_PORT` and
     `CREWHUB_WORLD_CONFIG_DIR` (a temp folder), never 5180 and never
     `~/.config/crewhub-world`; `scripts/no-app-reach.mjs`, preloaded by `npm test`,
-    refuses the Mac app's ports (8091, 8000, 9443) and Nicky's folders before a
-    packet leaves or a file opens, so a test that forgets fails by name.
+    refuses the Mac app's ports (8091, 8000, 9443), the development loops'
+    (8291 to 8293), a fake's (8391), the host's default (5180) and Vite's (5173),
+    a listen on any of those but 5173, and Nicky's folders before a packet leaves,
+    a port is taken or a file opens, so a test that forgets fails by name.
   - The loops stub (`apps/host/test/loopsStub.ts`) writes its headers with
     `writeHead` before `end(body)`, so its answers come chunked with no
     `Content-Length`; its `/api/agents` lists the host's own `crewhub-world` only

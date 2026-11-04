@@ -2,17 +2,24 @@
  *
  * Preloaded into every test process by `npm test` (`node --import ./scripts/no-app-reach.mjs --test …`) and, through
  * NODE_OPTIONS, into every Node process a test spawns. It patches `node:net` and `node:fs` in that process so that:
- *   - a connection to port 8091, 8000 or 9443 on any host (the Mac app's ports) is refused before a packet leaves;
+ *   - a connection to port 8091, 8000 or 9443 on any host (the Mac app's ports) is refused before a packet leaves, and
+ *     so is one to 8291 to 8293 (the development crewhub-loops), 8391 (a running loops-fake), 5180 (somebody's
+ *     `npm run world`) or 5173 (a Vite dev server) (round 55);
+ *   - a listen on 8091, 8000, 9443, 8291 to 8293, 8391 or 5180 is refused before the port is taken (round 55); a test
+ *     listens on port 0;
  *   - a file under the app's data folder (~/Library/Application Support/be.ekinsol.crewhub), under ~/.config/crewhub-world
  *     or ~/.config/crewhub-loops (Nicky's folders), or a relative `settings.json` / `run/api.sock` (what `createHost`
  *     reads when a test leaves the app data folder empty) is refused before it is opened.
  * A refusal throws an Error whose message starts with "no-app-reach:" and sets the process's exit code to 1, so the test
  * file fails even when the code under test swallows the error (a discovery probe reports "down" and goes on). With
- * CREWHUB_TEST_REACH_LOG=<file> the guard records instead (every connect and every refusal, one line each, with the pid)
- * and the refusal looks like a closed port or a missing file: that is how `npm test` is measured.
+ * CREWHUB_TEST_REACH_LOG=<file> the guard records instead (every connect and every refusal, one line each, with the
+ * pid) and the refusal looks like a closed port, a port in use or a missing file: that is how `npm test` is measured.
+ *
+ * Not guarded (round 55's docs/proposals/mutation-harness.md, a day round's work): the folders follow $HOME, the real
+ * TMPDIR (the hosts' run files), node:sqlite (it opens past node:fs), spawn and exec, and process.kill.
  *
  * It changes nothing for a real host: only the test scripts preload it. The predicates are exported for the unit test
- * in scripts/test/no-app-reach.test.ts, which also checks that the preload is active. */
+ * in scripts/test/no-app-reach.test.ts, which also checks that the preload is active, and noAppReachPorts.test.ts. */
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import net from "node:net";
@@ -25,6 +32,17 @@ export const APP_DATA = path.join(HOME, "Library", "Application Support", "be.ek
 export const CONFIG_DIR = path.join(HOME, ".config", "crewhub-world");
 export const LOOPS_CONFIG = path.join(HOME, ".config", "crewhub-loops");
 export const APP_PORTS = [8091, 8000, 9443];
+/** Ports a test connects to never, each with whose it is (round 55): every connect of `npm test` goes to a port 0 listener. */
+export const OTHER_PORTS = new Map([
+  [8291, "the development crewhub-loops' port (tools/loops-dev.sh)"],
+  [8292, "a development crewhub-loops' port"],
+  [8293, "a development crewhub-loops' port (crewhub-loops main)"],
+  [8391, "a running loops-fake's default port"],
+  [5180, "the world host's default port, where somebody's npm run world listens"],
+  [5173, "the Vite dev server's port"],
+]);
+/** Ports a test listens on never (round 55): somebody's process holds them, or a host's discovery would take a test's listener for loops. */
+export const LISTEN_PORTS = [...APP_PORTS, 8291, 8292, 8293, 8391, 5180];
 export const MARK = Symbol.for("crewhub-world.no-app-reach");
 
 const under = (file, dir) => file === dir || file.startsWith(dir + path.sep);
@@ -67,7 +85,27 @@ export function refusesConnect(args) {
   const target = connectTarget(args);
   if (target.path !== undefined) return refusesPath(target.path);
   if (target.port !== undefined && APP_PORTS.includes(target.port)) return `${target.host}:${target.port} is the Mac app's port`;
+  if (target.port !== undefined && OTHER_PORTS.has(target.port)) return `${target.host}:${target.port} is ${OTHER_PORTS.get(target.port)}`;
   return null;
+}
+
+/** The port of `server.listen(...args)` as { port, host }, or {} for a Unix socket, a handle or no port (the system picks). */
+export function listenTarget(args) {
+  const first = args[0];
+  if (typeof first === "object" && first !== null) {
+    if (first.port === undefined || typeof first.path === "string") return {};
+    return { port: Number(first.port), host: typeof first.host === "string" ? first.host : "every interface" };
+  }
+  if (typeof first === "number" || (typeof first === "string" && /^\d+$/.test(first))) return { port: Number(first), host: typeof args[1] === "string" ? args[1] : "every interface" };
+  return {};
+}
+
+/** Why a test may not listen there, or null. */
+export function refusesListen(args) {
+  const target = listenTarget(args);
+  if (target.port === undefined || !LISTEN_PORTS.includes(target.port)) return null;
+  const whose = APP_PORTS.includes(target.port) ? "the Mac app's port" : OTHER_PORTS.get(target.port);
+  return `listening on ${target.host}:${target.port}, ${whose}`;
 }
 
 if (globalThis[MARK] === undefined) {
@@ -104,6 +142,18 @@ if (globalThis[MARK] === undefined) {
     return this;
   };
   net.Socket.prototype.connect[MARK] = true;
+
+  // listen: http and https servers are net servers, so this is every TCP listener in Node.
+  const listen = net.Server.prototype.listen;
+  net.Server.prototype.listen = function guardedListen(...args) {
+    const reason = refusesListen(args);
+    if (reason === null) return listen.apply(this, args);
+    refuse("listen", reason);
+    if (!recording) throw new Error(`no-app-reach: a test reached for ${reason} (listen)`);
+    process.nextTick(() => this.emit("error", Object.assign(new Error(`listen EADDRINUSE (no-app-reach)`), { code: "EADDRINUSE", syscall: "listen" })));
+    return this;
+  };
+  net.Server.prototype.listen[MARK] = true;
 
   // fs: the sync, callback and promise forms of what opens, reads, lists, writes or stats a path.
   const onePath = ["readFile", "writeFile", "appendFile", "stat", "lstat", "access", "open", "readdir", "mkdir", "rm", "rmdir", "unlink", "realpath", "chmod", "opendir", "truncate", "utimes"];
