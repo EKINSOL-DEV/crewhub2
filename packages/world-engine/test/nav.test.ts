@@ -445,6 +445,7 @@ test("round 54: a destination changed during that last step is where the offscre
     cells.add(`${x},${z}`);
   }
   assert.deepEqual(sim.actor("a")!.location, at("A", 4, 1));
-  assert.deepEqual([...cells].sort(), ["0,0", "1,0", "4,1"], "the step under way, then the jump: no other cell of the old path");
+  // The step under way ends on 1,0 and the jump follows in the same tick: no cell of the old path is ever shown.
+  assert.deepEqual([...cells].sort(), ["0,0", "4,1"]);
   assert.equal(sim.stats.teleports, 1);
 });
