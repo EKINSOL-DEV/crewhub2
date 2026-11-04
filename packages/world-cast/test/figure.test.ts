@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import * as THREE from "three";
 import {
+  CAST_ROLES,
   applyFigurePatch,
   createCast,
   figureColor,
@@ -486,4 +487,53 @@ test("round 50 (N3): a cast's dispose frees the step geometries it merged, and l
   const [a, b] = geometries.map((g) => g.getAttribute("position").count);
   const merged = geometries[a! > b! ? 0 : 1]!;
   assert.deepEqual([...disposed], [merged], "the merged books are freed, the kit's own geometry is not");
+});
+
+test("round 54: a part id must be lowercase letters, digits and dashes", () => {
+  const bad = figure();
+  bad.parts[3]!.id = "Flag";
+  const checked = validateFigure(bad);
+  assert.deepEqual(checked.ok ? [] : checked.errors, ["figure.parts[3].id: must be lowercase letters, digits and dashes"]);
+});
+
+test("round 54: the contract refuses a ground radius of 0", () => {
+  const kit = referenceKit(manifest.colors);
+  const roomy: CastManifest = { ...manifest, budget: { nearTriangles: 2000, farTriangles: 1200, nearMeshes: 8, farMeshes: 6 } };
+  const flat = figure();
+  flat.anchors = { ...flat.anchors, ground: 0 };
+  const problems = castProblems(createCast(roomy, flat, kit));
+  assert.ok(problems.length > 0 && problems.every((p) => p.endsWith(": anchors must be finite, with a ground radius and a height above 0")), problems.join("\n"));
+});
+
+test("round 54: the contract draws every role with a project accent and the unknown role without one", () => {
+  const kit = referenceKit(manifest.colors);
+  const roomy: CastManifest = { ...manifest, budget: { nearTriangles: 2000, farTriangles: 1200, nearMeshes: 8, farMeshes: 6 } };
+  // A hook that adds a dense ball only to a figure with a project accent.
+  const accented: FigureExtension = ({ options, joints }) => {
+    if (options.accent !== null) joints.get("root")!.add(new THREE.Mesh(new THREE.SphereGeometry(0.1, 40, 40), kit.material("pale")));
+  };
+  const over = castProblems(createCast(roomy, figure(), kit, accented)).filter((p) => /^pegs \w+: \d+ triangles near, over the budget/.test(p));
+  const roles = CAST_ROLES.filter((role) => role !== "unknown").map((role) => `pegs ${role}`);
+  assert.deepEqual(over.map((p) => p.split(":")[0]), roles, over.join("\n"));
+});
+
+test("round 54: a near look is worn near only, and taken off far", () => {
+  const kit = referenceKit(manifest.colors);
+  const spec = figure();
+  spec.looks = { ...spec.looks, near: { parts: { knob: { color: "wood" } } } };
+  const handle = createCast(manifest, spec, kit).figure({ key: "a:1", role: "worker", accent: null });
+  handle.materialise();
+  const knob = handle.object.getObjectsByProperty("type", "Mesh").find((m) => (m as THREE.Mesh).material === kit.material("wood")) as THREE.Mesh;
+  assert.ok(knob, "near, the knob wears the near look's wood");
+  handle.setDetail("far");
+  assert.equal(knob.material, kit.material("pale"));
+  handle.setDetail("near");
+  assert.equal(knob.material, kit.material("wood"));
+});
+
+test("round 54: the reference kit draws a cylinder of radius 0.04 or less with 10 sides, a wider one with 20", () => {
+  const kit = referenceKit(manifest.colors);
+  const sides = (r: number) =>
+    ((kit.part({ shape: "cylinder", size: [r, 0.3, r], position: [0, 0, 0] }, "pale").geometry as THREE.CylinderGeometry).parameters.radialSegments);
+  assert.deepEqual([sides(0.03), sides(0.04), sides(0.05)], [10, 10, 20]);
 });
