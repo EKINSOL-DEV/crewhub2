@@ -192,3 +192,39 @@ test("textViewLines hands every fact to its producer: a fact dropped on the way 
   assert.ok(asked.length > 0 && asked.every((o) => o.viewer === "mine" && o.style === "the-style"), "the cast lines ask with the viewer's choice and the style's default");
   assert.deepEqual(section({ town: { ...town, storageNote: "" } }, "Town document").filter((t) => t === ""), [], "an empty note says nothing");
 });
+
+/* Round 62's mutation run: what the rows above left open. */
+test("textViewLines hands the casts and the zones the town's own facts: its cast, its plots, the zones and where each building stands", () => {
+  // A registry that answers by the look's order, so a fact not handed on changes what is said.
+  type Order = { building?: string; zone?: string; viewer?: string | null; town?: string | null; style?: string | null };
+  const honest = { listCasts: () => [] as CastManifest[], resolve: (o: Order) => ({ id: o.building ?? o.zone ?? o.viewer ?? o.town ?? o.style ?? "none", unknown: [] }) } as unknown as TextViewFacts["casts"];
+  const inbox = { ...building("inbox"), zoneId: "studio" };
+  const lab = { ...building("lab"), zoneId: "studio" };
+  const model = world([inbox, lab], { zones: [zone("studio", "Studio", { look: { castId: "zoned" } }), zone("yard", "Yard", { order: 1 })] });
+  const town = facts(model).town;
+  const doc: TextViewFacts["town"]["doc"] = {
+    ...town.doc,
+    castId: "the-town",
+    plots: [
+      { slug: "inbox", cell: { x: 64, z: 64 }, zoneId: "studio", castId: "zoned" },
+      { slug: "lab", cell: { x: 66, z: 64 }, zoneId: "yard", castId: "its-own" },
+    ],
+  };
+  const said = textViewLines(facts(model, { casts: honest, styleCast: null, town: { ...town, doc } })).map((l) => l.text);
+
+  assert.ok(said.includes("Cast: the-town."), "the town's cast");
+  assert.ok(said.includes("Cast of the Studio zone: zoned."), "the zone's cast");
+  assert.ok(said.includes("Cast of lab: its-own."), "a plot's cast");
+  assert.ok(!said.includes("Cast of inbox: zoned."), "a plot that wears what its zone wears, found by its building, is not news");
+  assert.ok(said.some((t) => t.startsWith("Studio ") && t.includes(": inbox, lab.")), "the zone's line names its buildings");
+  assert.ok(said.includes('lab belongs to Studio but stands in the district of Yard; "Tidy the town" or a move in build mode rehouses it.'), "a plot's district against its building's zone");
+});
+
+test("textViewLines says the civic places of a said line in the town's own words", () => {
+  const model = world([], { townHall: [agent("clerk", "lead-office")], postOffice: [agent("postie", "lead-office")] });
+  const line = { text: "Hello.", agentName: null, messageId: "m", threadId: "t", shownAt: 0, until: 1000 };
+  const said = new Map([["clerk", line], ["postie", { ...line, messageId: "n" }]]);
+  const text = textViewLines(facts(model, { said, civic: { hall: "lodge", post: "mailbox" } })).map((l) => l.text);
+  assert.ok(text.includes("clerk says: Hello. (at the lodge)"), text.join(" | "));
+  assert.ok(text.includes("postie says: Hello. (at the mailbox)"), text.join(" | "));
+});
