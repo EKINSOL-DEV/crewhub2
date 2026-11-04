@@ -61,12 +61,18 @@ The full plan is [LOOPS_INTEGRATION_PLAN.md](../LOOPS_INTEGRATION_PLAN.md).
 - CrewHub's shell is one host process, a client package, the engine and the
   renderer. It needs no Tauri, no pairing with runtimes and no protocol of its
   own.
-- The host acts as an agent and never writes. The chat bubbles, an exact
-  mirror of the loops chat copied verbatim from crewhub-loops, are the one part
-  of the world that talks to crewhub-loops as the person, directly from the
-  browser with the person's own session. crewhub-loops needs CORS for the
-  CrewHub origin on those routes. Every other human action opens the loops web
-  app.
+- The host acts as an agent and never writes. The chat is crewhub-loops' own,
+  framed in the world's Chat panel, and the bubbles' code is copied verbatim
+  from crewhub-loops (`npm run check:copy`); the bubbles are read two ways. Road 1: the
+  host's viewer key reads the chat of the person who made it, on the host's
+  own stream (one module per link, `apps/host/src/chatPath.ts`: whether the key
+  reads the chat, the threads' facts, an agent's message as one line). Road 2:
+  where crewhub-loops names the page's origin (`CHL_WORLD_ORIGIN`), the page
+  reads the person's own chat directly from the browser with the person's own
+  session (`packages/loops-client/src/pageChat.ts`); crewhub-loops needs CORS
+  for the CrewHub origin on those routes. Both roads read loops' answers
+  through one set of dm readers (`packages/loops-client/src/dm.ts`). Every
+  other human action opens the loops web app.
 - The visible UI is minimal: chat bubbles, navigation and a build mode. Facts
   are expressed in the 3D world, and a hidden text view keeps them accessible.
 - CrewHub depends on the crewhub-loops contracts. It validates them at runtime
