@@ -195,7 +195,9 @@ The host starts with neither loops nor a key and reports the honest states; the 
   memory belongs to one loops: the file names the target it was learnt from, the host uses it only for that target (a
   file without a target, the old format, is taken as is), another loops' memory is said in the log and ignored and
   stays on disk until this loops' own set is learnt (a snapshot that read the list or the whole log, or an archive
-  event on the stream); a run that found nothing never writes an empty list over it. Health says where the list came
+  event on the stream); a run that found nothing never writes an empty list over it. The memory hears the stream's
+  envelopes as they are (`heard(envelope)`, round 60): one with no `project` key at all is dropped with a warning in
+  the log, never an error in the stream's broadcast. Health says where the list came
   from: `connection.archived: { source: "list" | "log" | "remembered" | "none", count, at? }` (`slugs` for a paired
   browser).
 - **`POST /world-api/connect`** `{"key": "chl_…"}` from a paired browser on an allowed origin, `application/json`, at

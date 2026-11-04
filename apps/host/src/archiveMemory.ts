@@ -15,7 +15,7 @@
  * Beside the set, each link keeps the slugs archived over its own stream (`seen`): a snapshot reads them one by one
  * whatever the set says since (they used to be the upstream's own `archivedSlugs()`).
  */
-import type { HostArchiveState } from "@crewhub/loops-client";
+import type { Envelope, HostArchiveState } from "@crewhub/loops-client";
 import { isSegment } from "./allowList.ts";
 import { type ArchiveRecord, type ArchiveStore, normaliseSlugs, plainTime } from "./archiveStore.ts";
 import type { ArchiveReport } from "./snapshot.ts";
@@ -37,8 +37,13 @@ export interface ArchiveMemory {
    * first: nothing learnt from another loops holds for this one).
    */
   linked(target: string): void;
-  /** An event with a project on the link's stream: `project.archived` adds the slug, `project.restored` takes it back. */
-  heard(type: string, slug: unknown): void;
+  /**
+   * An event on the link's stream: `project.archived` adds its project's slug, `project.restored` takes it back, any
+   * other type changes nothing. `project` may be anything on the wire: null is no project, no object is no slug; an envelope with
+   * no `project` key at all (loops breaking its contract) is dropped with a warning, never an error (round 54's fuzz
+   * finding: a throw here broke the upstream's broadcast, and the tabs after the ear never heard the event).
+   */
+  heard(envelope: Envelope): void;
   /** A snapshot's report: the archived set loops confirmed, and where it came from. */
   reported(report: ArchiveReport): void;
   /**
@@ -112,7 +117,16 @@ export function createArchiveMemory(options: ArchiveMemoryOptions): ArchiveMemor
       at = onDisk.at;
       log(`remembered ${projects(onDisk.slugs.length)} from ${store?.file} (learnt ${onDisk.at === "" ? "at an unknown time" : plainTime(onDisk.at)}${onDisk.target === undefined ? ", from an unnamed crewhub-loops" : ""})`);
     },
-    heard(type, slug) {
+    heard(envelope) {
+      if (!Object.hasOwn(envelope, "project")) {
+        log(`event ${envelope.seq} (${envelope.type}) has no project key: dropped`);
+        return;
+      }
+      // No project (null, as most events carry) is nothing for the memory, as the ear judged it before round 60.
+      if (envelope.project === null) return;
+      const { type } = envelope;
+      const project: unknown = envelope.project;
+      const slug: unknown = typeof project === "object" ? (project as { slug?: unknown }).slug : undefined;
       // The link's own set keeps a slug only when it is one (round 34): a slug that is no segment would make every
       // snapshot fail on its read (`/api/projects/{slug}` refused by the allow-list, review F8), and `project` may be
       // anything on the wire. The set itself filters the same way (`normaliseSlugs`).

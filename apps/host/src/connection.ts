@@ -421,8 +421,7 @@ export function createConnection(options: ConnectionOptions): Connection {
         if (message.type !== "event") return;
         // A `dm.*` event the key's stream sees (round 24): the chat path reads the threads again and an agent's message as a line.
         chat.onEvent(message.envelope);
-        if (message.envelope.project === null) return;
-        archive.heard(message.envelope.type, message.envelope.project.slug);
+        archive.heard(message.envelope);
       });
       for (const tab of tabs.values()) attach(tab);
       // The first attempt decides the states a connect answers with; it is bounded by the read timeout. A first
