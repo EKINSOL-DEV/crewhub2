@@ -51,3 +51,13 @@ test("readConnection keeps the key's unchecked state and the archive memory, and
   assert.deepEqual(readConnection({ discovery: { state: "found" }, key: { state: "ok" }, stream: { state: "ok" }, archived: { source: "log", count: 2 } })?.archived, { source: "log", count: 2 });
   assert.equal(readConnection({ discovery: { state: "found" }, key: { state: "ok" }, stream: { state: "ok" }, archived: { source: "guess", count: 2 } })?.archived, undefined);
 });
+
+test("readConnection keeps the snapshot's progress, and drops a snapshot state it does not know (round 54, r54-mut-client)", () => {
+  const states = { discovery: { state: "found" }, key: { state: "ok" }, stream: { state: "ok" } };
+  assert.deepEqual(readConnection({ ...states, snapshot: { state: "reading", reads: 4, projects: 12 } })?.snapshot, { state: "reading", reads: 4, projects: 12 });
+  assert.deepEqual(readConnection({ ...states, snapshot: { state: "ready", projects: 12, reads: 30, ms: 840 } })?.snapshot, { state: "ready", projects: 12, reads: 30, ms: 840 });
+  assert.deepEqual(readConnection({ ...states, snapshot: { state: "failed", reason: "snapshot_failed" } })?.snapshot, { state: "failed", reason: "snapshot_failed" });
+  assert.deepEqual(readConnection({ ...states, snapshot: { state: "idle" } })?.snapshot, { state: "idle" });
+  assert.equal(readConnection({ ...states, snapshot: { state: "guessing" } })?.snapshot, undefined);
+  assert.equal(readConnection({ ...states, snapshot: null })?.snapshot, undefined);
+});
