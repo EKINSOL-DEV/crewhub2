@@ -6,7 +6,7 @@ export type { ReduceOptions, ReduceResult } from "./reducer.ts";
 export { emptyFacts } from "./facts.ts";
 export { emptyMemory } from "./memory.ts";
 export { Projection } from "./projection.ts";
-export { freshnessOf, reduceWorld } from "./reducer.ts";
+export { reduceWorld } from "./reducer.ts";
 export { CIVIC_WORDS, describeWorld, hallSummary } from "./describe.ts";
 export { agentLook, agentWords, figureLook, laneLook } from "./appearance.ts";
 export type { AgentBubble, AgentLook, AgentWords, DeskFacts, DotTone, FigureLook, FigurePose, LampLane, LaneChipKind, LaneLook, SceneAgent } from "./appearance.ts";

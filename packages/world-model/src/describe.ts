@@ -4,6 +4,7 @@
  */
 import { agentWords } from "./appearance.ts";
 import { archivedWords } from "./archive.ts";
+import { freshnessWords } from "./freshness.ts";
 import { pinnedCard, quietWords, runWords } from "./board.ts";
 import { roleInferred, roleWords } from "./roleWords.ts";
 import { roomLabel } from "./rooms.ts";
@@ -70,14 +71,7 @@ export function describeWorld(model: WorldModel, civic: CivicWords = CIVIC_WORDS
   const buildingName = (slug: string | null) => (slug ? (nameOf.get(slug) ?? slug) : `the ${civic.hall}`);
 
   if (model.mode === "demo") add("Town", "Demo mode: scripted data, no live crewhub-loops session", "demo");
-  const { freshness } = model;
-  if (freshness.teamTs === null) {
-    add("Town", "No team snapshot: no team probe has reported to this crewhub-loops, so every agent's status is unknown.");
-  } else if (freshness.stale) {
-    add("Town", `The team snapshot is stale since ${freshness.teamTs}: every agent's status shows as unknown.`);
-  } else {
-    add("Town", `Team snapshot from ${freshness.teamTs}, ${freshness.ageSeconds ?? 0} s old.`);
-  }
+  add("Town", freshnessWords(model.freshness).sentence);
   const active = model.buildings.filter((b) => !b.archived);
   const archived = model.buildings.filter((b) => b.archived);
   add(

@@ -25,7 +25,6 @@ import type {
   Building,
   DeliveryState,
   DeliveryWalk,
-  Freshness,
   LaneStatus,
   Letter,
   MilestoneMark,
@@ -37,10 +36,9 @@ import { finishFlights, flyObjects, startFlights, visitsOf } from "./flights.ts"
 import { buildObjects } from "./objects.ts";
 import type { BuiltObject, DeskHolder } from "./objects.ts";
 import { buildRooms, meetingKey } from "./rooms.ts";
+import { freshnessOf } from "./freshness.ts";
 import { DEFAULT_ZONE_ID, resolveZones } from "./zones.ts";
 import type { TownZoning } from "./zones.ts";
-
-export const STALE_AFTER_S = 300;
 
 export interface ReduceOptions {
   /** The source's clock, ms since the epoch. */
@@ -65,16 +63,6 @@ interface AgentState {
   laneStatus: LaneStatus;
   posture: AgentPlacement["posture"];
   caption: AgentPlacement["caption"];
-}
-
-export function freshnessOf(facts: Readonly<Facts>, now: number): Freshness {
-  const ts = facts.team?.ts ? facts.team.ts : null;
-  const parsed = ts ? Date.parse(ts) : Number.NaN;
-  if (ts === null || Number.isNaN(parsed)) return { teamTs: ts, ageSeconds: null, stale: true };
-  // loops judges freshness by its own receive time, which GET /api/team does not expose; the probe's
-  // `ts` against the source clock is the closest a client can get (team-and-projects.md).
-  const ageSeconds = Math.max(0, Math.round((now - parsed) / 1000));
-  return { teamTs: ts, ageSeconds, stale: ageSeconds > STALE_AFTER_S };
 }
 
 export function reduceWorld(facts: Readonly<Facts>, memory: PresentationMemory, options: ReduceOptions): ReduceResult {
