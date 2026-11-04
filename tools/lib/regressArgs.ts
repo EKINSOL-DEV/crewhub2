@@ -5,7 +5,8 @@
  * the disk or the network; the test is `scripts/test/regressArgs.test.ts`.
  *
  * - The default is the nine groups that use fakes and stubs. `real` and the connect group's real half run only when
- *   `real` is named in `--groups`: that is the one opt-in, and `--real` is refused with the way to say it.
+ *   asked: `real` named in `--groups`, or `--real` (round 58d), which adds `real` to the chosen groups, default or
+ *   given. `--real` is the word every other tool's opt-in for the development loops uses.
  * - The env file of the real development loops is `--loops-env` and nothing else: no file is searched for in this
  *   worktree, the main checkout or `~/Documents/GitHub`. `real` without it is refused; without `real` it is not read.
  */
@@ -19,16 +20,16 @@ export type RegressArgs = { groups: string; real: boolean; loopsEnv: string };
 export type RegressPlan = { ok: true; groups: string[]; real: boolean; loopsEnv: string } | { ok: false; reason: string };
 
 /**
- * `--groups` (a comma-separated list, "" when not given), `--real` (a flag, always refused) and `--loops-env` ("" when
- * not given). Answers the groups to run, whether the real development loops is asked for (the `real` group and the
- * connect group's real half) and the env file to read for it ("" when it is not asked for).
+ * `--groups` (a comma-separated list, "" when not given), `--real` (a flag: `real` added to those groups) and
+ * `--loops-env` ("" when not given). Answers the groups to run, whether the real development loops is asked for (the
+ * `real` group and the connect group's real half) and the env file to read for it ("" when it is not asked for).
  */
 export function regressPlan({ groups, real, loopsEnv }: RegressArgs): RegressPlan {
-  if (real) return { ok: false, reason: "--real is not an option: name real in --groups (--groups real, or --groups connect,real for the connect group's real half too) to run against the development loops" };
   const asked = groups.split(",").map((name) => name.trim()).filter(Boolean);
   const unknown = asked.find((name) => !GROUPS.includes(name));
   if (unknown !== undefined) return { ok: false, reason: `unknown group "${unknown}"; known: ${GROUPS.join(", ")}` };
-  const chosen = asked.length === 0 ? [...DEFAULT_GROUPS] : asked;
+  const chosen = [...(asked.length === 0 ? DEFAULT_GROUPS : asked)];
+  if (real && !chosen.includes("real")) chosen.push("real");
   const wantsReal = chosen.includes("real");
   const file = loopsEnv.trim();
   if (wantsReal && file === "") return { ok: false, reason: "real reads the development loops from --loops-env <file> only (its LOOPS_DEV_URL and LOOPS_DEV_KEY_FILE): name the file, no file is searched for" };

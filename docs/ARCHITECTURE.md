@@ -271,7 +271,7 @@ No React Three Fiber or physics engine is needed for this slice.
 
 [`tools/`](../tools/README.md) holds the scripts that open the running world in a headless browser: the browser
 regression pass (`regress.mjs`, ten groups; by default the nine that use fakes and stubs, and since round 57d the
-real development loops only when `real` is named in `--groups`, with its env file named by `--loops-env` (nothing is
+real development loops only when asked, by `real` named in `--groups` or by `--real` (round 58d), with its env file named by `--loops-env` (nothing is
 searched for): the `4cdcd383` instance, or loops main with `--loops main` (round 29); the connect flow against a stub host, the demo walk, the demo's
 wayfinding, picker and the new loops events, the first-run tour, live mode against the fake with pairing (with the Zones line, the scripted director in live mode, the Chat panel and the live card), the chat's roads, the town kept by the host
 (two browsers, one town; a restart), the operations road over the

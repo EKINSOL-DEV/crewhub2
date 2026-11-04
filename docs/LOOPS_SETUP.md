@@ -458,7 +458,7 @@ for a viewer, `CHL_WORLD_ORIGIN` for road 2) beside the `4cdcd383` one; the regr
 `connect` group's real half run against it with `--groups connect,real --loops main --loops-env
 tools/out/loops-dev-main.env` (`tools/README.md`: that env file names the URL, the viewer key's file and a Read only
 bot's key file, paths only). Since round 57d regress reaches a development loops only when `real` is named in
-`--groups`, and reads the env file `--loops-env` names and no other: without it the run is refused, and no file is
+`--groups` or (round 58d) `--real` is given, and reads the env file `--loops-env` names and no other: without it the run is refused, and no file is
 searched for. `tools/timeworld.mjs` likewise needs `--fake <port>` or `--loops-env <file>`, and `tools/loops-seed.mjs`
 needs `--url` (there is no 8291 default).
 
