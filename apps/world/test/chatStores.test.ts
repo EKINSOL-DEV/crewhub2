@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { HostHealth } from "@crewhub/loops-client";
 import { chatRoadReader } from "../src/state/chatRoadStore.ts";
+import { createChatStores } from "../src/state/chatStores.ts";
 import { SAID_MS } from "../src/state/said.ts";
 import { manualChatStores } from "./chatStoresFixture.ts";
 
@@ -174,4 +175,19 @@ test("the chat road reader: a new verdict or origin on the same road is a new ob
   assert.equal(third.road, first.road);
   assert.notEqual(third, second);
   assert.equal(third.pageOrigin, origin);
+});
+
+/* Round 62's mutation run: what the rows above left open. */
+test("the bubble's timer is armed for exactly what is left of the next line to go", () => {
+  let wall = 1000;
+  const delays: number[] = [];
+  const stores = createChatStores({ now: () => wall, schedule: (_fn, ms) => (delays.push(ms), () => {}) });
+  stores.said.remember(line("boing"));
+  assert.deepEqual(delays, [SAID_MS], "all of it for the first line");
+  wall += 2500;
+  stores.said.remember(line("g-man"));
+  assert.deepEqual(delays, [SAID_MS, SAID_MS - 2500], "what is left of the first, not the whole of the second");
+  wall = 1000 + SAID_MS - 0.5;
+  stores.said.remember(line("clerk"));
+  assert.deepEqual(delays.at(-1), 0.5, "half a millisecond left is half a millisecond");
 });
