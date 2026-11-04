@@ -123,7 +123,8 @@ export async function decideSource(input: {
 }
 
 /* The setting in storage (state/setting.ts): `auto` is the absence of a value. A page whose storage throws, reaching it
-   included (a blocked site), reads `auto`, and the choice lasts for this page: the gate must not throw (round 60). */
+   included (a blocked site), reads `auto`, and a write keeps nothing: the gate must not throw (round 60). Both callers of
+   the write reload at once, so on such a page the choice comes back as `auto`; `?source=` still works there. */
 const storedSource = storedValue<SourceSetting>({ key: SOURCE_SETTING_KEY, parse: parseSourceSetting, format: (value) => (value === "auto" ? null : value) });
 export const readSourceSetting = storedSource.read;
 export const writeSourceSetting = storedSource.write;

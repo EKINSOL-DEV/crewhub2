@@ -120,6 +120,8 @@ test("the setting in storage: auto is the absence of a value; a broken storage i
   assert.equal(readSourceSetting(storage), "live");
   writeSourceSetting("auto", storage);
   assert.equal(store.has(SOURCE_SETTING_KEY), false);
+  store.set(SOURCE_SETTING_KEY, "stress");
+  assert.equal(readSourceSetting(storage), "auto", "an unknown stored word reads auto");
   const broken = {
     getItem: () => {
       throw new Error("SecurityError");
