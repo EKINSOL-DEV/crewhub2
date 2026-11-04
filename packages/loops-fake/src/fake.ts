@@ -17,7 +17,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from "node:net";
 import { type DemoSource, type ScenarioId, DEMO_PERSON, createDemoSource } from "@crewhub/demo";
 import type { CommentOut, Envelope, LoopsSnapshot, PlaybackSpeed, PrincipalRef, TicketStatus } from "@crewhub/loops-client";
-import { ADMIN_EVENT_TYPES, LOOPS_EVENT_TYPES, TICKET_STATUSES } from "@crewhub/loops-client";
+import { ADMIN_EVENT_TYPES, LOOPS_EVENT_TYPES, PAGE_CHAT_EVENTS_LIMIT, PAGE_CHAT_EVENT_TYPES, TICKET_STATUSES, isAgentName, isMessageId } from "@crewhub/loops-client";
 import { withKeyBot } from "./lanes.ts";
 
 export interface LoopsFakeOptions {
@@ -80,18 +80,23 @@ export interface LoopsFakeOptions {
   /**
    * Loops main's `CHL_WORLD_ORIGIN` (CL-494 step 4, round 28): the one page origin that may read the signed-in person's
    * chat from the browser. A request whose `Origin` equals it passes only as a GET without an authorization header on
-   * the four routes (`WORLD_ROUTES`), the events poll with its types forced to the two chat events and `limit` at most
-   * `WORLD_EVENTS_LIMIT`; the answer (a 401 included) carries the three CORS headers. Anything else from that origin,
+   * the four routes (`ORIGIN_ROUTES`), the events poll with its types forced to the two chat events and `limit` at most
+   * `ORIGIN_EVENTS_LIMIT`; the answer (a 401 included) carries the three CORS headers. Anything else from that origin,
    * and any other `Origin` while this is set, is 403 `origin_forbidden` with no CORS header. Unset (the default): the
    * fake ignores `Origin`, as before. `setWorldOrigin` changes it on a running fake (the page's port is known late).
    */
   worldOrigin?: string | null;
 }
 
-/** The four routes loops opens to the world's origin (`api/security.py` `WORLD_ROUTES`), exact paths. */
-export const WORLD_ROUTES: readonly RegExp[] = [/^\/api\/dm\/threads$/, /^\/api\/dm\/threads\/[a-z0-9][a-z0-9-]{0,31}\/messages$/, /^\/api\/dm\/messages\/[A-Za-z0-9_-]{1,64}$/, /^\/api\/events$/];
-export const WORLD_EVENT_TYPES: readonly string[] = ["dm.created", "dm.answered"];
-export const WORLD_EVENTS_LIMIT = 50;
+/** The four routes loops opens to the world's origin (`api/security.py` `WORLD_ROUTES`), exact paths; their segments are the page's own shapes. */
+const ORIGIN_ROUTES: readonly ((pathname: string) => boolean)[] = [
+  (pathname) => pathname === "/api/dm/threads",
+  (pathname) => isAgentName(/^\/api\/dm\/threads\/([^/]+)\/messages$/.exec(pathname)?.[1]),
+  (pathname) => isMessageId(/^\/api\/dm\/messages\/([^/]+)$/.exec(pathname)?.[1]),
+  (pathname) => pathname === "/api/events",
+];
+const ORIGIN_EVENT_TYPES: readonly string[] = PAGE_CHAT_EVENT_TYPES.split(",");
+const ORIGIN_EVENTS_LIMIT = PAGE_CHAT_EVENTS_LIMIT;
 
 export interface LoopsFake {
   readonly url: string;
@@ -727,16 +732,16 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
    * clamped); a refusal is the guard's own 403 with no CORS header.
    */
   function worldGate(req: IncomingMessage, url: URL): void {
-    const refused = (req.method !== "GET") || req.headers.authorization !== undefined || url.pathname.includes("%") || !WORLD_ROUTES.some((route) => route.test(url.pathname));
+    const refused = (req.method !== "GET") || req.headers.authorization !== undefined || url.pathname.includes("%") || !ORIGIN_ROUTES.some((route) => route(url.pathname));
     if (refused) throw new ApiError(403, "origin_forbidden", "Origin not allowed");
     if (url.pathname === "/api/events") {
       const wanted = url.searchParams.getAll("types").flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean);
-      if (wanted.some((type) => !WORLD_EVENT_TYPES.includes(type))) throw new ApiError(403, "origin_forbidden", "Origin not allowed");
+      if (wanted.some((type) => !ORIGIN_EVENT_TYPES.includes(type))) throw new ApiError(403, "origin_forbidden", "Origin not allowed");
       const limitRaw = url.searchParams.get("limit");
-      const limit = limitRaw !== null && /^\d{1,4}$/.test(limitRaw) ? Math.min(Number(limitRaw), WORLD_EVENTS_LIMIT) || WORLD_EVENTS_LIMIT : WORLD_EVENTS_LIMIT;
+      const limit = limitRaw !== null && /^\d{1,4}$/.test(limitRaw) ? Math.min(Number(limitRaw), ORIGIN_EVENTS_LIMIT) || ORIGIN_EVENTS_LIMIT : ORIGIN_EVENTS_LIMIT;
       url.searchParams.delete("types");
       url.searchParams.delete("limit");
-      url.searchParams.set("types", (wanted.length > 0 ? wanted : WORLD_EVENT_TYPES).join(","));
+      url.searchParams.set("types", (wanted.length > 0 ? wanted : ORIGIN_EVENT_TYPES).join(","));
       url.searchParams.set("limit", String(limit));
     }
   }

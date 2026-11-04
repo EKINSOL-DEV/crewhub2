@@ -35,6 +35,7 @@ export const PAGE_CHAT_INIT: Readonly<RequestInit> = Object.freeze({ method: "GE
 
 /** The one segment shape of a loops agent name, as loops' own route pattern has it. */
 const AGENT = /^[a-z0-9][a-z0-9-]{0,31}$/;
+export const isAgentName = (value: unknown): value is string => typeof value === "string" && AGENT.test(value);
 
 /** `<origin>/api/dm/threads`. `origin` is the loops web origin the host names in its health (`loopsWebUrl`). */
 export function threadsUrl(origin: string): string {
@@ -42,7 +43,7 @@ export function threadsUrl(origin: string): string {
 }
 /** `<origin>/api/dm/threads/<agent>/messages`; an agent name outside loops' own shape is refused here, before anything is sent. */
 export function threadMessagesUrl(origin: string, agent: string): string {
-  if (!AGENT.test(agent)) throw new Error(`not an agent name: ${agent}`);
+  if (!isAgentName(agent)) throw new Error(`not an agent name: ${agent}`);
   return `${origin}/api/dm/threads/${agent}/messages`;
 }
 /** `<origin>/api/dm/messages/<id>`; an id outside loops' own shape is refused here. */
