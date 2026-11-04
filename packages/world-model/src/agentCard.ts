@@ -8,7 +8,7 @@ import type { AgentOut, ProjectRef, TeamAgent } from "@crewhub/loops-client";
 import { linesOf, listAgents, projectByTicketKey, type AgentEntity } from "./agents.ts";
 import { agentWords } from "./appearance.ts";
 import type { CardFact, Facts } from "./facts.ts";
-import { drawnStatus, newStatusWord } from "./status.ts";
+import { drawn, statusWords } from "./status.ts";
 import type { AgentPlacement, Building, ProgressKind, TicketStatus, WorkObject, WorldModel } from "./model.ts";
 
 /** The latest progress line the agent wrote (a worker's line without its "<worker>: " prefix). */
@@ -275,8 +275,7 @@ function ticketBrief(fact: CardFact, facts: Readonly<Facts>): TicketBrief {
   return {
     key: card.key,
     title: card.title,
-    status: drawnStatus(card.status),
-    newStatus: newStatusWord(card.status),
+    ...drawn(card.status),
     project: project ? { slug: project.slug, key: project.key, name: project.name } : null,
     waitsOn: card.waitingOn ? { id: card.waitingOn.id, displayName: card.waitingOn.displayName, kind: card.waitingOn.kind } : null,
     waitingOnHuman: card.waitingOnHuman === true,
@@ -332,7 +331,7 @@ function recentFacts(entity: AgentEntity, facts: Readonly<Facts>): RecentFact[] 
   // Moves and comments carry the loops actor; a worker never acts in loops under its own name.
   if (entity.registered) {
     for (const move of Object.values(facts.lastMoves))
-      if (move.actorId === entity.key) out.push({ ts: move.ts, kind: "move", ticketKey: move.ticketKey, text: `moved ${move.ticketKey} from ${move.from.replace("_", " ")} to ${move.to.replace("_", " ")}` });
+      if (move.actorId === entity.key) out.push({ ts: move.ts, kind: "move", ticketKey: move.ticketKey, text: `moved ${move.ticketKey} from ${statusWords(move.from)} to ${statusWords(move.to)}` });
     for (const comment of facts.comments) if (comment.actorId === entity.key) out.push({ ts: comment.ts, kind: "comment", ticketKey: comment.ticketKey, text: `commented on ${comment.ticketKey}` });
     for (const delivery of Object.values(facts.deliveries))
       if (delivery.recipientId === entity.key)
