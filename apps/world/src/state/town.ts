@@ -26,7 +26,7 @@ import { createHostTownStore, townStoreFor } from "./hostTown";
 import { onHostConnected, onHostTown } from "./townBus";
 import { createPropQueue } from "./propQueue";
 import { createTownStore, seededTown, type TownStore } from "./townStore";
-import { applyEdits, visibleInvalid } from "./townEdits";
+import { applyEdits, invalidChanged, visibleInvalid } from "./townEdits";
 import { LIVE, SCENARIO, STRESS, TOWN_COPY_FROM, TOWN_KEY, worldRuntime } from "./world";
 
 export interface TownState {
@@ -199,7 +199,7 @@ class TownRuntime {
     const world = worldRuntime();
     const requests = propRequestsFromFacts(world.projection.facts, this.store.state.doc);
     const visible = this.#visibleInvalid();
-    if (visible.length !== this.#state.invalid.length || visible.some((r, i) => r !== this.#state.invalid[i])) this.#refresh();
+    if (invalidChanged(visible, this.#state.invalid)) this.#refresh();
     this.#props.offer(requests.map((r) => r.ticketKey));
   }
 
