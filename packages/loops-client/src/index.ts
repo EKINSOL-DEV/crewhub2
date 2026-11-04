@@ -72,14 +72,12 @@ export {
   PAGE_CHAT_EVENT_TYPES,
   PAGE_CHAT_EVENTS_LIMIT,
   PAGE_CHAT_INIT,
-  PAGE_CHAT_LINE_MAX,
   POLL_HIDDEN_MS,
   POLL_MAX_MS,
   POLL_MS,
   REPROBE_MS,
   REPROBE_SLOW_MS,
   eventsUrl,
-  firstLine,
   isLoopbackOrigin,
   messageUrl,
   pageGet,
@@ -87,11 +85,11 @@ export {
   pollPageChat,
   probePageChat,
   probeVerdict,
-  readPageChatLine,
   readEvents,
-  readThreads,
   reprobeDelay,
   threadMessagesUrl,
   threadsUrl,
 } from "./pageChat.ts";
-export type { AgentDm, EventsPage, FetchLike, PageAnswer, PageProbe, PollOutcome } from "./pageChat.ts";
+export type { EventsPage, FetchLike, PageAnswer, PageProbe, PollOutcome } from "./pageChat.ts";
+export { DM_LINE_MAX, firstLine, isMessageId, readAgentDm, readDmLine, readThreads } from "./dm.ts";
+export type { AgentDm } from "./dm.ts";

@@ -7,7 +7,8 @@
    nothing else, on the four routes, the events query as loops forces it and never `after=`. */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { PAGE_CHAT_EVENTS_LIMIT, PAGE_CHAT_EVENT_TYPES, PAGE_CHAT_LINE_MAX, firstLine, pollPageChat, probePageChat, probeVerdict, readEvents, readPageChatLine, readThreads, type PageProbe } from "../src/pageChat.ts";
+import { DM_LINE_MAX, firstLine, readDmLine, readThreads } from "../src/dm.ts";
+import { PAGE_CHAT_EVENTS_LIMIT, PAGE_CHAT_EVENT_TYPES, pollPageChat, probePageChat, probeVerdict, readEvents, type PageProbe } from "../src/pageChat.ts";
 import { Fuzz, ODD_NUMBERS, ODD_STRINGS, protoSnapshot, replay } from "../../world-engine/test/fuzz.ts";
 
 const SEEDS = [34_031, 34_032, 34_033];
@@ -49,10 +50,10 @@ test("round 34 fuzz: the three readers take any answer and give only well-shaped
         dms += 1;
         assert.ok(MESSAGE_ID.test(dm.messageId) && typeof dm.threadId === "string" && typeof dm.agentId === "string", replay(seed, i, dm));
       }
-      const line = readPageChatLine(IDS, any ? f.value(3) : f.mutate(MESSAGE, f.int(1, 3)));
+      const line = readDmLine(IDS, any ? f.value(3) : f.mutate(MESSAGE, f.int(1, 3)));
       if (line !== null) {
         lines += 1;
-        assert.ok(line.text !== "" && line.text.length <= PAGE_CHAT_LINE_MAX && !/[\r\n]/.test(line.text) && line.text === line.text.trim(), replay(seed, i, line));
+        assert.ok(line.text !== "" && line.text.length <= DM_LINE_MAX && !/[\r\n]/.test(line.text) && line.text === line.text.trim(), replay(seed, i, line));
         assert.ok(typeof line.at === "string" && line.messageId === IDS.messageId && line.threadId === IDS.threadId && line.agentId === IDS.agentId, replay(seed, i, line));
         assert.ok(line.agentName === undefined || (typeof line.agentName === "string" && line.agentName !== ""), replay(seed, i, line));
       }
@@ -62,7 +63,7 @@ test("round 34 fuzz: the three readers take any answer and give only well-shaped
   // The first line of any text: never empty when there is one, never over the cap, never a newline; a cut gets the ellipsis.
   for (const s of [...ODD_STRINGS, "\n\n  spaced  \nsecond", "x".repeat(140), "x".repeat(141), "🙂".repeat(100), "\uD83D".repeat(200)]) {
     const line = firstLine(s);
-    assert.ok(line.length <= PAGE_CHAT_LINE_MAX && !/[\r\n]/.test(line) && line === line.trim(), JSON.stringify(s.slice(0, 20)));
+    assert.ok(line.length <= DM_LINE_MAX && !/[\r\n]/.test(line) && line === line.trim(), JSON.stringify(s.slice(0, 20)));
     if (s.replace(/\r/g, "").split("\n").some((l) => l.trim() !== "")) assert.notEqual(line, "", JSON.stringify(s.slice(0, 20)));
   }
   assert.equal(firstLine("x".repeat(141)), `${"x".repeat(139)}…`);
@@ -111,7 +112,7 @@ test("round 34 fuzz: the probe and the poll over a loops that answers anything: 
       kinds.set(outcome.kind, (kinds.get(outcome.kind) ?? 0) + 1);
       assert.ok(["ok", "signed-out", "chat-off", "cursor-expired", "failed"].includes(outcome.kind), replay(seed, i, outcome));
       if (outcome.kind === "ok") {
-        for (const line of outcome.lines) assert.ok(line.text !== "" && line.text.length <= PAGE_CHAT_LINE_MAX && !/[\r\n]/.test(line.text) && MESSAGE_ID.test(line.messageId), replay(seed, i, line));
+        for (const line of outcome.lines) assert.ok(line.text !== "" && line.text.length <= DM_LINE_MAX && !/[\r\n]/.test(line.text) && MESSAGE_ID.test(line.messageId), replay(seed, i, line));
         assert.ok(outcome.cursor === null || (typeof outcome.cursor === "string" && outcome.cursor !== ""), replay(seed, i));
         assert.ok(outcome.threads === null || Array.isArray(outcome.threads), replay(seed, i));
       }
