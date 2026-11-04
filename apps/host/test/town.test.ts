@@ -225,7 +225,7 @@ describe("the town routes' history and backups (round 21)", () => {
     assert.equal((await get("/town/backups/world.db.bak-v1")).status, 404, "the copy was made before this installation had a town");
     // A copy with the town in it: written by hand into the backup file, as a copy of an earlier run would have it.
     const copy = openWorldDb(path.join(dir, "copy"), { migrations: [MIGRATIONS[0] as Migration] });
-    copy.putTown(key, JSON.stringify(DOC(5)), 0);
+    copy.applyTown(key, { kind: "commit", document: JSON.stringify(DOC(5)) }, 0);
     copy.close();
     const { copyFileSync } = await import("node:fs");
     copyFileSync(path.join(dir, "copy", "world.db"), path.join(dir, "world.db.bak-v1"));
