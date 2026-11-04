@@ -10,7 +10,7 @@ import { request } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
-import { tellDevOrigin } from "../src/checkout.ts";
+import { tellOrigin } from "../src/runningHost.ts";
 import { ConfigError, loadServerConfig } from "../src/config.ts";
 import { MINT_HEADER, MINT_PATH, createHost, type Host } from "../src/host.ts";
 import { PAIR_COOKIE, PAIR_TTL_MS, createPairing, loadPairingSecret, readCookie, readCookies } from "../src/pairing.ts";
@@ -97,7 +97,7 @@ describe("pairing", () => {
 
   it("the dev origins: in health and its header to a program (no Origin) and to a paired page; neither to an unpaired page (round 31, question 3)", async () => {
     const dev = "http://127.0.0.1:5294";
-    assert.deepEqual(await tellDevOrigin(host.port, dev, "9f2c1a7b3d4e", 1500, "mint-secret-for-the-test"), { kind: "accepted", origins: [dev] });
+    assert.deepEqual(await tellOrigin(host.port, dev, "9f2c1a7b3d4e", 1500, "mint-secret-for-the-test"), { kind: "accepted", origins: [dev] });
     const read = (headers: Record<string, string>) => fetch(`${host.url}/world-api/health`, { headers });
     const program = await read({});
     assert.equal(program.headers.get("x-world-dev-origins"), dev, "a program: the header (the dev proxy reads it on the page's same-origin reads, which carry no Origin)");

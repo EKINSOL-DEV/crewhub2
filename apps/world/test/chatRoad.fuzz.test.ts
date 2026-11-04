@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PAGE_PROBES, cardAnswersEmpty, chatGlance, chatPlaceLine, chatRoadView, chatWords, chatWordsLine, decideChatRoad, hostKeyReadsChatOf, noneWords, recentEmptyWords, type PageProbe } from "../src/state/chatRoad.ts";
-import { healthRereadKey, loopsOriginOf } from "../src/state/pageChat.ts";
+import { loopsOriginOf } from "../src/state/pageChat.ts";
 import { Fuzz, ODD_STRINGS, protoSnapshot, replay } from "../../../packages/world-engine/test/fuzz.ts";
 
 const SEEDS = [34_041, 34_042, 34_043];
@@ -77,10 +77,6 @@ test("round 34 fuzz: a probe value outside the set, a host word of any kind and 
     }
   }
   assert.ok((roads.get("key") ?? 0) > 50 && (roads.get("page") ?? 0) > 20 && (roads.get("none") ?? 0) > 50, `the mix: ${JSON.stringify([...roads])}`);
-  for (const a of [null, "live", "down", "", "x", 1 as unknown as string]) for (const b of [null, "ok", "rejected", "", "\0"]) {
-    const key = healthRereadKey(a, b);
-    assert.ok(key === null || (typeof key === "string" && /^(live|off):/.test(key)), `${a}/${b}`);
-  }
   assert.equal(protoSnapshot(), before);
 });
 

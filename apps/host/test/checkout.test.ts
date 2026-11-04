@@ -37,15 +37,14 @@ describe("health's checkout", () => {
 });
 
 describe("what a port answers a dev server", () => {
-  it("reads health as the page's probe does: a host needs loops and keyName; the id only when it looks like one", () => {
-    assert.deepEqual(answerFromHealth({ loops: "ok", keyName: "crewhub-world", checkout: "9f2c1a7b3d4e" }), { kind: "host", checkout: "9f2c1a7b3d4e", keyName: "crewhub-world", keyState: null });
-    assert.deepEqual(answerFromHealth({ loops: "down", keyName: "" }), { kind: "host", checkout: null, keyName: "", keyState: null });
-    assert.deepEqual(answerFromHealth({ loops: "ok", keyName: "x", checkout: "/Users/me/repo" }), { kind: "host", checkout: null, keyName: "x", keyState: null }, "a path is not an id");
+  // Whether a port's answer is a host's at all, and whether its checkout looks like an id, is the road's to say
+  // (runningHost.test.ts, `probe`, through the wire's reader); here only the three facts the verdict reads.
+  it("a host's health as the verdict's answer: the id (null on a host from before it), the key's name and its state", () => {
+    assert.deepEqual(answerFromHealth({ loops: "ok", keyName: "crewhub-world", sharedKey: false, checkout: "9f2c1a7b3d4e" }), { kind: "host", checkout: "9f2c1a7b3d4e", keyName: "crewhub-world", keyState: null });
+    assert.deepEqual(answerFromHealth({ loops: "down", keyName: "", sharedKey: false }), { kind: "host", checkout: null, keyName: "", keyState: null });
     // Before pairing the name is blank and the key's state says there is a key (round 31, question 3).
-    assert.deepEqual(answerFromHealth({ loops: "ok", keyName: "", checkout: "9f2c1a7b3d4e", paired: false, connection: { key: { state: "ok" } } }), { kind: "host", checkout: "9f2c1a7b3d4e", keyName: "", keyState: "ok" });
-    assert.deepEqual(answerFromHealth({ status: "ok" }), { kind: "not-a-host" });
-    assert.deepEqual(answerFromHealth("<html>"), { kind: "not-a-host" });
-    assert.deepEqual(answerFromHealth(null), { kind: "not-a-host" });
+    const connection = { discovery: { state: "found" as const }, key: { state: "ok" as const }, stream: { state: "ok" as const, reconnects: 0 } };
+    assert.deepEqual(answerFromHealth({ loops: "ok", keyName: "", sharedKey: false, checkout: "9f2c1a7b3d4e", paired: false, connection }), { kind: "host", checkout: "9f2c1a7b3d4e", keyName: "", keyState: "ok" });
   });
 
   it("the probe: a host with its id, and silence where nothing listens", async () => {
@@ -57,5 +56,19 @@ describe("what a port answers a dev server", () => {
       await host.close();
     }
     assert.deepEqual(await probeCheckout(host.port, 500), { kind: "silent" }, "closed: nothing answers");
+  });
+
+  it("the probe: what answers but is not a host (another service's health) is not a host", async () => {
+    const { createServer } = await import("node:http");
+    const server = createServer((_req, res) => {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ status: "ok" }));
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+    try {
+      assert.deepEqual(await probeCheckout((server.address() as { port: number }).port), { kind: "not-a-host" });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 });

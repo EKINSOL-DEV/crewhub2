@@ -372,7 +372,17 @@ head by merging that head into it, never by a rebase; the answer branch itself s
 | `53c46ad` | C4, the chat path | q14 → `port/task/q14-dm-read-cap@5894792` | `6394fb2` 1444 / `54b126c` 1442 |
 | `e3e21f8` | C3, the world runtimes | q14 → `port/task/q14-dm-read-cap@5894792`; `cookie+expiry` → `port/task/q1-cookie-expiry@e6c5a34` | `ae05bc2` 1457 / `e25381b` 1455 |
 | `29261f5` | C5, the archive memory | the same two ports | `5e650fd` 1472 / `7bca93b` 1470 |
+| `8ff4368` | C7, the wire | q14 → `port/task/q14-dm-read-cap@5894792`; q15 → `port/task/q15-body-cap@f336f0c`; q3 → `port/task/q3-health-less@f336f0c`; `tab` → `port/task/r27-tab-pairing@f336f0c`; `cookie+expiry` → `port/task/q1-cookie-expiry@f336f0c` | `d54cca3` 1480 / `2572fdb` 1478 |
+| `2e2df46` | C2, the world view's navigation | the same five ports | `84d23ce` 1491 / `821897c` 1489 |
+| `36f8e1b` | C8, an agent's appearance | the same five ports | `c850b66` 1517 / `14feea2` 1515 |
+| `78880fe` | C6, host health in the page | q14 → `port/task/q14-dm-read-cap@5894792`; q15 → `port/task/q15-body-cap@f336f0c`; q3 → `port/task/q3-health-less@f336f0c`; `tab` → `port/task/r27-tab-pairing@780d645`; `cookie+expiry` → `port/task/q1-cookie-expiry@780d645` | `b2ec62a` 1531 / `98e2d29` 1528 |
+| `2072e9a` | C1, the connection module | q14 → `port/task/q14-dm-read-cap@f2276db`; q15 → `port/task/q15-body-cap@f2276db`; q3 → `port/task/q3-health-less@f2276db`; `tab` → `port/task/r27-tab-pairing@e5f79a9`; `cookie+expiry` → `port/task/q1-cookie-expiry@e5f79a9` | `1e2bb7e` 1533 / `94f3df2` 1530 |
+| `f65cfcc` | C9, the chat seam | the same five ports | `5e6fe53` 1538 / `435117b` 1535 |
+| `d907708` | the timing tests made deterministic | the same five ports | `ea1b0ab` 1538 / `64b6ecd` 1535 |
 
-To replay Nicky's answers on such a head, pass each port named on its row: for example
-`node tools/answers-replay.mjs 29261f5 cookie+expiry q3 q8 q11 q14 q15 --check --use q14=port/task/q14-dm-read-cap@5894792 --use cookie+expiry=port/task/q1-cookie-expiry@e6c5a34`.
+To replay Nicky's answers on such a head, pass each port named on its row: for example, on `2072e9a`,
+`node tools/answers-replay.mjs 2072e9a cookie+expiry q3 q8 q11 q14 q15 --check --use q14=port/task/q14-dm-read-cap@f2276db --use q15=port/task/q15-body-cap@f2276db --use q3=port/task/q3-health-less@f2276db --use cookie+expiry=port/task/q1-cookie-expiry@e5f79a9`
+(for `tab`, `--use tab=port/task/r27-tab-pairing@e5f79a9` in place of the `cookie+expiry` one). From C7 on, only q8 and
+q11 merge as themselves. The `tab` replay's result was also run in the browser on `78880fe` (regress `connect`, `live`:
+43/43), because r27's tab step moved into C6's health module.
 The port branches are local to the merge worktree's repository until crewy pushes them.

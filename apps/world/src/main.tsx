@@ -2,16 +2,18 @@ import "@fontsource-variable/archivo";
 import "./styles/tokens.css";
 import "./styles/kit.css";
 import "./styles/world.css";
-import { lazy, StrictMode, Suspense, useState, type ComponentType } from "react";
+import { lazy, StrictMode, Suspense, useRef, type ComponentType, type ReactElement } from "react";
 import { createRoot } from "react-dom/client";
 import { ThemeProvider } from "./state/theme";
 import { prefetchSnapshot, probeHost, type HostHealth, type HostSourceOptions } from "@crewhub/loops-client";
 import { decideSource, readSourceSetting, setFirstSnapshot, setSourceDecision, type SourceDecision } from "./state/source";
 import { connectScreen } from "./state/connect";
+import { useHostHealth } from "./state/health";
 import { ConnectPage } from "./components/ConnectPage";
 
-/* The source (demo or live) is decided before the app's modules load: state/world.ts reads it at import. `auto` asks the
-   host once; a silent host is the demo, said in one info line. */
+/* The source (demo or live) is decided before the app's modules load: state/page.ts reads it once, when the world's
+   runtimes are first built (state/runtimes.ts). `auto` asks the host once; a silent host is the demo, said in one info
+   line. */
 async function decided() {
   const decision = await decideSource({ param: new URLSearchParams(window.location.search).get("source"), setting: readSourceSetting(), probe: (ms) => probeHost("", ms) });
   setSourceDecision(decision);
@@ -26,22 +28,29 @@ const loadApp = () => import("./App").then(({ App }) => ({ default: App }));
 const LazyApp = lazy(loadApp);
 
 /* The gate (spec addendum "a smooth connection"): live mode shows one Connect screen per state of the host's connection
-   (no loops found, pair this browser, connect, checking, key rejected) and follows the host's health until nothing stands
-   between the browser and the town; then the world loads, with the fresh decision recorded first (state/world.ts reads it
-   at import). The demo and a silent host go straight to the world. */
+   (no loops found, pair this browser, connect, checking, key rejected) and follows the host's health (state/health.ts,
+   which starts with the decision's read; the screen keeps it fresh) until nothing stands between the browser and the
+   town; then the world loads, with the fresh decision recorded first (state/page.ts reads it once, after this). The
+   demo and a silent host go straight to the world. Once the world shows, the gate is done: a later read (loops down while Live) is
+   the chip's story and the App's screens' (state/health.ts `screenOver`), never the gate's, so the world it let through
+   is kept, the same element, whatever the health says next. */
 function Gate({ initial, app }: { initial: SourceDecision; app: ComponentType | null }) {
-  const [decision, setDecision] = useState(initial);
+  const health: HostHealth | null = useHostHealth();
+  const world = useRef<ReactElement | null>(null);
+  if (world.current !== null) return world.current;
+  const decision: SourceDecision = { ...initial, health };
   const screen = connectScreen(decision);
   if (screen === null || decision.health === null) {
     setSourceDecision(decision);
     const App = app ?? LazyApp;
-    return <App />;
+    world.current = <App />;
+    return world.current;
   }
-  return <ConnectPage screen={screen} health={decision.health} onHealth={(health: HostHealth) => setDecision((before) => ({ ...before, health }))} />;
+  return <ConnectPage screen={screen} />;
 }
-/* Live, straight to the world: the host's snapshot is asked for at once and given to the world's source (state/world.ts
-   creates it at import) so the very first model has the town and the scene lays it out once. A snapshot that has
-   arrived within SNAPSHOT_AHEAD_MS goes in as a body (the warm case: it is there before the world's module is); a
+/* Live, straight to the world: the host's snapshot is asked for at once and given to the world's source (state/runtimes.ts
+   creates it when the world's runtime is first asked for) so the very first model has the town and the scene lays it
+   out once. A snapshot that has arrived within SNAPSHOT_AHEAD_MS goes in as a body (the warm case: it is there before the world's module is); a
    slower one goes in as the pending response, the source's first read, and the world opens with its "first snapshot"
    note as before. */
 const SNAPSHOT_AHEAD_MS = 150;

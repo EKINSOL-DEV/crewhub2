@@ -5,7 +5,6 @@
  * injected, so the tests run it against the stub, offline.
  */
 import { readFileSync, statSync } from "node:fs";
-import { createConnection } from "node:net";
 import { homedir } from "node:os";
 import path from "node:path";
 import { ARCHIVE_MEMORY_NAME, parseArchiveMemory, plainTime } from "./archiveStore.ts";
@@ -15,6 +14,7 @@ import { type DiscoveryInput, type Found, candidates, discoverOnce, loopsHealth,
 import { checkKey } from "./keyCheck.ts";
 import { type LoopsClient, type LoopsTarget, createLoopsClient } from "./loops.ts";
 import { nodeWarningLine, readNvmrc, runningNodeVersion } from "./nodeVersion.ts";
+import { type PortState, portState } from "./runningHost.ts";
 
 export type DoctorStatus = "ok" | "fix" | "skip" | "warn";
 
@@ -37,8 +37,6 @@ export interface FileInfo {
   size: number;
 }
 
-export type PortState = { kind: "free" } | { kind: "host"; health: Record<string, unknown> } | { kind: "taken" };
-
 export interface DoctorIo {
   env: Record<string, string | undefined>;
   /** The user the doctor runs as (`process.getuid()`); null on a platform without one. */
@@ -49,6 +47,7 @@ export interface DoctorIo {
   /** The discovery's probe (`GET /api/health` without a key). */
   health?: (target: LoopsTarget) => Promise<{ status: number; ok: boolean; version?: string } | null>;
   client?: (target: LoopsTarget, key: string) => LoopsClient;
+  /** The host's port: free, a host's (with its health) or something else's (`runningHost.ts`, `portState`; tests inject one). */
   probePort?: (port: number) => Promise<PortState>;
   /** The key files (tests point them into a temp folder). Default: from the env. */
   keyFiles?: KeyFiles;
@@ -75,31 +74,6 @@ function realReadFile(file: string): string | null {
   }
 }
 
-/** Is the host's port free, taken by a host (then its health), or by something else? Loopback only. */
-export async function probePortState(port: number): Promise<PortState> {
-  const listening = await new Promise<boolean>((resolve) => {
-    const socket = createConnection({ host: "127.0.0.1", port });
-    socket.once("connect", () => {
-      socket.destroy();
-      resolve(true);
-    });
-    socket.once("error", () => resolve(false));
-    socket.setTimeout(1000, () => {
-      socket.destroy();
-      resolve(false);
-    });
-  });
-  if (!listening) return { kind: "free" };
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/world-api/health`, { signal: AbortSignal.timeout(1500), headers: { accept: "application/json" } });
-    if (!response.ok) return { kind: "taken" };
-    const body = (await response.json()) as Record<string, unknown> | null;
-    return body !== null && typeof body === "object" && typeof body.loops === "string" ? { kind: "host", health: body } : { kind: "taken" };
-  } catch {
-    return { kind: "taken" };
-  }
-}
-
 /** `~` for the home folder, in a line a person reads. */
 export function tilde(file: string, home = homedir()): string {
   return file === home || file.startsWith(home + path.sep) ? `~${file.slice(home.length)}` : file;
@@ -123,7 +97,7 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
   const readFile = io.readFile ?? realReadFile;
   const health = io.health ?? ((target: LoopsTarget) => loopsHealth(target));
   const client = io.client ?? ((target: LoopsTarget, key: string) => createLoopsClient(target, key));
-  const probePort = io.probePort ?? probePortState;
+  const probePort = io.probePort ?? portState;
   const home = homedir();
 
   // 1. The configuration and the discovery: where loops is.
@@ -265,21 +239,22 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
   if (port.kind === "free") ok("port", `127.0.0.1:${config.port} is free for the host`);
   else if (port.kind === "host") {
     const h = port.health;
-    const connection = h.connection as { discovery?: { state?: string }; key?: { state?: string }; stream?: { state?: string }; archived?: { source?: string; count?: number } } | undefined;
-    const state = connection?.stream?.state ?? h.loops;
+    // The states of the connection (the wire's `HostConnection`); a host from before them says only `loops`.
+    const connection = h.connection;
+    const state = connection?.stream.state ?? h.loops;
     const runs = `a host already runs on 127.0.0.1:${config.port}`;
     // The host follows every change by itself (it looks for loops every 5 s, takes a pasted key, retries the stream),
     // so no state below asks for a restart: the fix is the act the person must do, and the host picks it up.
     // The key's name is a paired browser's (round 31, question 3); the doctor is a program and reads the states.
-    const keyName = typeof h.keyName === "string" && h.keyName !== "" ? `, key ${h.keyName}` : "";
+    const keyName = h.keyName !== "" ? `, key ${h.keyName}` : "";
     if (state === "ok") ok("port", `${runs} (loops ok${keyName}); npm run world or npm run host -- open asks it for a link`);
-    else if (connection?.discovery?.state === "searching") fix("port", `${runs} and has not found crewhub-loops: open Crewhub.app; the host looks again every 5 s, no restart needed`);
-    else if (connection?.key?.state === "none") ok("port", `${runs} and waits for a key: paste it in the world's Connect screen (npm run world opens the browser on it); no restart needed`);
-    else if (connection?.key?.state === "rejected")
+    else if (connection?.discovery.state === "searching") fix("port", `${runs} and has not found crewhub-loops: open Crewhub.app; the host looks again every 5 s, no restart needed`);
+    else if (connection?.key.state === "none") ok("port", `${runs} and waits for a key: paste it in the world's Connect screen (npm run world opens the browser on it); no restart needed`);
+    else if (connection?.key.state === "rejected")
       ok("port", `${runs} and keeps the key loops rejected: paste a new one in the world's Connect screen, or forget it in its Connection panel; no restart needed`);
-    else if (connection?.key?.state === "unchecked") fix("port", `${runs} but crewhub-loops has not answered about the key yet: the host retries by itself; if it stays so, read its terminal`);
+    else if (connection?.key.state === "unchecked") fix("port", `${runs} but crewhub-loops has not answered about the key yet: the host retries by itself; if it stays so, read its terminal`);
     else if (state === "busy") fix("port", `${runs} but the stream budget is exhausted (429): another host or tab uses this key; close that one, the host retries by itself`);
-    else fix("port", `${runs} but loops is ${String(state)}: the host retries by itself; if it stays so, read its terminal`);
+    else fix("port", `${runs} but loops is ${state}: the host retries by itself; if it stays so, read its terminal`);
   } else fix("port", `something else listens on 127.0.0.1:${config.port}: stop it, or run the host on another port (CREWHUB_WORLD_PORT=5181)`);
 
   // 7. Pairing.
