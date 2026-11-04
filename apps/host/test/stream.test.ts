@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import { createLoopsClient } from "../src/loops.ts";
-import { BUSY_REASON, type HostMessage, createUpstream } from "../src/stream.ts";
+import type { HostMessage } from "@crewhub/loops-client";
+import { BUSY_REASON, createUpstream } from "../src/stream.ts";
 import { type LoopsStub, createLoopsStub, envelope, installation } from "./loopsStub.ts";
 import { openSse } from "./sse.ts";
 import { testHost } from "./testHost.ts";

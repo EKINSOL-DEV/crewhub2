@@ -10,7 +10,8 @@ import { describe, it } from "node:test";
 import { isSegment } from "../src/allowList.ts";
 import { createArchiveMemory } from "../src/archiveMemory.ts";
 import type { LoopsClient, StreamResume } from "../src/loops.ts";
-import { type HostMessage, createUpstream } from "../src/stream.ts";
+import type { HostMessage } from "@crewhub/loops-client";
+import { createUpstream } from "../src/stream.ts";
 import { BOUNDARY_NUMBERS, Rng, assertPrototypeClean, oddJsonText, oddString, oddValue, replay } from "./fuzz.ts";
 import { waitFor } from "./wait.ts";
 

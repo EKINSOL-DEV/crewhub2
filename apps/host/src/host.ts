@@ -20,21 +20,19 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
-import type { HostConnection, HostHealthSent, HostKeyState, HostSnapshotState, ChatThreadFact } from "@crewhub/loops-client";
+import type { HostConnection, HostHealthSent, HostMessage } from "@crewhub/loops-client";
 import { WORLD_API_PREFIX, fillPattern, matchWorldRoute } from "./allowList.ts";
 import { DEV_ORIGINS_HEADER, devOriginAcceptedLine, devOriginVerdict } from "./devOrigin.ts";
 import type { ArchiveStore } from "./archiveStore.ts";
-import { createArchiveMemory } from "./archiveMemory.ts";
-import { DEFAULT_LOOPS_URL, type KeySource } from "./config.ts";
-import { type Discovery, type DiscoveryInput, type Found, createDiscovery, loopsAnswers, targetText } from "./discovery.ts";
-import { checkKey } from "./keyCheck.ts";
+import type { KeySource } from "./config.ts";
+import { type Connection, type ConnectionTimings, type HostStep, createConnection } from "./connection.ts";
+import type { DiscoveryInput } from "./discovery.ts";
 import type { KeyStore } from "./keyStore.ts";
 import { BACKUP_NAME, TOWN_BODY_LIMIT, TOWN_FORMAT, installationKey, listBackups, readBackupTown, type TownOp, type WorldDb, validateTownForHost } from "./worldDb.ts";
-import { type LoopsClient, createLoopsClient, isUnauthorized } from "./loops.ts";
+import { isUnauthorized } from "./loops.ts";
 import { PAIR_PATH_PREFIX, PAIR_REFUSED_HTML, type Pairing, createPairing, pairCookieHeader } from "./pairing.ts";
-import { type ArchiveReport, type AssembledSnapshot, SnapshotError, type SnapshotStats, assembleSnapshot } from "./snapshot.ts";
-import { type ChatPath, createChatPath } from "./chatPath.ts";
-import { type HostMessage, type LoopsState, type Upstream, createUpstream } from "./stream.ts";
+
+export { RECHECK_MS, STREAM_REFUSED_REASON, type ConnectionTimings, type HostStep } from "./connection.ts";
 
 export interface HostOptions {
   /** crewhub-loops' URL (`CREWHUB_WORLD_LOOPS_URL`): read over TCP. Absent, with no socket: the discovery looks for the app. */
@@ -68,8 +66,6 @@ export interface HostOptions {
    * found, the key's verdict, the stream open, a snapshot served. Given, the host does not log those lines itself.
    */
   onStep?: (step: HostStep) => void;
-  /** Reads in flight at most while a snapshot is assembled (default 6). */
-  snapshotConcurrency?: number;
   /** Extra origins allowed besides the host's own (the Vite dev server). */
   allowedOrigins?: string[];
   bufferSize?: number;
@@ -113,22 +109,8 @@ export const HTML_HEADERS: Readonly<Record<string, string>> = { "content-securit
 
 /** How many tabs may hold the stream at once (review N3); the next one is answered 503 with a reason. */
 export const MAX_TABS = 64;
-/** The reason on a key the stream refused after it was accepted (revoked meanwhile, or disabled). */
-export const STREAM_REFUSED_REASON = "crewhub-loops refused the key on the event stream (401 or 403): it was revoked or its bot disabled meanwhile. Paste a new access key, or forget this one.";
-/** A rejected key is re-checked this often (one health probe, then the key check: well within one probe a minute). */
-export const RECHECK_MS = 5 * 60_000;
 /** How long health waits for a link in the making before it answers with the states as they are. */
 export const HEALTH_WAIT_MS = 1000;
-
-/** One step of the connection, done: for the step list of `npm run world`. `ms` is what the step took, when it was timed. */
-export interface HostStep {
-  /** `browser`: a paired browser opened the stream at a cursor it already had (a tab back after a host restart). */
-  step: "discovery" | "key" | "stream" | "snapshot" | "browser";
-  ok: boolean;
-  /** One line, in words: "crewhub-loops found via the app's socket …". Never the key. */
-  text: string;
-  ms?: number;
-}
 
 /** The header the host puts on the Building page (and nothing else): the page asks for its own URL and reloads once the header is gone. */
 export const BUILDING_HEADER = "x-world-building";
@@ -161,8 +143,6 @@ export interface Host {
   close(): Promise<void>;
 }
 
-/** What this host writes on `GET /world-api/health`: the wire's health with every field a current host sends (loops-client `hostWire.ts`). */
-type HostHealth = HostHealthSent;
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -227,26 +207,6 @@ function readJsonBody(req: IncomingMessage, limit: number): Promise<Record<strin
   });
 }
 
-/** The host's key and what loops said about it. The text of the key lives here and in the client's closure only. */
-interface KeyHolder {
-  key: string;
-  /** The agent name from the file, or the principal loops answered. */
-  name: string;
-  source: KeySource;
-  /** `unchecked` until loops answered about it; `checking` only while a check runs. */
-  state: HostKeyState["state"];
-  reason?: string;
-}
-
-/** The link to loops: a client and the one upstream stream, for one target and one key. */
-interface Link {
-  found: Found;
-  client: LoopsClient;
-  upstream: Upstream;
-  /** The chat over the key on this link (chatPath.ts): the verdict, the threads' facts, the lines. */
-  chat: ChatPath;
-}
-
 export async function createHost(options: HostOptions): Promise<Host> {
   const log = options.log ?? ((line: string) => console.error(`[host] ${line}`));
   const staticDir = options.staticDir === undefined ? null : path.resolve(options.staticDir);
@@ -259,304 +219,36 @@ export async function createHost(options: HostOptions): Promise<Host> {
   const secureCookie = publicUrl?.protocol === "https:";
   const heartbeatMs = options.heartbeatMs ?? 15_000;
   let port = 0;
-  let closed = false;
   let building = false;
-  const onStep = options.onStep;
-  /** A step done: the list (world mode) or the log (serve mode), never both. */
-  const step = (kind: HostStep["step"], ok: boolean, text: string, ms?: number) => {
-    if (onStep !== undefined) onStep(ms === undefined ? { step: kind, ok, text } : { step: kind, ok, text, ms });
-    else log(text);
-  };
-  // The last snapshot assembled for a tab: for health's `connection.snapshot` (the page says "Reading 12 projects…").
-  let snapshotState: HostSnapshotState = { state: "idle" };
 
-  // --- The discovery: where loops is. ---
-  const discoveryInput: DiscoveryInput = {
-    loopsUrl: options.loopsUrl ?? null,
-    loopsSocket: options.loopsSocket ?? null,
-    loopsWebUrl: options.loopsWebUrl === undefined ? null : new URL(options.loopsWebUrl).origin,
-    appData: options.discovery?.appData ?? "",
-    ...(options.discovery?.statPath === undefined ? {} : { statPath: options.discovery.statPath }),
-    ...(options.discovery?.readFile === undefined ? {} : { readFile: options.discovery.readFile }),
-    ...(options.discovery?.answers === undefined ? {} : { answers: options.discovery.answers }),
-  };
-  const discoveryStarted = performance.now();
-  const discovery: Discovery = createDiscovery(discoveryInput, {
-    ...(options.discovery?.intervalMs === undefined ? {} : { intervalMs: options.discovery.intervalMs }),
-    log: (line) => (line.startsWith("loops found") ? step("discovery", true, line, performance.now() - discoveryStarted) : log(line)),
-    onChange: () => void relink(),
-  });
-
-  // --- The key. ---
-  let holder: KeyHolder | null =
-    options.key === undefined ? null : { key: options.key, name: options.keyName ?? "crewhub-world", source: options.keySource ?? "env", state: "unchecked" };
-  const readTimeoutMs = options.readTimeoutMs;
-  const clientFor = (found: Found, key: string): LoopsClient => createLoopsClient(found.target, key, readTimeoutMs === undefined ? {} : { readTimeoutMs });
-
-  // --- The closed buildings the host knows. ---
-  // One module (archiveMemory.ts): the memory on disk belongs to one loops, judged at every link; the stream's archive
-  // events and every snapshot's report keep it, and it writes the file when this loops' own set is learnt.
-  const archive = createArchiveMemory({
-    ...(options.archiveStore === undefined ? {} : { store: options.archiveStore }),
-    targetNow: () => {
-      const found = discovery.current();
-      return found === null ? null : targetText(found.target);
+  // --- The connection to loops (connection.ts): the discovery, the key and its verdicts, the link with the chat path
+  // and the archive memory, the snapshot, the tab feed. The host asks it for the states and reads through it.
+  // The timings, flat on HostOptions (tests and tools shorten them), as the connection's one object.
+  const timings: ConnectionTimings = { heartbeatMs };
+  if (options.readTimeoutMs !== undefined) timings.readTimeoutMs = options.readTimeoutMs;
+  if (options.bufferSize !== undefined) timings.bufferSize = options.bufferSize;
+  if (options.retryMs !== undefined) timings.retryMs = options.retryMs;
+  if (options.recheckMs !== undefined) timings.recheckMs = options.recheckMs;
+  if (options.reconnectMs !== undefined) timings.reconnectMs = options.reconnectMs;
+  const conn: Connection = createConnection({
+    discovery: {
+      loopsUrl: options.loopsUrl ?? null,
+      loopsSocket: options.loopsSocket ?? null,
+      loopsWebUrl: options.loopsWebUrl === undefined ? null : new URL(options.loopsWebUrl).origin,
+      appData: options.discovery?.appData ?? "",
+      ...(options.discovery?.statPath === undefined ? {} : { statPath: options.discovery.statPath }),
+      ...(options.discovery?.readFile === undefined ? {} : { readFile: options.discovery.readFile }),
+      ...(options.discovery?.answers === undefined ? {} : { answers: options.discovery.answers }),
+      ...(options.discovery?.intervalMs === undefined ? {} : { intervalMs: options.discovery.intervalMs }),
     },
+    ...(options.key === undefined ? {} : { key: { key: options.key, name: options.keyName ?? "crewhub-world", source: options.keySource ?? "env" } }),
+    ...(options.keyStore === undefined ? {} : { keyStore: options.keyStore }),
+    ...(options.archiveStore === undefined ? {} : { archiveStore: options.archiveStore }),
+    timings,
     log,
+    ...(options.onStep === undefined ? {} : { onStep: options.onStep }),
   });
-
-  // --- loops' version: the first one this run read and the last one, so an upgrade under the host is said (health's
-  // `loopsCommitBefore`) and logged once per change; the stream reads it each time it opens after being down.
-  const versions: { first?: string; last?: string } = {};
-  const sawVersion = (version: string) => {
-    versions.first ??= version;
-    if (versions.last !== undefined && versions.last !== version) log(`crewhub-loops version ${versions.last} → ${version}: loops was updated under the host, which reads everything again`);
-    versions.last = version;
-  };
-
-  // --- The chat over the key (round 12; one module per link since round 59d, chatPath.ts): asked after the key check
-  // or when the stream accepts the key, fed the stream's dm events, disposed with the link. Its threads go to every
-  // tab, whole; its lines go out as `chat` messages (the bubbles). Health reads its verdict (`connection.session`).
-  function sendThreads(threads: ChatThreadFact[]): void {
-    for (const tab of tabs.values()) tab.send({ type: "threads", threads });
-  }
-  function chatPathFor(client: LoopsClient, keyName: string): ChatPath {
-    // Only for the link that stands, with the key it was built for, while the host runs: at the check inside relink
-    // no link stands yet, and the tabs get the threads as they attach (attach()); a line or a re-read of a link that
-    // is gone, or whose key was forgotten or replaced while a check was in flight (review-c4, 1), is dropped.
-    const live = (): boolean => !closed && link?.chat === chat && holder?.name === keyName;
-    const chat: ChatPath = createChatPath({
-      client,
-      keyName,
-      log,
-      onThreads: (threads) => {
-        if (live()) sendThreads(threads);
-      },
-      onLine: (line) => {
-        if (live()) for (const tab of tabs.values()) tab.send({ type: "chat", chat: line });
-      },
-    });
-    return chat;
-  }
-
-  // --- A rejected key waits (round 8). No stream retries: each was a 401 and a health probe every 30 s. The host waits
-  // for a new key, a Forget or a discovery change (every one goes through relink, which cancels the wait), and
-  // re-checks the kept key slowly (recheckMs, 5 min by default: one keyless health probe, and only when loops answers
-  // the key check, so a bot re-enabled in loops comes back by itself and a loops that is down is never a verdict).
-  // At most one probe a minute, as agreed with loops' keeper. Health says when (`connection.key.recheckAt`).
-  const recheckMs = options.recheckMs ?? RECHECK_MS;
-  let recheckTimer: ReturnType<typeof setTimeout> | null = null;
-  let recheckAt: string | undefined;
-  function clearRecheck(): void {
-    if (recheckTimer !== null) clearTimeout(recheckTimer);
-    recheckTimer = null;
-    recheckAt = undefined;
-  }
-  function scheduleRecheck(mine: KeyHolder): void {
-    clearRecheck();
-    recheckAt = new Date(Date.now() + recheckMs).toISOString();
-    recheckTimer = setTimeout(() => {
-      recheckTimer = null;
-      recheckAt = undefined;
-      void recheck(mine);
-    }, recheckMs);
-    recheckTimer.unref?.();
-  }
-  async function recheck(mine: KeyHolder): Promise<void> {
-    if (closed || holder !== mine || mine.state !== "rejected") return;
-    const found = discovery.current();
-    if (found === null) return; // the discovery's change relinks by itself
-    if (!(await loopsAnswers(found.target))) {
-      log(`the kept key ${mine.name} is not re-checked: crewhub-loops does not answer its health; again in ${Math.round(recheckMs / 1000)} s`);
-      if (!closed && holder === mine && mine.state === "rejected") scheduleRecheck(mine);
-      return;
-    }
-    if (closed || holder !== mine || mine.state !== "rejected") return;
-    log(`re-checking the kept key ${mine.name} (${mine.source}) with crewhub-loops at ${targetText(found.target)}`);
-    await relink(true);
-  }
-
-  // --- The link and the tabs. ---
-  let link: Link | null = null;
-  let relinking: Promise<void> = Promise.resolve();
-  const scrub = (text: string): string => (holder !== null && holder.key.length > 0 && text.includes(holder.key) ? text.split(holder.key).join("[redacted]") : text);
-  interface Tab {
-    send: (message: HostMessage) => void;
-    cursor: number | null;
-    unsubscribe: (() => void) | null;
-    /** Whether the tab has seen a link: a switch then means a reset (the tab re-snapshots). */
-    linked: boolean;
-  }
-  const tabs = new Map<ServerResponse, Tab>();
-  const streamState = (): HostConnection["stream"]["state"] => (link === null ? "idle" : link.upstream.busy() !== null ? "busy" : link.upstream.state());
-  /** The host's own word on its key, on every status a tab gets (the stream's `key`): what health's `connection.key.state` says. */
-  const keyWord = (): HostKeyState["state"] => (holder === null ? "none" : holder.state);
-  /** A status from the upstream, with the key's word added, as a tab hears it. */
-  const withKey = (message: HostMessage): HostMessage => (message.type === "status" ? { ...message, key: keyWord() } : message);
-  /** The legacy tri-state the world from before reads: no loops is down, no key or a rejected key is unauthorized. */
-  const legacyState = (): LoopsState => {
-    if (link !== null) return link.upstream.state();
-    if (discovery.current() === null) return "down";
-    return "unauthorized";
-  };
-  const loopsWebUrl = () => discovery.current()?.webUrl ?? discoveryInput.loopsWebUrl ?? (discoveryInput.loopsUrl === null ? DEFAULT_LOOPS_URL : new URL(discoveryInput.loopsUrl).origin);
-
-  function attach(tab: Tab): void {
-    if (link === null) {
-      tab.send({ type: "status", loops: legacyState(), key: keyWord() });
-      return;
-    }
-    if (tab.linked) tab.send({ type: "reset", reason: "reconnected" });
-    tab.unsubscribe = link.upstream.subscribe(tab.linked ? null : tab.cursor, (message) => tab.send(withKey(message)));
-    tab.linked = true;
-    // The chat threads' facts (round 24), when the key reads the chat: the tab gets the list as it stands.
-    const threads = link.chat.threads();
-    if (threads !== null) tab.send({ type: "threads", threads });
-    void link.upstream.start();
-  }
-
-  /** Builds the link for the current target and key, after stopping the old one: one upstream stream per host, always. */
-  function relink(healthKnown = false): Promise<void> {
-    relinking = relinking.then(async () => {
-      if (closed) return;
-      clearRecheck();
-      const found = discovery.current();
-      const old = link;
-      if (old !== null) {
-        link = null;
-        old.chat.dispose();
-        for (const tab of tabs.values()) {
-          tab.unsubscribe?.();
-          tab.unsubscribe = null;
-        }
-        await old.upstream.stop();
-      }
-      if (found !== null) archive.linked(targetText(found.target));
-      if (found === null || holder === null) {
-        for (const tab of tabs.values()) attach(tab);
-        return;
-      }
-      const client = clientFor(found, holder.key);
-      // `healthKnown`: the re-check probed health a moment ago; a 401 now needs no second probe (the budget).
-      const healthy = healthKnown ? async () => true : () => loopsAnswers(found.target);
-      const mine = holder;
-      const before = mine.state;
-      mine.state = "checking";
-      snapshotState = { state: "idle" };
-      const keyStarted = performance.now();
-      const verdict = await checkKey(client, healthy);
-      if (closed || holder !== mine || discovery.current() !== found) return;
-      if (verdict.state === "rejected") {
-        mine.state = "rejected";
-        mine.reason = verdict.reason;
-        step("key", false, `key ${mine.name} (${mine.source}) rejected by loops at ${targetText(found.target)}: ${scrub(verdict.reason)} (the key is kept; paste a new one or forget it)`, performance.now() - keyStarted);
-        for (const tab of tabs.values()) attach(tab);
-        scheduleRecheck(mine);
-        return;
-      }
-      let chat: ChatPath;
-      if (verdict.state === "ok") {
-        mine.state = "ok";
-        delete mine.reason;
-        mine.name = verdict.name;
-        step("key", true, `key ${mine.name} (${mine.source}) accepted by loops at ${targetText(found.target)}`, performance.now() - keyStarted);
-        // Does this loops let the key read the chat (a viewer key, round 12)? Then the bubbles come over the key's own
-        // stream; a loops that answers anything else (an older loops, a plain external bot's key) shows no bubbles, and
-        // health says so by leaving `connection.session` out (round 19: the sign-in road is gone).
-        chat = chatPathFor(client, mine.name);
-        await chat.check();
-        if (closed || holder !== mine || discovery.current() !== found) {
-          chat.dispose();
-          return;
-        }
-      } else {
-        // Nothing is known about the key: it keeps the state it had (a fresh key stays unchecked), never rejected.
-        mine.state = before === "checking" ? "unchecked" : before;
-        log(`key ${mine.name} (${mine.source}) ${mine.state}: ${scrub(verdict.reason)}; the stream keeps trying`);
-        chat = chatPathFor(client, mine.name);
-      }
-      const upstreamOptions: Parameters<typeof createUpstream>[1] = { log: (line) => log(scrub(line)), healthy, onVersion: sawVersion };
-      if (options.bufferSize !== undefined) upstreamOptions.bufferSize = options.bufferSize;
-      if (options.retryMs !== undefined) upstreamOptions.retryMs = options.retryMs;
-      if (options.reconnectMs !== undefined) upstreamOptions.reconnectMs = options.reconnectMs;
-      upstreamOptions.heartbeatMs = heartbeatMs;
-      const upstream = createUpstream(client, upstreamOptions);
-      link = { found, client, upstream, chat };
-      // The host's own ear on its stream, for as long as this link lives: the stream is the second opinion on the key
-      // (a confirmed 401/403 is rejected, ok is ok, down says nothing), loops going away sends the discovery looking
-      // again on the app's roads, and the archive events keep the memory of the closed buildings.
-      const appRoads = discoveryInput.loopsUrl === null && discoveryInput.loopsSocket === null;
-      let first = true;
-      upstream.subscribe(null, (message) => {
-        if (first) {
-          first = false;
-          return;
-        }
-        if (link?.upstream !== upstream) return;
-        // A reset of the upstream (loops' log expired or restored): a snapshot begun before it is not shared after it.
-        if (message.type === "reset") {
-          resets += 1;
-          return;
-        }
-        if (message.type === "status") {
-          if (message.loops === "unauthorized") {
-            if (mine.state !== "rejected") {
-              mine.state = "rejected";
-              mine.reason = STREAM_REFUSED_REASON;
-              log(`key ${mine.name} (${mine.source}) rejected on the stream (the key is kept; paste a new one or forget it)`);
-            }
-            // The stream stops here: no retry with a key loops refused. The tabs hear "unauthorized" and the slow
-            // re-check takes over (see above).
-            relinking = relinking.then(async () => {
-              if (closed || link?.upstream !== upstream) return;
-              link = null;
-              chat.dispose();
-              for (const tab of tabs.values()) {
-                tab.unsubscribe?.();
-                tab.unsubscribe = null;
-              }
-              await upstream.stop();
-              for (const tab of tabs.values()) attach(tab);
-              if (holder === mine && mine.state === "rejected") scheduleRecheck(mine);
-            });
-          } else if (message.loops === "ok") {
-            if (mine.state !== "ok") {
-              mine.state = "ok";
-              delete mine.reason;
-              log(`key ${mine.name} (${mine.source}) accepted on the stream`);
-              // The key was never checked with a 200 (loops was not up at the host's start, round 29 High 1): the
-              // check's own tail runs now, so health says whether the key reads the chat and the dm gate opens.
-              if (chat.reads() === "unknown") void chat.check();
-            }
-          } else if (message.stream !== "busy" && appRoads) void discovery.refresh();
-          return;
-        }
-        if (message.type !== "event") return;
-        // A `dm.*` event the key's stream sees (round 24): the chat path reads the threads again and an agent's message as a line.
-        chat.onEvent(message.envelope);
-        if (message.envelope.project === null) return;
-        const slug = message.envelope.project.slug;
-        archive.heard(message.envelope.type, slug);
-      });
-      for (const tab of tabs.values()) attach(tab);
-      // The first attempt decides the states a connect answers with; it is bounded by the read timeout. A first
-      // attempt that finds loops down is no state change the listener hears (the stream starts down).
-      const streamStarted = performance.now();
-      await upstream.start().then(() => {
-        if (link?.upstream !== upstream) return;
-        if (upstream.state() === "ok") step("stream", true, `stream open at seq ${upstream.cursor()}`, performance.now() - streamStarted);
-        if (upstream.state() === "down" && upstream.busy() === null && appRoads) void discovery.refresh();
-      });
-    });
-    return relinking;
-  }
-
-  // The host's own heartbeat while no link exists, so a tab from before never thinks the host is gone.
-  const idleBeat = setInterval(() => {
-    if (link !== null) return;
-    const beat: HostMessage = { type: "heartbeat", seq: 0, ts: new Date().toISOString() };
-    for (const tab of tabs.values()) tab.send(beat);
-  }, heartbeatMs);
+  const loopsWebUrl = () => conn.words().loopsWebUrl;
 
   const allowedHosts = () => new Set([`127.0.0.1:${port}`, `localhost:${port}`, ...(publicUrl === null ? [] : [publicUrl.host])]);
   // The origins the dev server of this checkout told the host this run (devOrigin.ts), beside the configured ones.
@@ -568,42 +260,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
 
   /** The connection as health reports it: the states always, the details only when `detailed` (a paired browser). */
   function connection(detailed: boolean): HostConnection {
-    const found = discovery.current();
-    // The chat path's verdict (chatPath.ts) in the two words health has used since round 29: the key reads the chat
-    // on the link that stands; the question was asked on it (no link: not asked).
-    const keyReadsChat = link?.chat.reads() === "yes";
-    const chatKnown = link !== null && link.chat.reads() !== "unknown";
-    const out: HostConnection = {
-      discovery: { state: found === null ? "searching" : "found" },
-      key: { state: holder === null ? "none" : holder.state },
-      stream: { state: streamState(), reconnects: link?.upstream.reconnects() ?? 0 },
-      archived: archive.state(detailed),
-    };
-    out.snapshot = snapshotState;
-    // The chat's road (round 19; round 29): `session: { state: "key" }` when this loops lets the world's key read the
-    // chat, so the bubbles come; `{ state: "unknown" }` while the host cannot say yet (no link, the key unchecked or
-    // being checked, the question not yet answered on this link); absent when it knows the key does not read it (an
-    // older loops, a plain external bot's key, the chat bubbles feature off). A rejected key or none: absent (no road).
-    if (keyReadsChat && link !== null) out.session = { state: "key" };
-    else if (!chatKnown && holder !== null && holder.state !== "rejected") out.session = { state: "unknown" };
-    if (recheckAt !== undefined && holder?.state === "rejected") out.key.recheckAt = recheckAt;
-    if (found !== null) out.discovery.via = found.via;
-    const busy = link?.upstream.busy() ?? null;
-    if (busy !== null) out.stream.reason = busy;
-    if (!detailed) return out;
-    if (found !== null) out.discovery.target = targetText(found.target);
-    if (holder !== null) {
-      out.key.name = holder.name;
-      out.key.source = holder.source;
-      if (holder.reason !== undefined) out.key.reason = holder.reason;
-    }
-    if (link !== null) {
-      const cursor = link.upstream.cursor();
-      if (cursor >= 0) out.stream.cursor = cursor;
-      const lastEventAt = link.upstream.lastEventAt();
-      if (lastEventAt !== undefined) out.stream.lastEventAt = lastEventAt;
-    }
-    return out;
+    return conn.state(detailed);
   }
 
   /** `GET /pair/<token>`: the cookie and a 303 to `/`, or the refused page. With pairing off the link is not needed: straight to `/`. */
@@ -650,82 +307,11 @@ export async function createHost(options: HostOptions): Promise<Host> {
     return true;
   }
 
-  /** Why a data route cannot answer right now: no loops, no key, a rejected key; null when the link is up. */
-  function unavailable(): string | null {
-    if (link !== null) return null;
-    if (discovery.current() === null) return "no_loops";
-    if (holder === null) return "no_key";
-    return holder.state === "rejected" ? "unauthorized" : "loops_down";
-  }
-
-  /**
-   * The assembly on its way (round 53, r51-review H3). After a reset every open tab asks for a snapshot at once, and each
-   * used to read the whole studio again. A `/snapshot` that comes while one runs on the same upstream, with no reset
-   * since it began, takes its answer: the snapshot of the moment that assembly started, at its cursor. The tab's stream
-   * then replays the events after that cursor from the buffer, or says `reset: cursor` and the tab asks again.
-   */
-  let shared: { upstream: Upstream; resets: number; result: Promise<AssembledSnapshot> } | null = null;
-  /** The upstream's resets the host's own ear heard (relink): what a shared assembly is judged against. */
-  let resets = 0;
-
-  /** One assembly, with its progress in `snapshotState` as it goes (health shows it to the page). */
-  async function assemble(client: LoopsClient, upstream: Upstream): Promise<AssembledSnapshot> {
-    snapshotState = { state: "reading", reads: 0 };
-    const out = await assembleSnapshot(client, {
-      cursor: upstream.cursor(),
-      knownArchivedSlugs: archive.seen(),
-      rememberedSlugs: archive.slugs(),
-      observer: holder === null ? null : holder.name,
-      onArchive: (report: ArchiveReport) => archive.reported(report),
-      ...(options.snapshotConcurrency === undefined ? {} : { concurrency: options.snapshotConcurrency }),
-      onProgress: (progress) => {
-        if (snapshotState.state !== "reading") return;
-        snapshotState = { state: "reading", reads: progress.reads, ...(progress.projects === null ? {} : { projects: progress.projects }) };
-      },
-    });
-    snapshotState = { state: "ready", projects: out.stats.projects, reads: out.stats.reads, ms: Math.round(out.stats.ms) };
-    return out;
-  }
-  const snapshotText = (stats: SnapshotStats) =>
-    `snapshot: ${stats.projects} project${stats.projects === 1 ? "" : "s"}, ${stats.reads} reads in ${Math.round(stats.ms)} ms${stats.slowest === null ? "" : ` (slowest ${stats.slowest.path} ${Math.round(stats.slowest.ms)} ms)`}${stats.log.quiet + stats.log.runs > 0 ? `, from the log ${stats.log.quiet} quiet, ${stats.log.runs} run${stats.log.runs === 1 ? "" : "s"}` : ""}${stats.log.road === "ticket" ? " (the quiet judged per ticket, crewhub-loops filters by ticket)" : ""}${stats.log.complete ? "" : " (the log was not read whole: no quiet handed over)"}`;
-
   async function snapshot(res: ServerResponse): Promise<void> {
-    await relinking;
-    const why = unavailable();
-    if (why !== null || link === null) {
-      sendJson(res, 503, { error: why ?? "loops_down" });
-      return;
-    }
-    const { client, upstream } = link;
-    await upstream.start();
-    if (upstream.state() !== "ok") {
-      sendJson(res, 503, { error: upstream.state() === "unauthorized" ? "unauthorized" : "loops_down" });
-      return;
-    }
-    // The key's own principal rides along as the observer: the world never shows it as a figure. One assembly for
-    // the tabs that ask while it runs; only the request that started it says the step.
-    const current = shared !== null && shared.upstream === upstream && shared.resets === resets ? shared : null;
-    const mine = current ?? { upstream, resets, result: assemble(client, upstream) };
-    if (current === null) {
-      shared = mine;
-      const done = () => {
-        if (shared === mine) shared = null;
-      };
-      mine.result.then(done, done);
-    }
-    try {
-      const { snapshot: body, stats } = await mine.result;
-      sendJson(res, 200, body);
-      if (current === null) step("snapshot", true, snapshotText(stats), stats.ms);
-    } catch (error) {
-      // loops' own failures keep their reason; anything else (a read the allow-list refused, a bug) is the host's
-      // own and says so (review F8), never "loops down" while loops answers.
-      const reason = error instanceof SnapshotError ? error.reason : "snapshot_failed";
-      const detail = error instanceof SnapshotError ? "" : `: ${scrub(error instanceof Error ? error.message : String(error))}`;
-      snapshotState = { state: "failed", reason };
-      if (current === null) step("snapshot", false, `snapshot failed: ${reason}${detail}`);
-      sendJson(res, 503, { error: reason, ...(detail === "" ? {} : { message: `The host could not assemble the snapshot${detail}` }) });
-    }
+    const out = await conn.snapshot();
+    if (out.kind === "ok") sendJson(res, 200, out.body);
+    else if (out.kind === "unavailable") sendJson(res, 503, { error: out.reason });
+    else sendJson(res, 503, { error: out.reason, ...(out.message === undefined ? {} : { message: out.message }) });
   }
 
   function stream(req: IncomingMessage, res: ServerResponse, query: URLSearchParams): void {
@@ -736,7 +322,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
       sendJson(res, 400, { error: "validation_error", message: "cursor must be a non-negative integer" });
       return;
     }
-    if (tabs.size >= MAX_TABS) {
+    if (conn.tabs() >= MAX_TABS) {
       sendJson(res, 503, { error: "too_many_tabs", message: `This host holds ${MAX_TABS} tabs on its stream already; close one` });
       return;
     }
@@ -751,30 +337,19 @@ export async function createHost(options: HostOptions): Promise<Host> {
       const id = message.type === "event" ? `id: ${message.envelope.seq}\n` : "";
       res.write(`${id}data: ${JSON.stringify(message)}\n\n`);
     };
-    const tab: Tab = { send, cursor, unsubscribe: null, linked: false };
-    tabs.set(res, tab);
-    attach(tab);
-    // For the step list only (serve mode stays quiet): a tab that comes back at its cursor asks for no snapshot, yet the
-    // world is up for it; the list marks that once.
-    if (cursor !== null && onStep !== undefined) onStep({ step: "browser", ok: true, text: `a paired browser is back at seq ${cursor}` });
-    const end = () => {
-      tab.unsubscribe?.();
-      tab.unsubscribe = null;
-      tabs.delete(res);
-    };
-    req.on("close", end);
-    res.on("close", end);
+    const detach = conn.feed({ send, cursor, end: () => res.end() });
+    req.on("close", detach);
+    res.on("close", detach);
   }
 
   async function passthrough(res: ServerResponse, loopsPath: string, query: URLSearchParams): Promise<void> {
-    await relinking;
-    const why = unavailable();
-    if (why !== null || link === null) {
-      sendJson(res, 503, { error: why ?? "loops_down" });
-      return;
-    }
     try {
-      const upstreamResponse = await link.client.get(loopsPath, Object.fromEntries(query));
+      const read = await conn.read(loopsPath, Object.fromEntries(query));
+      if (read.kind === "unavailable") {
+        sendJson(res, 503, { error: read.reason });
+        return;
+      }
+      const upstreamResponse = read.response;
       if (isUnauthorized(upstreamResponse.status)) {
         sendJson(res, 503, { error: "unauthorized" });
         return;
@@ -835,10 +410,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
     }
     if (req.method === "DELETE") {
       req.resume();
-      options.keyStore?.forget();
-      if (holder !== null) log(`key ${holder.name} (${holder.source}) forgotten`);
-      holder = null;
-      await relink();
+      await conn.forgetKey();
       sendJson(res, 200, { ok: true, connection: connection(true) });
       return;
     }
@@ -853,34 +425,19 @@ export async function createHost(options: HostOptions): Promise<Host> {
       sendJson(res, 400, { error: "validation_error", message: "That is not an access key: it starts with chl_ and is one line. Copy it from the access-key window in crewhub-loops." });
       return;
     }
-    await relinking;
-    const found = discovery.current();
-    if (found === null) {
+    const outcome = await conn.setKey(pasted);
+    if (outcome.state === "no_loops") {
       sendJson(res, 503, { error: "no_loops", message: "crewhub-loops is not found yet: open Crewhub.app, then paste again." });
       return;
     }
-    const verdict = await checkKey(clientFor(found, pasted), () => loopsAnswers(found.target));
-    if (verdict.state === "unreachable") {
-      sendJson(res, 503, { error: "loops_down", message: `crewhub-loops did not answer, so nothing is known about the key (${verdict.reason}). Is Crewhub.app open? Then paste again.` });
+    if (outcome.state === "unreachable") {
+      sendJson(res, 503, { error: "loops_down", message: `crewhub-loops did not answer, so nothing is known about the key (${outcome.reason}). Is Crewhub.app open? Then paste again.` });
       return;
     }
-    if (verdict.state === "rejected") {
-      log(`a pasted key was rejected: ${verdict.reason.split(".")[0]}`);
-      sendJson(res, 403, { error: "key_rejected", reason: verdict.reason });
+    if (outcome.state === "rejected") {
+      sendJson(res, 403, { error: "key_rejected", reason: outcome.reason });
       return;
     }
-    let stored = false;
-    if (options.keyStore !== undefined) {
-      try {
-        options.keyStore.save(pasted);
-        stored = true;
-      } catch (error) {
-        log(`cannot store the key in ${options.keyStore.file}: ${error instanceof Error ? error.message : "unknown error"} (it is used for this run only)`);
-      }
-    }
-    holder = { key: pasted, name: verdict.name, source: stored ? "stored" : "env", state: "ok" };
-    log(`key ${verdict.name} accepted from the browser${stored ? `, stored in ${options.keyStore?.file}` : ""}`);
-    await relink();
     sendJson(res, 200, { ok: true, connection: connection(true) });
   }
 
@@ -902,8 +459,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
       else sendJson(res, 503, { error: "no_world_db", message: "This host keeps no world database; the town stays in the browser." });
       return;
     }
-    const found = discovery.current();
-    if (found === null) {
+    if (!conn.words().found) {
       req.resume();
       if (req.method === "GET" && !exportFile) sendJson(res, 200, { installation: null, rev: null, document: null, reason: "no_loops" });
       else sendJson(res, 503, { error: "no_loops", message: "crewhub-loops is not found yet, so the town has no installation to belong to." });
@@ -1017,7 +573,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
     }
     if (outcome.changed) {
       log(`town of ${installation}: ${kind}, revision ${outcome.rev}`);
-      for (const tab of tabs.values()) tab.send({ type: "town", rev: outcome.rev });
+      conn.broadcast({ type: "town", rev: outcome.rev });
     }
     sendJson(res, 200, { ok: true, rev: outcome.rev, document: current, canUndo: outcome.canUndo, canRedo: outcome.canRedo, changed: outcome.changed });
   }
@@ -1116,11 +672,13 @@ export async function createHost(options: HostOptions): Promise<Host> {
       case "/health": {
         // The states as they are, after a bounded wait for a link in the making: the page's probe gives the host
         // 1.5 s before it takes the host for silent, and a slow loops must never send the world into demo mode.
-        await Promise.race([relinking.then(() => link?.upstream.start()), new Promise<void>((resolve) => setTimeout(resolve, HEALTH_WAIT_MS).unref())]);
+        await Promise.race([conn.settled(), new Promise<void>((resolve) => setTimeout(resolve, HEALTH_WAIT_MS).unref())]);
         const isPaired = paired(req);
-        const health: HostHealth = {
-          loops: legacyState(),
-          keyName: holder === null ? "" : holder.name,
+        const words = conn.words();
+        // The wire's health with every field a current host sends (loops-client `hostWire.ts`, round 59d C7).
+        const health: HostHealthSent = {
+          loops: words.loops,
+          keyName: words.keyName,
           sharedKey: false,
           loopsWebUrl: loopsWebUrl(),
           paired: isPaired,
@@ -1129,14 +687,12 @@ export async function createHost(options: HostOptions): Promise<Host> {
         };
         if (options.checkout !== undefined) health.checkout = options.checkout;
         if (devOrigins.size > 0) health.devOrigins = [...devOrigins];
-        const found = discovery.current();
-        if (found !== null) health.transport = found.target.transport;
-        const version = link?.upstream.loopsVersion();
-        if (version !== undefined) {
-          health.loopsCommit = version;
-          if (versions.first !== undefined && versions.first !== version) health.loopsCommitBefore = versions.first;
+        if (words.transport !== undefined) health.transport = words.transport;
+        if (words.version !== undefined) {
+          health.loopsCommit = words.version;
+          if (words.versionBefore !== undefined) health.loopsCommitBefore = words.versionBefore;
         }
-        if (link !== null && link.upstream.cursor() >= 0) health.cursor = link.upstream.cursor();
+        if (words.cursor !== undefined) health.cursor = words.cursor;
         sendJson(res, 200, health, devOrigins.size > 0 ? { [DEV_ORIGINS_HEADER]: [...devOrigins].join(",") } : {});
         return;
       }
@@ -1171,7 +727,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
 
   const server: Server = createServer((req, res) => {
     handle(req, res).catch((error: unknown) => {
-      log(`request failed: ${error instanceof Error ? scrub(error.message) : "unknown error"}`);
+      log(`request failed: ${error instanceof Error ? conn.scrub(error.message) : "unknown error"}`);
       if (!res.headersSent) sendJson(res, 500, { error: "internal" });
       else res.end();
     });
@@ -1181,14 +737,13 @@ export async function createHost(options: HostOptions): Promise<Host> {
   await new Promise<void>((resolve, reject) => {
     server.once("error", (error) => {
       // A port in use: the host never was, so its heartbeat must not keep the caller's process open.
-      if (!server.listening) clearInterval(idleBeat);
+      if (!server.listening) void conn.close();
       reject(error);
     });
     server.listen(options.port ?? 0, "127.0.0.1", () => resolve());
   });
   port = (server.address() as AddressInfo).port;
-  // The discovery's first pass links by itself (onChange); the explicit roads are found at once.
-  void discovery.start();
+  conn.start();
 
   return {
     url: `http://127.0.0.1:${port}`,
@@ -1199,19 +754,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
       building = value;
     },
     async close() {
-      closed = true;
-      // The chat path first (review-c4, 2): no threads re-read fires from a closing host while relinking settles.
-      link?.chat.dispose();
-      clearInterval(idleBeat);
-      clearRecheck();
-      discovery.stop();
-      await relinking;
-      if (link !== null) {
-        link.chat.dispose();
-        await link.upstream.stop();
-      }
-      for (const res of tabs.keys()) res.end();
-      tabs.clear();
+      await conn.close();
       await new Promise<void>((resolve) => {
         server.close(() => resolve());
         server.closeAllConnections();
