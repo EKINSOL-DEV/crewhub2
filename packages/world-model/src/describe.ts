@@ -2,6 +2,7 @@
  * The hidden text view: every fact the scene shows as a sentence, grouped by section (Town, one
  * section per building, one per room). Inferences say so; statuses are always words.
  */
+import { agentWords } from "./appearance.ts";
 import { archivedWords } from "./archive.ts";
 import { pinnedCard, quietWords, runWords } from "./board.ts";
 import { roleInferred, roleWords } from "./roleWords.ts";
@@ -10,9 +11,7 @@ import { DESK_WORDS, HALL_LABELS, HALL_PLACES, RACK_KINDS, RACK_NAMES, ROLE_DESK
 import type {
   AgentPlacement,
   Building,
-  LaneStatus,
   PersonVisit,
-  Posture,
   Room,
   TextLine,
   TicketStatus,
@@ -27,21 +26,6 @@ const STATUS_WORDS: Record<TicketStatus, string> = {
   in_progress: "in progress",
   review: "review",
   done: "done",
-};
-
-const LANE_WORDS: Record<LaneStatus, string> = {
-  working: "working",
-  idle: "idle",
-  done: "done (herdr's pane status, not a finished ticket)",
-  blocked: "blocked on a prompt",
-  unknown: "status unknown",
-};
-
-const POSTURE_WORDS: Record<Posture, string> = {
-  focused: "focused",
-  relaxed: "relaxed",
-  "raised-hand": "hand raised",
-  greyed: "greyed out",
 };
 
 const LOOK_WORDS: Record<WorkObject["look"], string> = {
@@ -113,9 +97,9 @@ export function describeWorld(model: WorldModel, civic: CivicWords = CIVIC_WORDS
     if (!building.closing) continue;
     add("Town", building.closing.kind === "closing" ? `${buildingSection(building)} is closing: the lights go out and the boards come down.` : `${buildingSection(building)} opens again: the boards come off and the lights come on.`);
   }
-  for (const agent of model.postOffice) add("Town", `${agent.displayName} is the postman, at the ${civic.post}: ${agentState(agent)}.`);
+  for (const agent of model.postOffice) add("Town", `${agent.displayName} is the postman, at the ${civic.post}: ${agentWords(agent).state}.`);
   for (const agent of model.townHall) {
-    add("Town", `${agent.displayName} is in the ${civic.hall}, active in no building: ${agentState(agent)}.`);
+    add("Town", `${agent.displayName} is in the ${civic.hall}, active in no building: ${agentWords(agent).state}.`);
     describeCaption("Town", agent, add);
   }
   if (model.observer !== null) add("Town", `${model.observer} (this world's key) is not shown: it is the observer, not a worker.`);
@@ -131,15 +115,6 @@ export function describeWorld(model: WorldModel, civic: CivicWords = CIVIC_WORDS
 }
 
 type Add = (section: string, text: string, kind?: TextLine["kind"]) => void;
-
-function agentState(agent: AgentPlacement): string {
-  return `${LANE_WORDS[agent.laneStatus]}, posture ${POSTURE_WORDS[agent.posture]}`;
-}
-
-/** The text view's sentence for an agent's state (lane status and posture, in words); the agent card shows the same. */
-export function agentStateWords(agent: AgentPlacement): string {
-  return agentState(agent);
-}
 
 function describeCaption(section: string, agent: AgentPlacement, add: Add): void {
   if (!agent.caption) return;
@@ -217,7 +192,7 @@ function describeAgent(section: string, agent: AgentPlacement, add: Add, buildin
     if (agent.locationInferred) {
       add(section, `${agent.displayName} is working in ${buildingName(agent.building)}, inferred from recent events.`, "inference");
     }
-    add(section, `${agent.displayName}: ${agentState(agent)}.`);
+    add(section, `${agent.displayName}: ${agentWords(agent).state}.`);
     describeCaption(section, agent, add);
   }
   if (agent.deskTicketKey) add(section, `${agent.displayName} has ${agent.deskTicketKey} on its desk.`);
@@ -270,7 +245,7 @@ function huddleKey(building: Building): string | null {
  * about CH-12", "Lead's office: Lin (working); beacon: …". `laneWords` says an agent's state in brackets; the text
  * view uses its own words, the app the status line's.
  */
-export function hallSummary(building: Building, hall: Hall, laneWords: (agent: AgentPlacement) => string = (a) => LANE_WORDS[a.laneStatus]): string {
+export function hallSummary(building: Building, hall: Hall, laneWords: (agent: AgentPlacement) => string = (a) => agentWords(a).lane): string {
   const name = HALL_LABELS[hall];
   const parts: string[] = [];
   const seat = (a: AgentPlacement) => {

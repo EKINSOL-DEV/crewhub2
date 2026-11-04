@@ -6,9 +6,8 @@ import test from "node:test";
 import { approachCells, occupancy, validateLayout, type Cell, type Definitions, type WorldLayout, type WorldProp } from "@crewhub/world-engine";
 import type { RoomKind } from "@crewhub/world-model";
 import { interiorDefinitions, LOADING, type BuildingTemplate, type DressingZone, type TemplateRoom } from "../src/world/buildingTemplate.ts";
-import { DRESS_PREFIX, dressingSeed, dressRooms, isThreeRoom, lampLane, RACKS, roomDecor } from "../src/world/roomDressing.ts";
+import { DRESS_PREFIX, dressingSeed, dressRooms, isThreeRoom, RACKS, roomDecor } from "../src/world/roomDressing.ts";
 import { deskZone as deskZoneOf } from "../src/world/buildingTemplate.ts";
-import { agent } from "./fixtures.ts";
 
 /** The addendum's pieces, as the template defines them (threeRoomTemplate.ts); here until that file lands. */
 const rack = (id: string, room: RoomKind) => ({ id, label: id, footprint: { width: 3, depth: 1 }, blocksMovement: true, tags: [room, "pile"], approaches: [{ x: 1, z: 1 }] });
@@ -175,16 +174,3 @@ test("the racks' signs and the desks' zones", () => {
   assert.equal(deskZoneOf({ id: "side-desk-1" }), null);
 });
 
-test("the desk lamp shows the lane: green working, amber waiting, grey idle, off when gone, dim when stalled", () => {
-  const working = agent("a", "workers");
-  assert.equal(lampLane(working, false, false), "working");
-  assert.equal(lampLane({ ...working, posture: "relaxed", laneStatus: "working" }, false, false), "working");
-  assert.equal(lampLane(working, true, false), "waiting");
-  assert.equal(lampLane({ ...working, posture: "raised-hand", laneStatus: "blocked" }, false, false), "waiting");
-  assert.equal(lampLane({ ...working, posture: "relaxed", laneStatus: "idle" }, false, false), "idle");
-  assert.equal(lampLane({ ...working, posture: "relaxed", laneStatus: "done" }, false, false), "idle");
-  assert.equal(lampLane({ ...working, posture: "greyed", laneStatus: "unknown" }, false, false), "idle");
-  assert.equal(lampLane({ ...working, presence: "proxy" }, false, false), "idle");
-  assert.equal(lampLane(null, false, false), "off");
-  assert.equal(lampLane(working, true, true), "dim");
-});

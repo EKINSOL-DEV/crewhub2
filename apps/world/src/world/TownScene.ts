@@ -39,6 +39,7 @@ import { restMatrices, updateMatrices } from "./matrixPass";
 import { likelyOrder } from "./prepareAhead";
 import { warmPrograms } from "./warmPrograms";
 import { whenIdle } from "../state/idle";
+import type { WalkBack } from "../state/view";
 import { RobotCrowd } from "./robotCrowd";
 import { PersonWalks } from "./personWalks";
 import { DistrictFrames, type DistrictView } from "./districtFrames";
@@ -101,8 +102,9 @@ export interface TownView {
    * bar's preview (`?look=`, `?looks=`), else the style as it stands.
    */
   looks?: TownLooks | null;
-  /** Walk mode: the person walks a visitor figure around and the camera follows it (visitor.ts). */
-  walking?: boolean;
+  /** Walk mode: the person walks a visitor figure around and the camera follows it (visitor.ts). Non-null while
+      walking: the level the walk began on (state/view.ts keeps it; the scene only keeps the camera's pose). */
+  walk?: WalkBack | null;
 }
 export type BuildPointer = "move" | "click" | "drag" | "drop";
 
@@ -488,7 +490,8 @@ export class TownScene {
   /** The keys and the stick, as WorldCanvas last gave them. */
   #walkInput: WalkInput = { x: 0, y: 0, hurry: false };
   /** The camera as it stood when walk mode began: Escape returns to it. */
-  #walkBack: { position: THREE.Vector3; target: THREE.Vector3; zoom: number; entered: string | null; zoomed: RoomKind | null; district: string | null } | null = null;
+  /** The camera's pose when the walk began, to return to when the walk ends on the level it began on. */
+  #walkBack: { position: THREE.Vector3; target: THREE.Vector3; zoom: number } | null = null;
   #walkDir = { x: 0, z: 0 };
   #walkRects: { plan: TownPlan; entered: string | null; rects: Bounds[] } | null = null;
   #looking: { x: number; y: number } | null = null;
@@ -1347,11 +1350,11 @@ export class TownScene {
     const previous = this.view;
     this.view = view;
     this.controls.enableDamping = !view.reducedMotion;
-    const walking = !!view.walking;
-    if (walking && !previous.walking) {
+    const walking = !!view.walk;
+    if (walking && !previous.walk) {
       // The pose to return to: where the camera stands, or where it was flying to.
       const t = this.#tween;
-      this.#walkBack = { position: (t?.position ?? this.camera.position).clone(), target: (t?.target ?? this.controls.target).clone(), zoom: t?.zoom ?? this.camera.zoom, entered: previous.entered, zoomed: previous.zoomed, district: previous.district ?? null };
+      this.#walkBack = { position: (t?.position ?? this.camera.position).clone(), target: (t?.target ?? this.controls.target).clone(), zoom: t?.zoom ?? this.camera.zoom };
       this.#tween = null;
       this.#atHome = false;
       this.invalidate();
@@ -1392,7 +1395,7 @@ export class TownScene {
       // A room focus or a district change under a follow does not pull the camera away either.
     } else if (view.entered && previous.zoomed !== view.zoomed) this.frameBuilding(view.entered, view.zoomed);
     else if (!view.entered && (previous.district ?? null) !== (view.district ?? null)) this.#frameOutside();
-    if (previous.walking && !walking) this.#endWalk(true);
+    if (previous.walk && !walking) this.#endWalk(previous.walk);
     this.#life.configure({ ambient: view.ambient, reducedMotion: view.reducedMotion, quality: view.quality });
     if (previous.theme !== view.theme || previous.quality !== view.quality || previous.reducedMotion !== view.reducedMotion || previous.dayNight !== view.dayNight) this.#drift();
     if (previous.entered !== view.entered || !view.entered !== !this.#lifeInside) {
@@ -1841,7 +1844,7 @@ export class TownScene {
   }
   pointerDown = (event: PointerEvent) => {
     this.#down = { x: event.clientX, y: event.clientY };
-    if (this.view.walking) {
+    if (this.view.walk) {
       // A drag looks around (the camera turns about the visitor); nothing is picked while walking.
       this.#looking = { x: event.clientX, y: event.clientY };
       this.renderer.domElement.setPointerCapture?.(event.pointerId);
@@ -1858,7 +1861,7 @@ export class TownScene {
     }
   };
   pointerUp = (event: PointerEvent) => {
-    if (this.#looking || this.view.walking) {
+    if (this.#looking || this.view.walk) {
       this.#looking = null;
       return;
     }
@@ -1887,7 +1890,7 @@ export class TownScene {
     if (b) this.callbacks.enter(b.slug);
   };
   pointerMove = (event: PointerEvent) => {
-    if (this.view.walking) {
+    if (this.view.walk) {
       const from = this.#looking;
       if (!from || !event.buttons) return;
       this.walkLook(event.clientX - from.x, event.clientY - from.y);
@@ -2231,8 +2234,8 @@ export class TownScene {
     });
   }
 
-  /** Leaves walk mode: the figure goes, the orbit controls come back and the camera returns to where it was. */
-  #endWalk(restore: boolean) {
+  /** Leaves walk mode: the figure goes, the orbit controls come back and, given the level the walk began on (`from`), the camera returns to where it was. */
+  #endWalk(from: WalkBack | null) {
     const w = this.#walk;
     this.#walk = null;
     this.#looking = null;
@@ -2244,10 +2247,10 @@ export class TownScene {
       this.#anchors.delete("you");
       this.controls.enabled = true;
     }
-    if (!restore) return;
+    if (!from) return;
     // Back at the level the walk began on: the camera returns to where it stood. Anywhere else, that place is framed.
     const view = this.view;
-    if (back && back.entered === view.entered && back.zoomed === view.zoomed && back.district === (view.district ?? null)) this.moveTo(back.target, back.position, back.zoom, false);
+    if (back && from.entered === view.entered && from.zoomed === view.zoomed && from.district === (view.district ?? null)) this.moveTo(back.target, back.position, back.zoom, false);
     else if (view.entered) this.frameBuilding(view.entered, view.zoomed);
     else this.#frameOutside();
   }
@@ -2270,7 +2273,7 @@ export class TownScene {
    * Returns true while something still moves.
    */
   #walkStep(dt: number): boolean {
-    if (!this.view.walking) return false;
+    if (!this.view.walk) return false;
     const w = this.#walk ?? this.#beginWalk();
     const v = w.visitor,
       reduced = this.view.reducedMotion;
@@ -2693,7 +2696,7 @@ export class TownScene {
     canvas.removeEventListener("pointerleave", this.pointerLeave);
     canvas.removeEventListener("webglcontextlost", this.contextLost);
     canvas.removeEventListener("wheel", this.wheel);
-    this.#endWalk(false);
+    this.#endWalk(null);
     for (const view of this.#buildings.values()) view.dispose();
     for (const robot of this.#civicRobots) robot.handle.dispose();
     this.#crowd.dispose();

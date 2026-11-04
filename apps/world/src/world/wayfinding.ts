@@ -2,7 +2,7 @@
    zoomed out (a summary and one beacon per district and per building) and the jump list. Pure (no Three.js, no DOM),
    so it runs under `node --test`; the scene, the breadcrumb, the jump list and the text view all read it. See
    "Finding your way at scale" in the demo-mode spec. */
-import { roleNoun, type AgentPlacement, type Building, type RoomKind, type TicketStatus, type WorldModel, type Zone } from "@crewhub/world-model";
+import { agentWords, roleNoun, type AgentPlacement, type Building, type RoomKind, type TicketStatus, type WorldModel, type Zone } from "@crewhub/world-model";
 
 /* ── Districts ────────────────────────────────────────────────────────── */
 
@@ -244,21 +244,20 @@ export function jumpEntries(model: Pick<WorldModel, "zones" | "buildings" | "tow
       });
     }
   const seen = new Set<string>();
-  const asksHelp = (a: AgentPlacement) => a.posture === "raised-hand" || a.laneStatus === "blocked" || a.caption?.kind === "question";
-  const stateWords = (a: AgentPlacement) => (asksHelp(a) ? "Asks for help." : `${a.laneStatus === "unknown" ? "Status unknown" : a.laneStatus[0]!.toUpperCase() + a.laneStatus.slice(1)}.`);
   for (const d of districts)
     for (const b of d.buildings)
       for (const a of b.agents) {
         if (!real(a) || seen.has(a.key)) continue;
         seen.add(a.key);
+        const words = agentWords(a);
         entries.push({
           kind: "agent",
           id: `agent:${a.key}`,
           label: a.displayName,
-          detail: `${roleNoun(a.role, a.roleSource)} in ${b.name}${region ? `, ${d.name}` : ""}. ${stateWords(a)}`,
+          detail: `${roleNoun(a.role, a.roleSource)} in ${b.name}${region ? `, ${d.name}` : ""}. ${words.search}`,
           place: { district: region ? d.id : null, building: b.slug, room: a.room },
           agent: a.key,
-          needs: asksHelp(a) ? 1 : 0,
+          needs: words.asksHelp ? 1 : 0,
           keywords: `${a.name} ${a.role} ${b.name} ${b.key} agent`.toLowerCase(),
         });
       }
@@ -266,7 +265,8 @@ export function jumpEntries(model: Pick<WorldModel, "zones" | "buildings" | "tow
   const townAgent = (a: AgentPlacement, civic: "town-hall" | "post-office", where: string) => {
     if (!real(a) || seen.has(a.key)) return;
     seen.add(a.key);
-    entries.push({ kind: "agent", id: `agent:${a.key}`, label: a.displayName, detail: `${roleNoun(a.role, a.roleSource)} at the ${where}. ${stateWords(a)}`, place: HOME, agent: a.key, civic, needs: asksHelp(a) ? 1 : 0, keywords: `${a.name} ${a.role} ${where} agent`.toLowerCase() });
+    const words = agentWords(a);
+    entries.push({ kind: "agent", id: `agent:${a.key}`, label: a.displayName, detail: `${roleNoun(a.role, a.roleSource)} at the ${where}. ${words.search}`, place: HOME, agent: a.key, civic, needs: words.asksHelp ? 1 : 0, keywords: `${a.name} ${a.role} ${where} agent`.toLowerCase() });
   };
   for (const a of model.postOffice) townAgent(a, "post-office", "post office");
   for (const a of model.townHall) townAgent(a, "town-hall", "town hall");

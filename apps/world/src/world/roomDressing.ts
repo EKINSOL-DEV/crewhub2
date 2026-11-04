@@ -12,7 +12,7 @@
    Everything is placed relative to each room's rectangle, its doors, its existing furniture and the template's
    dressing zones, never against fixed coordinates, so the dressing follows the template when it changes. */
 import { approachCells, cellKey, occupancy, propCells, type Cell, type Definitions, type PropDefinition, type Rotation, type WorldProp } from "@crewhub/world-engine";
-import { RACK_NAMES, type AgentPlacement, type RoomKind } from "@crewhub/world-model";
+import { RACK_NAMES, type RoomKind } from "@crewhub/world-model";
 import type { ModelKey } from "@crewhub/world-style";
 import type { BuildingTemplate, DressingZone, TemplateRoom } from "./buildingTemplate.ts";
 
@@ -92,22 +92,6 @@ export const RACKS = (["storage", "planning", "review", "dispatch"] as const).ma
 /** True for the three-room plan: a template that says so, or (before the plan is on the template) one with the racks. */
 export function isThreeRoom(template: Pick<BuildingTemplate, "rooms"> & { plan?: string }): boolean {
   return template.plan === "three-rooms" || template.rooms.some((r) => r.layout.props.some((p) => p.definitionId === "rack-backlog"));
-}
-
-/** What a desk lamp shows: the lane of the agent at the desk, or that the ticket there has stalled. */
-export type LampLane = "working" | "waiting" | "idle" | "off" | "dim";
-
-/**
- * The desk lamp's lane (the floor, addendum): green working, amber waiting on the operator, grey idle, off when the
- * agent is gone; a stalled ticket dims it whatever the lane (and the quiet clock stands by). A proxy's desk idles.
- */
-export function lampLane(agent: Pick<AgentPlacement, "presence" | "posture" | "laneStatus"> | null, deskWaiting: boolean, stalled: boolean): LampLane {
-  if (stalled) return "dim";
-  if (!agent) return "off";
-  if (agent.presence === "proxy") return "idle";
-  if (deskWaiting || agent.posture === "raised-hand" || agent.laneStatus === "blocked") return "waiting";
-  if (agent.posture === "focused" || agent.laneStatus === "working") return "working";
-  return "idle";
 }
 
 /* ── Room facts ───────────────────────────────────────────────────────── */
