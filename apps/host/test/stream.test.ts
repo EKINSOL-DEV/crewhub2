@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import { createHost } from "../src/host.ts";
+import { createLoopsClient } from "../src/loops.ts";
+import { BUSY_REASON, type HostMessage, createUpstream } from "../src/stream.ts";
 import { type LoopsStub, createLoopsStub, envelope, installation } from "./loopsStub.ts";
 import { openSse } from "./sse.ts";
 import { GENEROUS_MS, POLL_MS, waitFor } from "./wait.ts";
@@ -375,5 +377,54 @@ describe("the stream's tab cap and the snapshot's own failures (round 26)", () =
       await host.close();
       await stub.close();
     }
+  });
+});
+
+/** The upstream itself, against the stub: what the host's own roads would hide (round 54, r54-hosttests). */
+describe("the upstream, without a host", () => {
+  const cleanup: (() => Promise<void>)[] = [];
+  afterEach(async () => {
+    for (const fn of cleanup.reverse()) await fn();
+    cleanup.length = 0;
+  });
+  async function start(stubOptions: Parameters<typeof createLoopsStub>[0] = {}, log: (line: string) => void = () => undefined) {
+    const stub = await createLoopsStub({ ...installation(), events: [envelope(1, "ticket.created")], ...stubOptions });
+    const upstream = createUpstream(createLoopsClient(stub.url, stub.key), { retryMs: { min: 20, max: 100 }, reconnectMs: { min: 20, max: 40 }, log });
+    cleanup.push(() => stub.close(), () => upstream.stop());
+    return { stub, upstream };
+  }
+
+  it("takes Retry-After: 0 for no wait given and keeps its 5 s default, not the 1 s floor", async () => {
+    const lines: string[] = [];
+    const { upstream } = await start({ busy: { count: 1, retryAfter: "0" } }, (line) => lines.push(line));
+    await upstream.start(); // the first attempt's outcome: the 429
+    assert.ok(lines.some((l) => /429 too_many_streams, retry in 5 s/.test(l)), lines.join("\n"));
+  });
+
+  it("tells a tab that was there before the first 429 that loops is busy, once over two 429s, and ok after", async () => {
+    const { upstream } = await start({ busy: { count: 2, retryAfter: "1" } });
+    const statuses: HostMessage[] = [];
+    upstream.subscribe(null, (message) => {
+      if (message.type === "status") statuses.push(message);
+    });
+    await upstream.start(); // the first 429, from the state the upstream starts in (down)
+    assert.deepEqual(statuses, [{ type: "status", loops: "down" }, { type: "status", loops: "down", stream: "busy", reason: BUSY_REASON }]);
+    await waitFor("the stream after the second 429", () => upstream.state() === "ok");
+    assert.deepEqual(statuses.slice(2), [{ type: "status", loops: "ok" }], "the second 429 changes nothing the tab is told");
+  });
+
+  it("knows the slugs archived over its own stream: an archive adds one, a restore takes it back, other events add none", async () => {
+    const { stub, upstream } = await start();
+    const seen: number[] = [];
+    upstream.subscribe(null, (message) => {
+      if (message.type === "event") seen.push(message.envelope.seq);
+    });
+    await upstream.start();
+    stub.emit({ ...anEvent("ticket.created"), project: { slug: "beacon", key: "BEACON" } });
+    stub.emit({ ...anEvent("project.archived"), project: { slug: "atlas", key: "ATLAS" } });
+    stub.emit({ ...anEvent("project.archived"), project: { slug: "old", key: "OLD" } });
+    const last = stub.emit({ ...anEvent("project.restored"), project: { slug: "old", key: "OLD" } });
+    await waitFor("the four events", () => seen.includes(last.seq));
+    assert.deepEqual([...upstream.archivedSlugs()].sort(), ["atlas"]);
   });
 });
