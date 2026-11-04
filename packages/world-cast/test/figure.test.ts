@@ -534,6 +534,6 @@ test("round 54: a near look is worn near only, and taken off far", () => {
 test("round 54: the reference kit draws a cylinder of radius 0.04 or less with 10 sides, a wider one with 20", () => {
   const kit = referenceKit(manifest.colors);
   const sides = (r: number) =>
-    ((kit.part({ id: "rod", joint: "body", shape: "cylinder", size: [r, 0.3, r], position: [0, 0, 0], color: "pale" }, "pale").geometry as THREE.CylinderGeometry).parameters.radialSegments);
+    ((kit.part({ shape: "cylinder", size: [r, 0.3, r], position: [0, 0, 0] }, "pale").geometry as THREE.CylinderGeometry).parameters.radialSegments);
   assert.deepEqual([sides(0.03), sides(0.04), sides(0.05)], [10, 10, 20]);
 });
