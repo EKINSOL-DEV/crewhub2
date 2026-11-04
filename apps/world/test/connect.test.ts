@@ -86,6 +86,13 @@ test("untilTime: when the host re-checks a rejected key, in words", () => {
   assert.equal(untilTime(at(7200), now), "in 2 h");
 });
 
+test("round 54: untilTime says a full minute in minutes, one second less in seconds", () => {
+  const now = Date.parse("2026-10-21T12:00:00Z");
+  const at = (s: number) => new Date(now + s * 1000).toISOString();
+  assert.equal(untilTime(at(59), now), "in 59 s");
+  assert.equal(untilTime(at(60), now), "in 1 min");
+});
+
 test("loops' version: the host's loopsCommit, and the version it saw first when loops was updated under it", () => {
   assert.equal(loopsVersion(null), null);
   assert.equal(loopsVersion(health()), null, "a host from before says no version");

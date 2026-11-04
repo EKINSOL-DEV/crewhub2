@@ -634,3 +634,33 @@ test("round 33: a read that answers the town already shown changes nothing in th
   assert.equal(lines.filter((l) => /taken from the host/.test(l)).length, 1, `nothing new was taken: ${lines.join(" | ")}`);
   assert.equal(store.rev, 1);
 });
+
+test("round 54: the imported note stays when another browser's town is read in; a refetch is no edit of the person's", async () => {
+  const host = fakeHost(null);
+  const { local, store } = make(host);
+  await local.load();
+  await local.commit(plot(local.state.doc, "mine", 4));
+  await store.load();
+  assert.equal(store.state.storageNote, IMPORTED_NOTE);
+  host.elsewhere(plot(host.town!.document, "theirs", 8));
+  await flush();
+  await flush();
+  assert.deepEqual(store.state.doc.plots.map((p) => p.slug), ["mine", "theirs"], "the other browser's town was read in");
+  assert.equal(store.state.storageNote, IMPORTED_NOTE);
+});
+
+test("round 54: an undo the host answers with the town shown here, or with one this browser cannot read, changes nothing here", async () => {
+  const empty = createTownStore({ context: CONTEXT, indexedDB: null }).state.doc;
+  const host = fakeHost({ rev: 3, document: plot(empty, "a", 1) });
+  const { store } = make(host);
+  await store.load();
+  const shown = store.state.doc;
+  let restored: unknown = structuredClone(shown);
+  host.transport.write = async (_op, _document, baseRev) => ({ status: 200, body: { ok: true, rev: baseRev + 1, document: restored, canUndo: false, canRedo: true, changed: true } });
+  await store.undo();
+  assert.equal(store.state.doc, shown, "the same town: no amend took place");
+  restored = { format: "not-a-town" };
+  await store.undo();
+  assert.equal(store.state.doc, shown, "a town this browser cannot read is not taken");
+  assert.equal(store.rev, 5);
+});

@@ -375,3 +375,17 @@ test("round 48 (r48-live): offline when the page opens, the online event's wake(
   assert.equal(r.state().road, "page");
   r.stop();
 });
+
+test("round 54: a probe that does not find the road says why in the state (the answer's status); one that finds it leaves no failure", async () => {
+  const l = loops({ signedIn: false });
+  const { r } = runner({ hostKeyReadsChat: false, fetchFn: l.fetchFn });
+  r.start();
+  await settle();
+  assert.deepEqual([r.state().probe, r.state().failure], ["signed-out", "401"]);
+  r.stop();
+  const on = runner({ hostKeyReadsChat: false, fetchFn: async (url) => (url.includes("/api/dm/threads") ? json(200, { threads: [] }) : new Promise<Response>(() => {})) });
+  on.r.start();
+  await settle();
+  assert.deepEqual([on.r.state().probe, on.r.state().failure], ["on", null], "the probe's own word; the first poll is still on its way");
+  on.r.stop();
+});
