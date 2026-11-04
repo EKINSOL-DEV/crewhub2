@@ -12,7 +12,7 @@
  * answers makes it `rejected` (the key check, the tail read and the stream alike); a timeout, a refused connection, a
  * 5xx or a restarting loops leaves it `unchecked` or as it was. A rejected stored key stays on disk with its reason
  * until a new one is pasted or `DELETE /world-api/connect` forgets it. The host also remembers the closed buildings it
- * learnt (`archiveStore.ts`), so a loops that will not read its log from the start still shows them on the next start.
+ * learnt (`archiveMemory.ts`), so a loops that will not read its log from the start still shows them on the next start.
  */
 import { timingSafeEqual } from "node:crypto";
 import { open, stat } from "node:fs/promises";
@@ -20,10 +20,11 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
-import type { HostArchiveState, HostConnection, HostHealthSent, HostKeyState, HostSnapshotState, ChatThreadFact } from "@crewhub/loops-client";
+import type { HostConnection, HostHealthSent, HostKeyState, HostSnapshotState, ChatThreadFact } from "@crewhub/loops-client";
 import { WORLD_API_PREFIX, fillPattern, matchWorldRoute } from "./allowList.ts";
 import { DEV_ORIGINS_HEADER, devOriginAcceptedLine, devOriginVerdict } from "./devOrigin.ts";
-import { type ArchiveStore, normaliseSlugs, plainTime } from "./archiveStore.ts";
+import type { ArchiveStore } from "./archiveStore.ts";
+import { createArchiveMemory } from "./archiveMemory.ts";
 import { DEFAULT_LOOPS_URL, type KeySource } from "./config.ts";
 import { type Discovery, type DiscoveryInput, type Found, createDiscovery, loopsAnswers, targetText } from "./discovery.ts";
 import { checkKey } from "./keyCheck.ts";
@@ -237,13 +238,6 @@ interface KeyHolder {
   reason?: string;
 }
 
-/** What the host knows about the closed buildings, and where it came from. */
-interface ArchiveMemoryState {
-  source: HostArchiveState["source"];
-  slugs: Set<string>;
-  at?: string;
-}
-
 /** The link to loops: a client and the one upstream stream, for one target and one key. */
 interface Link {
   found: Found;
@@ -300,63 +294,16 @@ export async function createHost(options: HostOptions): Promise<Host> {
   const clientFor = (found: Found, key: string): LoopsClient => createLoopsClient(found.target, key, readTimeoutMs === undefined ? {} : { readTimeoutMs });
 
   // --- The closed buildings the host knows. ---
-  // The memory on disk belongs to one loops (round 34): the file names the target it was learnt from, and the host
-  // uses it only once discovery finds that same target (a file without a target is the old format and is taken as
-  // is). Another loops' memory is said and ignored, and it stays on disk until this loops' own set is learnt: a
-  // snapshot whose archived set loops told whole (the list, or the whole log) or an archive event on the stream. A
-  // run that found nothing never writes an empty list over it. `onDisk` is the file as it stands: read at the start
-  // and kept current by every save (round 47, the review's F1), so a target found again judges the file as it is now,
-  // not as it was when the host started.
-  let onDisk = options.archiveStore?.read() ?? null;
-  const archive: ArchiveMemoryState = { source: "none", slugs: new Set() };
-  /** The target the memory was judged for, so a target change judges it again. */
-  let judgedFor: string | null = null;
-  /** True once this loops told the host its own set, or the memory on disk is this loops' own: then the file is written. */
-  let learnt = false;
-  function judgeMemory(found: Found): void {
-    const target = targetText(found.target);
-    if (judgedFor === target) return;
-    judgedFor = target;
-    // A new target: nothing learnt from the old loops holds for this one (round 45). The set empties and the file is
-    // not written until this loops teaches its own set, or the memory on disk turns out to be its own (below); the
-    // health never shows the old loops' slugs under the new one.
-    learnt = false;
-    archive.source = "none";
-    archive.slugs = new Set();
-    delete archive.at;
-    if (onDisk === null) return;
-    if (onDisk.target !== undefined && onDisk.target !== target) {
-      learnt = false;
-      log(`${options.archiveStore?.file} remembers ${onDisk.target}, not ${target}: ignored (kept until this crewhub-loops' own archived projects are learnt)`);
-      return;
-    }
-    learnt = true;
-    archive.slugs = new Set(onDisk.slugs);
-    archive.source = "remembered";
-    archive.at = onDisk.at;
-    log(`remembered ${onDisk.slugs.length} archived project${onDisk.slugs.length === 1 ? "" : "s"} from ${options.archiveStore?.file} (learnt ${onDisk.at === "" ? "at an unknown time" : plainTime(onDisk.at)}${onDisk.target === undefined ? ", from an unnamed crewhub-loops" : ""})`);
-  }
-  /** Keeps the set (and its source), and writes the file only when the set changed and this loops' set is learnt. */
-  function rememberArchive(next: Iterable<string>, source: HostArchiveState["source"] | null): void {
-    const slugs = normaliseSlugs(next);
-    const changed = slugs.join("\n") !== normaliseSlugs(archive.slugs).join("\n");
-    archive.slugs = new Set(slugs);
-    if (source !== null) archive.source = source;
-    if (source === "list" || source === "log") learnt = true;
-    if (!changed && archive.at !== undefined) return;
-    archive.at = new Date().toISOString();
-    const store = options.archiveStore;
-    if (store === undefined || !learnt) return;
-    try {
+  // One module (archiveMemory.ts): the memory on disk belongs to one loops, judged at every link; the stream's archive
+  // events and every snapshot's report keep it, and it writes the file when this loops' own set is learnt.
+  const archive = createArchiveMemory({
+    ...(options.archiveStore === undefined ? {} : { store: options.archiveStore }),
+    targetNow: () => {
       const found = discovery.current();
-      const memory = { slugs, at: archive.at, ...(found === null ? {} : { target: targetText(found.target) }) };
-      store.save(memory);
-      onDisk = memory;
-      log(`remembered ${slugs.length} archived project${slugs.length === 1 ? "" : "s"} in ${store.file}`);
-    } catch (error) {
-      log(`cannot write the archive memory ${store.file}: ${error instanceof Error ? error.message : "unknown error"}`);
-    }
-  }
+      return found === null ? null : targetText(found.target);
+    },
+    log,
+  });
 
   // --- loops' version: the first one this run read and the last one, so an upgrade under the host is said (health's
   // `loopsCommitBefore`) and logged once per change; the stream reads it each time it opens after being down.
@@ -484,7 +431,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
         }
         await old.upstream.stop();
       }
-      if (found !== null) judgeMemory(found);
+      if (found !== null) archive.linked(targetText(found.target));
       if (found === null || holder === null) {
         for (const tab of tabs.values()) attach(tab);
         return;
@@ -589,11 +536,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
         chat.onEvent(message.envelope);
         if (message.envelope.project === null) return;
         const slug = message.envelope.project.slug;
-        if (message.envelope.type === "project.archived") {
-          learnt = true; // loops itself says this project is archived: a fact of this loops' own set
-          rememberArchive([...archive.slugs, slug], null);
-        }
-        else if (message.envelope.type === "project.restored") rememberArchive([...archive.slugs].filter((s) => s !== slug), null);
+        archive.heard(message.envelope.type, slug);
       });
       for (const tab of tabs.values()) attach(tab);
       // The first attempt decides the states a connect answers with; it is bounded by the read timeout. A first
@@ -634,7 +577,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
       discovery: { state: found === null ? "searching" : "found" },
       key: { state: holder === null ? "none" : holder.state },
       stream: { state: streamState(), reconnects: link?.upstream.reconnects() ?? 0 },
-      archived: { source: archive.source, count: archive.slugs.size, ...(archive.at === undefined ? {} : { at: archive.at }) },
+      archived: archive.state(detailed),
     };
     out.snapshot = snapshotState;
     // The chat's road (round 19; round 29): `session: { state: "key" }` when this loops lets the world's key read the
@@ -649,7 +592,6 @@ export async function createHost(options: HostOptions): Promise<Host> {
     if (busy !== null) out.stream.reason = busy;
     if (!detailed) return out;
     if (found !== null) out.discovery.target = targetText(found.target);
-    (out.archived as HostArchiveState).slugs = normaliseSlugs(archive.slugs);
     if (holder !== null) {
       out.key.name = holder.name;
       out.key.source = holder.source;
@@ -731,10 +673,10 @@ export async function createHost(options: HostOptions): Promise<Host> {
     snapshotState = { state: "reading", reads: 0 };
     const out = await assembleSnapshot(client, {
       cursor: upstream.cursor(),
-      knownArchivedSlugs: upstream.archivedSlugs(),
-      rememberedSlugs: archive.slugs,
+      knownArchivedSlugs: archive.seen(),
+      rememberedSlugs: archive.slugs(),
       observer: holder === null ? null : holder.name,
-      onArchive: (report: ArchiveReport) => rememberArchive(report.slugs, report.source),
+      onArchive: (report: ArchiveReport) => archive.reported(report),
       ...(options.snapshotConcurrency === undefined ? {} : { concurrency: options.snapshotConcurrency }),
       onProgress: (progress) => {
         if (snapshotState.state !== "reading") return;

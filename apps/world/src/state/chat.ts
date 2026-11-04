@@ -7,7 +7,7 @@ import { dmKeys } from "../components/bubbles/queries";
 import { setNavigator } from "../shims/react-router-dom";
 import { chatInvalidations, opensSettings, snapshotInvalidations } from "./chatInvalidations";
 import { demoChatApi } from "./chatApi";
-import { worldRuntime } from "./world";
+import { worldRuntime } from "./runtimes";
 
 /** The defaults loops' AppProviders gives its client. */
 export function createChatQueryClient(): QueryClient {
