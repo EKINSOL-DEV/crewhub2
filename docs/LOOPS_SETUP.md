@@ -454,9 +454,13 @@ there is no CSRF token). The admin password and the cookie jar live in `tools/ou
 
 **A second private loops from crewhub-loops main** (round 29): the same script with `LOOPS_DEV_DATA=~/crewhub-loops-dev-main`
 and `LOOPS_DEV_PORT=8293` runs the checkout of loops main (the viewer key, `ticket=` on the events, `includeArchived`
-for a viewer, `CHL_WORLD_ORIGIN` for road 2) beside the `4cdcd383` one; the regress tool's `real` and `connect` groups
-run against it with `--loops main` (`tools/README.md`: its env file `tools/out/loops-dev-main.env` names the URL, the
-viewer key's file and a Read only bot's key file, paths only).
+for a viewer, `CHL_WORLD_ORIGIN` for road 2) beside the `4cdcd383` one; the regress tool's `real` group and the
+`connect` group's real half run against it with `--groups connect,real --loops main --loops-env
+tools/out/loops-dev-main.env` (`tools/README.md`: that env file names the URL, the viewer key's file and a Read only
+bot's key file, paths only). Since round 57d regress reaches a development loops only when `real` is named in
+`--groups`, and reads the env file `--loops-env` names and no other: without it the run is refused, and no file is
+searched for. `tools/timeworld.mjs` likewise needs `--fake <port>` or `--loops-env <file>`, and `tools/loops-seed.mjs`
+needs `--url` (there is no 8291 default).
 
 ```sh
 TOKEN=$(tools/loops-dev.sh setup-token)

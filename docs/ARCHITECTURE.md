@@ -270,12 +270,13 @@ No React Three Fiber or physics engine is needed for this slice.
 ## Tools: looking at and measuring the running world
 
 [`tools/`](../tools/README.md) holds the scripts that open the running world in a headless browser: the browser
-regression pass (`regress.mjs`, ten groups, against the development loops of `4cdcd383` by default or loops main
-with `--loops main` (round 29): the connect flow against a stub host, the demo walk, the demo's
+regression pass (`regress.mjs`, ten groups; by default the nine that use fakes and stubs, and since round 57d the
+real development loops only when `real` is named in `--groups`, with its env file named by `--loops-env` (nothing is
+searched for): the `4cdcd383` instance, or loops main with `--loops main` (round 29); the connect flow against a stub host, the demo walk, the demo's
 wayfinding, picker and the new loops events, the first-run tour, live mode against the fake with pairing (with the Zones line, the scripted director in live mode, the Chat panel and the live card), the chat's roads, the town kept by the host
 (two browsers, one town; a restart), the operations road over the
 fake (loops stopped, the key revoked, loops upgraded under the host), the three-room building, all of it
-offline, plus the ones against the real development crewhub-loops: the connect flow through a keyless host, and live
+offline, plus, with `real`, the ones against the real development crewhub-loops: the connect flow through a keyless host, and live
 mode over TCP and the socket with loops' version, the log's quiet facts in a fresh tab and the chat's road; the count
 is what the tool prints last, `regress: <passed>/<total>`, with each group's in `tools/README.md`),
 road 2's proof against loops main (`road2proof.mjs`: the page's every
@@ -287,9 +288,10 @@ contrast, a phone, reduced motion), the frame and memory measurements (`perf.mjs
 and live mode; `memory.mjs` also runs a timed soak with a load gate and, since round 29, diffs the DOM when its node
 count moves), the first paint's CPU profile resolved to source files (`profile.mjs`, and `--enter` for a building's
 enter), the time from `npm run
-world` to the dressed town (`timeworld.mjs`), and the screenshot helpers (`shots.mjs`, `castshots.mjs`, `castworld.mjs`,
+world` to the dressed town (`timeworld.mjs`, over a fake with `--fake <port>` or the development loops with
+`--loops-env <file>`: one of them is required since round 57d), and the screenshot helpers (`shots.mjs`, `castshots.mjs`, `castworld.mjs`,
 `connectshots.mjs`, `liveshots.mjs`). Two are not browser checks: `loops-seed.mjs` replays the demo storyline into
-the development crewhub-loops, and `loops-dev.sh` runs that instance next to the Mac app. They are plain `.mjs`
+the development crewhub-loops (its `--url` is required since round 57d: there is no default), and `loops-dev.sh` runs that instance next to the Mac app. They are plain `.mjs`
 files run with `node` against a server on a port of your own, and write to the git-ignored `tools/out/` unless told
 otherwise. They are not part of `npm run check`: they need a browser and a running server.
 

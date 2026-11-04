@@ -1,8 +1,8 @@
 /* timeworld.mjs: how long `npm run world` takes until the town stands with the real buildings, step by step.
 
    Usage:
-     node tools/timeworld.mjs --port 5194 [--cold] [--runs 1] [--fake 8393 [--scenario studio]] [--loops-env <file>]
-                              [--app-data <dir>] [--config-dir <dir>] [--out <dir>] [--tag time] [--json <file>] [--swiftshader]
+     node tools/timeworld.mjs --port 5385 --fake 5386 [--scenario studio] [--cold] [--runs 1] [--config-dir <dir>] [--out <dir>] [--tag time] [--json <file>] [--swiftshader]
+     node tools/timeworld.mjs --port 5385 --loops-env <file> [--app-data <dir>] [...]
 
    What it does: runs the real command (`npm run world -- --no-open`, through npm, as a person types it) with a port of
    its own, stamps every line the host prints, takes the pairing link from stdout, opens it in a headless browser and
@@ -12,25 +12,32 @@
      --cold            removes `apps/world/dist` first (a build output, git-ignored), so the run includes the build.
      --runs <n>        repeats the run (warm after the first); the table has every run.
      --fake <port>     starts a fake crewhub-loops (`packages/loops-fake`) on that port and points the host at it
-                       (`--scenario`, default `studio`: twenty projects); without it the host finds the development
-                       crewhub-loops through `--app-data` (default `~/crewhub-loops-dev`) and reads the key file named in
-                       `--loops-env` (`LOOPS_DEV_KEY_FILE`; default: the first tools/out/loops-dev.env found, as regress.mjs).
+                       (`--scenario`, default `studio`: twenty projects).
+     --loops-env <file> the development crewhub-loops instead: the host finds it through `--app-data` (default
+                       `~/crewhub-loops-dev`) and reads the key file this env file names (`LOOPS_DEV_KEY_FILE`).
+                       One of `--fake` and `--loops-env` is required, never both; without either the tool refuses before
+                       anything starts, and no env file is searched for (round 57d, lib/timeworldArgs.ts).
      --app-data <dir>  the folder the host's discovery reads (`CREWHUB_WORLD_LOOPS_APP_DATA`); never the Mac app's.
      --config-dir <dir> the host's own folder (`CREWHUB_WORLD_CONFIG_DIR`); default <out>/timeworld-config.
      --json <file>     every number, per run; a bare name goes into --out, as perf.mjs and memory.mjs put it.
    The port (`--port`) is the host's, must be free and yours; the browser opens the host directly. The host is stopped by its own process group at the end of every run, whatever the run did (SIGINT, SIGKILL after 5 s), never by a pattern; a Ctrl-C of the tool takes it too.
    Loopback only. The key is never printed. */
-import { spawn, execFileSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { timeworldTarget } from "./lib/timeworldArgs.ts";
 import { appDataPort, ownAppData, ownPort } from "./lib/toolGuard.ts";
 import { cli, launch } from "./lib/world.mjs";
 
 const USAGE =
-  "node tools/timeworld.mjs --port <port> [--cold] [--runs 1] [--fake <port> [--scenario studio]] [--loops-env <file>] [--app-data <dir>] [--config-dir <dir>] [--out <dir>] [--tag time] [--json <file>] [--swiftshader]";
+  "node tools/timeworld.mjs --port <port> (--fake <port> [--scenario studio] | --loops-env <file> [--app-data <dir>]) [--cold] [--runs 1] [--config-dir <dir>] [--out <dir>] [--tag time] [--json <file>] [--swiftshader]";
 const opts = cli(USAGE, { options: { runs: "1", fake: "", scenario: "studio", "loops-env": "", "app-data": "", "config-dir": "", json: "", tag: "time" }, flags: ["cold"] });
+// First thing after the command line (round 57d): a fake or the env file named, never a search. A refusal stops here,
+// before --cold removes a build, a fake starts or a browser opens.
+const target = timeworldTarget({ fake: opts.fake, loopsEnv: opts["loops-env"] });
+if (!target.ok) opts.fail(target.reason);
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const hostPort = opts.port;
 const runs = Number(opts.runs);
@@ -44,9 +51,9 @@ async function environment() {
   const env = { ...process.env, CREWHUB_WORLD_PORT: String(hostPort), CREWHUB_WORLD_CONFIG_DIR: configDir };
   delete env.CREWHUB_WORLD_LOOPS_URL;
   delete env.CREWHUB_WORLD_LOOPS_SOCKET;
-  if (opts.fake) {
+  if (target.fake !== "") {
     const { createLoopsFake } = await import(pathToFileURL(path.join(REPO, "packages", "loops-fake", "src", "index.ts")).href);
-    const fakeVerdict = ownPort(opts.fake, "--fake");
+    const fakeVerdict = ownPort(target.fake, "--fake");
     if (!fakeVerdict.ok) opts.fail(fakeVerdict.reason);
     const fake = await createLoopsFake({ port: fakeVerdict.value, scenario: opts.scenario, speed: 0 });
     const keyFile = path.join(opts.out, "timeworld-fake.key");
@@ -55,15 +62,8 @@ async function environment() {
     env.CREWHUB_WORLD_KEY_FILE = keyFile;
     return { env, fake, what: `the fake on ${fake.url} (${opts.scenario})` };
   }
-  const envFile = opts["loops-env"] || [path.join(REPO, "tools", "out", "loops-dev.env"), (() => {
-    try {
-      const common = execFileSync("git", ["rev-parse", "--git-common-dir"], { cwd: REPO, encoding: "utf8" }).trim();
-      return path.join(path.resolve(REPO, common), "..", "tools", "out", "loops-dev.env");
-    } catch {
-      return "";
-    }
-  })()].find((f) => f && existsSync(f));
-  if (!envFile) opts.fail("no loops env found: --loops-env <file> or --fake <port>");
+  const envFile = path.resolve(target.loopsEnv);
+  if (!existsSync(envFile)) opts.fail(`--loops-env ${envFile} does not exist`);
   const lines = Object.fromEntries(readFileSync(envFile, "utf8").split("\n").filter((l) => /^LOOPS_DEV_(URL|KEY_FILE)=/.test(l)).map((l) => l.split("=", 2)));
   if (!lines.LOOPS_DEV_KEY_FILE) opts.fail(`${envFile} has no LOOPS_DEV_KEY_FILE`);
   env.CREWHUB_WORLD_KEY_FILE = lines.LOOPS_DEV_KEY_FILE.replace(/^~/, process.env.HOME ?? "");

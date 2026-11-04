@@ -2,10 +2,12 @@
  * loops-seed: replays a demo scenario's storyline (`packages/demo`) into the DEVELOPMENT crewhub-loops through its API,
  * so the world shows real data that moves. It writes as an external bot (a lead agent's key), never as a person.
  *
- *   node tools/loops-seed.mjs [--url http://127.0.0.1:8291] [--key-file <file>] [--agent-keys <dir>] [--scenario small-team]
+ *   node tools/loops-seed.mjs --url <origin> [--key-file <file>] [--agent-keys <dir>] [--scenario small-team]
  *                             [--speed 16] [--once] [--projects <n>] [--dry-run] [--restart] [--no-rewind] [--out tools/out]
  *
- *   --url        The development loops. Only this machine, only plain http, never port 8091, 8000 or 9443.
+ *   --url        Required: the development loops' origin (`tools/loops-dev.sh` serves http://127.0.0.1:8291). There is
+ *                no default (round 57d): without it the tool refuses before it reads anything. Only this machine, only
+ *                plain http, never port 8091, 8000 or 9443.
  *   --key-file   The bot's key file (default $CREWHUB_WORLD_KEY_FILE). The key is a bearer token; no Origin is sent.
  *   --agent-keys A folder of the demo agents' own keys (`agent-<id>.key`, as the Lead lays them out). An action is then
  *                written as its demo author when that agent's key is there and loops confirms it (GET /api/auth/me),
@@ -31,10 +33,10 @@ import { parseArgs } from "node:util";
 
 const TOOLS = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(TOOLS, "..");
-const USAGE = "node tools/loops-seed.mjs [--url <origin>] [--key-file <file>] [--agent-keys <dir>] [--scenario <id>] [--speed <n>] [--once] [--projects <n>] [--dry-run] [--restart] [--no-rewind] [--out <dir>]";
+const USAGE = "node tools/loops-seed.mjs --url <origin> [--key-file <file>] [--agent-keys <dir>] [--scenario <id>] [--speed <n>] [--once] [--projects <n>] [--dry-run] [--restart] [--no-rewind] [--out <dir>]";
 
 const seedLib = await import(pathToFileURL(path.join(TOOLS, "lib", "seed.ts")).href);
-const { DEFAULT_URL, checkUrl, readKey, classify, seedTicketRequest, createTicketRequest, moveRequest, assignRequest, waitOnRequest, labelsRequest, commentRequest, progressRequest, resolveHandle, convergeMoves, schedule, tally, clock, PERSON_ONLY_DONE, actorOf, agentKeyFile, writerFor } = seedLib;
+const { checkUrl, readKey, classify, seedTicketRequest, createTicketRequest, moveRequest, assignRequest, waitOnRequest, labelsRequest, commentRequest, progressRequest, resolveHandle, convergeMoves, schedule, tally, clock, PERSON_ONLY_DONE, actorOf, agentKeyFile, writerFor } = seedLib;
 const { demoScenario, demoScenarios, parseScenarioId, SCENARIO_IDS } = await import(pathToFileURL(path.join(REPO, "packages", "demo", "src", "scenarios.ts")).href);
 const { DEMO_SEED, buildStory } = await import(pathToFileURL(path.join(REPO, "packages", "demo", "src", "script.ts")).href);
 
@@ -44,7 +46,7 @@ let args;
 try {
   args = parseArgs({
     options: {
-      url: { type: "string", default: DEFAULT_URL },
+      url: { type: "string" },
       "key-file": { type: "string" },
       "agent-keys": { type: "string" },
       scenario: { type: "string" },
@@ -72,8 +74,9 @@ const fail = (message) => {
   process.exit(2);
 };
 
+// First thing after the command line (round 57d): --url given and allowed, before a key is read or a request made.
 const urlVerdict = checkUrl(args.url);
-if (!urlVerdict.ok) fail(`refusing --url ${args.url}: ${urlVerdict.reason}`);
+if (!urlVerdict.ok) fail(args.url === undefined ? urlVerdict.reason : `refusing --url ${args.url}: ${urlVerdict.reason}`);
 const ORIGIN = urlVerdict.origin;
 const speed = Number(args.speed);
 if (!(speed > 0)) fail("--speed must be a number above 0");
