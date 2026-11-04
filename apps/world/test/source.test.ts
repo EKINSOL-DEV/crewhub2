@@ -129,6 +129,24 @@ test("the setting in storage: auto is the absence of a value; a broken storage i
   assert.equal(readSourceSetting(null), "auto");
 });
 
+test("a page whose localStorage throws when it is reached (a blocked site) reads auto and keeps nothing: the gate does not throw (round 60)", () => {
+  const had = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    get: () => {
+      throw new DOMException("The operation is insecure.", "SecurityError");
+    },
+  });
+  try {
+    assert.equal(readSourceSetting(), "auto");
+    assert.doesNotThrow(() => writeSourceSetting("live"));
+    assert.doesNotThrow(() => writeSourceSetting("auto"));
+  } finally {
+    if (had) Object.defineProperty(globalThis, "localStorage", had);
+    else delete (globalThis as { localStorage?: unknown }).localStorage;
+  }
+});
+
 test("the href without the override keeps the other parameters", () => {
   assert.equal(hrefWithoutOverride({ pathname: "/", search: "?source=live&scenario=studio" }), "/?scenario=studio");
   assert.equal(hrefWithoutOverride({ pathname: "/", search: "?source=demo" }), "/");
