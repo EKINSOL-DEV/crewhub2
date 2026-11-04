@@ -107,7 +107,7 @@ deepening.
 | The overlays (text view, build mode) reach C2's view module as `open` flags and come back as `close` (review-c2 5) | a decision: the page's dialogs keep their DOM focus returns | none; recorded |
 | `townLayout.laneWords`, a one-line pass-through kept by name for `App.tsx` (review-c8 6) | **done in round 60 (A6, `0b93d20`)**: folded into its callers through `laneLook` | |
 | The memory-only town store's first `load()` can recurse when a listener amends at once (arch-page, review-c3 7) | **done in round 60 (A4, `73640ff`)**: the load is remembered before it says loaded (a bug fix, red first) | |
-| regress's whole-run console check counts the page's health reads refused while the town group restarts its host | fails now and then; seen on the base `fd2e184` too (arch-c2), and possibly more often since C6 (arch-page) | a tooling round: allow the restart window, or have the health module's re-read wait |
+| regress's whole-run console check counts the page's health reads refused while the town group restarts its host | **done in round 60 (A7, `162d480`)**: the closing check is one module (`tools/lib/closingCheck.ts`) that admits a refused or reset health read on the served host's origin only inside a restart the town group made (plus one second), and the connect stub's 503 on the forgetting tab until it is live again; every other line still fails. Five consecutive full runs and a sixth on T1 and T2, all 184/184 | |
 
 ## Where it stands
 

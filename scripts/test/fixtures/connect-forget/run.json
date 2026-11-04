@@ -1,0 +1,259 @@
+{
+ "forgets": [
+  {
+   "tag": "connect stub",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "from": 1793803837091,
+   "to": 1793803839305
+  }
+ ],
+ "problems": [
+  {
+   "kind": "external",
+   "text": "[connect stub] http://127.0.0.1:61552/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803827212,
+   "url": "http://127.0.0.1:61552/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "external",
+   "text": "[connect stub] http://127.0.0.1:61552/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803827212,
+   "url": "http://127.0.0.1:61552/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[connect stub] Access to fetch at 'http://127.0.0.1:61552/api/dm/threads' from origin 'http://127.0.0.1:5393' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803827425,
+   "url": "http://127.0.0.1:5393/"
+  },
+  {
+   "kind": "console",
+   "text": "[connect stub] Failed to load resource: net::ERR_FAILED",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803827426,
+   "url": "http://127.0.0.1:61552/api/dm/threads"
+  },
+  {
+   "kind": "external",
+   "text": "[connect stub] http://127.0.0.1:61552/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803827426,
+   "url": "http://127.0.0.1:61552/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[connect stub] Access to fetch at 'http://127.0.0.1:61552/api/dm/threads' from origin 'http://127.0.0.1:5393' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803827426,
+   "url": "http://127.0.0.1:5393/"
+  },
+  {
+   "kind": "console",
+   "text": "[connect stub] Failed to load resource: net::ERR_FAILED",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803827426,
+   "url": "http://127.0.0.1:61552/api/dm/threads"
+  },
+  {
+   "kind": "external",
+   "text": "[connect stub] http://127.0.0.1:61552/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803827426,
+   "url": "http://127.0.0.1:61552/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "external",
+   "text": "[connect stub other tab] http://127.0.0.1:61552/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803837091,
+   "url": "http://127.0.0.1:61552/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "external",
+   "text": "[connect stub other tab] http://127.0.0.1:61552/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803837091,
+   "url": "http://127.0.0.1:61552/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[connect stub other tab] Access to fetch at 'http://127.0.0.1:61552/api/dm/threads' from origin 'http://127.0.0.1:5393' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803837215,
+   "url": "http://127.0.0.1:5393/"
+  },
+  {
+   "kind": "console",
+   "text": "[connect stub other tab] Failed to load resource: net::ERR_FAILED",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803837215,
+   "url": "http://127.0.0.1:61552/api/dm/threads"
+  },
+  {
+   "kind": "external",
+   "text": "[connect stub other tab] http://127.0.0.1:61552/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803837215,
+   "url": "http://127.0.0.1:61552/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[connect stub other tab] Access to fetch at 'http://127.0.0.1:61552/api/dm/threads' from origin 'http://127.0.0.1:5393' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803837215,
+   "url": "http://127.0.0.1:5393/"
+  },
+  {
+   "kind": "console",
+   "text": "[connect stub other tab] Failed to load resource: net::ERR_FAILED",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803837215,
+   "url": "http://127.0.0.1:61552/api/dm/threads"
+  },
+  {
+   "kind": "external",
+   "text": "[connect stub other tab] http://127.0.0.1:61552/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803837215,
+   "url": "http://127.0.0.1:61552/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[connect stub] Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803837610,
+   "url": "http://127.0.0.1:5393/world-api/tickets/tk_demo_cr_35"
+  },
+  {
+   "kind": "external",
+   "text": "[connect stub] http://127.0.0.1:61552/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803839305,
+   "url": "http://127.0.0.1:61552/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "external",
+   "text": "[connect stub] http://127.0.0.1:61552/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803839305,
+   "url": "http://127.0.0.1:61552/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[connect stub] Access to fetch at 'http://127.0.0.1:61552/api/dm/threads' from origin 'http://127.0.0.1:5393' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803839433,
+   "url": "http://127.0.0.1:5393/"
+  },
+  {
+   "kind": "console",
+   "text": "[connect stub] Failed to load resource: net::ERR_FAILED",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803839433,
+   "url": "http://127.0.0.1:61552/api/dm/threads"
+  },
+  {
+   "kind": "external",
+   "text": "[connect stub] http://127.0.0.1:61552/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803839433,
+   "url": "http://127.0.0.1:61552/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[connect stub] Access to fetch at 'http://127.0.0.1:61552/api/dm/threads' from origin 'http://127.0.0.1:5393' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803839433,
+   "url": "http://127.0.0.1:5393/"
+  },
+  {
+   "kind": "console",
+   "text": "[connect stub] Failed to load resource: net::ERR_FAILED",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803839433,
+   "url": "http://127.0.0.1:61552/api/dm/threads"
+  },
+  {
+   "kind": "external",
+   "text": "[connect stub] http://127.0.0.1:61552/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803839433,
+   "url": "http://127.0.0.1:61552/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "external",
+   "text": "[connect stub busy] http://127.0.0.1:61552/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803846805,
+   "url": "http://127.0.0.1:61552/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "external",
+   "text": "[connect stub busy] http://127.0.0.1:61552/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803846805,
+   "url": "http://127.0.0.1:61552/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[connect stub busy] Access to fetch at 'http://127.0.0.1:61552/api/dm/threads' from origin 'http://127.0.0.1:5393' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803847030,
+   "url": "http://127.0.0.1:5393/"
+  },
+  {
+   "kind": "console",
+   "text": "[connect stub busy] Failed to load resource: net::ERR_FAILED",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803847030,
+   "url": "http://127.0.0.1:61552/api/dm/threads"
+  },
+  {
+   "kind": "external",
+   "text": "[connect stub busy] http://127.0.0.1:61552/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803847030,
+   "url": "http://127.0.0.1:61552/api/dm/threads",
+   "method": "GET"
+  },
+  {
+   "kind": "console",
+   "text": "[connect stub busy] Access to fetch at 'http://127.0.0.1:61552/api/dm/threads' from origin 'http://127.0.0.1:5393' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803847030,
+   "url": "http://127.0.0.1:5393/"
+  },
+  {
+   "kind": "console",
+   "text": "[connect stub busy] Failed to load resource: net::ERR_FAILED",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803847030,
+   "url": "http://127.0.0.1:61552/api/dm/threads"
+  },
+  {
+   "kind": "external",
+   "text": "[connect stub busy] http://127.0.0.1:61552/api/dm/threads",
+   "pageOrigin": "http://127.0.0.1:5393",
+   "at": 1793803847030,
+   "url": "http://127.0.0.1:61552/api/dm/threads",
+   "method": "GET"
+  }
+ ]
+}
