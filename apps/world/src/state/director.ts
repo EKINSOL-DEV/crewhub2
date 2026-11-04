@@ -14,12 +14,19 @@ import { createDirectorFeed, DEMO_SEED, type FeedUsage, type PlanRecord, type Pr
 import { DEFAULT_PRESENCE, effectivePresence, normalizePresence, type AgentKey, type Intent, type PresenceSettings, type Reachable, type WorldModel } from "@crewhub/world-model";
 import type { BuildingPlan } from "../world/buildingTemplate.ts";
 import { VISIT_TAGS } from "../world/movement.ts";
+import { storedValue } from "./setting.ts";
 import type { NavWorld } from "../world/navigation.ts";
 import { logPlans } from "./planLog.ts";
 import type { WorldRuntime } from "./world.ts";
 
 /** Where the AI-presence settings are kept in this browser. */
 export const PRESENCE_KEY = "crewhub.presence.v1";
+/* The settings in storage: read normalised; nothing stored, unreadable or a storage that throws reads the defaults, and the settings then last for this page only. */
+const storedPresence = storedValue<PresenceSettings>({
+  key: PRESENCE_KEY,
+  parse: (text) => (text ? normalizePresence(JSON.parse(text)) : DEFAULT_PRESENCE),
+  format: (settings) => JSON.stringify(settings),
+});
 
 type Storage = Pick<globalThis.Storage, "getItem" | "setItem">;
 
@@ -98,22 +105,12 @@ class DirectorRuntime {
     this.#publish();
   }
 
-  /* The settings in storage: read normalised; nothing stored, unreadable or a storage that throws reads the defaults. */
   #load(): PresenceSettings {
-    try {
-      const raw = this.#config.storage()?.getItem(PRESENCE_KEY);
-      return raw ? normalizePresence(JSON.parse(raw)) : DEFAULT_PRESENCE;
-    } catch {
-      return DEFAULT_PRESENCE;
-    }
+    return storedPresence.read(this.#config.storage);
   }
 
   #save() {
-    try {
-      this.#config.storage()?.setItem(PRESENCE_KEY, JSON.stringify(this.#settings));
-    } catch {
-      // The settings then last for this page only.
-    }
+    storedPresence.write(this.#settings, this.#config.storage);
   }
 
   /*

@@ -205,11 +205,8 @@ export function createConnection(options: ConnectionOptions): Connection {
   // every link; the stream's archive events and every snapshot's report keep it.
   const archive = createArchiveMemory({
     ...(options.archiveStore === undefined ? {} : { store: options.archiveStore }),
-    targetNow: () => {
-      const found = discovery.current();
-      return found === null ? null : targetText(found.target);
-    },
-    log,
+    // Scrubbed, as the upstream's lines are: an envelope's `type` is text from loops.
+    log: (line) => log(scrub(line)),
   });
 
   // --- loops' version: the first one this run read and the last one, so an upgrade under the host is said (health's
@@ -382,14 +379,9 @@ export function createConnection(options: ConnectionOptions): Connection {
       // The connection's own ear on its stream, for as long as this link lives: the stream is the second opinion on
       // the key (a confirmed 401/403 is rejected, ok is ok, down says nothing), loops going away sends the discovery
       // looking again on the app's roads, the dm events feed the chat path and the archive events the memory of the
-      // closed buildings. Subscribed with no cursor, so the first message is the stream's current status, not a
-      // change: skipped.
-      let first = true;
-      upstream.subscribe(null, (message) => {
-        if (first) {
-          first = false;
-          return;
-        }
+      // closed buildings. An observer, not a tab: it hears the changes from now on, no status at once and no replay.
+      // Its stop is the upstream's own (`stop()` ends every listener): the way to stop it alone is not kept.
+      upstream.observe((message) => {
         if (link?.upstream !== upstream) return;
         if (message.type === "status") {
           if (message.loops === "unauthorized") {
@@ -427,8 +419,7 @@ export function createConnection(options: ConnectionOptions): Connection {
         if (message.type !== "event") return;
         // A `dm.*` event the key's stream sees (round 24): the chat path reads the threads again and an agent's message as a line.
         chat.onEvent(message.envelope);
-        if (message.envelope.project === null) return;
-        archive.heard(message.envelope.type, message.envelope.project.slug);
+        archive.heard(message.envelope);
       });
       for (const tab of tabs.values()) attach(tab);
       // The first attempt decides the states a connect answers with; it is bounded by the read timeout. A first
@@ -471,8 +462,7 @@ export function createConnection(options: ConnectionOptions): Connection {
     snapshotState = { state: "reading", reads: 0 };
     const out = await assembleSnapshot(client, {
       cursor: upstream.cursor(),
-      knownArchivedSlugs: archive.seen(),
-      rememberedSlugs: archive.slugs(),
+      archived: archive.forSnapshot(),
       observer: holder === null ? null : holder.name,
       onArchive: (report: ArchiveReport) => archive.reported(report),
       onProgress: (progress) => {

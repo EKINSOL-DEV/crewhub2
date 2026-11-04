@@ -45,7 +45,7 @@ within 1.5 s, else demo; `?source=live|demo` overrides).
 
 | Package | Role |
 | --- | --- |
-| `packages/loops-client` | crewhub-loops types, hand-written runtime validators, the host-to-page wire defined once (`hostWire.ts`, round 59d: the `/world-api` route table, the health answer, the stream's message kinds and their readers; the host writes through it, the page and the stubs read through it), the event allowlist (`ticket.quiet` and `automation.ran` with typed payloads since round 7; `owner-request.updated` known and skipped), the `WorldSource` seam, and the live source `createHostSource` (snapshot, then SSE events by `seq`; `ConnectionState` for the chip; `probeHost`, `connectHost`, `forgetHostKey`), and road 2's reads of the person's own chat from the page (`pageChat.ts`: four `GET` routes, the person's cookie, no header of the page's own, never through the host) |
+| `packages/loops-client` | crewhub-loops types, hand-written runtime validators, the host-to-page wire defined once (`hostWire.ts`, round 59d: the `/world-api` route table, the health answer, the stream's message kinds and their readers; round 60 H2: the town's and connect's answers too, each with the `Sent` type the host writes and the reader the page uses; the host writes through it, the page and the stubs read through it), the event allowlist (`ticket.quiet` and `automation.ran` with typed payloads since round 7; `owner-request.updated` known and skipped), the `WorldSource` seam, and the live source `createHostSource` (snapshot, then SSE events by `seq`; `ConnectionState` for the chip; `probeHost`, `connectHost`, `forgetHostKey`), and road 2's reads of the person's own chat from the page (`pageChat.ts`: four `GET` routes, the person's cookie, no header of the page's own, never through the host) |
 | `packages/demo` | `DemoSource`: a deterministic, in-memory crewhub-loops with a 16-minute storyline, four scenarios, its own lanes, the world's key as its observer and a CI bot (as loops answers external bots), the quiet and automation events in the storyline, playback controls and the chat API the bubbles call |
 | `packages/loops-fake` | The same storyline served over HTTP the way crewhub-loops `4cdcd383` serves it (bearer keys, `from=tail`, sealed cursors, per-key visibility, 429, archived projects): the host's end-to-end test and the live browser checks run against it ([LOOPS_REAL_VS_FAKE.md](LOOPS_REAL_VS_FAKE.md)) |
 | `packages/world-model` | Projection, `reduceWorld`, `describeWorld` (text view), town document, catalogue, director intents, `where`, the agent card's facts, the quiet facts and the board cards (`board.ts`), an agent's appearance (`appearance.ts`: the figure at rest, its desk lamp, the pill, tag, bubble and lane chip, and the sentences, one module every surface reads); it never knows which source feeds it |
@@ -139,7 +139,9 @@ One Node process, no third-party dependency (beside Node only the workspace's `l
   `Retry-After` on 429, a reset on 410 or a restored log; an upstream connection silent for 45 s is dropped and
   reopened (`stream.ts`, `idleMs`; the browser's `hostSource.ts` heals its own stream to the host after 40 s of
   silence, at once when the tab comes back into view, round 27); a ring buffer of 2000 envelopes
-  catches a tab up; the tabs get Server-Sent Events, one JSON message each (`status`, `event`, `heartbeat`,
+  catches a tab up (`subscribe` at a cursor); the connection's own ear is an observer (`observe`, round 60): it hears
+  the changes from now on, no status at once and no replay; the tabs get Server-Sent Events, one JSON message each
+  (`status`, `event`, `heartbeat`,
   `reset`, `chat`, `town`, `threads`: `HostMessage`, defined once with the page's reader in loops-client's
   `hostWire.ts`). The transport seam makes TCP (`fetch`) and the Unix socket (`node:http` with
   `socketPath`) indistinguishable above it.

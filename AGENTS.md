@@ -71,8 +71,8 @@ proposals, and implemented behavior.
 - `packages/loops-client` holds the crewhub-loops types, hand-written runtime
   validators for every response and event, the `WorldSource` seam, and the wire
   between the host and the page (`hostWire.ts`: the `/world-api` routes, the health
-  answer and the stream's message kinds, defined once; the host writes through it,
-  the page and the stubs read through it). It stays free
+  answer, the stream's message kinds and the town's and connect's answers, defined
+  once; the host writes through it, the page and the stubs read through it). It stays free
   of React, Three.js, the DOM, the network, and runtime dependencies. It replaces
   `packages/protocol`.
 - `packages/world-model` turns facts into the world: projection, reducer, text

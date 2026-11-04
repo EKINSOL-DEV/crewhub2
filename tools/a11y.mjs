@@ -21,7 +21,8 @@
    Start the Vite with CREWHUB_WORLD_PORT=<stub port> so /world-api reaches the stub. Prints `a11y: <passed>/<total>` last;
    exit 0 at full marks. */
 import { mkdirSync, writeFileSync } from "node:fs";
-import { cli, launch, problemLines, seek, speed, watch } from "./lib/world.mjs";
+import { cli, launch, problemLines, seek, speed } from "./lib/world.mjs";
+import { openPage, screen, waitChip } from "./lib/page.mjs";
 import { createConnectStub } from "./lib/connectStub.mjs";
 import { ownPort } from "./lib/toolGuard.ts";
 import { isProbeRefusal } from "./lib/probeRefusal.ts";
@@ -48,18 +49,11 @@ const COMBOS = [
   ["light", 375],
   ["dark", 375],
 ];
-const viewport = (width) => (width <= 480 ? { viewport: { width, height: 812 }, isMobile: true, hasTouch: true } : { viewport: { width, height: 900 } });
 const SCREENS = { "no-loops": "No crewhub-loops found", pair: "Pair this browser", connect: "Connect to crewhub-loops", checking: "Checking the key…", rejected: "crewhub-loops rejected the key", "loops-down": "crewhub-loops is not answering" };
 
-async function open(theme, width, { reducedMotion = "no-preference", url = opts.base } = {}) {
-  const ctx = await browser.newContext({ ...viewport(width), deviceScaleFactor: 1, colorScheme: theme, reducedMotion });
-  const p = await ctx.newPage();
-  watch(p, opts.origin, problems, `${theme} ${width}`);
-  await p.goto(url, { waitUntil: "load" });
-  return p;
-}
-const screen = (p, which, timeout = 15000) => p.waitForSelector(`.connect-page[data-screen="${which}"]`, { timeout });
-const chipState = (p, which, timeout = 45000) => p.waitForSelector(`.connection-chip[data-connection="${which}"]`, { timeout });
+/** A page of this tool (lib/page.mjs): the viewport by width, the theme, reduced motion when asked, watched, at `url`. */
+const open = (theme, width, { reducedMotion = "no-preference", url = opts.base } = {}) => openPage(browser, { origin: opts.origin, width, theme, reducedMotion, problems, tag: `${theme} ${width}`, url, waitUntil: "load" });
+const chipState = waitChip;
 
 /** A label's words as a reader gets them: the sr-only part included, whitespace folded. */
 const texts = async (locator) => (await locator.allInnerTexts()).map((t) => t.replace(/\s+/g, " ").trim());

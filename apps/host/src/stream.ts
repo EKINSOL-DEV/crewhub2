@@ -55,6 +55,11 @@ export interface Upstream {
    * or a `reset` is sent when the buffer no longer reaches back that far. Returns unsubscribe.
    */
   subscribe(cursor: number | null, listener: (message: HostMessage) => void): () => void;
+  /**
+   * The connection's own ear: hears what the tabs hear from now on (a status change, an event, a reset, a heartbeat),
+   * nothing at once and no replay. Returns the way to stop listening; `stop()` ends every ear too.
+   */
+  observe(listener: (message: HostMessage) => void): () => void;
   /** Starts following loops (idempotent). Resolves once the first connection attempt finished, either way. */
   start(): Promise<void>;
   stop(): Promise<void>;
@@ -386,6 +391,12 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
       return () => {
         listeners.delete(listener);
         pending.delete(listener);
+      };
+    },
+    observe(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
       };
     },
     start() {

@@ -1,5 +1,6 @@
 /** Headless grid model. No renderer, timers, sockets, or AI. */
 import { MinHeap } from "./heap.ts";
+import { type PlacementRules, placementRules } from "./placement.ts";
 export interface Cell {
   x: number;
   z: number;
@@ -40,9 +41,10 @@ export interface Actor {
 }
 export type Placement = { ok: true } | { ok: false; reason: string };
 export type Definitions = Readonly<Record<string, PropDefinition>>;
+/** A mover's speed in cells per second, and the longest step one tick takes (a long frame moves no further). */
+export const SPEED_CELLS_PER_SECOND = 2.8;
+export const MAX_TICK_SECONDS = 0.1;
 export const cellKey = (c: Cell): string => `${c.x},${c.z}`;
-export const sameCell = (a: Cell, b: Cell): boolean =>
-  a.x === b.x && a.z === b.z;
 export const inBounds = (g: GridSpec, c: Cell): boolean =>
   Number.isInteger(c.x) &&
   Number.isInteger(c.z) &&
@@ -189,40 +191,6 @@ function search(
   }
   return null;
 }
-/** One flood fill validates every interaction cell, instead of repeated path searches. */
-function reachableCells(
-  g: GridSpec,
-  blocked: Int32Array,
-  start: Cell,
-): Uint8Array {
-  const visited = new Uint8Array(blocked.length),
-    queue = new Int32Array(blocked.length);
-  const first = start.z * g.width + start.x;
-  if (blocked[first] !== -1) return visited;
-  let read = 0,
-    write = 1;
-  queue[0] = first;
-  visited[first] = 1;
-  while (read < write) {
-    const id = queue[read++]!,
-      x = id % g.width,
-      z = Math.floor(id / g.width);
-    for (const c of [
-      { x: x - 1, z },
-      { x: x + 1, z },
-      { x, z: z - 1 },
-      { x, z: z + 1 },
-    ]) {
-      if (!inBounds(g, c)) continue;
-      const next = c.z * g.width + c.x;
-      if (!visited[next] && blocked[next] === -1) {
-        visited[next] = 1;
-        queue[write++] = next;
-      }
-    }
-  }
-  return visited;
-}
 export function validateLayout(value: unknown, defs: Definitions): WorldLayout {
   if (!value || typeof value !== "object")
     throw new Error("A layout must be an object.");
@@ -299,13 +267,15 @@ export class WorldSimulation {
   readonly definitions: Definitions;
   revision = 0;
   #occupied: Int32Array;
+  #rules: PlacementRules;
   constructor(
     layout: WorldLayout,
     defs: Definitions,
     actors: { id: string; cell: Cell }[],
   ) {
     this.definitions = defs;
-    this.layout = validateLayout(layout, defs);
+    this.#rules = placementRules(layout, defs);
+    this.layout = this.#rules.layout;
     this.#occupied = occupancy(this.layout, defs);
     const used = new Set<string>(),
       ids = new Set<string>();
@@ -361,9 +331,9 @@ export class WorldSimulation {
   }
   tick(seconds: number): void {
     if (!Number.isFinite(seconds) || seconds <= 0) return;
-    const dt = Math.min(seconds, 0.1);
+    const dt = Math.min(seconds, MAX_TICK_SECONDS);
     for (const a of this.actors) {
-      let distance = dt * 2.8;
+      let distance = dt * SPEED_CELLS_PER_SECOND;
       while (distance > 1e-9) {
         if (
           !a.next &&
@@ -385,44 +355,9 @@ export class WorldSimulation {
       }
     }
   }
+  /** The placement rules over the layout as it stands, with the crew: the cells the actors hold and stand on. */
   placement(prop: WorldProp): Placement {
-    let next: WorldLayout;
-    try {
-      next = validateLayout(
-        {
-          ...this.layout,
-          props: [...this.layout.props.filter((p) => p.id !== prop.id), prop],
-        },
-        this.definitions,
-      );
-    } catch (e) {
-      return {
-        ok: false,
-        reason: e instanceof Error ? e.message : "Invalid placement.",
-      };
-    }
-    const reserved = this.reservations();
-    if (propCells(prop, this.definitions).some((c) => reserved.has(cellKey(c))))
-      return { ok: false, reason: "A crew member is using that cell." };
-    const blocked = occupancy(next, this.definitions);
-    const reachable = reachableCells(next.grid, blocked, next.entrance);
-    const canReach = (c: Cell) =>
-      inBounds(next.grid, c) && reachable[c.z * next.grid.width + c.x] === 1;
-    for (const a of this.actors)
-      if (!canReach(a.next ?? a.cell))
-        return {
-          ok: false,
-          reason: "Keep a path from every crew member to the entrance.",
-        };
-    for (const p of next.props) {
-      const approaches = approachCells(p, this.definitions);
-      if (approaches.length && !approaches.some(canReach))
-        return {
-          ok: false,
-          reason: "Keep workstation interaction cells reachable.",
-        };
-    }
-    return { ok: true };
+    return this.#rules.check(prop, { reserved: this.reservations(), standing: this.actors.map((a) => a.next ?? a.cell) });
   }
   place(prop: WorldProp): Placement {
     const result = this.placement(prop);
@@ -434,6 +369,7 @@ export class WorldSimulation {
         structuredClone(prop),
       ],
     };
+    this.#rules = placementRules(this.layout, this.definitions);
     this.#occupied = occupancy(this.layout, this.definitions);
     for (const a of this.actors)
       if (a.destination) {
@@ -471,5 +407,6 @@ export class WorldSimulation {
 
 export * from "./props.ts";
 export { MinHeap } from "./heap.ts";
+export * from "./placement.ts";
 export * from "./nav.ts";
 export * from "./navSim.ts";

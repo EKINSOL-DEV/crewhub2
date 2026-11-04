@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { occupancy, propCells, validateLayout } from "@crewhub/world-engine";
+import { occupancy, placementRules, propCells, validateLayout } from "@crewhub/world-engine";
 import type { Definitions, PropModel } from "@crewhub/world-engine";
-import { builtinIds, createCatalogue, findFreeCell, siteLayout } from "../src/catalogue.ts";
+import { builtinIds, createCatalogue, siteLayout } from "../src/catalogue.ts";
 import { describeTownDocument } from "../src/describeTown.ts";
 import {
   applyEdit,
@@ -175,7 +175,8 @@ test("a user prop's engine definition blocks exactly its declared footprint", ()
 
   // A free cell for another workbench avoids the first one and keeps its approach cell reachable.
   const layout = siteLayout(moved, site, grid, { x: 0, z: 5 });
-  const free = findFreeCell(layout, catalogue.definitions, "user:workbench-with-lamp");
+  // Through the engine's placement rules (round 60, pk-P5; `findFreeCell` was a wrapper with this one caller).
+  const free = [...placementRules(layout, catalogue.definitions).freeCells("user:workbench-with-lamp")][0];
   assert.ok(free);
   const taken = new Set(propCells(layout.props[0]!, catalogue.definitions).map((c) => `${c.x},${c.z}`));
   const next = propCells({ id: "n", definitionId: "user:workbench-with-lamp", cell: free, rotation: 0 }, catalogue.definitions);

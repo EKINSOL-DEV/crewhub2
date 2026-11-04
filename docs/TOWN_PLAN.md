@@ -441,8 +441,9 @@ truck apron do not move; the widest building is still 33 cells. The addendum has
 
 **The hall mapping.** The model keeps its ten `RoomKind`s, `TransitPlace`, the flights and the memory of role rooms:
 nothing a fact produces changes. `packages/world-model/src/halls.ts` is the mapping as data: `hallOf(kind)` gives
-`administration`, `floor` or `office`; `HALL_LABELS` the signs; `RACK_NAMES` the rack per status room; `placeWords`
-and `roomPlaceWords` the words for a place in either wording. The template resolves a model room to its hall
+`administration`, `floor` or `office`; `HALL_LABELS` the signs; `RACK_NAMES` the rack per status room; `placeWords`,
+`roomPlaceWords`, `placePhrase` (the place and its "in"/"on" apart) and `doneWord` the words for a place in either
+wording, the one place the text view, `where`, the director and the town's text view take them from (round 60). The template resolves a model room to its hall
 (`roomOf(template, kind)` answers the hall that hosts `kind`), desks carry their role zone, and the piles are part of
 the template, so the classic building keeps its own.
 

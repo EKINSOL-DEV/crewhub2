@@ -3,7 +3,7 @@
  * coordinates. Pure over the world model; nothing is ever sent into a lane.
  */
 import { CIVIC_WORDS, type CivicWords } from "./describe.ts";
-import { roomPlaceWords, type RoomWording } from "./halls.ts";
+import { placePhrase, placeWords, type RoomWording } from "./halls.ts";
 import type { AgentPlacement, Building, PersonVisit, WorldModel } from "./model.ts";
 
 const MAX_NEARBY = 3;
@@ -24,16 +24,11 @@ function everyPlacement(model: WorldModel): { agent: AgentPlacement; building: B
   ];
 }
 
-/** "the workers room of CR product", or in halls "the floor of CR product"; "in"/"on" is left to the caller's lead. */
+/** "in the workers room of CR product", or in halls "on the floor of CR product"; the lead's words go before it. */
 function placeIn(building: Building, agent: AgentPlacement, rooms: RoomWording): string {
-  const room = agent.room ? roomPlaceWords(agent.room, rooms).replace(/^(in|on) /, "") : "the building";
+  const { preposition, place } = agent.room ? placePhrase(agent.room, rooms) : { preposition: "in", place: "the building" };
   const desk = agent.deskTicketKey ? ` at the ${agent.deskTicketKey} desk` : "";
-  return `${room} of ${building.name}${desk}`;
-}
-
-/** The word before the place: "in the workers room", "on the floor", "in Administration". */
-function preposition(agent: AgentPlacement, rooms: RoomWording): string {
-  return agent.room && roomPlaceWords(agent.room, rooms).startsWith("on ") ? "on" : "in";
+  return `${preposition} ${place} of ${building.name}${desk}`;
 }
 
 /** Real avatars sharing the room, by display name, at most three. */
@@ -66,7 +61,7 @@ function letters(model: WorldModel, building: Building, agent: AgentPlacement, r
   const waiting = building.mailbox.filter((l) => l.recipientId === agent.key || l.recipientId === agent.name).length;
   const coming = model.deliveries.filter((d) => d.recipientId === agent.key || d.recipientId === agent.name).length;
   const parts: string[] = [];
-  if (waiting > 0) parts.push(`${rooms === "classic" ? "the lobby" : "Administration"} has ${plural(waiting, "letter", "letters")} for ${v.forWhom}`);
+  if (waiting > 0) parts.push(`${placeWords("lobby", rooms)} has ${plural(waiting, "letter", "letters")} for ${v.forWhom}`);
   if (coming > 0) parts.push(`the postman is ${v.bringing} ${plural(coming, "letter", "letters")}`);
   return parts.length > 0 ? `; ${parts.join("; ")}` : "";
 }
@@ -112,7 +107,7 @@ export function where(model: WorldModel, agentName: string, civic: CivicWords = 
     proxies.length > 0
       ? `; ${v.alsoShows} as a translucent proxy in ${proxies.map((p) => p.building?.name ?? "a building").join(", ")}`
       : "";
-  const lead = `${proxies.length > 0 ? v.avatarIs : v.is} ${preposition(agent, rooms)}`;
+  const lead = proxies.length > 0 ? v.avatarIs : v.is;
   return `${lead} ${placeIn(building, agent, rooms)}${inferred}${nearby(building, agent)}${letters(model, building, agent, rooms, v)}${proxyText}.`;
 }
 
@@ -129,7 +124,7 @@ function personVisit(model: WorldModel, wanted: string): { visit: PersonVisit; b
 
 /** A person is no resident: the answer says what they are doing with the package, in the third person. */
 function wherePerson(visit: PersonVisit, building: Building, rooms: RoomWording): string {
-  const done = rooms === "classic" ? "Dispatch" : "the Done rack";
+  const done = placeWords("dispatch", rooms);
   const who = `${visit.displayName} is a person`;
   if (visit.phase === "queued") return `${who} at the door of ${building.name}, waiting to carry ${visit.ticketKey} to ${done}.`;
   if (visit.phase === "carrying") return `${who} in ${building.name}, carrying ${visit.ticketKey} to ${done}.`;

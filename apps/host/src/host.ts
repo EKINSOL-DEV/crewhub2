@@ -20,13 +20,15 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
-import type { HostConnection, HostHealthSent, HostMessage } from "@crewhub/loops-client";
+import type { ConnectDoneSent, ConnectRefusalSent, HostConnection, HostHealthSent, HostMessage, TownBackupSent, TownBackupsSent, TownConflictSent, TownReadSent, TownRefusalSent, TownWrittenSent } from "@crewhub/loops-client";
 import { WORLD_API_PREFIX, fillPattern, matchWorldRoute } from "./allowList.ts";
 import { DEV_ORIGINS_HEADER, devOriginAcceptedLine, devOriginVerdict } from "./devOrigin.ts";
+import { MINT_HEADER, MINT_PATH } from "./runningHost.ts";
 import type { ArchiveStore } from "./archiveStore.ts";
-import type { KeySource } from "./config.ts";
+import { KEY_SHAPE, type KeySource } from "./config.ts";
 import { type Connection, type ConnectionTimings, type HostStep, createConnection } from "./connection.ts";
 import type { DiscoveryInput } from "./discovery.ts";
+import { isJsonContentType } from "./devOrigin.ts";
 import type { KeyStore } from "./keyStore.ts";
 import { BACKUP_NAME, TOWN_BODY_LIMIT, TOWN_FORMAT, installationKey, listBackups, readBackupTown, type TownOp, type WorldDb, validateTownForHost } from "./worldDb.ts";
 import { isUnauthorized } from "./loops.ts";
@@ -94,8 +96,8 @@ export interface HostOptions {
   now?: () => number;
 }
 
-export const MINT_PATH = "/pair-mint";
-export const MINT_HEADER = "x-crewhub-world-mint";
+/** The mint route's names are the road's (`runningHost.ts`, `mint`); the host answers them and its tests ask them here. */
+export { MINT_HEADER, MINT_PATH } from "./runningHost.ts";
 
 /**
  * On every HTML page the host serves (review F6): the world may be framed by its own origin only, so a page on another
@@ -127,8 +129,6 @@ export const BUILDING_HTML = `<!doctype html>
 <script>(async()=>{for(;;){await new Promise((r)=>setTimeout(r,250));try{const r=await fetch(location.href,{cache:"no-store"});if(r.ok&&r.headers.get("${BUILDING_HEADER}")===null){location.reload();return;}}catch{}}})();</script>
 </body></html>
 `;
-/** A pasted key: loops' keys are `chl_` and base64url; the fake's are hex. Bounded, one line, no spaces. */
-const KEY_SHAPE = /^chl_[A-Za-z0-9_-]{8,200}$/;
 const CONNECT_BODY_LIMIT = 4096;
 
 export interface Host {
@@ -405,40 +405,40 @@ export async function createHost(options: HostOptions): Promise<Host> {
    */
   async function connect(req: IncomingMessage, res: ServerResponse): Promise<void> {
     if (req.headers.origin === undefined) {
-      sendJson(res, 403, { error: "origin_required", message: "Connect is for the world's own page: send the Origin header" });
+      sendJson(res, 403, { error: "origin_required", message: "Connect is for the world's own page: send the Origin header" } satisfies ConnectRefusalSent);
       return;
     }
     if (req.method === "DELETE") {
       req.resume();
       await conn.forgetKey();
-      sendJson(res, 200, { ok: true, connection: connection(true) });
+      sendJson(res, 200, { ok: true, connection: connection(true) } satisfies ConnectDoneSent);
       return;
     }
-    if (!/^application\/json\b/i.test(req.headers["content-type"] ?? "")) {
+    if (!isJsonContentType(req.headers["content-type"])) {
       req.resume();
-      sendJson(res, 415, { error: "unsupported_media_type", message: "Send application/json: {\"key\": \"chl_…\"}" });
+      sendJson(res, 415, { error: "unsupported_media_type", message: "Send application/json: {\"key\": \"chl_…\"}" } satisfies ConnectRefusalSent);
       return;
     }
     const body = await readJsonBody(req, CONNECT_BODY_LIMIT);
     const pasted = typeof body?.key === "string" ? body.key.trim() : "";
     if (!KEY_SHAPE.test(pasted)) {
-      sendJson(res, 400, { error: "validation_error", message: "That is not an access key: it starts with chl_ and is one line. Copy it from the access-key window in crewhub-loops." });
+      sendJson(res, 400, { error: "validation_error", message: "That is not an access key: it starts with chl_ and is one line. Copy it from the access-key window in crewhub-loops." } satisfies ConnectRefusalSent);
       return;
     }
     const outcome = await conn.setKey(pasted);
     if (outcome.state === "no_loops") {
-      sendJson(res, 503, { error: "no_loops", message: "crewhub-loops is not found yet: open Crewhub.app, then paste again." });
+      sendJson(res, 503, { error: "no_loops", message: "crewhub-loops is not found yet: open Crewhub.app, then paste again." } satisfies ConnectRefusalSent);
       return;
     }
     if (outcome.state === "unreachable") {
-      sendJson(res, 503, { error: "loops_down", message: `crewhub-loops did not answer, so nothing is known about the key (${outcome.reason}). Is Crewhub.app open? Then paste again.` });
+      sendJson(res, 503, { error: "loops_down", message: `crewhub-loops did not answer, so nothing is known about the key (${outcome.reason}). Is Crewhub.app open? Then paste again.` } satisfies ConnectRefusalSent);
       return;
     }
     if (outcome.state === "rejected") {
-      sendJson(res, 403, { error: "key_rejected", reason: outcome.reason });
+      sendJson(res, 403, { error: "key_rejected", reason: outcome.reason } satisfies ConnectRefusalSent);
       return;
     }
-    sendJson(res, 200, { ok: true, connection: connection(true) });
+    sendJson(res, 200, { ok: true, connection: connection(true) } satisfies ConnectDoneSent);
   }
 
   /**
@@ -455,14 +455,14 @@ export async function createHost(options: HostOptions): Promise<Host> {
     // write in that state is refused with the same reason.
     if (db === undefined) {
       req.resume();
-      if (req.method === "GET" && !exportFile) sendJson(res, 200, { installation: null, rev: null, document: null, reason: "no_world_db" });
-      else sendJson(res, 503, { error: "no_world_db", message: "This host keeps no world database; the town stays in the browser." });
+      if (req.method === "GET" && !exportFile) sendJson(res, 200, { installation: null, rev: null, document: null, reason: "no_world_db" } satisfies TownReadSent);
+      else sendJson(res, 503, { error: "no_world_db", message: "This host keeps no world database; the town stays in the browser." } satisfies TownRefusalSent);
       return;
     }
     if (!conn.words().found) {
       req.resume();
-      if (req.method === "GET" && !exportFile) sendJson(res, 200, { installation: null, rev: null, document: null, reason: "no_loops" });
-      else sendJson(res, 503, { error: "no_loops", message: "crewhub-loops is not found yet, so the town has no installation to belong to." });
+      if (req.method === "GET" && !exportFile) sendJson(res, 200, { installation: null, rev: null, document: null, reason: "no_loops" } satisfies TownReadSent);
+      else sendJson(res, 503, { error: "no_loops", message: "crewhub-loops is not found yet, so the town has no installation to belong to." } satisfies TownRefusalSent);
       return;
     }
     const installation = installationKey(loopsWebUrl());
@@ -471,26 +471,26 @@ export async function createHost(options: HostOptions): Promise<Host> {
       req.resume();
       const dir = path.dirname(db.file);
       if ("list" in backup) {
-        sendJson(res, 200, { installation, backups: listBackups(dir) });
+        sendJson(res, 200, { installation, backups: listBackups(dir) } satisfies TownBackupsSent);
         return;
       }
       if (!BACKUP_NAME.test(backup.name)) {
-        sendJson(res, 404, { error: "not_found" });
+        sendJson(res, 404, { error: "not_found" } satisfies TownRefusalSent);
         return;
       }
       const held = readBackupTown(dir, backup.name, installation);
       if (held === null) {
-        sendJson(res, 404, { error: "no_town", message: `${backup.name} holds no town for ${installation}` });
+        sendJson(res, 404, { error: "no_town", message: `${backup.name} holds no town for ${installation}` } satisfies TownRefusalSent);
         return;
       }
       let document: unknown;
       try {
         document = JSON.parse(held.document);
       } catch {
-        sendJson(res, 500, { error: "town_unreadable", message: `the town of ${installation} in ${backup.name} is not JSON` });
+        sendJson(res, 500, { error: "town_unreadable", message: `the town of ${installation} in ${backup.name} is not JSON` } satisfies TownRefusalSent);
         return;
       }
-      sendJson(res, 200, { installation, name: backup.name, rev: held.rev, document });
+      sendJson(res, 200, { installation, name: backup.name, rev: held.rev, document } satisfies TownBackupSent);
       return;
     }
     if (req.method === "GET") {
@@ -499,8 +499,8 @@ export async function createHost(options: HostOptions): Promise<Host> {
       if (held === null) {
         // No town yet is a normal first contact, not an error: 200 with revision 0 and no document (a 404 would be a
         // console error in every browser that meets a fresh host); the export of nothing stays a 404.
-        if (exportFile) sendJson(res, 404, { error: "no_town", installation });
-        else sendJson(res, 200, { installation, rev: 0, updatedAt: null, document: null, canUndo: false, canRedo: false });
+        if (exportFile) sendJson(res, 404, { error: "no_town", installation } satisfies TownRefusalSent);
+        else sendJson(res, 200, { installation, rev: 0, updatedAt: null, document: null, canUndo: false, canRedo: false } satisfies TownReadSent);
         return;
       }
       if (exportFile) {
@@ -512,20 +512,20 @@ export async function createHost(options: HostOptions): Promise<Host> {
       try {
         document = JSON.parse(held.document);
       } catch {
-        sendJson(res, 500, { error: "town_unreadable", message: `the stored town of ${installation} is not JSON` });
+        sendJson(res, 500, { error: "town_unreadable", message: `the stored town of ${installation} is not JSON` } satisfies TownRefusalSent);
         return;
       }
-      sendJson(res, 200, { installation, rev: held.rev, updatedAt: held.updatedAt, document, canUndo: held.canUndo, canRedo: held.canRedo });
+      sendJson(res, 200, { installation, rev: held.rev, updatedAt: held.updatedAt, document, canUndo: held.canUndo, canRedo: held.canRedo } satisfies TownReadSent);
       return;
     }
     if (req.headers.origin === undefined) {
       req.resume();
-      sendJson(res, 403, { error: "origin_required", message: "The town is written from the world's own page: send the Origin header" });
+      sendJson(res, 403, { error: "origin_required", message: "The town is written from the world's own page: send the Origin header" } satisfies TownRefusalSent);
       return;
     }
-    if (!/^application\/json\b/i.test(req.headers["content-type"] ?? "")) {
+    if (!isJsonContentType(req.headers["content-type"])) {
       req.resume();
-      sendJson(res, 415, { error: "unsupported_media_type", message: "Send application/json: {\"document\": {…}, \"baseRev\": n}" });
+      sendJson(res, 415, { error: "unsupported_media_type", message: "Send application/json: {\"document\": {…}, \"baseRev\": n}" } satisfies TownRefusalSent);
       return;
     }
     const body = await readJsonBody(req, TOWN_BODY_LIMIT);
@@ -533,23 +533,23 @@ export async function createHost(options: HostOptions): Promise<Host> {
     const baseRev = body?.baseRev;
     const kind = body?.op === undefined ? "commit" : body.op;
     if (body === null || (kind !== "commit" && kind !== "amend" && kind !== "undo" && kind !== "redo")) {
-      sendJson(res, 400, { error: "validation_error", message: `The body must be JSON under ${TOWN_BODY_LIMIT} bytes: {op?: commit | amend | undo | redo, document?, baseRev}` });
+      sendJson(res, 400, { error: "validation_error", message: `The body must be JSON under ${TOWN_BODY_LIMIT} bytes: {op?: commit | amend | undo | redo, document?, baseRev}` } satisfies TownRefusalSent);
       return;
     }
     const withDocument = kind === "commit" || kind === "amend";
     if (withDocument && (typeof document !== "object" || document === null || Array.isArray(document) || (document as { format?: unknown }).format !== TOWN_FORMAT)) {
-      sendJson(res, 400, { error: "validation_error", message: `A ${kind} needs a document of format ${TOWN_FORMAT} under ${TOWN_BODY_LIMIT} bytes` });
+      sendJson(res, 400, { error: "validation_error", message: `A ${kind} needs a document of format ${TOWN_FORMAT} under ${TOWN_BODY_LIMIT} bytes` } satisfies TownRefusalSent);
       return;
     }
     if (withDocument) {
       const verdict = validateTownForHost(document);
       if (!verdict.ok) {
-        sendJson(res, 400, { error: "validation_error", message: `The document does not validate: ${verdict.reason}` });
+        sendJson(res, 400, { error: "validation_error", message: `The document does not validate: ${verdict.reason}` } satisfies TownRefusalSent);
         return;
       }
     }
     if (typeof baseRev !== "number" || !Number.isInteger(baseRev) || baseRev < 0) {
-      sendJson(res, 400, { error: "validation_error", message: "baseRev must be the revision the document is based on (0 to create)" });
+      sendJson(res, 400, { error: "validation_error", message: "baseRev must be the revision the document is based on (0 to create)" } satisfies TownRefusalSent);
       return;
     }
     const op: TownOp = withDocument ? { kind, document: JSON.stringify(document) } : { kind };
@@ -562,7 +562,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
         held = null;
       }
       const now = db.getTown(installation);
-      sendJson(res, 409, { error: "town_conflict", message: "Another browser changed the town since this one read it; here is the town as the host has it", rev: outcome.conflict.rev, document: held, canUndo: now?.canUndo ?? false, canRedo: now?.canRedo ?? false });
+      sendJson(res, 409, { error: "town_conflict", message: "Another browser changed the town since this one read it; here is the town as the host has it", rev: outcome.conflict.rev, document: held, canUndo: now?.canUndo ?? false, canRedo: now?.canRedo ?? false } satisfies TownConflictSent);
       return;
     }
     let current: unknown = null;
@@ -575,7 +575,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
       log(`town of ${installation}: ${kind}, revision ${outcome.rev}`);
       conn.broadcast({ type: "town", rev: outcome.rev });
     }
-    sendJson(res, 200, { ok: true, rev: outcome.rev, document: current, canUndo: outcome.canUndo, canRedo: outcome.canRedo, changed: outcome.changed });
+    sendJson(res, 200, { ok: true, rev: outcome.rev, document: current, canUndo: outcome.canUndo, canRedo: outcome.canRedo, changed: outcome.changed } satisfies TownWrittenSent);
   }
 
   async function serveStatic(pathname: string, res: ServerResponse): Promise<void> {

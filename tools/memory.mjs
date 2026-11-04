@@ -88,7 +88,8 @@ import { capDomDiff, describeDetached, domDiff, domInventory, formatDomDiff } fr
 import { formatRows, formatShapes, growth as heapGrowth, heapTotals, mb as heapMb, resolveThreeNames, topBySize } from "./lib/heap.mjs";
 import { LIVE_FLAGS, LIVE_OPTIONS, LIVE_USAGE, startLive } from "./lib/live.mjs";
 import { formatVerdict, judge, snapshotDiff } from "./lib/verdict.mjs";
-import { castChoice, cli, launch, speed, store, worldUrl } from "./lib/world.mjs";
+import { castChoice, cli, launch, speed, worldUrl } from "./lib/world.mjs";
+import { openPage } from "./lib/page.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const opts = cli(
@@ -127,10 +128,9 @@ function resolveFromDist() {
 }
 
 const browser = await launch({ swiftshader: opts.swiftshader, extra: ["--enable-precise-memory-info"] });
-const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, colorScheme: "light" });
 // The stepped scenarios click and type in the page: the introduction is marked seen so its card stands over nothing.
-await store(context, { "crewhub-world.quality": "pretty", "crewhub-world.fps": "on", ...castChoice(opts.cast), ...(stepped ? { "crewhub-world.tour": "done" } : {}) });
-const page = await context.newPage();
+const page = await openPage(browser, { store: { "crewhub-world.quality": "pretty", "crewhub-world.fps": "on", ...castChoice(opts.cast), ...(stepped ? { "crewhub-world.tour": "done" } : {}) } });
+const context = page.context();
 page.on("pageerror", (e) => console.error(`  page error: ${e.message}`));
 const cdp = await context.newCDPSession(page);
 if (live) {

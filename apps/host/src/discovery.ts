@@ -81,6 +81,9 @@ export function candidates(input: DiscoveryInput): Candidate[] {
 /** What a target is called in a log line or a health answer: the URL or the socket path. */
 export const targetText = (target: LoopsTarget): string => (target.transport === "tcp" ? target.url : target.socketPath);
 
+/** The roads a pass looks at, as they are said ("`<via> <target>`"), for the log line and the doctor; `say` words the target (the doctor's `~`). */
+export const roadsOf = (input: DiscoveryInput, say: (target: string) => string = (target) => target): string[] => candidates(input).map((c) => `${c.via} ${say(targetText(c.target))}`);
+
 export interface LoopsHealth {
   status: number;
   ok: boolean;
@@ -140,8 +143,6 @@ export async function discoverOnce(input: DiscoveryInput): Promise<Found | null>
 export interface Discovery {
   /** What was found, or null while searching. */
   current(): Found | null;
-  /** The roads looked at in the last pass, for the log and the doctor ("what was looked for"). */
-  lookedFor(): string[];
   /** Starts looking; resolves after the first pass. Keeps looking every `intervalMs` until something is found. */
   start(): Promise<Found | null>;
   /** Looks again now (and keeps looking when nothing is found): the host calls it when the stream reports loops down. */
@@ -160,7 +161,6 @@ export function createDiscovery(input: DiscoveryInput, options: DiscoveryOptions
   const intervalMs = options.intervalMs ?? 5000;
   const log = options.log ?? (() => {});
   let current: Found | null = null;
-  let looked: string[] = [];
   let timer: ReturnType<typeof setTimeout> | null = null;
   let stopped = false;
   let pass: Promise<Found | null> | null = null;
@@ -169,7 +169,7 @@ export function createDiscovery(input: DiscoveryInput, options: DiscoveryOptions
   const same = (a: Found | null, b: Found | null) => (a === null || b === null ? a === b : a.via === b.via && targetText(a.target) === targetText(b.target));
 
   async function look(): Promise<Found | null> {
-    looked = candidates(input).map((c) => `${c.via} ${targetText(c.target)}`);
+    const looked = roadsOf(input);
     const found = await discoverOnce(input);
     if (stopped) return current;
     if (!same(found, current) || (first && found === null)) {
@@ -197,7 +197,6 @@ export function createDiscovery(input: DiscoveryInput, options: DiscoveryOptions
 
   return {
     current: () => current,
-    lookedFor: () => looked,
     start: refresh,
     refresh,
     stop() {
