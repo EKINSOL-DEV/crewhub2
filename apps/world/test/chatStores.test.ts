@@ -82,6 +82,26 @@ test("a newer line of the same agent moves the timer: the older line's end is no
   assert.equal(armed(), 1);
 });
 
+test("a line in flight: a new map when one arrives, so a reader sees the change, and the map a reader holds stays as it was", () => {
+  const { stores } = manualChatStores();
+  const empty = stores.said.lines();
+  stores.said.remember(line("boing"));
+  const one = stores.said.lines();
+  assert.notEqual(one, empty);
+  assert.equal(empty.size, 0);
+  stores.said.remember(line("g-man"));
+  assert.equal(one.size, 1, "the map handed out earlier did not grow");
+  assert.equal(stores.said.lines().size, 2);
+});
+
+test("a line whose agent has no name says null, in the bubble and in the list", () => {
+  const { stores } = manualChatStores();
+  const { agentName: _none, ...nameless } = line("boing");
+  stores.said.remember(nameless);
+  assert.equal(stores.said.lines().get("boing")?.agentName, null);
+  assert.equal(stores.recent()[0]?.agentName, null);
+});
+
 test("the probe: the same verdict again tells nobody", () => {
   const { stores } = manualChatStores();
   let told = 0;
@@ -137,4 +157,21 @@ test("the chat road reader: the health and the probe make one road, the same obj
   assert.equal(heard.size, 0);
   stores.probe.remember("on");
   assert.equal(told, 2);
+});
+
+test("the chat road reader: a new verdict or origin on the same road is a new object, since the words read them", () => {
+  const { stores } = manualChatStores();
+  let origin = "http://127.0.0.1:5395";
+  const road = chatRoadReader(stores, { get: () => null, subscribe: () => () => {} }, () => origin);
+  const first = road.read();
+  stores.probe.remember("signed-out");
+  const second = road.read();
+  assert.equal(second.road, first.road, "still no road");
+  assert.notEqual(second, first);
+  assert.equal(second.pageProbe, "signed-out");
+  origin = "http://127.0.0.1:5396";
+  const third = road.read();
+  assert.equal(third.road, first.road);
+  assert.notEqual(third, second);
+  assert.equal(third.pageOrigin, origin);
 });
