@@ -9,7 +9,6 @@
 import type { Envelope, HostKeyState, ChatThreadFact } from "@crewhub/loops-client";
 import { type LoopsClient, type StreamResume, isUnauthorized } from "./loops.ts";
 import type { ChatLine } from "./chatLine.ts";
-import { isSegment } from "./allowList.ts";
 import { SnapshotError, isSeq, readTail } from "./snapshot.ts";
 
 export type LoopsState = "ok" | "down" | "unauthorized";
@@ -65,8 +64,6 @@ export interface Upstream {
   cursor(): number;
   /** The loops version from `GET /api/health`, when known. */
   loopsVersion(): string | undefined;
-  /** Slugs the host saw archived through `project.archived` events since it started. */
-  archivedSlugs(): ReadonlySet<string>;
   /** Connection attempts after the first one (loops' 300 s end counts, so does every retry while down). */
   reconnects(): number;
   /** The reason while loops refuses the stream with 429 `too_many_streams`; null otherwise. */
@@ -125,7 +122,6 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
   let attempts = 0;
   let lastEventAt: string | undefined;
   let busyReason: string | null = null;
-  const archived = new Set<string>();
   const listeners = new Set<(message: HostMessage) => void>();
   /** Clients that subscribed with a cursor before the host knew its own: judged at the first connection. */
   const pending = new Map<(message: HostMessage) => void, number>();
@@ -196,11 +192,6 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
       const dropped = buffer.shift() as Envelope;
       bufferFrom = dropped.seq;
     }
-    // The slug is kept only when it is one (round 34): a slug that is no segment would make every snapshot fail on
-    // its read (`/api/projects/{slug}` refused by the allow-list, review F8), and `project` may be anything on the wire.
-    const slug = (envelope.project as { slug?: unknown } | null | undefined)?.slug;
-    if (envelope.type === "project.archived" && isSegment(slug)) archived.add(slug);
-    if (envelope.type === "project.restored" && isSegment(slug)) archived.delete(slug);
     // Every type passes, the ones events.md at 053b5f47 did not list too: the browser's validators judge the payload.
     broadcast({ type: "event", envelope });
   }
@@ -398,7 +389,6 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
     state: () => state,
     cursor: () => cursor,
     loopsVersion: () => version,
-    archivedSlugs: () => archived,
     reconnects: () => Math.max(0, attempts - 1),
     lastEventAt: () => lastEventAt,
     busy: () => busyReason,

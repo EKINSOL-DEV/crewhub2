@@ -8,6 +8,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { isSegment } from "../src/allowList.ts";
+import { createArchiveMemory } from "../src/archiveMemory.ts";
 import type { LoopsClient, StreamResume } from "../src/loops.ts";
 import { type HostMessage, createUpstream } from "../src/stream.ts";
 import { BOUNDARY_NUMBERS, Rng, assertPrototypeClean, oddJsonText, oddString, oddValue, replay } from "./fuzz.ts";
@@ -164,7 +165,12 @@ describe("fuzz: the stream's parsing of loops' lines", () => {
       }
       assert.ok(isSeq(up.cursor()), `seed ${seed}: the cursor is ${String(up.cursor())}`);
       assert.ok(messages.filter((m) => m.type === "event").length > 100, `seed ${seed}: ${messages.filter((m) => m.type === "event").length} events reached the tab`);
-      for (const slug of up.archivedSlugs()) assert.ok(isSegment(slug), `seed ${seed}: archived slug ${JSON.stringify(slug)} is no segment`);
+      // The events fed to the archive memory, every project's slug whatever shape `project` has on the wire: only path
+      // segments enter the link's set or the set (round 34; the upstream kept this set before round 59d's C5).
+      const memory = createArchiveMemory({ targetNow: () => "fuzz", log: () => undefined });
+      memory.linked("fuzz");
+      for (const m of messages) if (m.type === "event") memory.heard(m.envelope.type, (m.envelope.project as { slug?: unknown } | null | undefined)?.slug);
+      for (const slug of [...memory.seen(), ...memory.slugs(), ...(memory.state(true).slugs ?? [])]) assert.ok(isSegment(slug), `seed ${seed}: archived slug ${JSON.stringify(slug)} is no segment`);
       // The resume of each connection after the first: a sealed token loops offered (a heartbeat's or a tail's) for
       // exactly this position, else after=<cursor>. Either way nothing but a token or a non-negative integer travels.
       for (const [k, resume] of resumes.entries()) {
