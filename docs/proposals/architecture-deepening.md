@@ -89,14 +89,17 @@ C3's runtime tests cover its facts through the runtime's interface instead; the 
 
 ## Where it stands
 
+As of 12:56 on 4 November (59d). The branch head is the one reviewed or merged.
+
+
 | Candidate | Branch head | State | Answer branches | Merge |
 | --- | --- | --- | --- | --- |
-| C4 | | in progress (59d) | | |
-| C5 | | in progress (59d) | | |
-| C1 | | waits on C4 and C5 | | |
-| C7 | | in progress (59d) | | |
-| C3 | | in progress (59d) | | |
-| C6 | | in progress (59d) | | |
-| C8 | | in progress (59d) | | |
-| C2 | | in progress (59d) | | |
+| C4 | `58947920` | merged (reviewed: review-c4) | q14 by port `port/task/q14-dm-read-cap@5894792`; six clean | `53c46ad` |
+| C5 | `b5a8b73d` | merged (reviewed: review-c5) | all clean (q14 through C4's port) | `29261f5` |
+| C1 | `c83bae11` | in review (review-c1) | r27, q1, q3, q14, q15 by ports, after C7's | |
+| C7 | `8a0f9c50` | reviewed (review-c7: merge); merging the head in | q15, q3, r27, q1 by ports (being carried to its new head) | |
+| C3 | `e6c5a347` | merged (reviewed: review-c3; regress 139/140 with the known town console flake, a11y 188/188, pixcheck 74/74 identical) | q1 by port `port/task/q1-cookie-expiry@e6c5a34`; six clean | `e3e21f8` |
+| C6 | | in progress | r27 by port; q1 import clash being avoided | |
+| C8 | `d3bb76f2` | reviewed (review-c8: merge, one table row added) | all clean | |
+| C2 | `2811b59` | reviewed (review-c2: merge after the Escape focus fix, re-checked) | all clean | |
 | C9 | | waits on C2 and C6 | | |
