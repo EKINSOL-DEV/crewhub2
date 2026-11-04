@@ -197,11 +197,11 @@ describe("the archive memory, fed facts", () => {
   });
 
   it("saves under the target the link was judged for, and only that one (round 60, A5: review-c5 5)", () => {
-    // The race this closes: discovery has switched to B, the relink has not judged B yet, and a fact from A's link
-    // lands (an archive event on A's stream, or the report of a snapshot A's link was assembling). The memory used to
-    // ask discovery at the save (`targetNow`) and wrote A's set under B's name; it no longer hears discovery at all, so
-    // the facts below are the whole rule. The red run (the memory with `targetNow` answering B after `linked(A)`):
-    // round 60's report r60-a5.md.
+    // The race this closes: discovery has switched to B while an A relink is still in flight (a key check awaited), so
+    // B's relink has not judged B yet, and the report of a snapshot A's link was assembling lands (the one road at the
+    // host: the ear drops A's stream once the relink starts, review-a5 1). The memory used to ask discovery at the save
+    // (`targetNow`) and wrote A's set under B's name; it no longer hears discovery at all, so the facts below are the
+    // whole rule. The red run (`targetNow` answering B after `linked(A)`): round 60's report r60-a5.md.
     const store = memoryStore();
     const { m } = memory(store);
     m.linked(A);
