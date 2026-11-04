@@ -13,7 +13,8 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { lostIn } from "./chatSoak.mjs";
-import { loopsUrlOption, ownPort } from "./toolGuard.ts";
+import { loopsUrlOption } from "./toolGuard.ts";
+import { ownPort } from "./toolGuard.ts";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
