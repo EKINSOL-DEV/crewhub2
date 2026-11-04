@@ -10,10 +10,11 @@ import path from "node:path";
 import { ARCHIVE_MEMORY_NAME, parseArchiveMemory, plainTime } from "./archiveStore.ts";
 import { belongsTo } from "./archiveMemory.ts";
 import { ConfigError, KEY_SHAPE, type KeyFiles, type LoadedKey, type PathKind, type ServerConfig, keyFilesOf, loadKey, loadServerConfig, statPath, configFolderLine } from "./config.ts";
-import { type DiscoveryInput, type Found, discoverOnce, loopsHealth, roadsOf, targetText } from "./discovery.ts";
+import { type DiscoveryInput, type Found, discoverOnce, roadsOf, targetText } from "./discovery.ts";
 import { keyBotWords, readKeyBot } from "./keyBot.ts";
 import { checkKey } from "./keyCheck.ts";
 import { type LoopsClient, type LoopsTarget, createLoopsClient } from "./loops.ts";
+import { loopsHealth } from "./loopsHealth.ts";
 import { nodeWarningLine, readNvmrc, runningNodeVersion } from "./nodeVersion.ts";
 import { type PortState, portState } from "./runningHost.ts";
 

@@ -18,11 +18,12 @@ import { type ArchiveLink, createArchiveMemory } from "./archiveMemory.ts";
 import type { ArchiveStore } from "./archiveStore.ts";
 import { type ChatPath, createChatPath } from "./chatPath.ts";
 import { DEFAULT_LOOPS_URL, type KeySource } from "./config.ts";
-import { type Discovery, type DiscoveryInput, type Found, createDiscovery, loopsAnswers, targetText } from "./discovery.ts";
+import { type Discovery, type DiscoveryInput, type Found, createDiscovery, targetText } from "./discovery.ts";
 import { checkKey } from "./keyCheck.ts";
 import { type HeldKey, checked, checking, holdKey, secondOpinion } from "./keyHolder.ts";
 import type { KeyStore } from "./keyStore.ts";
 import { type LoopsClient, type LoopsResponse, createLoopsClient } from "./loops.ts";
+import { loopsAnswers } from "./loopsHealth.ts";
 import { type ArchiveReport, type AssembledSnapshot, SnapshotError, type SnapshotStats, assembleSnapshot } from "./snapshot.ts";
 import { type Upstream, createUpstream } from "./stream.ts";
 
