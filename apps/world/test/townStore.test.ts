@@ -292,3 +292,30 @@ test("an open that another tab blocks says so in the console, and no words on sc
   assert.equal(store.state.storageNote, null);
   assert.equal(store.state.storage, "indexeddb");
 });
+
+test("round 54: an undo that carries the world's own facts into the restored revision is stored as carried: a reload shows it", async () => {
+  const idb = new FakeIndexedDB();
+  const factory = idb as unknown as IDBFactory;
+  // The carry adds a plot the world made since (as carryAllocations does for a lot): the restored revision gets it.
+  const carry = (from: TownDocument, to: TownDocument): TownDocument => {
+    const lot = from.plots.find((p) => p.slug === "lot");
+    if (!lot || to.plots.some((p) => p.slug === "lot")) return to;
+    const result = applyEdit(to, { type: "set-plot", slug: "lot", cell: lot.cell }, CONTEXT);
+    assert.ok(result.ok);
+    return { ...result.doc, revision: to.revision };
+  };
+  const first = createTownStore({ context: CONTEXT, indexedDB: factory, carry });
+  await first.load();
+  await commitPlot(first, 1);
+  await commitPlot(first, 2);
+  // The world's own record lands in the current revision; the person then undoes their last move.
+  await first.amend((doc) => {
+    const result = applyEdit(doc, { type: "set-plot", slug: "lot", cell: { x: 9, z: 9 } }, CONTEXT);
+    assert.ok(result.ok);
+    return result.doc;
+  });
+  const undone = await first.undo();
+  assert.ok(undone.plots.some((p) => p.slug === "lot"), "the undo carried the lot");
+  const second = createTownStore({ context: CONTEXT, indexedDB: factory });
+  assert.deepEqual(await second.load(), undone);
+});
