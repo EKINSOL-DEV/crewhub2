@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { amendHistory, applyEdit, canRedo, canUndo, commitHistory, createHistory, currentDocument, redoHistory, undoHistory, type TownContext, type TownDocument, type TownHistory } from "@crewhub/world-model";
-import type { HostAnswer, HostTownOp } from "@crewhub/loops-client";
+import type { HostAnswer, HostTownOp, TownConflictSent, TownReadSent, TownWrittenSent } from "@crewhub/loops-client";
 import { CONFLICT_NOTE, IMPORTED_NOTE, UNREADABLE_NOTE, createHostTownStore, townStoreFor, type HostTownTransport } from "../src/state/hostTown.ts";
 import { createTownStore } from "../src/state/townStore.ts";
 
@@ -26,7 +26,8 @@ const deferred = () => {
 /** A host in memory with the host's own history (round 21), its revision, and the calls it saw. Can be made silent (away). */
 function fakeHost(initial: { rev: number; document: TownDocument } | null = null) {
   let history: TownHistory | null = initial ? createHistory(initial.document) : null;
-  const answer = (rev: number) => ({ ok: true, rev, document: history ? currentDocument(history) : null, canUndo: history ? canUndo(history) : false, canRedo: history ? canRedo(history) : false });
+  // The fake writes the wire's `Sent` shapes, as the host does (loops-client hostWire.ts): a drift there fails the typecheck here.
+  const answer = (rev: number) => ({ ok: true as const, rev, document: history ? currentDocument(history) : null, canUndo: history ? canUndo(history) : false, canRedo: history ? canRedo(history) : false });
   const host = {
     town: initial,
     away: false,
@@ -41,20 +42,20 @@ function fakeHost(initial: { rev: number; document: TownDocument } | null = null
         if (host.hold) await host.hold;
         if (host.away) return { status: 0, body: null };
         return host.town === null
-          ? { status: 200, body: { installation: "i", rev: 0, updatedAt: null, document: null } }
-          : { status: 200, body: { installation: "i", rev: host.town.rev, updatedAt: "t", document: host.town.document, canUndo: history ? canUndo(history) : false, canRedo: history ? canRedo(history) : false } };
+          ? { status: 200, body: { installation: "i", rev: 0, updatedAt: null, document: null, canUndo: false, canRedo: false } satisfies TownReadSent }
+          : { status: 200, body: { installation: "i", rev: host.town.rev, updatedAt: "t", document: host.town.document, canUndo: history ? canUndo(history) : false, canRedo: history ? canRedo(history) : false } satisfies TownReadSent };
       },
       async write(op: HostTownOp, document: TownDocument | null, baseRev: number): Promise<HostAnswer> {
         host.writes.push({ op, baseRev, document });
         if (host.away) return { status: 0, body: null };
         const current = host.town?.rev ?? 0;
-        if (current !== baseRev) return { status: 409, body: { error: "town_conflict", rev: current, document: host.town?.document ?? null, canUndo: history ? canUndo(history) : false, canRedo: history ? canRedo(history) : false } };
+        if (current !== baseRev) return { status: 409, body: { error: "town_conflict", message: "another browser wrote first", rev: current, document: host.town?.document ?? null, canUndo: history ? canUndo(history) : false, canRedo: history ? canRedo(history) : false } satisfies TownConflictSent };
         if (document === null && (op === "commit" || op === "amend")) return { status: 400, body: null };
         const was = history;
         history = op === "commit" ? (history ? commitHistory(history, document!) : createHistory(document!)) : op === "amend" ? amendHistory(history!, document!) : op === "undo" ? undoHistory(history!) : redoHistory(history!);
-        if (history === was) return { status: 200, body: { ...answer(current), changed: false } };
+        if (history === was) return { status: 200, body: { ...answer(current), changed: false } satisfies TownWrittenSent };
         host.town = { rev: current + 1, document: structuredClone(currentDocument(history)) };
-        return { status: 200, body: { ...answer(host.town.rev), changed: true } };
+        return { status: 200, body: { ...answer(host.town.rev), changed: true } satisfies TownWrittenSent };
       },
     } satisfies HostTownTransport,
     /** Another browser writes straight to the host, and the host tells the streams. */
@@ -149,7 +150,7 @@ test("a host without a town takes this browser's once; a host with one is never 
   const r = make(race);
   await r.local.load();
   await r.local.commit(plot(r.local.state.doc, "late", 5));
-  race.transport.read = async () => ({ status: 200, body: { installation: "i", rev: 0, updatedAt: null, document: null } });
+  race.transport.read = async () => ({ status: 200, body: { installation: "i", rev: 0, updatedAt: null, document: null, canUndo: false, canRedo: false } satisfies TownReadSent });
   race.set(1, plot(createTownStore({ context: CONTEXT, indexedDB: null }).state.doc, "first", 1));
   const taken = await r.store.load();
   assert.deepEqual(taken.plots.map((p) => p.slug), ["first"]);
@@ -249,7 +250,7 @@ test("round 22: reads are single file and never go backwards; a town message dur
   assert.equal(store.rev, 3);
   assert.deepEqual(store.state.doc.plots.map((p) => p.slug).sort(), ["a", "b"]);
   // An answer older than what the browser has is ignored: a stale read lands after a write's answer.
-  host.transport.read = async () => ({ status: 200, body: { installation: "i", rev: 1, updatedAt: "t", document: empty, canUndo: false, canRedo: false } });
+  host.transport.read = async () => ({ status: 200, body: { installation: "i", rev: 1, updatedAt: "t", document: empty, canUndo: false, canRedo: false } satisfies TownReadSent });
   await store.sync();
   assert.equal(store.rev, 3, "the stale revision did not take the town back");
   assert.deepEqual(store.state.doc.plots.length, 2);
@@ -656,7 +657,7 @@ test("round 54: an undo the host answers with the town shown here, or with one t
   await store.load();
   const shown = store.state.doc;
   let restored: unknown = structuredClone(shown);
-  host.transport.write = async (_op, _document, baseRev) => ({ status: 200, body: { ok: true, rev: baseRev + 1, document: restored, canUndo: false, canRedo: true, changed: true } });
+  host.transport.write = async (_op, _document, baseRev) => ({ status: 200, body: { ok: true, rev: baseRev + 1, document: restored, canUndo: false, canRedo: true, changed: true } satisfies TownWrittenSent });
   await store.undo();
   assert.equal(store.state.doc, shown, "the same town: no amend took place");
   restored = { format: "not-a-town" };
