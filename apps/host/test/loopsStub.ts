@@ -108,6 +108,12 @@ export interface LoopsStub {
   endStreams(): void;
   /** Starts (or with null ends) an outage: see `Outage`. Open streams are ended when one starts. */
   outage(outage: Outage | null): void;
+  /**
+   * Hears every request as it arrives, before the stub answers it (an outage included): a test that must act at one
+   * exact moment of the host's road, e.g. end an outage as the next attempt's ask arrives and not between an ask and
+   * the health probe that judges it, acts here, where no clock decides. `null` stops listening.
+   */
+  onRequest(listener: ((request: StubRequest) => void) | null): void;
   /** The key is revoked: every keyed request answers 401 `invalid_api_key` from now on, and open streams end (loops' 60 s re-check). */
   revoke(on?: boolean): void;
   close(): Promise<void>;
@@ -136,6 +142,7 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
   const key = options.key ?? DEFAULT_KEY;
   let revoked = false;
   let outage: Outage | null = null;
+  let requestListener: ((request: StubRequest) => void) | null = null;
   const hanging = new Set<ServerResponse>();
   const requests: StubRequest[] = [];
   const events: Envelope[] = [...(options.events ?? [])];
@@ -169,6 +176,7 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
     const record: StubRequest = { method: req.method ?? "", path: url.pathname + url.search, authorization: auth, at: Date.now(), host: req.headers.host };
     if (req.headers.cookie !== undefined) record.cookie = req.headers.cookie;
     requests.push(record);
+    requestListener?.(record);
     const detail = options.echoAuth ? ` (auth: ${auth ?? "none"})` : "";
     const publicHealth = url.pathname === "/api/health" && req.method === "GET" && auth === undefined && options.routes?.["/api/health"] === undefined;
     if (outage !== null && !(publicHealth && outage.healthOk === true)) {
@@ -324,6 +332,9 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
         for (const res of hanging) res.destroy();
         hanging.clear();
       }
+    },
+    onRequest(listener) {
+      requestListener = listener;
     },
     revoke(on = true) {
       revoked = on;

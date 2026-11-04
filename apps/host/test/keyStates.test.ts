@@ -120,7 +120,15 @@ describe("the key's state, honestly", () => {
     assert.equal((await health()).loops, "down", "never unauthorized");
     assert.ok(lines.some((l) => /answered 401 but crewhub-loops' health does not answer: restarting\?/.test(l)), lines.join("\n"));
     assert.ok(lines.some((l) => /refused the key \(401 or 403\) but its health does not answer: down/.test(l)), "the stream's own guard");
-    stub.outage(null);
+    // Loops comes back as the next attempt's first ask arrives (the tail read before the stream; the stub hears it
+    // first), never between an ask's 401 and the health probe that judges it: there a health that answers makes the
+    // 401 a verdict, rightly, and that is the first test's road, not this one's. Ended from here, the moment never
+    // depends on how fast the host retries.
+    stub.onRequest((request) => {
+      if (!request.path.startsWith("/api/events")) return;
+      stub.onRequest(null);
+      stub.outage(null);
+    });
     await waitFor("the recovery", async () => (await health()).connection.stream.state === "ok");
     assert.equal((await key()).state, "ok");
   });
