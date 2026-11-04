@@ -50,8 +50,9 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
 ### 2.1 The host: `apps/host`, the program and its gates
 
 - **Entry files.** `apps/host/src/main.ts` (the commands: `host`, `world`, `doctor`, `open`), `config.ts` (the
-  environment, one table), `host.ts` (1,290 lines: every route, the Host and Origin guards, the pairing gate, the
-  write gate, the host's word on its key and on the chat), `pairing.ts`, `devOrigin.ts` with `checkout.ts` and
+  environment, one table), `host.ts` (about 790 lines since round 59d: every route, the Host and Origin guards, the
+  pairing gate, the write gate) over `connection.ts` (about 670 lines: the discovery, the key's verdicts, the link,
+  the snapshot and the tab feed, one interface), `pairing.ts`, `devOrigin.ts` with `checkout.ts` and
   `runFile.ts`, `doctor.ts`, `build.ts`. The README beside them is the reference (308 lines).
 - **What it does.** A Node 24 program with no third-party dependency (beside Node only the workspace's
   `loops-client` and `world-model`), on `127.0.0.1:5180`. It holds the one
@@ -81,7 +82,7 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
 
 - **Entry files.** `apps/host/src/allowList.ts` (the one list, both directions), `transport.ts` (TCP or the Unix
   socket, the same headers, no redirect followed), `loops.ts`, `keyCheck.ts`, `discovery.ts` (finds the Mac app,
-  read only), `snapshot.ts`, `stream.ts`; on the browser's side `packages/loops-client/src/hostSource.ts` (one of the
+  read only), `snapshot.ts`, `stream.ts`, `connection.ts` (where they meet); on the browser's side `packages/loops-client/src/hostSource.ts` (one of the
   two files in the browser that may fetch, and only its own host; the other is `pageChat.ts`, road 2), `validate.ts` and `types.ts` (loops' shapes),
   `source.ts` (the `WorldSource` seam); `packages/loops-fake/src/fake.ts`, the test double that speaks loops' routes.
 - **What it does.** GET-only reads of crewhub-loops under an allow-list, one upstream event stream shared by every
@@ -109,7 +110,7 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
 - **Entry files.** `apps/world/src/state/chatRoad.ts` (the road is one value, `key`, `page` or `none`, and every
   sentence the panels say), `packages/loops-client/src/pageChat.ts` (road 2's client), `apps/world/src/state/pageChat.ts`
   (its runner), `said.ts` (the bubbles and the Recent answers list); road 1 is `apps/host/src/chatPath.ts` (one module
-  per link: the verdict, the threads' facts, the lines), wired in `relink` of `apps/host/src/host.ts`; both roads read
+  per link: the verdict, the threads' facts, the lines), wired in `relink` of `apps/host/src/connection.ts`; both roads read
   loops' answers through `packages/loops-client/src/dm.ts`; road A is `components/ChatPanel.tsx`; `scripts/bubbles-copy.ts`
   (`npm run check:copy`) checks the code copied verbatim from crewhub-loops against its source commit; it is skipped
   when no crewhub-loops checkout sits beside this one, so always on CI.
