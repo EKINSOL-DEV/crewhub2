@@ -9,7 +9,11 @@
  *     listens on port 0;
  *   - a file under the app's data folder (~/Library/Application Support/be.ekinsol.crewhub), under ~/.config/crewhub-world
  *     or ~/.config/crewhub-loops (Nicky's folders), or a relative `settings.json` / `run/api.sock` (what `createHost`
- *     reads when a test leaves the app data folder empty) is refused before it is opened.
+ *     reads when a test leaves the app data folder empty) is refused before it is opened. `~` is $HOME and also the
+ *     user's home from the user database (getpwuid, round 56), so a test that moves HOME is still refused the real ones;
+ *   - a real host's run file, `<TMPDIR>/crewhub-world-host-<port>.json` for a port 1024 to 49151 (a real host's chosen
+ *     port; a test's host listens on port 0 and lands at 49152 or up), is refused in the real TMPDIR (round 56): the
+ *     first preloaded process's, handed down in CREWHUB_TEST_REAL_TMPDIR, as well as each process's own.
  * A refusal throws an Error whose message starts with "no-app-reach:" and sets the process's exit code to 1, so the test
  * file fails even when the code under test swallows the error (a discovery probe reports "down" and goes on). With
  * CREWHUB_TEST_REACH_LOG=<file> the guard records instead (every connect and every refusal, one line each, with the
@@ -20,15 +24,18 @@
  * proves a refusal on it: no test aims at a named port, not even to show it is refused. Only a whole number in
  * 49152-65535 (the ephemeral range, where a test's own port-0 listener lands) counts; anything else is ignored.
  *
- * Not guarded (round 55's docs/proposals/mutation-harness.md, a day round's work): the folders follow $HOME, the real
- * TMPDIR (the hosts' run files), node:sqlite (it opens past node:fs), spawn and exec, and process.kill.
+ * CREWHUB_TEST_GUARD_HOME=<absolute folder> (round 56, the guard's own tests only) adds a decoy home whose three folders
+ * are refused as well; it never replaces $HOME or the user's home. CREWHUB_TEST_REAL_TMPDIR adds, never replaces, too.
+ *
+ * Not guarded (round 55's docs/proposals/mutation-harness.md, a day round's work): node:sqlite (it opens past node:fs),
+ * spawn and exec, and process.kill.
  *
  * It changes nothing for a real host: only the test scripts preload it. The predicates are exported for the unit test
  * in scripts/test/no-app-reach.test.ts, which also checks that the preload is active, and noAppReachPorts.test.ts. */
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import net from "node:net";
-import { homedir } from "node:os";
+import { homedir, tmpdir, userInfo } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -36,6 +43,47 @@ const HOME = homedir();
 export const APP_DATA = path.join(HOME, "Library", "Application Support", "be.ekinsol.crewhub");
 export const CONFIG_DIR = path.join(HOME, ".config", "crewhub-world");
 export const LOOPS_CONFIG = path.join(HOME, ".config", "crewhub-loops");
+
+/** The homes whose folders are refused: $HOME, the user's home from the user database (getpwuid: a moved HOME does not
+    move it), and the guard test's decoy home (`CREWHUB_TEST_GUARD_HOME`, absolute only). */
+export function guardedHomes(env = process.env, home = HOME, userHome = userInfo().homedir) {
+  const decoy = env.CREWHUB_TEST_GUARD_HOME;
+  const homes = [home, userHome, ...(typeof decoy === "string" && path.isAbsolute(decoy) ? [decoy] : [])];
+  return [...new Set(homes.map((h) => path.resolve(h)))];
+}
+/** The folders under each home, with what a refusal says. */
+export function guardedFolders(homes) {
+  return homes.flatMap((home) => [
+    { dir: path.join(home, "Library", "Application Support", "be.ekinsol.crewhub"), why: "is under the Mac app's data folder" },
+    { dir: path.join(home, ".config", "crewhub-world"), why: "is under the default config folder ~/.config/crewhub-world" },
+    { dir: path.join(home, ".config", "crewhub-loops"), why: "is under ~/.config/crewhub-loops" },
+  ]);
+}
+export const GUARDED_HOMES = guardedHomes();
+const FOLDERS = guardedFolders(GUARDED_HOMES);
+
+/** The real TMPDIRs: this process's and the first preloaded process's (`CREWHUB_TEST_REAL_TMPDIR`), each as named and as resolved. */
+export function realTmpDirs(env = process.env, own = tmpdir()) {
+  const named = [own, ...(typeof env.CREWHUB_TEST_REAL_TMPDIR === "string" && path.isAbsolute(env.CREWHUB_TEST_REAL_TMPDIR) ? [env.CREWHUB_TEST_REAL_TMPDIR] : [])];
+  const out = new Set();
+  for (const dir of named) {
+    out.add(path.resolve(dir));
+    try {
+      out.add(fs.realpathSync(dir));
+    } catch {
+      // A folder that is not there holds no run file.
+    }
+  }
+  return [...out];
+}
+const TMP_DIRS = realTmpDirs();
+/** A real host's run file: `crewhub-world-host-<port>.json` with a port a person chooses (1024 to 49151), not a test's. */
+export function isRealRunFile(file, tmpDirs = TMP_DIRS) {
+  const match = /^crewhub-world-host-(\d+)\.json$/.exec(path.basename(file));
+  if (match === null) return false;
+  const port = Number(match[1]);
+  return port >= 1024 && port <= 49151 && tmpDirs.includes(path.dirname(file));
+}
 export const APP_PORTS = [8091, 8000, 9443];
 /** Ports a test connects to never, each with whose it is (round 55): every connect of `npm test` goes to a port 0 listener. */
 export const OTHER_PORTS = new Map([
@@ -62,7 +110,7 @@ export const MARK = Symbol.for("crewhub-world.no-app-reach");
 const under = (file, dir) => file === dir || file.startsWith(dir + path.sep);
 
 /** Why a path may not be touched by a test, or null. Relative `settings.json` and `run/api.sock` are the empty app data folder's. */
-export function refusesPath(input) {
+export function refusesPath(input, folders = FOLDERS, tmpDirs = TMP_DIRS) {
   let p = input;
   if (p instanceof URL) {
     if (p.protocol !== "file:") return null;
@@ -75,9 +123,8 @@ export function refusesPath(input) {
     if (relative === "settings.json" || relative === path.join("run", "api.sock")) return `a relative ${relative}: the app data folder was left empty, so the host would look in the cwd and then on 8091`;
     p = path.resolve(p);
   }
-  if (under(p, APP_DATA)) return `${p} is under the Mac app's data folder`;
-  if (under(p, CONFIG_DIR)) return `${p} is under the default config folder ~/.config/crewhub-world`;
-  if (under(p, LOOPS_CONFIG)) return `${p} is under ~/.config/crewhub-loops`;
+  for (const folder of folders) if (under(p, folder.dir)) return `${p} ${folder.why}`;
+  if (isRealRunFile(p, tmpDirs)) return `${p} is a real host's run file (its mint secret) in the real TMPDIR`;
   return null;
 }
 
@@ -223,6 +270,9 @@ if (globalThis[MARK] === undefined) {
   });
   syncBuiltinESMExports();
 
+  // A child that moves TMPDIR still knows the real one (an env the test gives explicitly may leave it out: then the
+  // child's own TMPDIR is all it guards).
+  if (process.env.CREWHUB_TEST_REAL_TMPDIR === undefined) process.env.CREWHUB_TEST_REAL_TMPDIR = tmpdir();
   // Every Node process a test spawns gets the same guard (NODE_OPTIONS is read by node, not by the test).
   const here = fileURLToPath(import.meta.url);
   const nodeOptions = process.env.NODE_OPTIONS ?? "";
