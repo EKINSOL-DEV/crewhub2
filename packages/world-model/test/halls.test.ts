@@ -3,11 +3,11 @@ import { test } from "node:test";
 import { describeWorld, hallSummary } from "../src/describe.ts";
 import { describeTownDocument } from "../src/describeTown.ts";
 import { describeIntent, type Intent } from "../src/director.ts";
-import { HALLS, HALL_KINDS, HALL_LABELS, RACK_NAMES, hallOf, placeWords, roomPlaceWords, roomSign, sameSign } from "../src/halls.ts";
+import { HALLS, HALL_KINDS, HALL_LABELS, HALL_OF, HALL_PLACES, RACK_NAMES, ROOM_KINDS, doneWord, hallOf, placePhrase, placeWords, roomPlaceWords, roomSign, sameSign, type RoomWording } from "../src/halls.ts";
 import type { RoomKind, TransitPlace } from "../src/model.ts";
 import type { Definitions } from "@crewhub/world-engine";
 import { createCatalogue } from "../src/catalogue.ts";
-import { ROOM_KINDS, emptyTownDocument, type PlacedProp } from "../src/townDocument.ts";
+import { emptyTownDocument, type PlacedProp } from "../src/townDocument.ts";
 import { where } from "../src/where.ts";
 import { agent, building, object, room, world } from "./fixtures.ts";
 
@@ -52,7 +52,7 @@ const threeRoomBuilding = () =>
   );
 
 test("every model room has a hall, and each hall's own kind maps back to it", () => {
-  for (const kind of ROOM_KINDS as readonly RoomKind[]) assert.ok(HALLS.includes(hallOf(kind)), kind);
+  for (const kind of ROOM_KINDS) assert.ok(HALLS.includes(hallOf(kind)), kind);
   for (const hall of HALLS) assert.equal(hallOf(HALL_KINDS[hall]), hall);
   assert.deepEqual(RACK_NAMES, { storage: "Backlog", planning: "Planning", review: "Review", dispatch: "Done" });
   assert.deepEqual(Object.values(HALL_LABELS), ["Administration", "The floor", "Lead's office"]);
@@ -125,6 +125,30 @@ test("hallSummary takes the caller's lane words and says 'quiet' for an empty ha
   assert.equal(hallSummary(empty, "administration"), "Administration: Backlog 0, Planning 0, Review 0, Done 0");
 });
 
+test("a room's place phrase: the word before it and the place apart, the same words as roomPlaceWords and the hall's", () => {
+  // Round 60, pk-P6: where.ts reads the two apart instead of stripping "in "/"on " off roomPlaceWords.
+  assert.deepEqual(placePhrase("workers"), { preposition: "in", place: "the workers room" });
+  assert.deepEqual(placePhrase("lead-office"), { preposition: "in", place: "the lead's office" });
+  assert.deepEqual(placePhrase("analyst", "three-rooms"), { preposition: "on", place: "the floor" });
+  assert.deepEqual(placePhrase("dispatch", "three-rooms"), { preposition: "in", place: "Administration" });
+  assert.deepEqual(placePhrase("lead-office", "three-rooms"), { preposition: "in", place: "the lead's office" });
+  for (const rooms of ["classic", "three-rooms"] as RoomWording[]) {
+    for (const kind of ROOM_KINDS) {
+      const { preposition, place } = placePhrase(kind, rooms);
+      assert.equal(roomPlaceWords(kind, rooms), `${preposition} ${place}`, `${rooms} ${kind}`);
+      if (rooms === "three-rooms") assert.equal(HALL_PLACES[hallOf(kind)], roomPlaceWords(kind, rooms), kind);
+    }
+  }
+  assert.deepEqual(HALL_PLACES, { administration: "in Administration", floor: "on the floor", office: "in the lead's office" });
+});
+
+test("where a person puts the package, and the ten model rooms the validators know", () => {
+  assert.equal(doneWord("classic"), "Dispatch");
+  assert.equal(doneWord("three-rooms"), "Done");
+  assert.equal(new Set<RoomKind>(ROOM_KINDS).size, 10);
+  assert.deepEqual([...ROOM_KINDS].sort(), Object.keys(HALL_OF).sort());
+});
+
 test("where speaks in halls when asked", () => {
   const b = building("cr", [agent("cr-dev-1", { deskTicketKey: "CR-12" }), agent("cr-dev-2"), agent("boss", { role: "lead", room: "lead-office" })], {
     mailbox: [{ deliveryId: "d1", recipientId: "cr-dev-1", reason: "planned", state: "pending", flagged: false }],
@@ -142,6 +166,15 @@ test("the director's sentences name the hall and the huddle in three-rooms wordi
   const go: Intent = { kind: "goToProp", agent: "idle-1", room: "review", tag: "review", ttlMs: 60_000 } as Intent;
   assert.equal(describeIntent(m, go), "idle-1 goes to the review pile in the review room");
   assert.equal(describeIntent(m, go, "three-rooms"), "idle-1 goes to the Review rack in Administration");
+  // Each pile's tag is its rack in three-rooms, the meeting table's the huddle; another tag reads as itself.
+  const goTo = (room: RoomKind, tag: string, rooms: RoomWording) => describeIntent(m, { ...go, room, tag } as Intent, rooms);
+  assert.equal(goTo("storage", "storage", "three-rooms"), "idle-1 goes to the Backlog rack in Administration");
+  assert.equal(goTo("dispatch", "dispatch", "three-rooms"), "idle-1 goes to the Done rack in Administration");
+  assert.equal(goTo("planning", "planning", "three-rooms"), "idle-1 goes to the Planning rack in Administration");
+  assert.equal(goTo("meeting", "gather", "three-rooms"), "idle-1 goes to the huddle table on the floor");
+  assert.equal(goTo("meeting", "gather", "classic"), "idle-1 goes to the meeting table in the meeting room");
+  assert.equal(goTo("lobby", "coffee", "three-rooms"), "idle-1 goes to the coffee machine in Administration");
+  assert.equal(goTo("lobby", "big-lamp", "three-rooms"), "idle-1 goes to the big lamp in Administration");
   const gather: Intent = { kind: "gather", agents: ["idle-1", "idle-2"], ttlMs: 60_000 } as Intent;
   assert.equal(describeIntent(m, gather), "idle-1, idle-2 gather in the meeting room");
   assert.equal(describeIntent(m, gather, "three-rooms"), "idle-1, idle-2 gather at the huddle table");

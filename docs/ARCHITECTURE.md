@@ -139,7 +139,9 @@ One Node process, no third-party dependency (beside Node only the workspace's `l
   `Retry-After` on 429, a reset on 410 or a restored log; an upstream connection silent for 45 s is dropped and
   reopened (`stream.ts`, `idleMs`; the browser's `hostSource.ts` heals its own stream to the host after 40 s of
   silence, at once when the tab comes back into view, round 27); a ring buffer of 2000 envelopes
-  catches a tab up; the tabs get Server-Sent Events, one JSON message each (`status`, `event`, `heartbeat`,
+  catches a tab up (`subscribe` at a cursor); the connection's own ear is an observer (`observe`, round 60): it hears
+  the changes from now on, no status at once and no replay; the tabs get Server-Sent Events, one JSON message each
+  (`status`, `event`, `heartbeat`,
   `reset`, `chat`, `town`, `threads`: `HostMessage`, defined once with the page's reader in loops-client's
   `hostWire.ts`). The transport seam makes TCP (`fetch`) and the Unix socket (`node:http` with
   `socketPath`) indistinguishable above it.
