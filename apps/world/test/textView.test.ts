@@ -168,3 +168,27 @@ test("nothing is lost between the lines and the sections: every line of a whole 
   for (const section of sections) assert.deepEqual(section.lines, lines.filter((l) => l.section === section.name));
   assert.equal(new Set(sections.map((s) => s.name)).size, sections.length, "no section twice");
 });
+
+test("textViewLines hands every fact to its producer: a fact dropped on the way would change what is said", () => {
+  const model = world([building("inbox", [agent("dev", "planning", { displayName: "Dev" })])], { mode: "live", zones: [zone("studio", "Studio")] });
+  const town = facts(model).town;
+  const section = (extra: Partial<TextViewFacts>, name: string) => textViewLines(facts(model, extra)).filter((l) => l.section === name).map((l) => l.text);
+
+  const rule = { id: "r", rule: "release", key: "banner", anchor: {}, count: null, text: "A rule's sentence." } as unknown as TextViewFacts["rules"][number];
+  assert.deepEqual(section({ rules: [rule] }, "Build: rule props"), ["A rule's sentence."]);
+  const invalid = [{ ticketKey: "T-1", slug: "inbox", error: "bad prop", room: "planning" }] as unknown as TextViewFacts["town"]["invalid"];
+  assert.deepEqual(section({ town: { ...town, invalid } }, "Build: prop requests"), ["Error object in inbox: bad prop."]);
+  assert.notDeepEqual(section({ town: { ...town, storage: "host" } }, "Zones"), section({ town: { ...town, storage: "indexeddb" } }, "Zones"), "the zones line says who keeps the town");
+
+  const said = new Map([["dev", { text: "Hello.", agentName: "dev", messageId: "m", threadId: "t", shownAt: 0, until: 1000 }]]);
+  const says = (rooms: TextViewFacts["rooms"]) => textViewLines(facts(model, { said, rooms })).filter((l) => l.text.startsWith("Dev says: Hello."));
+  assert.notDeepEqual(says("classic"), says("three-rooms"), "a said line names the room in the rooms' own words");
+  const placed = { ...town.doc, placements: [{ id: "p", propId: "builtin:desk", at: { building: "inbox", room: "analyst" }, cell: { x: 0, z: 0 }, rotation: 0 }] } as unknown as TextViewFacts["town"]["doc"];
+  const place = (rooms: TextViewFacts["rooms"]) => section({ rooms, town: { ...town, doc: placed } }, "Build: placed props");
+  assert.notDeepEqual(place("classic"), place("three-rooms"), "a placed prop names its room in the rooms' own words");
+
+  const asked: { viewer?: unknown; style?: unknown }[] = [];
+  textViewLines(facts(model, { viewerCast: "mine", styleCast: "the-style", casts: { ...casts, resolve: (order: { viewer?: unknown; style?: unknown }) => (asked.push(order), casts.resolve()) } as never }));
+  assert.ok(asked.length > 0 && asked.every((o) => o.viewer === "mine" && o.style === "the-style"), "the cast lines ask with the viewer's choice and the style's default");
+  assert.deepEqual(section({ town: { ...town, storageNote: "" } }, "Town document").filter((t) => t === ""), [], "an empty note says nothing");
+});
