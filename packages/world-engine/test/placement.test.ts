@@ -65,3 +65,58 @@ test("freeCells: row by row from the origin or from the far corner back, the ove
   const first = open.freeCells("block")[Symbol.iterator]().next();
   assert.deepEqual(first, { value: { x: 0, z: 0 }, done: false });
 });
+
+/* Round 62's mutation run: what the rows above left open. */
+const moreDefinitions: Definitions = {
+  ...definitions,
+  // Two approaches, one each side; one off to the right, off the grid when it stands on the last column.
+  gate: { id: "gate", label: "Gate", footprint: { width: 1, depth: 1 }, blocksMovement: true, tags: [], approaches: [{ x: 1, z: 0 }, { x: -1, z: 0 }] },
+  edge: { id: "edge", label: "Edge", footprint: { width: 1, depth: 1 }, blocksMovement: true, tags: [], approaches: [{ x: 1, z: 0 }] },
+};
+
+test("check: one reserved cell of a wider prop is enough to refuse it", () => {
+  const rules = placementRules(room(), definitions);
+  // The desk at (2, 1) covers x 2 to 4, z 1 to 2; only its far corner is held.
+  assert.equal(reason(rules.check(prop("d", "desk", 2, 1), { reserved: new Set(["4,2"]), standing: [] })), "A crew member is using that cell.");
+  assert.equal(reason(rules.check(prop("d", "desk", 2, 1), { reserved: new Set(["5,2"]), standing: [] })), "ok", "a held cell beside it");
+});
+
+test("check: one reachable approach is enough, and none is refused", () => {
+  const oneSide = placementRules(room([block("right", 4, 3)]), moreDefinitions);
+  assert.equal(reason(oneSide.check(prop("g", "gate", 3, 3))), "ok", "the right side is taken, the left is open");
+  const bothSides = placementRules(room([block("right", 4, 3), block("left", 2, 3)]), moreDefinitions);
+  assert.equal(reason(bothSides.check(prop("g", "gate", 3, 3))), "Keep workstation interaction cells reachable.");
+});
+
+test("check: a cell off the grid is out of reach, though its index would land on the next row", () => {
+  const rules = placementRules(room(), moreDefinitions);
+  // (8, 3) on an 8 wide grid has the index of (0, 4), which is open.
+  assert.equal(reason(rules.check(prop("e", "edge", 7, 3))), "Keep workstation interaction cells reachable.", "an approach off the grid");
+  assert.equal(reason(rules.check(block("x", 5, 5), { reserved: new Set(), standing: [{ x: 8, z: 3 }] })), "Keep a path from every crew member to the entrance.", "a crew member off the grid");
+});
+
+test("check: an entrance away from the first column is read at its own cell", () => {
+  // The entrance (2, 1) on a 4 wide grid has index 6; the wall at (2, 0) has index 2, which is z * width - x.
+  const rules = placementRules({ ...room([block("wall", 2, 0)], 4, 4), entrance: { x: 2, z: 1 } }, definitions);
+  assert.equal(reason(rules.check(block("x", 3, 3), { reserved: new Set(), standing: [{ x: 0, z: 0 }] })), "ok");
+});
+
+test("check: something thrown that is no Error still answers a reason", () => {
+  const rules = placementRules(room(), definitions);
+  const thrower = {
+    get id(): string {
+      throw "not an Error";
+    },
+    definitionId: "block",
+    cell: { x: 1, z: 1 },
+    rotation: 0,
+  } as WorldProp;
+  assert.equal(reason(rules.check(thrower)), "Invalid placement.");
+});
+
+test("freeCells: unsaid, unturned from the origin; from the end it starts on the far corner itself", () => {
+  const open = placementRules(room([], 4, 4), definitions);
+  assert.deepEqual([...open.freeCells("desk")], [...open.freeCells("desk", 0, "origin")], "the desk's footprint tells a quarter turn");
+  // A 2 by 2 room, the entrance at (0, 1).
+  assert.deepEqual([...placementRules(room([], 2, 2), definitions).freeCells("block", 0, "end")], [{ x: 1, z: 1 }, { x: 1, z: 0 }, { x: 0, z: 0 }]);
+});
