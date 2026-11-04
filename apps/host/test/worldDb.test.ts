@@ -5,9 +5,14 @@ import { copyFileSync, existsSync, mkdtempSync, readdirSync, rmSync, statSync, w
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
-import { MIGRATIONS, WORLD_DB_NAME, explainSqliteWarning, installationKey, listBackups, openWorldDb, readBackupTown, type Migration } from "../src/worldDb.ts";
+import { MIGRATIONS, WORLD_DB_NAME, explainSqliteWarning, installationKey, listBackups, openWorldDb, readBackupTown, type Migration, type WorldDb } from "../src/worldDb.ts";
 
 const temp = () => mkdtempSync(path.join(tmpdir(), "chw-worlddb-"));
+/** A commit over `baseRev` (0 creates), as the revision check answers it: the new revision, or the conflict. */
+function commit(db: WorldDb, installation: string, document: string, baseRev: number, now?: () => string) {
+  const outcome = db.applyTown(installation, { kind: "commit", document }, baseRev, null, now);
+  return outcome.ok ? { ok: true, rev: outcome.rev } : outcome;
+}
 const DOC = (n: number) => JSON.stringify({ format: "crewhub-town/1", revision: n, styleId: "greenhouse", plots: [], placements: [], userProps: [], rules: {} });
 
 describe("the world database", () => {
@@ -21,11 +26,11 @@ describe("the world database", () => {
       assert.equal(path.basename(db.file), WORLD_DB_NAME);
       assert.equal(db.version, MIGRATIONS.length);
       assert.equal(db.getTown("127.0.0.1-8091"), null);
-      const made = db.putTown("127.0.0.1-8091", DOC(0), 0, null, () => "2026-10-22T07:00:00.000Z");
+      const made = commit(db, "127.0.0.1-8091", DOC(0), 0, () => "2026-10-22T07:00:00.000Z");
       assert.deepEqual(made, { ok: true, rev: 1 });
       assert.deepEqual(db.getTown("127.0.0.1-8091"), { installation: "127.0.0.1-8091", rev: 1, document: DOC(0), updatedAt: "2026-10-22T07:00:00.000Z", updatedBy: null, canUndo: false, canRedo: false });
       assert.equal(db.getTown("127.0.0.1-8291"), null, "another installation has its own row");
-      assert.deepEqual(db.putTown("127.0.0.1-8291", DOC(0), 0), { ok: true, rev: 1 });
+      assert.deepEqual(commit(db, "127.0.0.1-8291", DOC(0), 0), { ok: true, rev: 1 });
       assert.ok(lines.some((l) => /created .*world\.db at schema \d+/.test(l)), lines.join("\n"));
     } finally {
       db.close();
@@ -37,15 +42,15 @@ describe("the world database", () => {
     const dir = temp();
     const db = openWorldDb(dir);
     try {
-      assert.deepEqual(db.putTown("i", DOC(0), 0), { ok: true, rev: 1 });
-      assert.deepEqual(db.putTown("i", DOC(1), 1), { ok: true, rev: 2 });
+      assert.deepEqual(commit(db, "i", DOC(0), 0), { ok: true, rev: 1 });
+      assert.deepEqual(commit(db, "i", DOC(1), 1), { ok: true, rev: 2 });
       // A second browser still on revision 1 writes: refused with revision 2 and its document.
-      assert.deepEqual(db.putTown("i", DOC(9), 1), { ok: false, conflict: { rev: 2, document: DOC(1) } });
+      assert.deepEqual(commit(db, "i", DOC(9), 1), { ok: false, conflict: { rev: 2, document: DOC(1) } });
       assert.equal(db.getTown("i")?.document, DOC(1));
       // Creating over an existing town (the import-once rule's other half) is a conflict too.
-      assert.deepEqual(db.putTown("i", DOC(0), 0), { ok: false, conflict: { rev: 2, document: DOC(1) } });
+      assert.deepEqual(commit(db, "i", DOC(0), 0), { ok: false, conflict: { rev: 2, document: DOC(1) } });
       // The right base goes through.
-      assert.deepEqual(db.putTown("i", DOC(2), 2), { ok: true, rev: 3 });
+      assert.deepEqual(commit(db, "i", DOC(2), 2), { ok: true, rev: 3 });
     } finally {
       db.close();
       rmSync(dir, { recursive: true, force: true });
@@ -56,7 +61,7 @@ describe("the world database", () => {
     const dir = temp();
     const first: Migration[] = [MIGRATIONS[0] as Migration];
     const one = openWorldDb(dir, { migrations: first });
-    one.putTown("i", DOC(0), 0);
+    one.applyTown("i", { kind: "commit", document: DOC(0) }, 0);
     one.close();
     const again = openWorldDb(dir, { migrations: first });
     assert.deepEqual([again.version, again.backups, again.getTown("i")?.rev], [1, [], 1], "no change, no backup");
@@ -157,8 +162,8 @@ describe("the world database's history (round 21)", () => {
   it("a database from schema 1 is copied to world.db.bak-v1 and its towns get a history on the first move; the backup lists and reads", () => {
     const dir = temp();
     const one = openWorldDb(dir, { migrations: [MIGRATIONS[0] as Migration] });
-    one.putTown("i", DOC(0), 0);
-    one.putTown("i", DOC(1), 1);
+    one.applyTown("i", { kind: "commit", document: DOC(0) }, 0);
+    one.applyTown("i", { kind: "commit", document: DOC(1) }, 1);
     one.close();
     const two = openWorldDb(dir);
     try {
