@@ -19,6 +19,7 @@ test("chatInvalidations: a dm event or a delivery naming a dm thread refreshes t
   assert.deepEqual(chatInvalidations({ type: "delivery.created", payload: { dmThreadId: 7 } }), [], "a thread id that is no string");
   assert.deepEqual(chatInvalidations({ type: "ticket.moved", payload: {} }), []);
   assert.deepEqual(chatInvalidations({ type: "admin.dm", payload: {} }), [], "only a type that starts with dm.");
+  assert.deepEqual(chatInvalidations({ type: "dmz.made", payload: {} }), [], "dm. with its dot: not any type that starts with dm");
 });
 
 /** A Storage in memory; `broken` makes every call throw, as a blocked site's does. */
