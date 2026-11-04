@@ -1,7 +1,9 @@
 /* The introduction inside the world (round 20): a first-run tour of six short steps over the real UI, for a person who
    opens the world for the first time, in demo and live mode. The words are docs/INTRODUCTION.md's, shorter (a test
-   checks the phrases against the document). Pure: the steps, when the tour may start, where its card goes, and the
+   checks the phrases against the document). No DOM: the steps, when the tour may start, where its card goes, and the
    per-browser flag that keeps it from coming back after Skip or Done. The component is components/Tour.tsx. */
+
+import { storedValue } from "./setting.ts";
 
 export const TOUR_KEY = "crewhub-world.tour";
 /** The full document, on GitHub: the host and Vite serve the world, not the repository's docs folder, and a page cannot
@@ -83,25 +85,10 @@ export function tourSteps(mode: "demo" | "live"): TourStep[] {
   ];
 }
 
-type Storage = Pick<globalThis.Storage, "getItem" | "setItem">;
-const local = (storage: Storage | null | undefined) => (storage === undefined ? globalThis.localStorage : storage);
-
-/** Whether this browser has seen the tour through to Skip or Done. Storage may throw (a private window): then false, and the tour shows again. */
-export function readTourDone(storage?: Storage | null): boolean {
-  try {
-    return local(storage)?.getItem(TOUR_KEY) === "done";
-  } catch {
-    return false;
-  }
-}
-
-export function writeTourDone(storage?: Storage | null): void {
-  try {
-    local(storage)?.setItem(TOUR_KEY, "done");
-  } catch {
-    // Not kept: the tour shows again next time, which is the honest fallback.
-  }
-}
+const tourDone = storedValue<boolean>({ key: TOUR_KEY, parse: (text) => text === "done", format: () => "done" });
+/** Whether this browser has seen the tour through to Skip or Done. Storage may throw (a private window): then false, and the tour shows again, which is the honest fallback. */
+export const readTourDone = tourDone.read;
+export const writeTourDone = (storage?: Parameters<typeof tourDone.write>[1]): void => tourDone.write(true, storage);
 
 export interface TourConditions {
   /** The per-browser flag. */
