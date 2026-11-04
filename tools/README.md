@@ -71,7 +71,11 @@ apply, and the stress scenarios are skipped. One host at a time against the deve
 streams per key.
 
 `lib/world.mjs` is what they share (the command line, the browser, the error and request watch, seeking and
-playback); `lib/shots.mjs` is the view walker behind `shots.mjs` and `castworld.mjs`.
+playback); `lib/rig.mjs` (round 60) is the rig a tool stands on, a host over a loops (the in-process fake, a real one
+by URL and key, or a keyless host discovering one), served or behind your Vite, paired or not, with the tools' quick
+timings and the close order inside it (`regress.mjs`'s groups, `lib/live.mjs`, `lib/connectStub.mjs` and
+`road2proof.mjs` start theirs through it; `scripts/test/rig.test.ts` pins it); `lib/shots.mjs` is the view walker
+behind `shots.mjs` and `castworld.mjs`.
 
 **What the page leaves for a script.** Besides the `world:town-dressed` mark the scripts wait for (and `world:snapshot`,
 `world:first-frame`, `world:walks`: the first drawn frame, and the navigation graph and walkers landing after it), the

@@ -1,9 +1,7 @@
-/* The viewer's style options (a season, a planting, ...): kept per viewer in this browser, like the viewer's cast. An
-   option that is absent follows the town and the style's default; a zone or a building that sets one wins over it.
-   Storage may throw (private mode, blocked site data): the choice then lasts for this page only. */
-import { useSyncExternalStore } from "react";
-
-export const STYLE_OPTIONS_KEY = "crewhub-world.style-options";
+/* The viewer's style options (a season, a planting, ...): kept per viewer in this browser (state/setting.ts), like the
+   viewer's cast. An option that is absent follows the town and the style's default; a zone or a building that sets one
+   wins over it. */
+import { createSetting } from "./setting.ts";
 
 /** Only a flat object of strings is kept; anything else in storage reads as no choice. */
 export function parseStyleOptions(text: string | null | undefined): Record<string, string> {
@@ -16,37 +14,17 @@ export function parseStyleOptions(text: string | null | undefined): Record<strin
   }
 }
 
-let current: Record<string, string> | undefined;
-const listeners = new Set<() => void>();
-const read = (): Record<string, string> => {
-  try {
-    return parseStyleOptions(globalThis.localStorage?.getItem(STYLE_OPTIONS_KEY));
-  } catch {
-    return {};
-  }
-};
+export const styleOptions = createSetting<Record<string, string>>({
+  key: "crewhub-world.style-options",
+  parse: parseStyleOptions,
+  format: (options) => (Object.keys(options).length ? JSON.stringify(options) : null),
+});
+export const useStyleOptions = styleOptions.use;
 
 /** Sets one option; an empty value goes back to following the town. */
 export function setStyleOption(id: string, value: string | null) {
-  const next = { ...(current ?? read()) };
+  const next = { ...styleOptions.now() };
   if (value) next[id] = value;
   else delete next[id];
-  current = next;
-  try {
-    if (Object.keys(next).length) globalThis.localStorage?.setItem(STYLE_OPTIONS_KEY, JSON.stringify(next));
-    else globalThis.localStorage?.removeItem(STYLE_OPTIONS_KEY);
-  } catch {
-    // Not kept: storage is unavailable.
-  }
-  for (const listener of listeners) listener();
-}
-
-export function useStyleOptions(): Record<string, string> {
-  return useSyncExternalStore(
-    (listener) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-    () => (current ??= read()),
-  );
+  styleOptions.set(next);
 }

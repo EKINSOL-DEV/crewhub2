@@ -27,6 +27,18 @@ interpolation and `actor.cell` for logical occupancy. Only change a simulation's
 layout through `place`; direct mutation bypasses occupancy validation. Exported
 snapshots are detached copies.
 
+A question about a layout alone, with no actors, goes to the placement rules
+(`placement.ts`, round 60): the same checks the simulation makes, and where a prop
+may stand.
+
+```ts
+import { placementRules } from "@crewhub/world-engine";
+
+const rules = placementRules(layout, definitions); // throws as validateLayout does
+rules.check({ id: "fern-1", definitionId: "plant", cell: { x: 4, z: 8 }, rotation: 0 });
+for (const cell of rules.freeCells("plant", 0, "end")) break; // the first from the far corner
+```
+
 ## Rooms, doors and the town
 
 `NavGraph` joins independent room grids with doors; the town is a room whose door

@@ -9,13 +9,10 @@
 
    Tooling only, like everything in tools/: it listens on 127.0.0.1 and reaches nothing but the fake and the host it starts. */
 import { createServer, request as httpRequest } from "node:http";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { createLoopsWebStub } from "./loopsWebStub.mjs";
+import { startRig } from "./rig.mjs";
 // The wire's route table (packages/loops-client, hostWire.ts): the stub answers the paths the page builds, by the same table.
 import { WORLD_API_PREFIX, worldApiPath } from "../../packages/loops-client/src/hostWire.ts";
 
-const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 export const STUB_STATES = ["no-loops", "pair", "connect", "checking", "rejected", "loops-down", "connected", "busy", "older", "unpaired"];
 const BUSY_REASON = "stream budget exhausted (429): another host or tab uses this key; crewhub-loops admits four streams per key";
@@ -43,12 +40,10 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
 
   async function ensureInner() {
     if (inner) return inner;
-    const { createLoopsFake } = await import(pathToFileURL(path.join(REPO, "packages", "loops-fake", "src", "index.ts")).href);
-    const { createHost } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "host.ts")).href);
-    const fake = await createLoopsFake({ heartbeatMs: 1000, speed: 16 });
-    const web = await createLoopsWebStub();
-    const host = await createHost({ loopsUrl: fake.url, loopsWebUrl: web.url, key: fake.key, keyName: fake.keyName, pairing: "off", retryMs: { min: 100, max: 500 }, heartbeatMs: 1000, log, ...(origin ? { allowedOrigins: [origin] } : {}) });
-    inner = { fake, host, web };
+    // The rig (lib/rig.mjs): a fake at 16x, the loops web stub the connected states name, the host on a free port behind
+    // the Vite origin (when given), pairing off, the host's own reconnect pause (only the retry and the heartbeat are quick).
+    const rig = await startRig({ loops: { fake: { heartbeatMs: 1000, speed: 16 } }, web: true, serve: { hostPort: 0, ...(origin ? { origin } : {}) }, pairing: "off", timings: { retryMs: { min: 100, max: 500 }, heartbeatMs: 1000 }, log });
+    inner = { fake: rig.fake, host: rig.host, web: rig.web, rig };
     lastEventAt = new Date().toISOString();
     return inner;
   }
@@ -150,14 +145,16 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
     try {
       key = String(JSON.parse(text)?.key ?? "");
     } catch {
-      return send(res, 400, { error: "bad_request", message: "the body is not JSON" });
+      return send(res, 400, { error: "validation_error", message: "the body is not JSON" });
     }
     if (!(await health()).paired) return send(res, 401, { error: "not_paired" });
-    if (!/^chl_[A-Za-z0-9_-]{20,}$/.test(key)) return send(res, 400, { error: "bad_request", message: "key missing or not a key" });
+    // The host's word for a request's own fault (host.ts connect, `ConnectRefusalSent`), as for the key refusal below.
+    if (!/^chl_[A-Za-z0-9_-]{20,}$/.test(key)) return send(res, 400, { error: "validation_error", message: "key missing or not a key" });
     if (key.startsWith("chl_bad")) {
       current = "rejected";
       log(`connect: a key ending in …${key.slice(-4)} rejected`);
-      return send(res, 403, { error: "rejected", reason: REJECT_REASON });
+      // The host's own word for loops' no (host.ts connect, `ConnectRefusalSent`): the page meets one wire.
+      return send(res, 403, { error: "key_rejected", reason: REJECT_REASON });
     }
     log(`connect: a key ending in …${key.slice(-4)} accepted; checking for ${checkMs} ms`);
     current = "checking";
@@ -289,9 +286,7 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
       endStreams();
       await new Promise((resolve) => server.close(() => resolve()));
       if (inner) {
-        await inner.host.close();
-        await inner.fake.close();
-        await inner.web.close();
+        await inner.rig.close();
       }
     },
   };

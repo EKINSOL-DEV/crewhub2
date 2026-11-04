@@ -149,6 +149,27 @@ test("without IndexedDB the store works in memory and says so", async () => {
   }
 });
 
+test("round 60 (A4): the memory store's first load is remembered before it says loaded, so a listener that amends at once loads once and its amend lands", async () => {
+  const store = createTownStore({ context: CONTEXT, indexedDB: null });
+  let heard = 0;
+  let asked = 0;
+  // As the town runtime does: on every change, a loaded town without the plot it wants is amended at once.
+  store.subscribe(() => {
+    heard += 1;
+    if (!store.state.loaded || store.state.doc.plots.length > 0 || asked > 50) return;
+    asked += 1;
+    void store.amend((doc) => {
+      const result = applyEdit(doc, { type: "set-plot", slug: "crewhub", cell: { x: 3, z: 0 } }, CONTEXT);
+      return result.ok ? result.doc : null;
+    });
+  });
+  await store.load();
+  for (let i = 0; i < 5; i += 1) await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(asked, 1, "the listener asked once: the load it waits for is the first one, not a new one");
+  assert.equal(store.state.doc.plots[0]?.cell.x, 3, "the amend landed");
+  assert.equal(heard, 2, "two changes: loaded, then the amend");
+});
+
 test("each scenario keeps its own town: a named store never reads or writes another's plots", async () => {
   const idb = new FakeIndexedDB();
   const factory = idb as unknown as IDBFactory;

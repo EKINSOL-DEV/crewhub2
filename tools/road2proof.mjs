@@ -28,8 +28,9 @@
    and the development loops (8291 to 8293) only with `--real` (round 57d); no other named port (lib/toolGuard.ts). */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { cli, launch } from "./lib/world.mjs";
+import { startRig } from "./lib/rig.mjs";
 import { loopsUrlOption, ownPort } from "./lib/toolGuard.ts";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -73,12 +74,12 @@ const info = (text) => console.log(`info ${text}`);
 const shot = (p, name) => p.screenshot({ path: `${opts.out}${opts.tag}-${name}.png` });
 const secretFree = (text) => !text.includes(key) && !text.includes(admin.password);
 
-// --- The hosts: the proof page's origin, and another origin.
-const { createHost } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "host.ts")).href);
+// --- The hosts: the proof page's origin, and another origin. Two rigs (lib/rig.mjs) over the same loops and key, each
+// serving apps/world/dist on its own port, pairing off, the host's own timings; their log lines in one list.
 const hostLines = [];
-const hostOptions = { loopsUrl, key, keyName, pairing: "off", staticDir: dist, log: (line) => hostLines.push(line) };
-const host = await createHost({ ...hostOptions, port: opts.port });
-const other = await createHost({ ...hostOptions, port: otherPort });
+const rigOptions = (hostPort) => ({ loops: { url: loopsUrl, key, keyName }, serve: { dist, hostPort }, pairing: "off", timings: {}, log: (line) => hostLines.push(line) });
+const rigs = [await startRig(rigOptions(opts.port)), await startRig(rigOptions(otherPort))];
+const [host, other] = rigs.map((rig) => rig.host);
 info(`hosts: ${host.url} (the proof page, loops' CHL_WORLD_ORIGIN) and ${other.url} (another origin), both against ${loopsUrl} with key ${keyName}, serving apps/world/dist, pairing off`);
 
 // --- The person's session on the node side (the seed only): loops' own login, the cookie kept in memory here.
@@ -267,8 +268,7 @@ try {
   await ctx.close();
 } finally {
   await browser.close().catch(() => {});
-  await host.close().catch(() => {});
-  await other.close().catch(() => {});
+  for (const rig of rigs) await rig.close();
 }
 writeFileSync(`${opts.out}${opts.tag}-requests.json`, JSON.stringify(requests, null, 2));
 const pageErrors = problems.filter((p) => !/other-origin\] console .*(CORS|Failed to load resource)/.test(p) && !/signed-(in|out)\] console .*status of (401|403)/.test(p) && !/signed-out\] console .*Failed to load resource/.test(p));

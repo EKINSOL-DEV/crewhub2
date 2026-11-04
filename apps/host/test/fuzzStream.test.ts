@@ -49,7 +49,7 @@ function planBody(rng: Rng, from: number): Plan {
     if (kind <= 3) {
       next += rng.int(1, 3);
       seqs.push(next);
-      const project = rng.chance(0.5) ? { slug: rng.pick(["atlas", "beacon", "a/b", "", " ", "x".repeat(129), oddString(rng, 2, 0)]), key: "AT" } : rng.pick([null, 5, "atlas", [], { slug: 7 }]);
+      const project = rng.chance(0.5) ? { slug: rng.pick(["atlas", "beacon", "a/b", "", " ", "x".repeat(129), oddString(rng, 2, 0)]), key: "AT" } : rng.pick([null, 5, "atlas", [], { slug: 7 }, undefined]); // undefined: JSON drops the key, the shape of round 54's finding
       lines.push(JSON.stringify({ v: 1, seq: next, ts: new Date(1_760_000_000_000 + next).toISOString(), type: rng.pick(["ticket.updated", "project.archived", "project.restored", "dm.created", oddString(rng, 2, 0)]), project, ticket: null, actor: { id: "x", kind: rng.pick(["agent", "user", 5]) }, recipientIds: [], payload: oddValue(rng) }));
     } else if (kind === 4) {
       // An odd seq: a boundary number, a non-finite as JSON text, a duplicate, a lower one, a string, nothing.
@@ -168,9 +168,9 @@ describe("fuzz: the stream's parsing of loops' lines", () => {
       assert.ok(messages.filter((m) => m.type === "event").length > 100, `seed ${seed}: ${messages.filter((m) => m.type === "event").length} events reached the tab`);
       // The events fed to the archive memory, every project's slug whatever shape `project` has on the wire: only path
       // segments enter the link's set or the set (round 34; the upstream kept this set before round 59d's C5).
-      const memory = createArchiveMemory({ targetNow: () => "fuzz", log: () => undefined });
+      const memory = createArchiveMemory({ log: () => undefined });
       memory.linked("fuzz");
-      for (const m of messages) if (m.type === "event") memory.heard(m.envelope.type, (m.envelope.project as { slug?: unknown } | null | undefined)?.slug);
+      for (const m of messages) if (m.type === "event") memory.heard(m.envelope);
       for (const slug of [...memory.seen(), ...memory.slugs(), ...(memory.state(true).slugs ?? [])]) assert.ok(isSegment(slug), `seed ${seed}: archived slug ${JSON.stringify(slug)} is no segment`);
       // The resume of each connection after the first: a sealed token loops offered (a heartbeat's or a tail's) for
       // exactly this position, else after=<cursor>. Either way nothing but a token or a non-negative integer travels.

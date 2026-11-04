@@ -129,6 +129,7 @@ import { cli, dressed, hostGet, launch, list, pairedTab, problemLines, seek, spe
 import { createConnectStub } from "./lib/connectStub.mjs";
 import { createLoopsWebStub } from "./lib/loopsWebStub.mjs";
 import { isProbeRefusal } from "./lib/probeRefusal.ts";
+import { startRig } from "./lib/rig.mjs";
 import { regressPlan } from "./lib/regressArgs.ts";
 import { appDataPort, ownAppData, ownLoopsUrl, ownPort } from "./lib/toolGuard.ts";
 
@@ -922,21 +923,16 @@ await group("tour", async () => {
 });
 
 await group("live", async () => {
-  // 15. Live mode against a fake crewhub-loops behind the host, both started here on 127.0.0.1.
-  const { createLoopsFake } = await import(pathToFileURL(path.join(REPO, "packages", "loops-fake", "src", "index.ts")).href);
-  const { createHost } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "host.ts")).href);
-  const dist = DIST;
-  const served = DIST_SERVED;
+  // 15. Live mode against a fake crewhub-loops behind the host, both started here on 127.0.0.1: the rig (lib/rig.mjs)
+  // with the loops web app the host names (`loopsWebUrl`), for the Chat panel's frame: a stub page that records how it
+  // was fetched. The host serves the built world when it is there, else it stands behind your Vite; pairing on.
   const hostPort = Number(opts["host-port"]);
-  if (!served && (!Number.isInteger(hostPort) || hostPort <= 0)) opts.fail("--host-port <port> must be a port number");
-  if (served) info(`live: ${distFresh}`);
+  if (DIST_SERVED) info(`live: ${distFresh}`);
   const fakeOptions = { heartbeatMs: 1000 };
-  let fake = noteLoops(await createLoopsFake(fakeOptions));
-  // The loops web app the host names (`loopsWebUrl`), for the Chat panel's frame: a stub page that records how it was fetched.
-  const web = noteLoops(await createLoopsWebStub());
-  const hostOptions = { loopsUrl: fake.url, loopsWebUrl: web.url, key: fake.key, keyName: fake.keyName, retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: () => undefined };
-  const host = await createHost(served ? { ...hostOptions, staticDir: dist } : { ...hostOptions, port: hostPort, allowedOrigins: [origin] });
-  const liveOrigin = served ? host.url : origin;
+  const rig = await startRig({ loops: { fake: fakeOptions }, web: true, serve: { dist: DIST, origin, hostPort }, log: () => undefined, onLoops: noteLoops });
+  const { served, web, host } = rig;
+  let { fake } = rig;
+  const liveOrigin = rig.origin;
   // The page is opened without `?source=live`: the source is `auto`, the probe finds the host and the health it answers
   // is what the sign-in link follows (an override skips the probe, and the link would fall back to the default URL).
   const liveBase = `${liveOrigin}/`;
@@ -977,7 +973,7 @@ await group("live", async () => {
     if (pairing) {
       // Behind the Vite proxy the link must open on Vite's origin (the page exchanges the fragment's token at the proxied
       // POST /world-api/pair); on the host's own when it serves dist. The tab keeps the bearer, the URL loses the token.
-      const link = host.mintPairLink(served ? undefined : origin);
+      const link = rig.pairLink();
       await pg.goto(link);
       const stored = await pairedTab(pg).then(() => true, () => false);
       ok("pairing: the one-time link lands on /, the token gone from the URL and the bearer in this tab's sessionStorage", stored && new URL(pg.url()).pathname === "/" && new URL(pg.url()).hash === "" && new URL(pg.url()).origin === liveOrigin, `${pg.url()}, stored ${stored}`);
@@ -1207,15 +1203,13 @@ await group("live", async () => {
     const down = await until(pg, "loops-down", 20000);
     ok("live: Loops down after the fake closes", down === "loops-down", `${down}: ${(await chip(pg).innerText().catch(() => "")).trim()}`);
     await shot(pg, "24-loops-down");
-    fake = noteLoops(await createLoopsFake({ ...fakeOptions, port, key, keyName, firstSeq: lastSeq }));
+    fake = await rig.loopsAgain({ ...fakeOptions, port, key, keyName, firstSeq: lastSeq });
     const again = await until(pg, "live", 30000);
     ok("live: Live again after a new fake on the same port", again === "live", `${again}: ${(await chip(pg).innerText().catch(() => "")).trim()}`);
     await shot(pg, "25-live-again");
     await pg.context().close();
   } finally {
-    await host.close().catch(() => {});
-    await fake.close().catch(() => {});
-    await web.close().catch(() => {});
+    await rig.close();
     // The Chat panel's frame is the one request that leaves the page's origin, by design: it is the loops web app
     // (the stub here). Only those requests are expected; anything else leaving the page still fails the closing check.
     // At the stub's own origin, not any text that contains it (round 52, r51-review T4).
@@ -1230,19 +1224,14 @@ await group("chat", async () => {
   // key): over a fake whose viewer key reads the chat (the key road), then over a fake whose key does not (no bubbles,
   // the plain words). The host serves the built world on a free port (or listens on --host-port behind your Vite, as the
   // live and ops groups do).
-  const { createLoopsFake } = await import(pathToFileURL(path.join(REPO, "packages", "loops-fake", "src", "index.ts")).href);
-  const { createHost } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "host.ts")).href);
-  const dist = path.join(REPO, "apps", "world", "dist");
-  const served = existsSync(path.join(dist, "index.html"));
+  // Each road has its rig (lib/rig.mjs): a fake, the host over it (serving the built world when it is there, else
+  // behind your Vite), pairing off, the host's lines kept.
   const hostPort = Number(opts["host-port"]);
-  if (!served && (!Number.isInteger(hostPort) || hostPort <= 0)) opts.fail("--host-port <port> must be a port number");
+  const serve = { dist: DIST, origin, hostPort };
   // The key road: a loops whose viewer key may read the chat (world/viewer-key, 8292): no sign-in at all.
-  const fake2 = noteLoops(await createLoopsFake({ heartbeatMs: 1000, speed: 1, startAt: 200_000, keyReadsChat: true }));
-  const web2 = noteLoops(await createLoopsWebStub());
-  const lines2 = [];
-  const hostOptions2 = { loopsUrl: fake2.url, loopsWebUrl: web2.url, key: fake2.key, keyName: fake2.keyName, pairing: "off", retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: (line) => lines2.push(line) };
-  const host2 = await createHost(served ? { ...hostOptions2, staticDir: dist } : { ...hostOptions2, port: hostPort, allowedOrigins: [origin] });
-  const keyOrigin = served ? host2.url : origin;
+  const rig2 = await startRig({ loops: { fake: { heartbeatMs: 1000, speed: 1, startAt: 200_000, keyReadsChat: true } }, web: true, serve, pairing: "off", onLoops: noteLoops });
+  const { fake: fake2, web: web2, host: host2, lines: lines2 } = rig2;
+  const keyOrigin = rig2.origin;
   info(`chat (key road): fake on 127.0.0.1:${fake2.port} whose key reads the chat, host on 127.0.0.1:${host2.port}`);
   const own2 = [];
   const ctx2 = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
@@ -1413,9 +1402,7 @@ await group("chat", async () => {
     problems.push(...own2.filter((x) => !(x.kind === "external" && (x.url ?? "").startsWith(`${web2.url}/`))));
   } finally {
     await ctx2.close().catch(() => {});
-    await host2.close().catch(() => {});
-    await fake2.close().catch(() => {});
-    await web2.close().catch(() => {});
+    await rig2.close();
   }
 
   // No chat road (round 19): a loops that does not let the key read the chat (a plain external bot's key, an older
@@ -1423,12 +1410,9 @@ await group("chat", async () => {
   // this chat, Recent answers' empty state and the text view's Chat line all say so and point to a viewer key; the
   // sign-in road is gone (a write to /world-api/session is refused by the write gate, 405; a read is 404); an agent's
   // answer on loops shows no mark and no bubble.
-  const fake3 = noteLoops(await createLoopsFake({ heartbeatMs: 1000, speed: 1, startAt: 200_000 }));
-  const web3 = noteLoops(await createLoopsWebStub());
-  const lines3 = [];
-  const hostOptions3 = { loopsUrl: fake3.url, loopsWebUrl: web3.url, key: fake3.key, keyName: fake3.keyName, pairing: "off", retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: (line) => lines3.push(line) };
-  const host3 = await createHost(served ? { ...hostOptions3, staticDir: dist } : { ...hostOptions3, port: hostPort, allowedOrigins: [origin] });
-  const noneOrigin = served ? host3.url : origin;
+  const rig3 = await startRig({ loops: { fake: { heartbeatMs: 1000, speed: 1, startAt: 200_000 } }, web: true, serve, pairing: "off", onLoops: noteLoops });
+  const { fake: fake3, web: web3, host: host3, lines: lines3 } = rig3;
+  const noneOrigin = rig3.origin;
   info(`chat (no chat road): fake on 127.0.0.1:${fake3.port} whose key does not read the chat, host on 127.0.0.1:${host3.port}`);
   const own3 = [];
   const ctx3 = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
@@ -1480,9 +1464,7 @@ await group("chat", async () => {
     problems.push(...own3.filter((x) => !(x.kind === "external" && (x.url ?? "").startsWith(`${web3.url}/`))));
   } finally {
     await ctx3.close().catch(() => {});
-    await host3.close().catch(() => {});
-    await fake3.close().catch(() => {});
-    await web3.close().catch(() => {});
+    await rig3.close();
   }
 
   // Road 2 (round 28): the page reads loops itself. The fake names the page's origin as its CHL_WORLD_ORIGIN (the
@@ -1492,11 +1474,9 @@ await group("chat", async () => {
   // and the road is page; an agent inside a building answers (the fake's sendDm to cr-lead) and the page's own poll
   // brings it: the chat mark over the building, the bubble inside, the Recent answers row; every request the page
   // made to the fake was a GET on the four routes with the events query loops forces, and the console has no CORS line.
-  const fake4 = noteLoops(await createLoopsFake({ heartbeatMs: 1000, speed: 1, startAt: 200_000 }));
-  const lines4 = [];
-  const hostOptions4 = { loopsUrl: fake4.url, key: fake4.key, keyName: fake4.keyName, pairing: "off", retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: (line) => lines4.push(line) };
-  const host4 = await createHost(served ? { ...hostOptions4, staticDir: dist } : { ...hostOptions4, port: hostPort, allowedOrigins: [origin] });
-  const pageOrigin4 = served ? host4.url : origin;
+  const rig4 = await startRig({ loops: { fake: { heartbeatMs: 1000, speed: 1, startAt: 200_000 } }, serve, pairing: "off", onLoops: noteLoops });
+  const { fake: fake4, host: host4, lines: lines4 } = rig4;
+  const pageOrigin4 = rig4.origin;
   fake4.setWorldOrigin(pageOrigin4);
   info(`chat (road 2): fake on 127.0.0.1:${fake4.port} with CHL_WORLD_ORIGIN=${pageOrigin4}, host on 127.0.0.1:${host4.port} naming the fake as the loops web origin`);
   const own4 = [];
@@ -1575,8 +1555,7 @@ await group("chat", async () => {
     problems.push(...own4.filter((x) => x.kind === "console" && /status of 404/.test(x.text) && x.url !== `${fake4.url}/`));
   } finally {
     await ctx4.close().catch(() => {});
-    await host4.close().catch(() => {});
-    await fake4.close().catch(() => {});
+    await rig4.close();
   }
 });
 
@@ -1584,14 +1563,8 @@ await group("town", async () => {
   // The world database (round 20): the host keeps the live town per installation in world.db. Two paired browsers on one
   // host see one town (a zone made in one appears in the other through the stream's `town` message); a host restart on
   // the same database keeps it; a browser with an older town of its own imports it once into a host that has none.
-  const { createLoopsFake } = await import(pathToFileURL(path.join(REPO, "packages", "loops-fake", "src", "index.ts")).href);
-  const { createHost } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "host.ts")).href);
   const { openWorldDb } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "worldDb.ts")).href);
-  const dist = DIST;
-  const served = DIST_SERVED;
   const hostPort = Number(opts["host-port"]);
-  if (!served && (!Number.isInteger(hostPort) || hostPort <= 0)) opts.fail("--host-port <port> must be a port number");
-  const fake = noteLoops(await createLoopsFake({ heartbeatMs: 1000 }));
   // One pairing secret for every host of this group, so a restart keeps the browsers paired; two databases: the first
   // host's, left behind, and the one the rest of the group runs on.
   const pairingSecret = randomBytes(32);
@@ -1600,10 +1573,14 @@ await group("town", async () => {
   const dbDirs = ["a", "b"].map((side) => path.join(OUT, `${tag}-town-${side}`));
   for (const dir of dbDirs) rmSync(dir, { recursive: true, force: true });
   const dbs = dbDirs.map((dir) => openWorldDb(dir));
-  const hostLog = [];
-  const base = { loopsUrl: fake.url, key: fake.key, keyName: fake.keyName, retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: (line) => hostLog.push(line), pairingSecret };
-  const start = (worldDb, port) => createHost(served ? { ...base, worldDb, staticDir: dist, ...(port ? { port } : {}) } : { ...base, worldDb, port: hostPort, allowedOrigins: [origin] });
-  let host = await start(dbs[0]);
+  // The rig (lib/rig.mjs): the fake, the host on the first database with the group's secret (serving the built world
+  // when it is there, else behind your Vite); `start` is the next host on another database, on the same port while
+  // the host serves (the rig closes the one standing first); the host's lines are the rig's.
+  const rig = await startRig({ loops: { fake: { heartbeatMs: 1000 } }, serve: { dist: DIST, origin, hostPort }, pairing: { secret: pairingSecret }, host: { worldDb: dbs[0] }, onLoops: noteLoops });
+  const { fake, served } = rig;
+  const hostLog = rig.lines;
+  const start = (worldDb) => rig.restart({ worldDb });
+  let host = rig.host;
   const port = host.port;
   const liveOrigin = served ? host.url : origin;
   const liveBase = `${liveOrigin}/`;
@@ -1820,15 +1797,14 @@ await group("town", async () => {
     for (const ctx of contexts.splice(0)) await ctx.close().catch(() => {});
     await host.close();
     const { FIRST_PERSON_DONE_MS } = await import(pathToFileURL(path.join(REPO, "packages", "demo", "src", "script.ts")).href);
-    const propFake = noteLoops(await createLoopsFake({ heartbeatMs: 1000, startAt: FIRST_PERSON_DONE_MS - 20_000 }));
+    const propFake = await rig.loopsAgain({ heartbeatMs: 1000, startAt: FIRST_PERSON_DONE_MS - 20_000 });
     const propDir = path.join(OUT, `${tag}-town-c`);
     rmSync(propDir, { recursive: true, force: true });
     dbDirs.push(propDir);
     const propDb = openWorldDb(propDir);
     dbs.push(propDb);
     try {
-      const propBase = { ...base, loopsUrl: propFake.url, key: propFake.key, keyName: propFake.keyName, worldDb: propDb };
-      host = await createHost(served ? { ...propBase, staticDir: dist, port } : { ...propBase, port: hostPort, allowedOrigins: [origin] });
+      host = await rig.restart({ loopsUrl: propFake.url, key: propFake.key, keyName: propFake.keyName, worldDb: propDb });
       const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
       contexts.push(ctx);
       const pg = await ctx.newPage();
@@ -1868,7 +1844,7 @@ await group("town", async () => {
     }
   } finally {
     for (const ctx of contexts) await ctx.close().catch(() => {});
-    await host.close().catch(() => {});
+    await rig.close();
     await fake.close().catch(() => {});
     for (const db of dbs) db.close();
     for (const dir of dbDirs) rmSync(dir, { recursive: true, force: true });
@@ -1879,28 +1855,23 @@ await group("ops", async () => {
   // 16. The live operations road (round 7): loops stopped and started, the key revoked while Live and another pasted,
   // loops upgraded (another health version), each under a running host over the fake, each with its honest screen.
   // The host listens on --host-port behind your Vite; the fake is reopened on its own port for every act.
-  const { createLoopsFake } = await import(pathToFileURL(path.join(REPO, "packages", "loops-fake", "src", "index.ts")).href);
-  const { createHost } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "host.ts")).href);
   const { createKeyStore } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "keyStore.ts")).href);
-  // As the live group: with apps/world/dist built the host serves it on a free port and the browser opens the host
-  // directly (no port of yours is taken); otherwise the host listens on --host-port behind your Vite.
-  const dist = DIST;
-  const served = DIST_SERVED;
+  // As the live group (the rig, lib/rig.mjs): with apps/world/dist built the host serves it on a free port and the
+  // browser opens the host directly (no port of yours is taken); otherwise the host listens on --host-port behind your Vite.
   const hostPort = Number(opts["host-port"]);
-  if (!served && (!Number.isInteger(hostPort) || hostPort <= 0)) opts.fail("--host-port <port> must be a port number");
-  if (served) info(`ops: ${distFresh}`);
+  if (DIST_SERVED) info(`ops: ${distFresh}`);
   const configDir = path.join(OUT, `${tag}-ops-config`);
   rmSync(configDir, { recursive: true, force: true });
   mkdirSync(configDir, { recursive: true, mode: 0o700 });
   const store = createKeyStore(configDir);
   const fakeOptions = { heartbeatMs: 1000, version: "0.1.0+fake.ops" };
-  let fake = noteLoops(await createLoopsFake(fakeOptions));
+  const rig = await startRig({ loops: { fake: fakeOptions }, serve: { dist: DIST, origin, hostPort }, pairing: "off", host: { keySource: "stored", keyStore: store }, log: () => undefined, onLoops: noteLoops });
+  const { served, host } = rig;
+  let { fake } = rig;
   const { port, keyName } = fake;
   const firstKey = fake.key;
   let lastSeq = fake.lastSeq();
-  const hostOptions = { loopsUrl: fake.url, key: firstKey, keyName, keySource: "stored", keyStore: store, pairing: "off", retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: () => undefined };
-  const host = await createHost(served ? { ...hostOptions, staticDir: dist } : { ...hostOptions, port: hostPort, allowedOrigins: [origin] });
-  const opsOrigin = served ? host.url : origin;
+  const opsOrigin = rig.origin;
   const opsBase = `${opsOrigin}/`;
   info(`ops: fake on 127.0.0.1:${port}, host on 127.0.0.1:${host.port} ${served ? "serving apps/world/dist" : `behind the Vite proxy on ${origin} (Vite started with CREWHUB_WORLD_PORT=${hostPort})`}, the key store under ${configDir}`);
   const own = [];
@@ -1970,7 +1941,7 @@ await group("ops", async () => {
     const factsDown = await panelFacts((f) => /down; the host retries/.test(f));
     ok("ops (a): loops stopped under the host: the Loops down chip over the last known town, the panel says the stream is down and the host retries, the key still accepted", down === "loops-down" && /down; the host retries/.test(factsDown) && /accepted/.test(factsDown), `${down}; ${factsDown.slice(0, 160)}`);
     await shot(pg, "47-ops-loops-stopped");
-    fake = noteLoops(await createLoopsFake({ ...fakeOptions, port, key: firstKey, keyName, firstSeq: lastSeq }));
+    fake = await rig.loopsAgain({ ...fakeOptions, port, key: firstKey, keyName, firstSeq: lastSeq });
     const back = await until("live", 30000);
     const healthBack = await healthUntil((h) => h.loops === "ok" && typeof h.cursor === "number", 10000);
     ok("ops (a): loops started again: Live without a reload, the key still accepted, the cursor goes on", back === "live" && (await marked()) === "set" && healthBack?.connection?.key?.state === "ok" && healthBack?.cursor >= lastSeq, `${back}, marker ${await marked()}, key ${healthBack?.connection?.key?.state}, cursor ${lastSeq} → ${healthBack?.cursor}`);
@@ -1982,7 +1953,7 @@ await group("ops", async () => {
     await fake.close();
     // The new key is another bot's (round 48): the page must name the key the host holds now.
     const secondName = `${keyName}-2`;
-    fake = noteLoops(await createLoopsFake({ ...fakeOptions, port, keyName: secondName, firstSeq: lastSeq }));
+    fake = await rig.loopsAgain({ ...fakeOptions, port, keyName: secondName, firstSeq: lastSeq });
     const rejected = await screen("rejected", 30000);
     // The screen asks the host at once for loops' reason; give that read a moment.
     let reason = "";
@@ -2017,7 +1988,7 @@ await group("ops", async () => {
     // (c) loops upgraded: the fake comes back on its port with another health version.
     lastSeq = fake.lastSeq();
     await fake.close();
-    fake = noteLoops(await createLoopsFake({ ...fakeOptions, version: "0.2.0+fake.ops", port, key: secondKey, keyName: secondName, firstSeq: lastSeq }));
+    fake = await rig.loopsAgain({ ...fakeOptions, version: "0.2.0+fake.ops", port, key: secondKey, keyName: secondName, firstSeq: lastSeq });
     const liveUpgraded = await until("live", 30000);
     const healthUpgraded = await healthUntil((h) => h.loopsCommit === "0.2.0+fake.ops", 15000);
     const factsUpgraded = await panelFacts((f) => /it was 0\.1\.0\+fake\.ops when this host started/.test(f));
@@ -2027,8 +1998,7 @@ await group("ops", async () => {
     problems.push(...own.filter((x) => !(x.kind === "console" && /status of (401|403|503)/.test(x.text))));
   } finally {
     await ctx.close().catch(() => {});
-    await host.close().catch(() => {});
-    await fake.close().catch(() => {});
+    await rig.close();
     rmSync(configDir, { recursive: true, force: true });
   }
 });
@@ -2264,7 +2234,6 @@ await group("connect", async () => {
     // The Read only bot's key: LOOPS_DEV_READONLY_KEY_FILE, else the key file's name with -ro before .key.
     const readonlyFile = env.LOOPS_DEV_READONLY_KEY_FILE ?? keyFile.replace(/\.key$/, "-ro.key");
     let readonlyKey = readKey(readonlyFile);
-    const { createHost } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "host.ts")).href);
     const { createKeyStore } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "keyStore.ts")).href);
     const { createArchiveStore } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "archiveStore.ts")).href);
     const { loadPairingSecret } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "pairing.ts")).href);
@@ -2277,18 +2246,17 @@ await group("connect", async () => {
     const keyPath = storedKeyFile(configDir);
     // What `npm run world` gives the host: the discovery through the data folder, its own stores, pairing on with the
     // secret kept in a file (the second host reads the same file: that is what keeps every paired browser).
-    const hostOptions = () => ({
-      discovery: { appData, intervalMs: 1000 },
-      keyStore: createKeyStore(configDir),
-      archiveStore: createArchiveStore(configDir),
-      port: hostPort,
-      allowedOrigins: [origin],
-      pairing: "on",
-      pairingSecret: loadPairingSecret(secretFile),
-      retryMs: { min: 200, max: 2000 },
+    // The rig (lib/rig.mjs): a keyless host behind your Vite, discovering through the data folder, with its stores,
+    // pairing on with the secret from the file; a restart stands on the same options (the same secret, the same stores).
+    const rig = await startRig({
+      loops: { discovery: { appData, intervalMs: 1000 } },
+      serve: { origin, hostPort },
+      pairing: { secret: loadPairingSecret(secretFile) },
+      host: { keyStore: createKeyStore(configDir), archiveStore: createArchiveStore(configDir) },
+      timings: { retryMs: { min: 200, max: 2000 } },
       log: () => undefined,
     });
-    let host = await createHost(hostOptions());
+    let host = rig.host;
     info(`connect: loops on 127.0.0.1:${parsed.port} (version ${health.version}); a keyless host on 127.0.0.1:${host.port} looking in ${appData}, its folder ${configDir}, pairing on, behind the Vite proxy on ${origin}`);
     const hostApi = (p) => hostGet(pg, `${origin}/world-api${p}`).then((r) => r.json());
     try {
@@ -2338,7 +2306,7 @@ await group("connect", async () => {
       const atStop = await until(pg, "stale", 10000);
       const storedKey = readKey(keyPath);
       const restarted = Date.now();
-      host = await createHost({ ...hostOptions(), key: storedKey, keyName: "crewhub-world", keySource: "stored" });
+      host = await rig.restart({ key: storedKey, keyName: "crewhub-world", keySource: "stored" });
       const again = await until(pg, "live", 30000);
       const marker2 = await marked(pg);
       const after = await hostApi("/health").catch(() => null);
@@ -2358,7 +2326,7 @@ await group("connect", async () => {
     } finally {
       key = "";
       readonlyKey = "";
-      if (host !== null) await host.close().catch(() => {});
+      await rig.close();
       rmSync(configDir, { recursive: true, force: true });
       await ctx.close().catch(() => {});
     }
@@ -2744,12 +2712,14 @@ await group("real", async () => {
     await ctx.close();
     return;
   }
-  const { createHost } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "host.ts")).href);
   const hostPort = Number(opts["host-port"]);
   if (!Number.isInteger(hostPort) || hostPort <= 0) opts.fail("--host-port <port> must be a port number");
   const keyName = path.basename(keyFile).replace(/^agent-/, "").replace(/\.key$/, "");
-  const hostOptions = { loopsUrl, keyName, pairing: "off", retryMs: { min: 200, max: 2000 }, log: () => undefined };
-  const host = await createHost({ ...hostOptions, key, port: hostPort, allowedOrigins: [origin] });
+  // The rig (lib/rig.mjs) over the real loops: the host behind your Vite with the key, pairing off, a slow retry (the
+  // key's verdict is loops' own); the socket host below is a second rig over the same loops and key.
+  const rigOptions = { loops: { url: loopsUrl, key, keyName }, pairing: "off", timings: { retryMs: { min: 200, max: 2000 } }, log: () => undefined };
+  const rig = await startRig({ ...rigOptions, serve: { origin, hostPort } });
+  const { host } = rig;
   info(`real: loops on 127.0.0.1:${loopsPort} (version ${health.version}), host on 127.0.0.1:${host.port} behind the Vite proxy on ${origin}, key ${keyName}`);
   // The host's answers through the Vite proxy, as the page reads them.
   const hostApi = (p) => pg.request.get(`${origin}/world-api${p}`).then((r) => r.json());
@@ -2843,7 +2813,7 @@ await group("real", async () => {
     );
     ok("real: the host reports loops' version as its health says it, with no earlier version, and the panel names it", after.loopsCommit === health.version && after.loopsCommitBefore === undefined && facts.includes(`crewhub-loops version ${health.version}`), `${after.loopsCommit} (loops says ${health.version}); panel: ${facts.replace(/.*crewhub-loops version/, "crewhub-loops version").slice(0, 80)}`);
   } finally {
-    await host.close().catch(() => {});
+    await rig.close();
   }
   // The socket: with the TCP host closed (one upstream stream of this key at a time), a second host reads the same
   // loops over its Unix socket (CREWHUB_WORLD_LOOPS_SOCKET): the same key, the same projects, `transport: "unix"`.
@@ -2851,13 +2821,14 @@ await group("real", async () => {
   // A development loops' socket, never the Mac app's (its data folder holds run/api.sock).
   const socketVerdict = ownAppData(socketPath, process.env.HOME ?? "~");
   if (!socketVerdict.ok) opts.fail(`--loops-socket: ${socketVerdict.reason}`);
-  let unixHost = null;
+  let unixRig = null;
   try {
     if (!isUnixSocket(socketPath)) {
       info(`real: socket check skipped, no Unix socket at ${socketPath} (--loops-socket names another)`);
       return;
     }
-    unixHost = await createHost({ ...hostOptions, key, loopsSocket: socketPath, port: 0 });
+    unixRig = await startRig({ ...rigOptions, serve: { hostPort: 0 }, host: { loopsSocket: socketPath } });
+    const unixHost = unixRig.host;
     key = "";
     const unixApi = (p) => pg.request.get(`${unixHost.url}/world-api${p}`).then((r) => r.json());
     let unixHealth = await unixApi("/health");
@@ -2871,7 +2842,7 @@ await group("real", async () => {
     ok("real: the socket host's snapshot has the projects the TCP host had", unixProjects > 0 && unixProjects === tcpProjects, `${unixProjects} over the socket, ${tcpProjects} over TCP`);
   } finally {
     key = "";
-    if (unixHost !== null) await unixHost.close().catch(() => {});
+    if (unixRig !== null) await unixRig.close();
     await ctx.close().catch(() => {});
   }
 });

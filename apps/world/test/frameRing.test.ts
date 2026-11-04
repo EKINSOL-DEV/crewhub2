@@ -1,29 +1,8 @@
+/* The frame ring behind the frame rate overlay (world/frameRing.ts). These two tests stood in fps.test.ts until round 60's
+   pg-P1 moved that file's storage fact to setting.test.ts; moved here verbatim. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { FPS_KEY, readFps, writeFps } from "../src/state/fps.ts";
 import { FrameRing } from "../src/world/frameRing.ts";
-
-test("the frame rate overlay is off by default, kept per viewer, and survives storage that throws", () => {
-  const throwing = {
-    getItem: () => {
-      throw new Error("blocked");
-    },
-    setItem: () => {
-      throw new Error("blocked");
-    },
-  };
-  assert.equal(readFps(throwing), false);
-  assert.doesNotThrow(() => writeFps(true, throwing));
-  assert.equal(readFps(null), false);
-  const store = new Map<string, string>();
-  const memory = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
-  assert.equal(readFps(memory), false);
-  writeFps(true, memory);
-  assert.equal(store.get(FPS_KEY), "on");
-  assert.equal(readFps(memory), true);
-  writeFps(false, memory);
-  assert.equal(readFps(memory), false);
-});
 
 test("the frame ring reports fps, mean, p95, max and slow frames over its window", () => {
   const ring = new FrameRing(64);

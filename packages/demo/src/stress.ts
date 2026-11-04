@@ -13,7 +13,6 @@ import type {
   BoardResponse,
   Envelope,
   PlaybackControls,
-  PlaybackSpeed,
   PrincipalOut,
   PrincipalRef,
   ProjectOut,
@@ -28,6 +27,7 @@ import type {
 } from "@crewhub/loops-client";
 import type { ProjectGroupSeed } from "./content.ts";
 import { mulberry32 } from "./prng.ts";
+import { type Timeline, createPlayer } from "./player.ts";
 import type { Scheduler } from "./scheduler.ts";
 import { DEMO_EPOCH_MS, MINUTE, SECOND, iso } from "./time.ts";
 
@@ -68,7 +68,6 @@ const TICKETS_PER_PROJECT = 14;
 const STEP_MS = 400;
 const TEAM_EVERY_MS = 30 * SECOND;
 const DURATION_MS = 30 * MINUTE;
-const TICK_MS = 100;
 const SESSION = "stress";
 const COLORS = ["coral", "tangerine", "circle", "mist", "ink"] as const;
 const ICONS = ["home", "inbox", "bot", "spark", "users", "star", "folder"] as const;
@@ -322,27 +321,12 @@ export interface StressSource extends WorldSource {
 }
 
 export function createStressSource(options: StressSourceOptions): StressSource {
-  const scheduler = options.scheduler;
   const fixture = STRESS_FIXTURES[options.size ?? 12];
-  const epoch = options.epochMs ?? DEMO_EPOCH_MS;
-  let state = initial(epoch, fixture);
-  let position = 0;
+  let state: State;
   let steps = 0;
-  let speed: PlaybackSpeed = 1;
-  let loop = 0;
-  let lastWall = scheduler.now();
-  let interval: unknown = null;
-  const listeners = new Set<(message: SourceMessage) => void>();
-  const changeListeners = new Set<() => void>();
-  const base = () => epoch + loop * DURATION_MS;
-  const send = (message: SourceMessage) => {
-    for (const listener of [...listeners]) listener(message);
-  };
-  const changed = () => {
-    for (const listener of [...changeListeners]) listener();
-  };
 
   const snapshot = (): SourceMessage => {
+    state.now = player.now();
     const boards: Record<string, BoardResponse> = {};
     for (const p of state.projects)
       boards[p.out.slug] = { columns: STATUSES.map((status) => ({ status, tickets: p.cards.filter((c) => c.status === status).map((c) => structuredClone(c)) })) };
@@ -370,65 +354,27 @@ export function createStressSource(options: StressSourceOptions): StressSource {
     };
   };
 
-  /** Rebuilds the state for this loop and replays the stream silently up to `to`. */
-  function rebuild(to: number): void {
-    state = initial(base(), fixture);
-    state.seq += loop * 1_000_000;
-    steps = 0;
-    while ((steps + 1) * STEP_MS <= to) {
-      steps++;
-      step(state, steps, base() + steps * STEP_MS);
-    }
-    position = to;
-    state.now = base() + position;
-  }
-
-  function playTo(target: number): void {
-    while ((steps + 1) * STEP_MS <= target) {
-      if ((steps + 1) * STEP_MS >= DURATION_MS) {
-        loop++;
-        target -= DURATION_MS;
-        rebuild(0);
-        send(snapshot());
-        continue;
-      }
-      steps++;
-      for (const message of step(state, steps, base() + steps * STEP_MS)) send(message);
-    }
-    position = target;
-    state.now = base() + position;
-  }
-
-  function tick(): void {
-    const wall = scheduler.now();
-    const elapsed = Math.min(5 * SECOND, Math.max(0, wall - lastWall));
-    lastWall = wall;
-    if (speed === 0 || elapsed === 0) return;
-    playTo(position + elapsed * speed);
-    changed();
-  }
-
-  const playback: PlaybackControls = {
+  /** The stream as the player's timeline: one PRNG step every STEP_MS; the step at the loop end is the next loop's. */
+  const stream: Timeline = {
     durationMs: DURATION_MS,
-    positionMs: () => position,
-    speed: () => speed,
-    setSpeed(value) {
-      lastWall = scheduler.now();
-      speed = value;
-      changed();
+    /** Rebuilds the state for this loop and replays the stream silently up to `to`. */
+    rebuild(to, loop, base) {
+      state = initial(base, fixture);
+      state.seq += loop * 1_000_000;
+      steps = 0;
+      while ((steps + 1) * STEP_MS <= to) {
+        steps++;
+        step(state, steps, base + steps * STEP_MS);
+      }
     },
-    seek(to) {
-      rebuild(Math.min(Math.max(0, Math.round(to)), DURATION_MS - 1));
-      lastWall = scheduler.now();
-      if (listeners.size) send(snapshot());
-      changed();
+    nextAt: () => ((steps + 1) * STEP_MS < DURATION_MS ? (steps + 1) * STEP_MS : Infinity),
+    playNext(base) {
+      steps++;
+      return step(state, steps, base + steps * STEP_MS);
     },
-    loop: () => loop,
-    onChange(listener) {
-      changeListeners.add(listener);
-      return () => changeListeners.delete(listener);
-    },
+    snapshot,
   };
+  const player = createPlayer(stream, { scheduler: options.scheduler, epochMs: options.epochMs ?? DEMO_EPOCH_MS });
 
   const findCard = (ref: string) => {
     for (const p of state.projects) {
@@ -440,23 +386,9 @@ export function createStressSource(options: StressSourceOptions): StressSource {
 
   return {
     mode: "demo",
-    playback,
-    now: () => base() + position,
-    start(listener) {
-      listeners.add(listener);
-      listener(snapshot());
-      if (interval === null) {
-        lastWall = scheduler.now();
-        interval = scheduler.setInterval(tick, TICK_MS);
-      }
-      return () => {
-        listeners.delete(listener);
-        if (!listeners.size && interval !== null) {
-          scheduler.clearInterval(interval);
-          interval = null;
-        }
-      };
-    },
+    playback: player.playback,
+    now: player.now,
+    start: player.start,
     getTicket: async (ref): Promise<Ticket | null> => {
       const found = findCard(ref);
       if (!found) return null;

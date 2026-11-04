@@ -8,12 +8,13 @@
 import { statSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
+import { APP_DATA_PARTS } from "../../../scripts/app-data.mjs";
 
 /** The Mac app's default port, and the URL the discovery tries when its data folder names no other port. */
 export const DEFAULT_LOOPS_URL = "http://127.0.0.1:8091";
 export const DEFAULT_PORT = 5180;
-/** The Mac app's data folder (read only, never written; `CREWHUB_WORLD_LOOPS_APP_DATA` overrides it). */
-export const DEFAULT_APP_DATA = path.join(homedir(), "Library", "Application Support", "be.ekinsol.crewhub");
+/** The Mac app's data folder (read only, never written; `CREWHUB_WORLD_LOOPS_APP_DATA` overrides it): the one spelling, `scripts/app-data.mjs`, as the test preload and the tools' rule read it. */
+export const DEFAULT_APP_DATA = path.join(homedir(), ...APP_DATA_PARTS);
 /** The host's own folder (`CREWHUB_WORLD_CONFIG_DIR` overrides it): the stored key lives here, mode 0700/0600. */
 export const DEFAULT_CONFIG_DIR = path.join(homedir(), ".config", "crewhub-world");
 export const STORED_KEY_NAME = "loops-key";
@@ -80,6 +81,9 @@ export function worldEnv(env: Record<string, string | undefined>): Record<string
   return { ...env, NODE_ENV: "production", CREWHUB_WORLD_PAIRING_FILE: named === "" ? path.join(configDirOf(env), PAIRING_SECRET_NAME) : named };
 }
 
+/** A key's shape, for a pasted key and the doctor's reading of a file: loops' keys are `chl_` and base64url; the fake's are hex. Bounded, one line, no spaces. */
+export const KEY_SHAPE = /^chl_[A-Za-z0-9_-]{8,200}$/;
+
 export interface KeyFiles {
   storedKey: string;
   defaultKey: string;
@@ -132,6 +136,18 @@ export function validateSocketPath(text: string, probe: (file: string) => PathKi
   return socket;
 }
 
+/** The origin of an http(s) URL given as text in the setting `name`; anything else is a `ConfigError` that names it. */
+function httpOrigin(text: string, name: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(text);
+  } catch {
+    throw new ConfigError(`${name} must be an http(s) URL`);
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") throw new ConfigError(`${name} must be an http(s) URL`);
+  return parsed.origin;
+}
+
 /**
  * `CREWHUB_WORLD_LOOPS_WEB_URL`: where "sign in to crewhub-loops" goes (`health.loopsWebUrl`), as an origin. Unset, it
  * is the loops URL's origin, which is right for the app (API and web on 8091); set, it lets socket mode name another
@@ -140,14 +156,7 @@ export function validateSocketPath(text: string, probe: (file: string) => PathKi
 export function resolveLoopsWebUrl(text: string | undefined, loopsUrl: string | null): string | null {
   const wanted = (text ?? "").trim();
   if (wanted === "") return loopsUrl === null ? null : new URL(loopsUrl).origin;
-  let parsed: URL;
-  try {
-    parsed = new URL(wanted);
-  } catch {
-    throw new ConfigError("CREWHUB_WORLD_LOOPS_WEB_URL must be an http(s) URL");
-  }
-  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") throw new ConfigError("CREWHUB_WORLD_LOOPS_WEB_URL must be an http(s) URL");
-  return parsed.origin;
+  return httpOrigin(wanted, "CREWHUB_WORLD_LOOPS_WEB_URL");
 }
 
 export interface ServerConfig {
@@ -214,14 +223,7 @@ export function loadServerConfig(env: Record<string, string | undefined>, probe:
   const publicUrlText = (env.CREWHUB_WORLD_PUBLIC_URL ?? "").trim();
   let publicUrl: string | null = null;
   if (publicUrlText !== "") {
-    let parsed: URL;
-    try {
-      parsed = new URL(publicUrlText);
-    } catch {
-      throw new ConfigError("CREWHUB_WORLD_PUBLIC_URL must be an http(s) URL");
-    }
-    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") throw new ConfigError("CREWHUB_WORLD_PUBLIC_URL must be an http(s) URL");
-    publicUrl = parsed.origin;
+    publicUrl = httpOrigin(publicUrlText, "CREWHUB_WORLD_PUBLIC_URL");
   }
   return { loopsUrl, loopsSocket, loopsWebUrl, appData, configDir, port, allowedOrigins, production, pairing: pairingText, pairingFile, pairingIdleDays, publicUrl, warnings };
 }

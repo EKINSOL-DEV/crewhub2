@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DAYNIGHT_KEY, defaultDayNight, readDayNight, writeDayNight } from "../src/state/daynight.ts";
+import { dayNightIn, defaultDayNight } from "../src/state/daynight.ts";
 import { DAY_LENGTH_MS, dayPhase, driftPhase } from "../src/world/dayClock.ts";
 
 test("one day of the drift is one 16-minute loop of the demo script, from the morning", () => {
@@ -22,28 +22,13 @@ test("reduced motion, Fast and the setting off keep the theme's own light", () =
   assert.equal(driftPhase({ ...at, quality: "fast" }), null);
 });
 
-test("the Day and night setting is on in demo mode and off in live mode until the viewer chooses", () => {
+test("the Day and night setting is on in demo mode and off in live mode until the viewer chooses (the storage facts: setting.test.ts)", () => {
   assert.equal(defaultDayNight("demo"), true);
   assert.equal(defaultDayNight("live"), false);
-  assert.equal(readDayNight("demo", null), true);
-  assert.equal(readDayNight("live", null), false);
-  const store = new Map<string, string>();
-  const memory = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
-  writeDayNight(false, memory);
-  assert.equal(store.get(DAYNIGHT_KEY), "off");
-  assert.equal(readDayNight("demo", memory), false);
-  writeDayNight(true, memory);
-  assert.equal(readDayNight("live", memory), true);
-  const throwing = {
-    getItem: () => {
-      throw new Error("blocked");
-    },
-    setItem: () => {
-      throw new Error("blocked");
-    },
-  };
-  assert.equal(readDayNight("demo", throwing), true);
-  assert.doesNotThrow(() => writeDayNight(true, throwing));
+  assert.equal(dayNightIn("demo", null), true);
+  assert.equal(dayNightIn("live", null), false);
+  assert.equal(dayNightIn("demo", false), false);
+  assert.equal(dayNightIn("live", true), true);
 });
 
 test("the light follows the clock exactly up to 4x, keeps a 4x pace beyond, and snaps on a seek", async () => {

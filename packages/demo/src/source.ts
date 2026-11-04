@@ -27,14 +27,12 @@ import { type Action, applyAction } from "./actions.ts";
 import { type ProjectGroupSeed, DEMO_BASE_CURSOR, DEMO_SEQ_STRIDE } from "./content.ts";
 import { type DemoScenario, type ScenarioId, DEFAULT_SCENARIO, demoScenario } from "./scenarios.ts";
 import { type ScriptEntry, DEMO_SEED, DM_ENTRY_STRIDE, buildDmExchange, buildPropRequest, buildStory } from "./script.ts";
+import { type Timeline, createPlayer } from "./player.ts";
 import type { Scheduler } from "./scheduler.ts";
 import { type AgentSummary, type DemoState, type PendingRequest, DEMO_PERSON, DemoReads, initialState } from "./store.ts";
 import { DEMO_EPOCH_MS, SECOND, iso } from "./time.ts";
 
 const HEARTBEAT_MS = 15 * SECOND;
-const TICK_MS = 100;
-/** A long pause of the wall clock (a sleeping tab) plays at most this much wall time at once. */
-const MAX_WALL_STEP_MS = 5 * SECOND;
 /** Ids of on-demand actions start here, far above the script's. */
 const EXTRA_FIRST_ID = 100_000;
 /** Ids of outside actions (`act`, the fake crewhub-loops) start here: above the script, below the chat's. */
@@ -110,167 +108,101 @@ export interface DemoSource extends WorldSource {
 
 export function createDemoSource(options: DemoSourceOptions): DemoSource {
   const seed = options.seed ?? DEMO_SEED;
-  const scheduler = options.scheduler;
   const scenario = demoScenario(options.scenario ?? DEFAULT_SCENARIO);
   const duration = scenario.story.durationMs;
   const script = buildStory(scenario.story, seed);
-  const clampPosition = (ms: number) => (Number.isFinite(ms) ? Math.min(Math.max(0, Math.round(ms)), duration - 1) : 0);
 
   let timeline: ScriptEntry[] = script;
-  let loop = 0;
   let resets = 0;
-  let position = clampPosition(options.startAt ?? 0);
-  let speed: PlaybackSpeed = options.speed ?? 1;
   let state: DemoState;
   let reads: DemoReads;
   let next = 0;
-  let lastLineAt = position;
-  let lastWall = scheduler.now();
-  let interval: unknown = null;
+  let lastLineAt = 0;
   let nextExtraId = EXTRA_FIRST_ID;
   let nextChatId = CHAT_FIRST_ID;
   let nextActId = ACT_FIRST_ID;
-  const listeners = new Set<(message: SourceMessage) => void>();
-  const changeListeners = new Set<() => void>();
 
-  const epoch = options.epochMs ?? DEMO_EPOCH_MS;
-  const base = () => epoch + loop * duration;
-  const send = (message: SourceMessage) => {
-    for (const listener of [...listeners]) listener(message);
-  };
-  const changed = () => {
-    for (const listener of [...changeListeners]) listener();
-  };
-  const current = (): DemoReads => {
-    state.now = base() + position;
-    return reads;
-  };
-
-  /** Rebuilds the store for this loop and plays the timeline silently up to `to`. */
-  function rebuild(to: number): void {
-    state = initialState(base(), DEMO_BASE_CURSOR + resets * DEMO_SEQ_STRIDE, scenario.content);
-    resets += 1;
-    reads = new DemoReads(state);
-    next = 0;
-    while (next < timeline.length && (timeline[next] as ScriptEntry).at <= to) {
-      const entry = timeline[next] as ScriptEntry;
-      state.now = base() + entry.at;
-      applyAction(state, entry.action, entry.id);
-      next += 1;
-    }
-    position = to;
-    lastLineAt = to;
-  }
-
-  function sendSnapshot(): void {
-    send({ type: "snapshot", snapshot: current().snapshot() });
-  }
-
-  /** Applies one entry at its time and sends what it produced. */
-  function play(entry: ScriptEntry): void {
+  /** Applies one entry at its time and returns what it produced. */
+  function play(entry: ScriptEntry): SourceMessage[] {
+    const sent: SourceMessage[] = [];
     for (const out of applyAction(state, entry.action, entry.id)) {
       if (out.type === "event") {
         lastLineAt = entry.at;
-        send({ type: "event", envelope: structuredClone(out.envelope) });
+        sent.push({ type: "event", envelope: structuredClone(out.envelope) });
       } else {
-        send({ type: "team", team: out.team });
+        sent.push({ type: "team", team: out.team });
       }
     }
+    return sent;
   }
+
+  /** The storyline as the player's timeline: the script's entries and a heartbeat after 15 s of silence. */
+  const storyline: Timeline = {
+    durationMs: duration,
+    /** Rebuilds the store for this loop and plays the timeline silently up to `to`. */
+    rebuild(to, _loop, base) {
+      state = initialState(base, DEMO_BASE_CURSOR + resets * DEMO_SEQ_STRIDE, scenario.content);
+      resets += 1;
+      reads = new DemoReads(state);
+      next = 0;
+      while (next < timeline.length && (timeline[next] as ScriptEntry).at <= to) {
+        const entry = timeline[next] as ScriptEntry;
+        state.now = base + entry.at;
+        applyAction(state, entry.action, entry.id);
+        next += 1;
+      }
+      lastLineAt = to;
+    },
+    nextAt: () => Math.min(timeline[next]?.at ?? Infinity, lastLineAt + HEARTBEAT_MS),
+    playNext(base) {
+      const entry = timeline[next];
+      const heartbeatAt = lastLineAt + HEARTBEAT_MS;
+      if (entry !== undefined && entry.at <= heartbeatAt) {
+        state.now = base + entry.at;
+        next += 1;
+        return play(entry);
+      }
+      lastLineAt = heartbeatAt;
+      return [{ type: "heartbeat", seq: state.seq, ts: iso(base + heartbeatAt) }];
+    },
+    snapshot: () => ({ type: "snapshot", snapshot: current().snapshot() }),
+    /** The next loop plays the script again, with the person's chat carried over; on-demand ids start afresh. */
+    beforeLoop() {
+      timeline = merge(script, carryChat(timeline, duration));
+      nextExtraId = EXTRA_FIRST_ID;
+    },
+  };
+
+  const player = createPlayer(storyline, {
+    scheduler: options.scheduler,
+    epochMs: options.epochMs ?? DEMO_EPOCH_MS,
+    startAt: options.startAt ?? 0,
+    speed: options.speed ?? 1,
+    speeds: [0, 1, 4, 16],
+  });
+  const position = () => player.playback.positionMs();
+  const current = (): DemoReads => {
+    state.now = player.now();
+    return reads;
+  };
 
   /** Puts `entry` (at the current position) after the played part of the timeline and plays it now. */
   function playNow(entry: ScriptEntry): void {
     timeline = [...timeline.slice(0, next), entry, ...timeline.slice(next)];
     next += 1;
-    state.now = base() + position;
-    play(entry);
+    state.now = player.now();
+    for (const message of play(entry)) player.send(message);
   }
-
-  /** Plays forward to `target` (may pass the loop end), sending every line on the way. */
-  function playTo(target: number): void {
-    for (;;) {
-      const entry = timeline[next];
-      const heartbeatAt = lastLineAt + HEARTBEAT_MS;
-      const due = Math.min(entry?.at ?? Infinity, heartbeatAt, duration);
-      if (due > target) break;
-      if (entry !== undefined && entry.at === due) {
-        state.now = base() + entry.at;
-        position = entry.at;
-        next += 1;
-        play(entry);
-      } else if (due === heartbeatAt) {
-        lastLineAt = heartbeatAt;
-        position = heartbeatAt;
-        send({ type: "heartbeat", seq: state.seq, ts: iso(base() + heartbeatAt) });
-      } else {
-        target -= duration;
-        loop += 1;
-        timeline = merge(script, carryChat(timeline, duration));
-        nextExtraId = EXTRA_FIRST_ID;
-        rebuild(0);
-        sendSnapshot();
-      }
-    }
-    position = target;
-  }
-
-  function tick(): void {
-    const wall = scheduler.now();
-    const step = Math.min(MAX_WALL_STEP_MS, Math.max(0, wall - lastWall));
-    lastWall = wall;
-    if (speed === 0 || step === 0) return;
-    playTo(position + step * speed);
-    changed();
-  }
-
-  rebuild(position);
-
-  const playback: PlaybackControls = {
-    durationMs: duration,
-    positionMs: () => position,
-    speed: () => speed,
-    setSpeed(value) {
-      if (![0, 1, 4, 16].includes(value)) throw new Error(`Unsupported speed ${value}`);
-      lastWall = scheduler.now();
-      speed = value;
-      changed();
-    },
-    seek(to) {
-      rebuild(clampPosition(to));
-      lastWall = scheduler.now();
-      if (listeners.size > 0) sendSnapshot();
-      changed();
-    },
-    loop: () => loop,
-    onChange(listener) {
-      changeListeners.add(listener);
-      return () => changeListeners.delete(listener);
-    },
-  };
 
   const answer = <T>(value: T): Promise<T> => Promise.resolve(value);
 
   return {
     mode: "demo",
-    playback,
+    playback: player.playback,
     scenario,
     listProjectGroups: () => answer(current().projectGroups()),
-    now: () => base() + position,
-    start(listener) {
-      listeners.add(listener);
-      listener({ type: "snapshot", snapshot: current().snapshot() });
-      if (interval === null) {
-        lastWall = scheduler.now();
-        interval = scheduler.setInterval(tick, TICK_MS);
-      }
-      return () => {
-        listeners.delete(listener);
-        if (listeners.size === 0 && interval !== null) {
-          scheduler.clearInterval(interval);
-          interval = null;
-        }
-      };
-    },
+    now: player.now,
+    start: player.start,
     getTicket: (ref): Promise<Ticket | null> => answer(current().ticket(ref)),
     getProject: (slug): Promise<ProjectOut | null> => answer(current().project(slug)),
     getBoard: (slug): Promise<BoardResponse | null> => answer(current().board(slug)),
@@ -287,9 +219,9 @@ export function createDemoSource(options: DemoSourceOptions): DemoSource {
     getLabels: (slug) => answer(current().labels(slug)),
     getProjectFeatures: (slug) => answer(current().features(slug)),
     act(action) {
-      playNow({ id: nextActId, at: position, action });
+      playNow({ id: nextActId, at: position(), action });
       nextActId += 1;
-      changed();
+      player.changed();
     },
     getAgentSummary: (agentId, baseUrl) => answer(current().agentSummary(agentId, baseUrl)),
     sendDm(agentId, text, clientId) {
@@ -302,7 +234,7 @@ export function createDemoSource(options: DemoSourceOptions): DemoSource {
       const replies = current()
         .dmMessages(agentId)
         .filter((m) => m.author.id === DEMO_PERSON).length;
-      const [now, ...later] = buildDmExchange({ agent: agentId, from: DEMO_PERSON, text, clientId, replies }, position, nextChatId);
+      const [now, ...later] = buildDmExchange({ agent: agentId, from: DEMO_PERSON, text, clientId, replies }, position(), nextChatId);
       nextChatId += DM_ENTRY_STRIDE;
       playNow(now as ScriptEntry);
       timeline = [...timeline.slice(0, next), ...merge(timeline.slice(next), later)];
@@ -312,7 +244,7 @@ export function createDemoSource(options: DemoSourceOptions): DemoSource {
       const thread = state.dmThreads.find((t) => t.agentId === agentId);
       if (thread === undefined) return;
       const before = state.dmReads[thread.id];
-      const entry: ScriptEntry = { id: nextChatId, at: position, action: { type: "dmRead", agent: agentId, clientId } };
+      const entry: ScriptEntry = { id: nextChatId, at: position(), action: { type: "dmRead", agent: agentId, clientId } };
       applyAction(state, entry.action, entry.id);
       if (state.dmReads[thread.id] === before) return;
       nextChatId += 1;
@@ -322,12 +254,12 @@ export function createDemoSource(options: DemoSourceOptions): DemoSource {
     createPropRequest(thing) {
       const text = thing.trim().replace(/\s+/g, " ").slice(0, 80) || "a small crate";
       const { fromMs, projectName, ...home } = scenario.props;
-      const entries = buildPropRequest(text, Math.max(position, fromMs), nextExtraId, seed, home, duration);
+      const entries = buildPropRequest(text, Math.max(position(), fromMs), nextExtraId, seed, home, duration);
       nextExtraId += 1000;
       const pending = timeline.slice(next);
       const played = timeline.slice(0, next);
       timeline = [...played, ...[...pending, ...entries].sort((a, b) => a.at - b.at || a.id - b.id)];
-      return { title: `Prop: ${text}`, startsAtMs: entries[0]?.at ?? position, project: projectName };
+      return { title: `Prop: ${text}`, startsAtMs: entries[0]?.at ?? position(), project: projectName };
     },
   };
 }

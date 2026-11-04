@@ -227,7 +227,12 @@ export function createTownStore(options: TownStoreOptions): TownStore {
       return state;
     },
     load() {
-      loading ??= (async () => {
+      if (loading) return loading;
+      // Remembered before the body runs: in memory the body says "loaded" without waiting for anything, and a listener
+      // that amends at once calls load() again from inside it; it must get this load, not start another (round 60, A4).
+      let settle!: { resolve: (doc: TownDocument) => void; reject: (e: unknown) => void };
+      loading = new Promise<TownDocument>((resolve, reject) => (settle = { resolve, reject }));
+      void (async () => {
         if (factory) {
           try {
             const name = options.name ?? TOWN_DB_NAME;
@@ -263,7 +268,7 @@ export function createTownStore(options: TownStoreOptions): TownStore {
         }
         publish({ loaded: true });
         return state.doc;
-      })();
+      })().then(settle.resolve, settle.reject);
       return loading;
     },
     async commit(doc) {

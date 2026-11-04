@@ -44,12 +44,19 @@ overhang, but their blocking volume must fit their declared footprint.
 rotation, bounds, overlap, and an open entrance. It returns a detached copy.
 Definitions are trusted application code, not an unvalidated import format.
 
-`simulation.placement(prop)` previews an edit without mutating the world. It:
+`placementRules(layout, definitions)` (`placement.ts`, round 60) holds the rules over
+one layout; `simulation.placement(prop)` asks them with the simulation's crew and
+previews an edit without mutating the world. A check:
 
 1. Validates the candidate layout, replacing the same instance ID when moving.
 2. Rejects footprints over an actor's current or next reserved cell.
 3. Flood-fills once from the entrance through static occupancy.
 4. Requires every actor and at least one approach per interactive prop to be reachable.
+
+`rules.freeCells(propId, rotation, from)` yields the cells where a prop may stand,
+row by row from the origin or from the far corner back, checked as a caller takes
+them. The page's build mode, prop import and error crates, and the town document's
+catalogue, ask the rules directly; none of them moves an actor.
 
 `simulation.place(prop)` commits only a valid candidate and replans remaining
 routes. A blocked destination clears the remaining route; an active safe segment

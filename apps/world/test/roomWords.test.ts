@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentPlacement, Building } from "@crewhub/world-model";
-import { readBuildingPlan, planFromSearch, writeBuildingPlan, BUILDING_PLAN_KEY, DEFAULT_BUILDING_PLAN } from "../src/state/buildingPlan.ts";
+import { planFromSearch, DEFAULT_BUILDING_PLAN } from "../src/state/buildingPlan.ts";
 import { whereWords } from "../src/world/agentCard/sections/now.ts";
 import { renderAgentCard } from "../src/world/agentCard/registry.ts";
 import { roomName, roomSummary, sameRoom, shortRoomName, signState, zoomedTo } from "../src/world/roomWords.ts";
@@ -78,18 +78,10 @@ test("the agent card's Now line names the hall and the desk in three-rooms wordi
   assert.deepEqual(row(), { kind: "text", label: "Where", text: "cr, workers" });
 });
 
-test("the Buildings setting: three rooms by default, kept in storage, and the URL wins", () => {
-  const store = new Map<string, string>();
-  const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
+test("the Buildings setting: three rooms by default; only ?rooms=three or classic overrides it (the storage and the URL's win: setting.test.ts)", () => {
   assert.equal(DEFAULT_BUILDING_PLAN, "three-rooms");
-  assert.equal(readBuildingPlan(storage, ""), DEFAULT_BUILDING_PLAN);
-  writeBuildingPlan("classic", storage);
-  assert.equal(store.get(BUILDING_PLAN_KEY), "classic");
-  assert.equal(readBuildingPlan(storage, ""), "classic");
-  assert.equal(readBuildingPlan(storage, "?rooms=three"), "three-rooms");
-  assert.equal(readBuildingPlan(null, "?rooms=classic"), "classic");
+  assert.equal(planFromSearch("?rooms=three"), "three-rooms");
+  assert.equal(planFromSearch("?rooms=classic"), "classic");
   assert.equal(planFromSearch("?rooms=four"), null);
-  const throwing = { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } };
-  assert.equal(readBuildingPlan(throwing, ""), DEFAULT_BUILDING_PLAN);
-  assert.doesNotThrow(() => writeBuildingPlan("classic", throwing));
+  assert.equal(planFromSearch(""), null);
 });

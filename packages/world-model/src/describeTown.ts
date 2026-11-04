@@ -4,7 +4,7 @@
  * failed requests come from loops facts (`fact`).
  */
 import { roomLabel } from "./rooms.ts";
-import { hallOf, HALL_KINDS, HALL_LABELS, type RoomWording } from "./halls.ts";
+import { hallOf, HALL_KINDS, roomSign, type RoomWording } from "./halls.ts";
 import type { Catalogue } from "./catalogue.ts";
 import type { TextLine } from "./model.ts";
 import type { RuleProp } from "./ruleProps.ts";
@@ -24,10 +24,9 @@ const ROTATION_WORDS = ["not turned", "turned a quarter", "turned half", "turned
     placement names a room the hall hosts. */
 function where(p: PlacedProp, rooms: RoomWording): string {
   if ("town" in p.at) return "in the town square";
-  if (rooms === "classic") return `in ${p.at.building}, ${roomLabel(p.at.room)}`;
-  const hall = hallOf(p.at.room);
-  const zone = HALL_KINDS[hall] === p.at.room ? "" : ` (the ${roomLabel(p.at.room).replace(/ room$/, "").toLowerCase()} zone)`;
-  return `in ${p.at.building}, ${HALL_LABELS[hall]}${zone}`;
+  const { building, room } = p.at;
+  const zone = rooms === "classic" || HALL_KINDS[hallOf(room)] === room ? "" : ` (the ${roomLabel(room).replace(/ room$/, "").toLowerCase()} zone)`;
+  return `in ${building}, ${roomSign(room, rooms)}${zone}`;
 }
 
 function attached(p: PlacedProp): string {

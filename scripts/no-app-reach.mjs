@@ -56,10 +56,13 @@ import path from "node:path";
 import sqlite from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { APP_DATA_PARTS } from "./app-data.mjs";
 import { APP_PORTS, NAMED_PORTS, VITE_PORT } from "./named-ports.mjs";
 
 const HOME = homedir();
-export const APP_DATA = path.join(HOME, "Library", "Application Support", "be.ekinsol.crewhub");
+// The app's data folder, spelled once in `scripts/app-data.mjs` (round 60, pk-P3), as the tools' rule reads it too.
+export { APP_DATA_PARTS };
+export const APP_DATA = path.join(HOME, ...APP_DATA_PARTS);
 export const CONFIG_DIR = path.join(HOME, ".config", "crewhub-world");
 export const LOOPS_CONFIG = path.join(HOME, ".config", "crewhub-loops");
 
@@ -73,7 +76,7 @@ export function guardedHomes(env = process.env, home = HOME, userHome = userInfo
 /** The folders under each home, with what a refusal says. */
 export function guardedFolders(homes) {
   return homes.flatMap((home) => [
-    { dir: path.join(home, "Library", "Application Support", "be.ekinsol.crewhub"), why: "is under the Mac app's data folder" },
+    { dir: path.join(home, ...APP_DATA_PARTS), why: "is under the Mac app's data folder" },
     { dir: path.join(home, ".config", "crewhub-world"), why: "is under the default config folder ~/.config/crewhub-world" },
     { dir: path.join(home, ".config", "crewhub-loops"), why: "is under ~/.config/crewhub-loops" },
   ]);

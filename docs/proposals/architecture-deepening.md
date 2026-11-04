@@ -89,6 +89,9 @@ C3's runtime tests cover its facts through the runtime's interface instead; the 
 
 ## Left for later
 
+Round 60 takes up the first seven (A1 to A7 of crewy's round 60 direction); each row says when it is done. The second
+architecture review is [its own page](architecture-review-2.md).
+
 What the merged deepenings deliberately do not do, and what each waits on. A later slice takes each one up. Taking
 some of these up would change behaviour or would meet an answer branch, so none of them was done as part of a
 deepening.
@@ -96,14 +99,14 @@ deepening.
 | Item (raised by) | State | Waits on |
 | --- | --- | --- |
 | One injected clock on the connection, feeding the archive memory's `now` and the pairing's (review-c5 1, review-c4 5) | `recheckAt` reads `Date.now()`; `ArchiveMemoryOptions.now` and `ChatPathOptions.refreshMs` are test-only | a slice that touches `HostOptions.now`, which r27 and q1 keep as context |
-| `heard(envelope)` in place of `heard(type, slug)` (review-c5 2) | an envelope without a `project` key still throws inside the upstream's broadcast (round 54's fuzz finding) | a round that may change behaviour: the throw becomes a dropped event |
-| One archive option for the snapshot (review-c5 3) | `assemble()` passes `knownArchivedSlugs`, `rememberedSlugs` and `onArchive` | nothing; the next host slice |
-| Save the memory under the link's judged target (review-c5 5) | `targetNow` still reads the discovery | a round that may change behaviour: what the file says in one race |
-| The connection's ear subscribes like a tab and skips its first message (C1's candidate) | `Upstream.resets()` is done; the ear still uses `subscribe(null, …)` | an `Upstream.observe` in `stream.ts`, pinned by `stream.test.ts` |
+| `heard(envelope)` in place of `heard(type, slug)` (review-c5 2) | **done in round 60 (A3, `139dce5`)**: `heard(envelope)`; an envelope without a `project` key is ignored by the memory with a scrubbed warning (a bug fix, red first) | |
+| One archive option for the snapshot (review-c5 3) | **done in round 60 (A1, `d41c82e`)**: `SnapshotOptions.archived`, a getter the memory makes (`forSnapshot`) | |
+| Save the memory under the link's judged target (review-c5 5) | **done in round 60 (A5, `a49264a`)**: the memory saves under `judgedFor`; `targetNow` gone (a bug fix, red first at the module's seam). The larger second race, a late report after the new link, waits for a per-link handle slice | |
+| The connection's ear subscribes like a tab and skips its first message (C1's candidate) | **done in round 60 (A2, `e377f53`)**: `Upstream.observe`, no welcome status and no replay | |
 | The flat test-only timings on `HostOptions`, and `recheckMs` with no caller (C1's candidate) | kept on purpose | r27, q1 and q3, or their ports: their test hunks pass `retryMs`, and q1's README names `recheckMs` |
 | The overlays (text view, build mode) reach C2's view module as `open` flags and come back as `close` (review-c2 5) | a decision: the page's dialogs keep their DOM focus returns | none; recorded |
-| `townLayout.laneWords`, a one-line pass-through kept by name for `App.tsx` (review-c8 6) | kept | C9 or a later page slice |
-| The memory-only town store's first `load()` can recurse when a listener amends at once (arch-page, review-c3 7) | no browser reaches it; the test sidesteps it | a round that may change behaviour |
+| `townLayout.laneWords`, a one-line pass-through kept by name for `App.tsx` (review-c8 6) | **done in round 60 (A6, `0b93d20`)**: folded into its callers through `laneLook` | |
+| The memory-only town store's first `load()` can recurse when a listener amends at once (arch-page, review-c3 7) | **done in round 60 (A4, `73640ff`)**: the load is remembered before it says loaded (a bug fix, red first) | |
 | regress's whole-run console check counts the page's health reads refused while the town group restarts its host | fails now and then; seen on the base `fd2e184` too (arch-c2), and possibly more often since C6 (arch-page) | a tooling round: allow the restart window, or have the health module's re-read wait |
 
 ## Where it stands

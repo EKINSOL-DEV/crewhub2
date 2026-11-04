@@ -11,13 +11,14 @@
  *   `--real` flag, the others never. The ports and their words are the one named-port list, `scripts/named-ports.mjs`,
  *   which the test preload reads as well.
  * - `~/Library/Application Support/be.ekinsol.crewhub` is the Mac app's data folder: a host whose discovery looks there
- *   finds the app. An empty app data folder means the cwd and then 8091. Never a tool's.
+ *   finds the app. An empty app data folder means the cwd and then 8091. Never a tool's. The folder is spelled once,
+ *   in `scripts/app-data.mjs` (round 60, pk-P3), which the test preload reads as well.
  */
 import path from "node:path";
+import { APP_DATA_PARTS } from "../../scripts/app-data.mjs";
 import { APP_PORTS, DEV_LOOPS_PORTS, HOST_DEFAULT_PORT, NAMED_PORTS, namedPort } from "../../scripts/named-ports.mjs";
 
-export { APP_PORTS, HOST_DEFAULT_PORT };
-export const APP_DATA_PARTS: readonly string[] = ["Library", "Application Support", "be.ekinsol.crewhub"];
+export { APP_DATA_PARTS, APP_PORTS, HOST_DEFAULT_PORT };
 
 export type Verdict<T> = { ok: true; value: T } | { ok: false; reason: string };
 
