@@ -367,13 +367,13 @@ export async function createHost(options: HostOptions): Promise<Host> {
   }
 
   async function passthrough(res: ServerResponse, loopsPath: string, query: URLSearchParams): Promise<void> {
-    const why = await conn.unavailable();
-    if (why !== null) {
-      sendJson(res, 503, { error: why });
-      return;
-    }
     try {
-      const upstreamResponse = await conn.read(loopsPath, Object.fromEntries(query));
+      const read = await conn.read(loopsPath, Object.fromEntries(query));
+      if (read.kind === "unavailable") {
+        sendJson(res, 503, { error: read.reason });
+        return;
+      }
+      const upstreamResponse = read.response;
       if (isUnauthorized(upstreamResponse.status)) {
         sendJson(res, 503, { error: "unauthorized" });
         return;
