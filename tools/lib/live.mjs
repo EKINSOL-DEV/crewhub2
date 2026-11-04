@@ -9,14 +9,12 @@
    default, where somebody's real `npm run world` listens) nor any other named port (lib/toolGuard.ts). Pairing stays on, as in production: every context opens a one-time link first.
 
    Tooling only: nothing under apps/ or packages/ imports this folder. Loops is only ever a loopback address. */
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
 import { lostIn } from "./chatSoak.mjs";
+import { DIST, distBuilt, startRig } from "./rig.mjs";
 import { loopsUrlOption } from "./toolGuard.ts";
 import { ownPort } from "./toolGuard.ts";
-
-const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 /** The options every tool with a `--source` takes, with their defaults (spread into `cli`'s options). */
 // --host-port has no default (round 36): 5180 is the host's default, somebody's real npm run world; a tool names a port of its own.
@@ -51,50 +49,46 @@ export function createHostLog(keep = 2000, now = () => new Date()) {
  */
 export async function startLive(opts, { preview = false, keyReadsChat = false } = {}) {
   if (opts.source !== "live") throw new Error("startLive: --source is not live");
-  const { createHost } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "host.ts")).href);
-  let fake = null;
+  let loops;
+  let fakeOptions = null;
   let loopsUrl = opts["loops-url"];
-  let key, keyName;
   if (loopsUrl !== "") {
     const urlVerdict = loopsUrlOption(opts);
     if (!urlVerdict.ok) opts.fail(urlVerdict.reason);
     loopsUrl = urlVerdict.value;
     const keyFile = opts["key-file"];
     if (keyFile === "") opts.fail("--loops-url needs --key-file <file>");
+    let key;
     try {
       key = readFileSync(keyFile, "utf8").trim();
     } catch {
       key = "";
     }
     if (key === "") opts.fail(`cannot read the key file ${keyFile}`);
-    keyName = path.basename(keyFile).replace(/^agent-/, "").replace(/\.key$/, "");
+    loops = { url: loopsUrl, key, keyName: path.basename(keyFile).replace(/^agent-/, "").replace(/\.key$/, "") };
   } else {
-    const { createLoopsFake } = await import(pathToFileURL(path.join(REPO, "packages", "loops-fake", "src", "index.ts")).href);
     const speed = Number(opts["fake-speed"]);
     if (![0, 1, 4, 16].includes(speed)) opts.fail("--fake-speed must be 0, 1, 4 or 16");
     // `keyReadsChat` (round 45, the chat soak): the fake lets the world's key read the chat, as a loops with the
     // viewer key does, so the agents' answers come over road 1 and the tool can write to them (`fake.sendDm`).
-    fake = await createLoopsFake({ scenario: opts["fake-scenario"], speed, heartbeatMs: 5000, ...(keyReadsChat ? { keyReadsChat: true } : {}) });
-    loopsUrl = fake.url;
-    key = fake.key;
-    keyName = fake.keyName;
+    fakeOptions = { scenario: opts["fake-scenario"], speed, heartbeatMs: 5000, ...(keyReadsChat ? { keyReadsChat: true } : {}) };
+    loops = { fake: fakeOptions };
   }
   // Behind your Vite the port is the one it proxies to (CREWHUB_WORLD_PORT); with --preview 0 is a free port the browser opens.
   const portVerdict = ownPort(opts["host-port"], "--host-port", { free: preview });
   if (!portVerdict.ok) opts.fail(`${portVerdict.reason}${preview ? "" : " (the port your Vite was started with as CREWHUB_WORLD_PORT)"}`);
   const hostPort = portVerdict.value;
-  const dist = path.join(REPO, "apps", "world", "dist");
-  if (preview && !existsSync(path.join(dist, "index.html"))) opts.fail("--preview with --source live serves apps/world/dist: run npm run build first");
+  if (preview && !distBuilt(DIST)) opts.fail("--preview with --source live serves apps/world/dist: run npm run build first");
   // The host's log lines, kept for the run's end (the chat soak prints its chat lines): the last 2000, with the lost
-  // messages summed over all of them.
+  // messages summed over all of them. The host runs with its own timings here, as in production (`timings: {}`).
   const hostLog = createHostLog(2000);
   const { lines } = hostLog;
-  const hostOptions = { loopsUrl, key, keyName, log: hostLog.log };
-  const host = await createHost(preview ? { ...hostOptions, staticDir: dist, port: hostPort } : { ...hostOptions, port: hostPort, allowedOrigins: [opts.origin] });
-  const origin = preview ? host.url : opts.origin;
+  const rig = await startRig({ loops, serve: preview ? { dist: DIST, hostPort } : { origin: opts.origin, hostPort }, timings: {}, log: hostLog.log });
+  const { fake, host, origin } = rig;
+  const keyName = fake ? fake.keyName : loops.keyName;
   const describe = `live: loops ${fake ? `fake on 127.0.0.1:${fake.port} (${opts["fake-scenario"]}, speed ${opts["fake-speed"]})` : loopsUrl} (key ${keyName}), host on 127.0.0.1:${host.port} ${preview ? "serving apps/world/dist" : `behind the Vite proxy on ${origin} (Vite started with CREWHUB_WORLD_PORT=${host.port})`}`;
   return {
-    base: `${origin}/`,
+    base: rig.base,
     origin,
     /** The in-process fake (null with --loops-url): the chat soak writes to its agents through `fake.sendDm`. */
     fake,
@@ -106,13 +100,7 @@ export async function startLive(opts, { preview = false, keyReadsChat = false } 
     /** The host the tool started: its `connection()` tells the upstream stream's state and reconnects (round 27). */
     host,
     /** Pairs the page's context: the one-time link, which lands on `/`. */
-    async pair(page) {
-      await page.goto(host.mintPairLink(preview ? undefined : origin));
-      await page.waitForURL((url) => url.pathname === "/", { timeout: 10000 });
-    },
-    async close() {
-      await host.close().catch(() => undefined);
-      if (fake) await fake.close().catch(() => undefined);
-    },
+    pair: (page) => rig.pair(page),
+    close: () => rig.close(),
   };
 }
