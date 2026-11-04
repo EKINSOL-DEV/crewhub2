@@ -2,7 +2,7 @@
  * Assembles one `LoopsSnapshot` the way read-model.md "Loading a snapshot" says: the cursor first (the stream's
  * position, so no event between the reads and the stream is lost), then projects, boards, people, agents, team,
  * watchdog, and milestones and releases where the feature is on. Lists are paged (`nextCursor`): every page is read.
- * The reads of one snapshot run in parallel under a cap (`concurrency`, default 6: loops is one process, and a studio
+ * The reads of one snapshot run in parallel under a cap (`CONCURRENCY`, 6: loops is one process, and a studio
  * of twenty projects is forty board and feature reads), in the projects' order; every read is timed and counted, so
  * the host can say "5 projects, 31 reads in 118 ms" and show the page how far it is (`onProgress`).
  */
@@ -49,7 +49,8 @@ export interface SnapshotProgress {
   reads: number;
 }
 
-export const DEFAULT_CONCURRENCY = 6;
+/** Reads in flight at most. */
+const CONCURRENCY = 6;
 
 /**
  * `Promise.all(items.map(fn))` under a cap: never more than `limit` calls of `fn` in flight, started in the items'
@@ -77,12 +78,39 @@ export async function mapLimit<T, R>(items: readonly T[], limit: number, fn: (it
   return results;
 }
 
-/** The client with the reads counted and timed. */
-interface Reader {
-  getJson<T>(path: string, query?: Record<string, string>): Promise<{ status: number; body: T | null }>;
+/** What the reads need of loops: the host's `LoopsClient`, or a test's stand-in. */
+type Source = Pick<LoopsClient, "getJson">;
+
+/**
+ * The snapshot's reads, judged in one place (round 60, H3). `read` answers as loops did, except a 401 or 403: that is
+ * the snapshot's one `unauthorized` (the key is refused, whatever the read). `must` is a read that must succeed:
+ * anything else that is not 200 with a body is `loops_down`. `getJson` is the answer as it came, for the reads where a
+ * refusal is an answer (the list with the archived projects, an archived project read one by one).
+ */
+interface Reader extends Source {
+  read<T>(path: string, query?: Record<string, string>): Promise<{ status: number; body: T | null }>;
+  must<T>(path: string, query?: Record<string, string>): Promise<T>;
 }
 
-function timed(client: LoopsClient, onRead: (read: SnapshotRead) => void): Reader {
+function judged(source: Source): Reader {
+  async function read<T>(path: string, query: Record<string, string> = {}): Promise<{ status: number; body: T | null }> {
+    const out = await source.getJson<T>(path, query);
+    if (isUnauthorized(out.status)) throw new SnapshotError("unauthorized", `${path} answered ${out.status}`);
+    return out;
+  }
+  return {
+    getJson: (path, query) => source.getJson(path, query),
+    read,
+    async must<T>(path: string, query: Record<string, string> = {}): Promise<T> {
+      const { status, body } = await read<T>(path, query);
+      if (status === 200 && body !== null) return body;
+      throw new SnapshotError("loops_down", `${path} answered ${status}`);
+    },
+  };
+}
+
+/** The client with the reads counted and timed. */
+function timed(client: Source, onRead: (read: SnapshotRead) => void): Source {
   return {
     async getJson<T>(path: string, query: Record<string, string> = {}) {
       const started = performance.now();
@@ -93,21 +121,13 @@ function timed(client: LoopsClient, onRead: (read: SnapshotRead) => void): Reade
   };
 }
 
-/** A read that must succeed: 401/403 is `unauthorized`, anything else that is not 200 is `loops_down`. */
-async function must<T>(client: Reader, path: string, query: Record<string, string> = {}): Promise<T> {
-  const { status, body } = await client.getJson<T>(path, query);
-  if (status === 200 && body !== null) return body;
-  if (isUnauthorized(status)) throw new SnapshotError("unauthorized", `${path} answered ${status}`);
-  throw new SnapshotError("loops_down", `${path} answered ${status}`);
-}
-
 /** Follows `nextCursor` until the last page; `pick` names the list in each page. `first` is the first page when it was read already. */
 async function allPages<T>(client: Reader, path: string, pick: (page: Record<string, unknown>) => T[], first: Record<string, unknown> | null = null): Promise<T[]> {
   const out: T[] = [];
   let cursor: string | null = null;
   for (let guard = 0; guard < 1000; guard += 1) {
     const query: Record<string, string> = cursor === null ? {} : { cursor };
-    const page = guard === 0 && first !== null ? first : await must<Record<string, unknown>>(client, path, query);
+    const page = guard === 0 && first !== null ? first : await client.must<Record<string, unknown>>(path, query);
     out.push(...pick(page));
     const next = page.nextCursor;
     if (typeof next !== "string" || next === "") break;
@@ -118,12 +138,9 @@ async function allPages<T>(client: Reader, path: string, pick: (page: Record<str
 
 /** Milestones or releases of a project: `[]` when the feature is off (409 `feature_off`). */
 async function featured<T>(client: Reader, path: string, pick: (page: Record<string, unknown>) => T[]): Promise<T[] | null> {
-  const first = await client.getJson<Record<string, unknown>>(path);
+  const first = await client.read<Record<string, unknown>>(path);
   if (first.status === 409) return null;
-  if (first.status !== 200 || first.body === null) {
-    if (isUnauthorized(first.status)) throw new SnapshotError("unauthorized", `${path} answered ${first.status}`);
-    throw new SnapshotError("loops_down", `${path} answered ${first.status}`);
-  }
+  if (first.status !== 200 || first.body === null) throw new SnapshotError("loops_down", `${path} answered ${first.status}`);
   return allPages(client, path, pick, first.body);
 }
 
@@ -134,8 +151,9 @@ async function featured<T>(client: Reader, path: string, pick: (page: Record<str
 async function readProjects(client: Reader): Promise<{ projects: ProjectOut[]; complete: boolean }> {
   const withArchived = await client.getJson<{ projects: ProjectOut[] }>("/api/projects", { includeArchived: "true" });
   if (withArchived.status === 200 && withArchived.body !== null) return { projects: withArchived.body.projects, complete: true };
+  // A 403 here is an answer (an agent key may not list archived projects); a 401 is a refused key.
   if (withArchived.status === 401) throw new SnapshotError("unauthorized", "/api/projects answered 401");
-  return { projects: (await must<{ projects: ProjectOut[] }>(client, "/api/projects")).projects, complete: false };
+  return { projects: (await client.must<{ projects: ProjectOut[] }>("/api/projects")).projects, complete: false };
 }
 
 /** loops' page of `GET /api/events`: `limit` is 1..500, default 500 (`routers/events.py`); a full page may have more behind it. */
@@ -158,13 +176,13 @@ export interface ArchiveLogRead {
  * answers 410 after a restart) ends the search with what it found and `complete: false`; the stream's own archive
  * events and the host's memory of an earlier run still count.
  */
-export async function readArchivedSlugsFromEvents(client: Reader): Promise<ArchiveLogRead> {
+export async function readArchivedSlugsFromEvents(source: Source): Promise<ArchiveLogRead> {
+  const client = judged(source);
   const last = new Map<string, string>();
   let after = 0;
   let complete = false;
   for (let guard = 0; guard < 1000; guard += 1) {
-    const { status, body: page } = await client.getJson<{ events?: unknown; lastSeq?: unknown }>("/api/events", { types: ARCHIVE_TYPES, after: String(after), limit: String(EVENTS_PAGE) });
-    if (isUnauthorized(status)) throw new SnapshotError("unauthorized", `/api/events answered ${status}`);
+    const { status, body: page } = await client.read<{ events?: unknown; lastSeq?: unknown }>("/api/events", { types: ARCHIVE_TYPES, after: String(after), limit: String(EVENTS_PAGE) });
     if (status !== 200 || page === null) break;
     const events = Array.isArray(page.events) ? (page.events as { type?: unknown; project?: { slug?: unknown } | null }[]) : [];
     for (const event of events) {
@@ -227,8 +245,7 @@ async function readTicketActivity(client: Reader, candidates: Envelope[]): Promi
   let pages = 0;
   for (const [id, seq] of oldestPer) {
     pages += 1;
-    const { status, body: page } = await client.getJson<{ events?: unknown }>("/api/events", { ticket: id, types: ACTIVITY_TYPES_QUERY, after: String(seq), limit: String(TICKET_PAGE) });
-    if (isUnauthorized(status)) throw new SnapshotError("unauthorized", `/api/events answered ${status}`);
+    const { status, body: page } = await client.read<{ events?: unknown }>("/api/events", { ticket: id, types: ACTIVITY_TYPES_QUERY, after: String(seq), limit: String(TICKET_PAGE) });
     if (status === 404) continue;
     if (status !== 200 || page === null) return null;
     const rows = Array.isArray(page.events) ? (page.events as Envelope[]) : [];
@@ -244,8 +261,7 @@ async function readPages(client: Reader, types: string, after: number, cap: numb
   const events: Envelope[] = [];
   let pages = 0;
   for (; pages < cap; pages += 1) {
-    const { status, body: page } = await client.getJson<{ events?: unknown; lastSeq?: unknown }>("/api/events", { types, after: String(after), limit: String(EVENTS_PAGE) });
-    if (isUnauthorized(status)) throw new SnapshotError("unauthorized", `/api/events answered ${status}`);
+    const { status, body: page } = await client.read<{ events?: unknown; lastSeq?: unknown }>("/api/events", { types, after: String(after), limit: String(EVENTS_PAGE) });
     if (status !== 200 || page === null) return { events, complete: false, pages: pages + 1 };
     const rows = Array.isArray(page.events) ? (page.events as Envelope[]) : [];
     events.push(...rows);
@@ -277,11 +293,6 @@ export async function readLogFacts(client: Reader, cursor: number, open: Map<str
   return { facts, report: { quiet: facts.quiet.length, runs: facts.automationRuns.length, pages: rows.pages + activity.pages, complete: activity.complete, ...road } };
 }
 
-/** The slugs alone (the callers from before the archive memory). */
-export async function archivedSlugsFromEvents(client: LoopsClient): Promise<string[]> {
-  return (await readArchivedSlugsFromEvents(client)).slugs;
-}
-
 /** Where a snapshot's archived projects came from, for the host's memory and the Connection panel. */
 export interface ArchiveReport {
   /** `list`: loops listed them; `log`: the event log, read whole; `remembered`: the log could not be read whole and the host's memory filled in; `none`: nothing known. */
@@ -311,12 +322,6 @@ export interface SnapshotOptions {
   observer?: string | null;
   /** Told where the archived projects came from, once per snapshot. */
   onArchive?: (report: ArchiveReport) => void;
-  /** Told what the log reads found, once per snapshot. */
-  onLog?: (report: LogRead) => void;
-  /** Reads in flight at most (default 6). */
-  concurrency?: number;
-  /** Every read as it finishes, with its time. */
-  onRead?: (read: SnapshotRead) => void;
   /** How far the assembly is, after the project list and after every read. */
   onProgress?: (progress: SnapshotProgress) => void;
 }
@@ -341,13 +346,13 @@ export async function assembleSnapshot(client: LoopsClient, options: SnapshotOpt
   const started = performance.now();
   const progress: SnapshotProgress = { projects: null, reads: 0 };
   let slowest: SnapshotRead | null = null;
-  const reader = timed(client, (read) => {
-    progress.reads += 1;
-    if (slowest === null || read.ms > slowest.ms) slowest = read;
-    options.onRead?.(read);
-    options.onProgress?.({ ...progress });
-  });
-  const limit = options.concurrency ?? DEFAULT_CONCURRENCY;
+  const reader = judged(
+    timed(client, (read) => {
+      progress.reads += 1;
+      if (slowest === null || read.ms > slowest.ms) slowest = read;
+      options.onProgress?.({ ...progress });
+    }),
+  );
 
   const { projects: listed, complete } = await readProjects(reader);
   const projects = listed.filter((p) => p.archivedAt === null || p.archivedAt === undefined);
@@ -362,7 +367,7 @@ export async function assembleSnapshot(client: LoopsClient, options: SnapshotOpt
   const known = options.archived?.() ?? { slugs: [], remembered: false };
   // One gate for the three sources (round 34): only a slug that is a path segment is read, whatever road it came by.
   const unseen = [...new Set([...fromLog.slugs, ...known.slugs])].filter((slug) => isSegment(slug) && !seen.has(slug));
-  const ones = await mapLimit(unseen, limit, (slug) => reader.getJson<{ project: ProjectOut }>("/api/projects/{slug}".replace("{slug}", encodeURIComponent(slug))));
+  const ones = await mapLimit(unseen, CONCURRENCY, (slug) => reader.getJson<{ project: ProjectOut }>("/api/projects/{slug}".replace("{slug}", encodeURIComponent(slug))));
   for (const one of ones) {
     if (one.status === 200 && one.body?.project !== undefined && typeof one.body.project.archivedAt === "string") archivedProjects.push(one.body.project);
   }
@@ -374,9 +379,9 @@ export async function assembleSnapshot(client: LoopsClient, options: SnapshotOpt
   const firsts = await mapLimit(
     projects.flatMap((project): Read[] => {
       const slug = encodeURIComponent(project.slug);
-      return [() => must<BoardResponse>(reader, `/api/board/${slug}`), () => must<{ features: FeatureOut[] }>(reader, `/api/projects/${slug}/features`)];
+      return [() => reader.must<BoardResponse>(`/api/board/${slug}`), () => reader.must<{ features: FeatureOut[] }>(`/api/projects/${slug}/features`)];
     }),
-    limit,
+    CONCURRENCY,
     (read) => read(),
   );
   const seconds = await mapLimit(
@@ -389,7 +394,7 @@ export async function assembleSnapshot(client: LoopsClient, options: SnapshotOpt
         on("releases") ? () => featured<ReleaseSummary>(reader, `/api/projects/${slug}/releases`, (p) => (p.releases as ReleaseSummary[]) ?? []) : () => Promise.resolve(null),
       ];
     }),
-    limit,
+    CONCURRENCY,
     (read) => read(),
   );
   const perProject = projects.map((project, index) => ({
@@ -401,13 +406,12 @@ export async function assembleSnapshot(client: LoopsClient, options: SnapshotOpt
 
   // The facts only the log holds, bounded to the open tickets of the boards just read.
   const log = await readLogFacts(reader, options.cursor, openTicketsOf(Object.fromEntries(perProject.map((p) => [p.slug, p.board]))));
-  options.onLog?.(log.report);
 
   const [principals, agents, team, watchdog] = await Promise.all([
-    must<{ principals: PrincipalOut[] }>(reader, "/api/principals"),
-    must<{ agents: AgentOut[] }>(reader, "/api/agents"),
-    must<TeamSnapshot>(reader, "/api/team"),
-    must<WatchdogResponse>(reader, "/api/watchdog"),
+    reader.must<{ principals: PrincipalOut[] }>("/api/principals"),
+    reader.must<{ agents: AgentOut[] }>("/api/agents"),
+    reader.must<TeamSnapshot>("/api/team"),
+    reader.must<WatchdogResponse>("/api/watchdog"),
   ]);
 
   const snapshot: LoopsSnapshot = {
@@ -446,11 +450,12 @@ export interface LogTail {
  * instead; then the old recipe (a filter that matches nothing) is read, whose `lastSeq` is honest on that loops.
  */
 export async function readTail(client: LoopsClient): Promise<LogTail> {
-  const tail = await must<{ events?: unknown; lastSeq?: unknown; cursor?: unknown }>(client, "/api/events", { from: "tail" });
+  const reader = judged(client);
+  const tail = await reader.must<{ events?: unknown; lastSeq?: unknown; cursor?: unknown }>("/api/events", { from: "tail" });
   if (Array.isArray(tail.events) && tail.events.length === 0 && isSeq(tail.lastSeq)) {
     return { lastSeq: tail.lastSeq, cursor: typeof tail.cursor === "string" && tail.cursor !== "" ? tail.cursor : null };
   }
-  const older = await must<{ lastSeq?: unknown }>(client, "/api/events", { types: "attachment.added", limit: "1" });
+  const older = await reader.must<{ lastSeq?: unknown }>("/api/events", { types: "attachment.added", limit: "1" });
   if (!isSeq(older.lastSeq)) throw new SnapshotError("loops_down", "/api/events answered without a lastSeq that is a seq");
   return { lastSeq: older.lastSeq, cursor: null };
 }
