@@ -62,7 +62,7 @@ export {
   validateWatchdogResponse,
   warnOnce,
 } from "./validate.ts";
-export { WORLD_API_PREFIX, WORLD_ROUTES, fillPattern, isSegment, worldApiPath, readChatLine, readThreadFacts } from "./hostWire.ts";
+export { WORLD_API_PREFIX, WORLD_ROUTES, fillPattern, isSegment, worldApiPath } from "./hostWire.ts";
 export type { WorldRoute, WorldRoutePattern } from "./hostWire.ts";
 export { connectHost, createHostSource, forgetHostKey, prefetchSnapshot, probeHost, readHostTown, readHostTownBackup, readHostTownBackups, writeHostTown } from "./hostSource.ts";
 export type { HostTownOp } from "./hostSource.ts";
@@ -78,14 +78,12 @@ export {
   PAGE_CHAT_EVENT_TYPES,
   PAGE_CHAT_EVENTS_LIMIT,
   PAGE_CHAT_INIT,
-  PAGE_CHAT_LINE_MAX,
   POLL_HIDDEN_MS,
   POLL_MAX_MS,
   POLL_MS,
   REPROBE_MS,
   REPROBE_SLOW_MS,
   eventsUrl,
-  firstLine,
   isLoopbackOrigin,
   messageUrl,
   pageGet,
@@ -93,11 +91,11 @@ export {
   pollPageChat,
   probePageChat,
   probeVerdict,
-  readPageChatLine,
   readEvents,
-  readThreads,
   reprobeDelay,
   threadMessagesUrl,
   threadsUrl,
 } from "./pageChat.ts";
-export type { AgentDm, EventsPage, FetchLike, PageAnswer, PageProbe, PollOutcome } from "./pageChat.ts";
+export type { EventsPage, FetchLike, PageAnswer, PageProbe, PollOutcome } from "./pageChat.ts";
+export { DM_LINE_MAX, firstLine, readAgentDm, readDmLine, readThreads } from "./dm.ts";
+export type { AgentDm } from "./dm.ts";
