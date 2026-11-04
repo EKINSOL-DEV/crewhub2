@@ -27,8 +27,8 @@ branch's files (H1 meets q3; H2, H3, T1 and T2 meet r27 and q1), a port carries 
 | P6 (packages) place words in five files | Strong | arch-c8: **merged `b758d10`** | clean |
 | P1 (page) the viewer's browser-kept settings | Strong | arch-page (Opus): **merged `a0ddd3d`**; `source.ts` left out, its blocked-storage bug fixed separately (`a16e103`) | clean |
 | P2 (page) the page's overlays | Strong | arch-page: **merged `1c207c9`** (review-c2's decision kept) | clean |
-| T1 (tools) a tool's rig | Strong | arch-host (Fable), from arch-c6: reviewed MERGE; its r27 port being proved | r27 by port `@f164187` |
-| T2 (tools) a tool's page | Strong | arch-host, from arch-c6: in progress | r27 by port |
+| T1 (tools) a tool's rig | Strong | arch-host (Fable), from arch-c6: **merged `4c43f15`** (`lib/rig.mjs`; the free-port rule its first proof showed) | r27 by port `@ccbf0ed` (one port for T1 and T2) |
+| T2 (tools) a tool's page | Strong | arch-host: **merged `0b3f4ae`** (`lib/page.mjs`; perf's phone at scale 1 stays no touch device; `openPage` refuses Playwright's own keys; pixcheck kept out for pixel identity) | r27 by port `@ccbf0ed` |
 
 The page's P1 and P2 and the packages' P1 to P6 share letters across the two areas; in branch names they are
 `r60-pg-p1` and `r60-pg-p2` for the page and `r60-pk-p1` to `r60-pk-p6` for the packages.
