@@ -20,35 +20,30 @@
    the admin session; a reply needs a message to reply to); nothing else is written anywhere.
 
    Usage:
-     node tools/road2proof.mjs --port 5283 --other-port 5194 --loops-url http://127.0.0.1:8293 --key-file <plain key>
+     node tools/road2proof.mjs --port 5283 --other-port 5194 --loops-url http://127.0.0.1:8293 --real --key-file <plain key>
                                --loops-env <env file> [--agent crewhub-lead] [--bubble-timeout-s 900] [--seed]
                                [--tag road2] [--out <dir>] [--swiftshader]
    Output in --out: <tag>-NN-<what>.png and <tag>-requests.json (the page's requests to loops: method, path, initiator,
-   header NAMES). Prints road2proof: <passed>/<total> last; exit 0 at full marks. Loops is only ever a loopback address. */
+   header NAMES). Prints road2proof: <passed>/<total> last; exit 0 at full marks. Loops is only ever a loopback address,
+   and the development loops (8291 to 8293) only with `--real` (round 57d); no other named port (lib/toolGuard.ts). */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { cli, launch } from "./lib/world.mjs";
-import { ownPort } from "./lib/toolGuard.ts";
+import { loopsUrlOption, ownPort } from "./lib/toolGuard.ts";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const opts = cli("node tools/road2proof.mjs --port <CHL_WORLD_ORIGIN port> --other-port <port> --loops-url <url> --key-file <file> --loops-env <file> [--agent crewhub-lead] [--bubble-timeout-s 900] [--seed] [--words-only] [--tag road2] [--out <dir>] [--swiftshader]", {
+const opts = cli("node tools/road2proof.mjs --port <CHL_WORLD_ORIGIN port> --other-port <port> --loops-url <url> [--real] --key-file <file> --loops-env <file> [--agent crewhub-lead] [--bubble-timeout-s 900] [--seed] [--words-only] [--tag road2] [--out <dir>] [--swiftshader]", {
   options: { "other-port": null, "loops-url": "", "key-file": "", "loops-env": "", agent: "crewhub-lead", "bubble-timeout-s": "900", tag: "road2" },
-  flags: ["seed", "words-only"],
+  flags: ["seed", "words-only", "real"],
 });
 const otherVerdict = ownPort(opts["other-port"], "--other-port");
 if (!otherVerdict.ok) opts.fail(otherVerdict.reason);
 const otherPort = otherVerdict.value;
 if (otherPort === opts.port) opts.fail("--other-port <port> must be another port than --port");
-let loopsUrl;
-try {
-  const parsed = new URL(opts["loops-url"]);
-  if (parsed.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(parsed.hostname)) throw new Error();
-  if (["8091", "8000", "9443"].includes(parsed.port)) opts.fail(`--loops-url: port ${parsed.port} is the Mac app's, never a tool's target`);
-  loopsUrl = parsed.origin;
-} catch {
-  opts.fail("--loops-url must be a loopback http URL");
-}
+const urlVerdict = loopsUrlOption(opts);
+if (!urlVerdict.ok) opts.fail(urlVerdict.reason);
+const loopsUrl = urlVerdict.value;
 const key = opts["key-file"] === "" ? "" : readFileSync(opts["key-file"], "utf8").trim();
 if (key === "") opts.fail("--key-file <file> is required (a plain bot's key; read once, never printed)");
 const keyName = path.basename(opts["key-file"]).replace(/^agent-/, "").replace(/\.key$/, "").replace(/-\d+$/, "");

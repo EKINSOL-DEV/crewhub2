@@ -16,7 +16,7 @@ export const SWIFTSHADER_ARGS = ["--headless=new", "--use-angle=swiftshader", "-
 
 /**
  * Reads the command line: `--name value` options (with their defaults), `--name` flags, and what is left over in
- * order. Every tool takes --port (required: your own Vite's port, never 5180 or the Mac app's, lib/toolGuard.ts),
+ * order. Every tool takes --port (required: your own Vite's port, never a named port, lib/toolGuard.ts),
  * --out <dir> (default tools/out/) and --swiftshader; `usage` is printed with any mistake. `out` is an absolute directory that exists, ending in a slash.
  */
 export function cli(usage, { options = {}, flags = [] } = {}) {

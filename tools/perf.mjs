@@ -3,7 +3,7 @@
    Usage:
      node tools/perf.mjs --port <port> [scenario...] [--quality pretty|fast] [--theme light|dark] [--cast <id>]
                          [--scenario <id>] [--stress <n>] [--rooms three|classic] [--json <file>] [--minutes <n>]
-                         [--preview] [--source demo|live] [--loops-url <url> --key-file <file>] [--fake-scenario <id>]
+                         [--preview] [--source demo|live] [--loops-url <url> --key-file <file> [--real]] [--fake-scenario <id>]
                          [--fake-speed 0|1|4|16] [--host-port <port>] [--out <dir>] [--swiftshader]
 
    With no scenario it runs them all (about three minutes):
@@ -60,11 +60,11 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { castChoice, cli, launch, seek, speed, store, worldUrl } from "./lib/world.mjs";
-import { LIVE_OPTIONS, LIVE_USAGE, startLive } from "./lib/live.mjs";
+import { LIVE_FLAGS, LIVE_OPTIONS, LIVE_USAGE, startLive } from "./lib/live.mjs";
 
 const opts = cli(
   `node tools/perf.mjs --port <port> [scenario...] [--quality pretty|fast] [--theme light|dark] [--cast <id>] [--scenario <id>] [--stress <n>] [--rooms three|classic] [--json <file>] [--minutes <n>] [--preview] ${LIVE_USAGE} [--out <dir>] [--swiftshader]`,
-  { options: { quality: "pretty", theme: "light", json: null, minutes: "10", cast: null, scenario: null, stress: null, rooms: null, ...LIVE_OPTIONS }, flags: ["preview"] },
+  { options: { quality: "pretty", theme: "light", json: null, minutes: "10", cast: null, scenario: null, stress: null, rooms: null, ...LIVE_OPTIONS }, flags: ["preview", ...LIVE_FLAGS] },
 );
 const { port, quality, theme, preview } = opts;
 if (!["demo", "live"].includes(opts.source)) opts.fail(`--source must be demo or live, not "${opts.source}"`);

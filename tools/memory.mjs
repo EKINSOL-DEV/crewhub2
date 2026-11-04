@@ -3,7 +3,7 @@
    Usage:
      node tools/memory.mjs --port <port> [demo|stress|live|switches|build|chat] [--minutes <n>] [--every <s>] [--cast <id>] [--stress <n>]
                            [--scenario <id>] [--snapshots <min,min,...>] [--save-snapshots <dir>] [--count-names <a,b,...>]
-                           [--preview] [--loops-url <url> --key-file <file>] [--fake-scenario <id>] [--fake-speed 0|1|4|16]
+                           [--preview] [--loops-url <url> --key-file <file> [--real]] [--fake-scenario <id>] [--fake-speed 0|1|4|16]
                            [--host-port <port>] [--paired-tab] [--chat-panel] [--dm-every <s>] [--burst <n> --burst-at <min>]
                            [--json <file>] [--out <dir>] [--swiftshader]
 
@@ -86,14 +86,14 @@ import { fileURLToPath } from "node:url";
 import { CHAT_FLAGS, CHAT_OPTIONS, CHAT_USAGE, READ_PAGE_CHAT, chatAgents, chatSettings, createDmReadCounter, formatChat, nextDm, pageChatCounter } from "./lib/chatSoak.mjs";
 import { capDomDiff, describeDetached, domDiff, domInventory, formatDomDiff } from "./lib/domdiff.ts";
 import { formatRows, formatShapes, growth as heapGrowth, heapTotals, mb as heapMb, resolveThreeNames, topBySize } from "./lib/heap.mjs";
-import { LIVE_OPTIONS, LIVE_USAGE, startLive } from "./lib/live.mjs";
+import { LIVE_FLAGS, LIVE_OPTIONS, LIVE_USAGE, startLive } from "./lib/live.mjs";
 import { formatVerdict, judge, snapshotDiff } from "./lib/verdict.mjs";
 import { castChoice, cli, launch, speed, store, worldUrl } from "./lib/world.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const opts = cli(
   `node tools/memory.mjs --port <port> [demo|stress|live|switches|build|chat] [--minutes <n>] [--every <s>] [--cast <id>] [--stress <n>] [--scenario <id>] [--snapshots <min,min,...>] [--save-snapshots <dir>] [--count-names <a,b,...>] [--preview] ${LIVE_USAGE} ${CHAT_USAGE} [--json <file>] [--out <dir>] [--swiftshader]`,
-  { options: { minutes: null, every: "30", json: null, cast: null, stress: "1", scenario: null, snapshots: "", "save-snapshots": "", "count-names": "", ...LIVE_OPTIONS, ...CHAT_OPTIONS }, flags: ["preview", ...CHAT_FLAGS] },
+  { options: { minutes: null, every: "30", json: null, cast: null, stress: "1", scenario: null, snapshots: "", "save-snapshots": "", "count-names": "", ...LIVE_OPTIONS, ...CHAT_OPTIONS }, flags: ["preview", ...LIVE_FLAGS, ...CHAT_FLAGS] },
 );
 const scenario = opts.rest[0] ?? "demo";
 if (!["demo", "stress", "live", "switches", "build", "chat"].includes(scenario)) opts.fail(`unknown scenario "${scenario}"; known: demo, stress, live, switches, build, chat`);

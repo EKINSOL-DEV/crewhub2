@@ -1,17 +1,19 @@
 /* Live mode for the measurement tools (perf.mjs, memory.mjs): a crewhub-loops behind a host, and the browser paired
    with it. The loops is an in-process fake (`packages/loops-fake`, a free port, `--fake-scenario` and `--fake-speed`)
    unless `--loops-url` names one (the fake started with `npm run loops:fake -- --port <port>`, or the development
-   loops on 8291) with `--key-file` (its key; read once, never printed). The host is in-process (`apps/host`): in a
+   loops on 8291 to 8293, which needs `--real` too: round 57d) with `--key-file` (its key; read once, never printed). No
+   other named port is a target (lib/toolGuard.ts `loopsUrlOption`, the one list in scripts/named-ports.mjs). The host is in-process (`apps/host`): in a
    dev run it listens on `--host-port` behind your Vite (started with CREWHUB_WORLD_PORT=<host-port>) and the browser
    opens your Vite; in a production run (`--preview`) it serves apps/world/dist on `--host-port` (0: a free port) and
    the browser opens the host itself. `--host-port` is required with `--source live` and is never 5180 (the host's
-   default, where somebody's real `npm run world` listens) nor the Mac app's (lib/toolGuard.ts). Pairing stays on, as in production: every context opens a one-time link first.
+   default, where somebody's real `npm run world` listens) nor any other named port (lib/toolGuard.ts). Pairing stays on, as in production: every context opens a one-time link first.
 
    Tooling only: nothing under apps/ or packages/ imports this folder. Loops is only ever a loopback address. */
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { lostIn } from "./chatSoak.mjs";
+import { loopsUrlOption } from "./toolGuard.ts";
 import { ownPort } from "./toolGuard.ts";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -19,7 +21,9 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".
 /** The options every tool with a `--source` takes, with their defaults (spread into `cli`'s options). */
 // --host-port has no default (round 36): 5180 is the host's default, somebody's real npm run world; a tool names a port of its own.
 export const LIVE_OPTIONS = { source: "demo", "loops-url": "", "key-file": "", "fake-scenario": "small-team", "fake-speed": "16", "host-port": "" };
-export const LIVE_USAGE = "[--source demo|live --host-port <port>] [--loops-url <url> --key-file <file>] [--fake-scenario <id>] [--fake-speed 0|1|4|16]";
+/** The flags every tool with a `--source` takes (spread into `cli`'s flags): `--real` opens the development loops as a `--loops-url`. */
+export const LIVE_FLAGS = ["real"];
+export const LIVE_USAGE = "[--source demo|live --host-port <port>] [--loops-url <url> --key-file <file> [--real]] [--fake-scenario <id>] [--fake-speed 0|1|4|16]";
 
 /**
  * The host's log as the tool keeps it: the last `keep` lines, each with its time of day, and the running total of the
@@ -52,10 +56,9 @@ export async function startLive(opts, { preview = false, keyReadsChat = false } 
   let loopsUrl = opts["loops-url"];
   let key, keyName;
   if (loopsUrl !== "") {
-    const parsed = new URL(loopsUrl);
-    if (parsed.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(parsed.hostname)) opts.fail("--loops-url must be a loopback http URL");
-    if (["8091", "8000", "9443"].includes(parsed.port)) opts.fail(`--loops-url: port ${parsed.port} is the Mac app's, never a tool's target`);
-    loopsUrl = parsed.origin;
+    const urlVerdict = loopsUrlOption(opts);
+    if (!urlVerdict.ok) opts.fail(urlVerdict.reason);
+    loopsUrl = urlVerdict.value;
     const keyFile = opts["key-file"];
     if (keyFile === "") opts.fail("--loops-url needs --key-file <file>");
     try {

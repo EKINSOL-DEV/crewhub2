@@ -2,7 +2,7 @@
 export const APP_DATA: string;
 export const CONFIG_DIR: string;
 export const LOOPS_CONFIG: string;
-export const APP_PORTS: number[];
+export const APP_PORTS: readonly number[];
 export const OTHER_PORTS: Map<number, string>;
 export const LISTEN_PORTS: number[];
 export const MARK: symbol;
