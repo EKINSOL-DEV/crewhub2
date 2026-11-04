@@ -5,7 +5,7 @@
  */
 import type { AgentOut, ProjectRef, TeamAgent } from "@crewhub/loops-client";
 import { linesOf, listAgents, projectByTicketKey, type AgentEntity } from "./agents.ts";
-import { agentStateWords } from "./describe.ts";
+import { agentWords } from "./appearance.ts";
 import type { CardFact, Facts } from "./facts.ts";
 import { drawnStatus, newStatusWord } from "./status.ts";
 import type { AgentPlacement, Building, ProgressKind, TicketStatus, WorkObject, WorldModel } from "./model.ts";
@@ -389,7 +389,7 @@ export function agentCardFacts(model: WorldModel, facts: Readonly<Facts>, key: s
     homes,
     work,
     workProject: project ? { slug: project.slug, key: project.key, name: project.name } : null,
-    stateWords: agentStateWords(agent),
+    stateWords: agentWords(agent).state,
     progress: last ? { ts: last.line.ts, kind: last.line.kind, ticketKey: last.line.ticketKey, text: last.text } : null,
     team: entity.lane,
     teamSession: entity.lane ? teamSessionOf(facts, entity.name) : null,
