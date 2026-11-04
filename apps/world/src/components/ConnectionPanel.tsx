@@ -2,8 +2,8 @@
    what the host's health says: where crewhub-loops was found (via and target), the key's name and source, the stream's
    state, cursor, last event (relative) and reconnects, the closed buildings and where that list came from (loops' event
    log, or remembered from an earlier run), loops' version (and the one the host saw first, when loops was updated under
-   it), and how the host reaches loops. It asks the host every 5 s while open, and at once when the connection's state
-   changes.
+   it), and how the host reaches loops. It holds the host health's `panel` need while open (state/health.ts: a read
+   every 5 s, and at once when the connection's state changes).
    "Forget this key" asks in the panel itself (no browser dialog), then DELETEs the stored key and reloads: the gate
    then shows the Connect screen. Before pairing the host tells states only, and the panel says so. Never the key.
    The "Updated 3 s ago" line ticks but is not live; a small sr-only region says once when the host stops answering,
@@ -11,42 +11,34 @@
    in this browser and kept there (crewhub-loops has no project groups, proposal L22), never shared. */
 import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { forgetHostKey, probeHost, type ConnectionState, type HostHealth } from "@crewhub/loops-client";
+import { forgetHostKey, type ConnectionState } from "@crewhub/loops-client";
 import { useT } from "../i18n";
 import { chatWords } from "../state/chatRoad";
 import { useChatRoad } from "../state/chatRoadStore";
 import { archivedSourceKey, connectOutcome, loopsVersion, relativeTime, untilTime } from "../state/connect";
-import { rememberHealth } from "../state/health";
+import { useHealthNeed, useHealthView } from "../state/health";
 import { useTown, useWorld } from "../state/runtimes";
 import { townKeeping, townKeepingWords, zonesOriginWords } from "../world/zoneText";
 import { connectionWord } from "./ConnectionChip";
 import { Button, Card } from "./primitives";
 
-export const PANEL_POLL_MS = 5000;
-
 interface ConnectionPanelProps {
   state: ConnectionState;
-  /** The health the page started with; the panel refreshes it. */
-  initial: HostHealth | null;
   onClose: () => void;
-  pollMs?: number;
 }
 
-export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_MS }: ConnectionPanelProps) {
+export function ConnectionPanel({ state, onClose }: ConnectionPanelProps) {
   const { t } = useT();
   const { model } = useWorld();
   const town = useTown();
   const kept = townKeeping(town.storage, model.mode);
   const zoneWords = zonesOriginWords({ zones: model.zones, assignments: town.doc.assignments, kept });
   const townWords = `${townKeepingWords(kept)}${town.hostRev !== null ? ` Revision ${town.hostRev}.` : ""}${town.storageNote ? ` ${town.storageNote}` : ""}`;
-  const [health, setOwnHealth] = useState<HostHealth | null>(initial);
-  // Every read the panel makes is kept for the Chat panel and the text view too (state/health.ts).
-  const setHealth = (fresh: HostHealth) => {
-    setOwnHealth(fresh);
-    rememberHealth(fresh);
-  };
-  const [askedAt, setAskedAt] = useState<number | null>(null);
-  const [silent, setSilent] = useState(false);
+  // The host's health as last read anywhere on the page; the panel's reads reach the Chat panel and the text view too.
+  useHealthNeed("panel");
+  const { health, read } = useHealthView();
+  const askedAt = read?.at ?? null;
+  const silent = read !== null && read.health === null;
   const [now, setNow] = useState(() => Date.now());
   const [confirm, setConfirm] = useState(false);
   const [forgetting, setForgetting] = useState(false);
@@ -56,25 +48,9 @@ export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_M
   const forgetButton = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    let live = true;
-    const ask = async () => {
-      const fresh = await probeHost("", 1500);
-      if (!live) return;
-      setAskedAt(Date.now());
-      setSilent(fresh === null);
-      if (fresh !== null) setHealth(fresh);
-    };
-    void ask();
-    const timer = setInterval(() => void ask(), pollMs);
     const clock = setInterval(() => setNow(Date.now()), 1000);
-    return () => {
-      live = false;
-      clearInterval(timer);
-      clearInterval(clock);
-    };
-    // The connection's state is a dependency on purpose: a change (loops down, back, catching up, refused) asks the
-    // host at once instead of waiting for the poll, so the facts never lag the chip by up to five seconds.
-  }, [pollMs, state]);
+    return () => clearInterval(clock);
+  }, []);
 
   useEffect(() => {
     card.current?.querySelector<HTMLElement>("button")?.focus();
