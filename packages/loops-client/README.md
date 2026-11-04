@@ -8,9 +8,12 @@ runtime validators, the event allowlist, the `WorldSource` seam, and the two sou
 - `src/hostWire.ts` (round 59d, C7): the wire between the world's host and the page, defined once: the route table under
   `/world-api` (`WORLD_ROUTES`, `worldApiPath` builds a path from it; the host's allow-list matches against it), the
   health answer (`HostHealth` as the page reads it, `HostHealthSent` as a current host writes it, `readHostHealth`), and
-  the stream's message kinds (`HostMessage`, `readHostMessage`, one message read strictly into its kind or why not).
-  The host writes through it, `hostSource.ts` and the stubs (`tools/lib/connectStub.mjs`, the tests' hand hosts) read
-  through it; `apps/host/test/wire.test.ts` runs the real host and the stubs against the readers.
+  the stream's message kinds (`HostMessage`, `readHostMessage`, one message read strictly into its kind or why not),
+  and (round 60, H2) the town's and connect's JSON answers (`TownRead`, `TownWritten`, `TownConflict`, `TownBackups`,
+  `TownBackup`, `ConnectAnswer` as the page reads them, each with a `Sent` type a current host writes, and a reader per
+  answer: `readTownRead(status, body)` …, `readConnectAnswer`). The host writes through it, `hostSource.ts`, the page's
+  town store and connect words, and the stubs (`tools/lib/connectStub.mjs`, the tests' hand hosts) read through it;
+  `apps/host/test/wire.test.ts` runs the real host and the stubs against the readers.
 - `src/hostSource.ts`: `createHostSource(options)` reads the world's own host (`apps/host`) at `/world-api`: one
   snapshot, then SSE events by `seq`; a `reset` re-snapshots (`catching-up`; a `seq` gap too with
   `resnapshotOnGap`, off by default since loops filters the stream per key); heartbeats keep it

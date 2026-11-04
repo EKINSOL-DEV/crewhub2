@@ -10,7 +10,7 @@
    read is offline with a note of its own (F4). Pure of React and the DOM: the transport is injected, so a test drives
    it with a fake. */
 import { validateTownDocument, type TownContext, type TownDocument } from "@crewhub/world-model";
-import type { HostAnswer, HostTownOp } from "@crewhub/loops-client";
+import { type HostAnswer, type HostTownOp, readTownConflict, readTownRead, readTownWritten } from "@crewhub/loops-client";
 import type { TownStore, TownStoreState } from "./townStore.ts";
 
 export interface HostTownTransport {
@@ -109,10 +109,9 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
         : JSON.stringify(value) ?? "undefined";
   const same = (a: TownDocument, b: TownDocument) => canonical({ ...a, revision: 0 }) === canonical({ ...b, revision: 0 });
 
-  /** The host's `canUndo`/`canRedo` from an answer, when it carries them. */
-  const readCan = (body: unknown) => {
-    const b = body as { canUndo?: unknown; canRedo?: unknown } | null;
-    if (typeof b?.canUndo === "boolean" && typeof b?.canRedo === "boolean") hostCan = { undo: b.canUndo, redo: b.canRedo };
+  /** The host's `canUndo`/`canRedo` from an answer, when it carries them (the wire's readers keep both or neither). */
+  const readCan = (answer: { canUndo?: boolean; canRedo?: boolean }) => {
+    if (answer.canUndo !== undefined && answer.canRedo !== undefined) hostCan = { undo: answer.canUndo, redo: answer.canRedo };
   };
 
   /** Takes the host's document as the current one, without an undo step; nothing when it is already the one shown. */
@@ -171,27 +170,29 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
   async function syncOnce(): Promise<void> {
     await local.load();
     const answer = await transport.read();
-    if (answer.status === 200) {
-      const body = answer.body as { rev?: unknown; document?: unknown; reason?: unknown } | null;
-      if (typeof body?.rev === "number" && writing > 0) {
-        // A write is on its way: its answer decides the revision; what this read saw is looked at after it (settle).
-        announced = Math.max(announced ?? 0, body.rev);
-        return;
-      }
-      if (typeof body?.rev === "number" && rev !== null && body.rev < rev) {
-        // An answer older than what this browser already has (a slow read overtaken by a write's answer): nothing to take.
-        log(`a read of revision ${body.rev} arrived after revision ${rev}; ignored`);
-        return;
-      }
-      if (body?.rev === null) {
+    // The read through the wire (loops-client `readTownRead`): a town held, or the host's reason for none yet; null otherwise.
+    const town = readTownRead(answer.status, answer.body);
+    if (town !== null) {
+      if (town.rev === null) {
         // The host answers but keeps no town yet: no database, or no loops found (a town belongs to an installation).
-        offline(typeof body.reason === "string" ? body.reason : "no revision");
-        note = body.reason === "no_world_db" ? NO_DB_NOTE : null;
+        offline(town.reason ?? "no revision");
+        note = town.reason === "no_world_db" ? NO_DB_NOTE : null;
         publish();
         return;
       }
-      if (body?.rev === 0 && (body.document === null || body.document === undefined)) return importOnce();
-      if (typeof body?.rev === "number") {
+      if (writing > 0) {
+        // A write is on its way: its answer decides the revision; what this read saw is looked at after it (settle).
+        announced = Math.max(announced ?? 0, town.rev);
+        return;
+      }
+      if (rev !== null && town.rev < rev) {
+        // An answer older than what this browser already has (a slow read overtaken by a write's answer): nothing to take.
+        log(`a read of revision ${town.rev} arrived after revision ${rev}; ignored`);
+        return;
+      }
+      if (town.rev === 0 && (town.document === null || town.document === undefined)) return importOnce();
+      {
+        const body = town;
         readCan(body);
         if (pending && knownRev !== null && body.rev === knownRev) {
           // The host is back and nobody else wrote meanwhile: this browser's edits go up as the next revision, the
@@ -251,10 +252,11 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
       } finally {
         writing -= 1;
       }
-      if (written.status === 200 && typeof (written.body as { rev?: unknown } | null)?.rev === "number") {
-        rev = (written.body as { rev: number }).rev;
+      const done = readTownWritten(written.status, written.body);
+      if (done !== null) {
+        rev = done.rev;
         knownRev = rev;
-        readCan(written.body);
+        readCan(done);
         pending = false;
         pendingPerson = false;
         note = IMPORTED_NOTE;
@@ -275,8 +277,8 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
   }
 
   async function conflict(answer: HostAnswer): Promise<void> {
-    const body = answer.body as { rev?: unknown; document?: unknown } | null;
-    if (typeof body?.rev === "number" && body.document !== null && body.document !== undefined) {
+    const body = readTownConflict(answer.status, answer.body);
+    if (body !== null && body.document !== null && body.document !== undefined) {
       pending = false;
       pendingPerson = false;
       offer = null;
@@ -379,8 +381,8 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
       } finally {
         writing -= 1;
       }
-      if (answer.status === 200 && typeof (answer.body as { rev?: unknown } | null)?.rev === "number") {
-        const body = answer.body as { rev: number; document?: unknown };
+      const body = readTownWritten(answer.status, answer.body);
+      if (body !== null) {
         rev = body.rev;
         knownRev = rev;
         readCan(body);

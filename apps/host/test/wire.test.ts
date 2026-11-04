@@ -4,12 +4,14 @@
  * known. One table and one set of readers pin what the host writes and what the page and the stubs read.
  */
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { createServer } from "node:net";
+import type { AddressInfo } from "node:net";
 import { afterEach, describe, it } from "node:test";
 import { STUB_STATES, createConnectStub } from "../../../tools/lib/connectStub.mjs";
-import { type HostMessage, readHostHealth, readHostMessage, worldApiPath } from "@crewhub/loops-client";
+import { type HostMessage, readConnectAnswer, readHostHealth, readHostMessage, readTownBackup, readTownBackups, readTownConflict, readTownRead, readTownWritten, worldApiPath } from "@crewhub/loops-client";
 import { emptyTownDocument } from "@crewhub/world-model";
 import { openWorldDb } from "../src/worldDb.ts";
 import { createLoopsStub, installation } from "./loopsStub.ts";
@@ -97,5 +99,133 @@ describe("the wire's contract: what the host and the stubs write, the page's rea
     const none = await tab.next((m) => m.type === "status" && m.key === "none");
     assert.deepEqual(read(none), { type: "status", loops: "unauthorized", key: "none" });
     for (const message of tab.messages) assert.deepEqual(read(message), message, JSON.stringify(message));
+  });
+
+  it("the real host's town answers round-trip through the town's readers: none yet, fresh, held, written, the conflict, the backups, and a host without a database or a loops", async () => {
+    const stub = await createLoopsStub({ ...installation() });
+    cleanup.push(() => stub.close());
+    const dir = mkdtempSync(path.join(tmpdir(), "chw-wire-town-"));
+    cleanup.push(() => rmSync(dir, { recursive: true, force: true }));
+    const db = openWorldDb(path.join(dir, "db"));
+    cleanup.push(() => db.close());
+    const host = await testHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", keySource: "env", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, worldDb: db, log: () => undefined });
+    cleanup.push(() => host.close());
+    const town = worldApiPath("/town");
+    const get = async (p: string) => {
+      const response = await fetch(`${host.url}${p}`);
+      return { status: response.status, body: (await response.json()) as Record<string, unknown> };
+    };
+    const put = async (body: Record<string, unknown>) => {
+      const response = await fetch(`${host.url}${town}`, { method: "PUT", headers: { origin: host.url, "content-type": "application/json" }, body: JSON.stringify(body) });
+      return { status: response.status, body: (await response.json()) as Record<string, unknown> };
+    };
+    await waitFor("the stream", async () => ((await get(worldApiPath("/health"))).body.connection as { stream: { state: string } }).stream.state === "ok");
+    const fresh = await get(town);
+    assert.equal(fresh.status, 200);
+    assert.deepEqual(readTownRead(200, fresh.body), fresh.body, "a fresh host: revision 0, no document, every field read");
+    assert.equal((readTownRead(200, fresh.body) as { rev: number }).rev, 0);
+    const document = { ...emptyTownDocument("greenhouse"), revision: 0 };
+    const written = await put({ document, baseRev: 0 });
+    assert.equal(written.status, 200);
+    assert.deepEqual(readTownWritten(200, written.body), written.body, "a write's answer, whole");
+    const held = await get(town);
+    assert.deepEqual(readTownRead(200, held.body), held.body, "the held town, whole");
+    assert.equal((readTownRead(200, held.body) as { rev: number }).rev, 1);
+    const conflict = await put({ document, baseRev: 0 });
+    assert.equal(conflict.status, 409);
+    assert.deepEqual(readTownConflict(409, conflict.body), conflict.body, "the conflict, with the host's town");
+    const undone = await put({ op: "undo", baseRev: 1 });
+    assert.deepEqual(readTownWritten(undone.status, undone.body), undone.body);
+    // A backup copy beside the database (the file is copied whole: journal_mode DELETE), read back as this installation's town.
+    copyFileSync(db.file, path.join(path.dirname(db.file), "world.db.bak-v1"));
+    const backups = await get(worldApiPath("/town/backups"));
+    assert.equal(backups.status, 200);
+    assert.deepEqual(readTownBackups(backups.status, backups.body), backups.body);
+    assert.deepEqual((readTownBackups(200, backups.body) ?? { backups: [] }).backups.map((b) => [b.name, b.version]), [["world.db.bak-v1", 1]]);
+    const backup = await get(worldApiPath("/town/backups/{name}", { name: "world.db.bak-v1" }));
+    assert.equal(backup.status, 200);
+    assert.deepEqual(readTownBackup(backup.status, backup.body), backup.body);
+    // A host with no database, and one with no loops found: a 200 that names the reason (the page's offline note).
+    const bare = await testHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", keySource: "env", pairing: "off", log: () => undefined });
+    cleanup.push(() => bare.close());
+    const noDb = (await (await fetch(`${bare.url}${town}`)).json()) as Record<string, unknown>;
+    assert.deepEqual(readTownRead(200, noDb), noDb);
+    assert.equal((readTownRead(200, noDb) as { reason: string }).reason, "no_world_db");
+    const appData = mkdtempSync(path.join(tmpdir(), "chw-wire-app-"));
+    cleanup.push(() => rmSync(appData, { recursive: true, force: true }));
+    mkdirSync(path.join(appData, "run"));
+    const free = createServer();
+    await new Promise<void>((resolve) => free.listen(0, "127.0.0.1", resolve));
+    const port = (free.address() as AddressInfo).port;
+    await new Promise<void>((resolve) => free.close(() => resolve()));
+    writeFileSync(path.join(appData, "settings.json"), `{"port": ${port}}\n`);
+    const db2 = openWorldDb(path.join(dir, "db2"));
+    cleanup.push(() => db2.close());
+    const noLoops = await testHost({ discovery: { appData, intervalMs: 40 }, key: stub.key, keyName: "crewhub-world", keySource: "env", pairing: "off", worldDb: db2, log: () => undefined });
+    cleanup.push(() => noLoops.close());
+    const none = (await (await fetch(`${noLoops.url}${town}`)).json()) as Record<string, unknown>;
+    assert.deepEqual(readTownRead(200, none), none);
+    assert.equal((readTownRead(200, none) as { reason: string }).reason, "no_loops");
+  });
+
+  it("the real host's connect answers round-trip through readConnectAnswer: a key loops rejects, loops not answering, no loops found, a key taken, the key forgotten", async () => {
+    const stub = await createLoopsStub({ ...installation() });
+    cleanup.push(() => stub.close());
+    const host = await testHost({ loopsUrl: stub.url, pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, log: () => undefined });
+    cleanup.push(() => host.close());
+    const connect = worldApiPath("/connect");
+    const post = async (url: string, key: string) => {
+      const response = await fetch(`${url}${connect}`, { method: "POST", headers: { origin: url, "content-type": "application/json" }, body: JSON.stringify({ key }) });
+      return { status: response.status, body: (await response.json()) as Record<string, unknown> };
+    };
+    const rejected = await post(host.url, "chl_" + "x".repeat(43));
+    assert.equal(rejected.status, 403);
+    assert.deepEqual(readConnectAnswer(403, rejected.body), rejected.body);
+    assert.equal(rejected.body.error, "key_rejected");
+    stub.outage({ status: 503 });
+    const down = await post(host.url, stub.key);
+    assert.equal(down.status, 503);
+    assert.deepEqual(readConnectAnswer(503, down.body), down.body);
+    assert.equal(down.body.error, "loops_down");
+    stub.outage(null);
+    const taken = await post(host.url, stub.key);
+    assert.equal(taken.status, 200);
+    assert.deepEqual(readConnectAnswer(200, taken.body), taken.body, "ok and the whole connection");
+    const forgotten = await fetch(`${host.url}${connect}`, { method: "DELETE", headers: { origin: host.url } });
+    const forgottenBody = (await forgotten.json()) as Record<string, unknown>;
+    assert.equal(forgotten.status, 200);
+    assert.deepEqual(readConnectAnswer(200, forgottenBody), forgottenBody);
+    const appData = mkdtempSync(path.join(tmpdir(), "chw-wire-app2-"));
+    cleanup.push(() => rmSync(appData, { recursive: true, force: true }));
+    mkdirSync(path.join(appData, "run"));
+    const free = createServer();
+    await new Promise<void>((resolve) => free.listen(0, "127.0.0.1", resolve));
+    const port = (free.address() as AddressInfo).port;
+    await new Promise<void>((resolve) => free.close(() => resolve()));
+    writeFileSync(path.join(appData, "settings.json"), `{"port": ${port}}\n`);
+    const noLoops = await testHost({ discovery: { appData, intervalMs: 40 }, pairing: "off", log: () => undefined });
+    cleanup.push(() => noLoops.close());
+    const none = await post(noLoops.url, stub.key);
+    assert.equal(none.status, 503);
+    assert.deepEqual(readConnectAnswer(503, none.body), none.body);
+    assert.equal(none.body.error, "no_loops");
+  });
+
+  it("the Connect screens' stub refuses a key with the host's own word, key_rejected, so the page's readers meet one wire", async () => {
+    const stub = await createConnectStub({ state: "connect", log: () => undefined });
+    cleanup.push(() => stub.close());
+    const response = await fetch(`${stub.url}${worldApiPath("/connect")}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: "chl_bad" + "x".repeat(40) }) });
+    const body = (await response.json()) as Record<string, unknown>;
+    assert.equal(response.status, 403);
+    assert.deepEqual(readConnectAnswer(403, body), body);
+    assert.equal(body.error, "key_rejected", "the host's word (host.ts connect), not one of the stub's own");
+    // A request's own fault: the host's word is validation_error (review-h2 2), for a key that is no key and a body that is no JSON.
+    const noKey = await fetch(`${stub.url}${worldApiPath("/connect")}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: "nope" }) });
+    const noKeyBody = (await noKey.json()) as Record<string, unknown>;
+    assert.equal(noKey.status, 400);
+    assert.deepEqual(readConnectAnswer(noKey.status, noKeyBody), noKeyBody);
+    assert.equal(noKeyBody.error, "validation_error");
+    const noJson = await fetch(`${stub.url}${worldApiPath("/connect")}`, { method: "POST", headers: { "content-type": "application/json" }, body: "{" });
+    assert.equal(((await noJson.json()) as Record<string, unknown>).error, "validation_error");
   });
 });

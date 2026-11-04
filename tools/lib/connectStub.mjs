@@ -150,14 +150,16 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
     try {
       key = String(JSON.parse(text)?.key ?? "");
     } catch {
-      return send(res, 400, { error: "bad_request", message: "the body is not JSON" });
+      return send(res, 400, { error: "validation_error", message: "the body is not JSON" });
     }
     if (!(await health()).paired) return send(res, 401, { error: "not_paired" });
-    if (!/^chl_[A-Za-z0-9_-]{20,}$/.test(key)) return send(res, 400, { error: "bad_request", message: "key missing or not a key" });
+    // The host's word for a request's own fault (host.ts connect, `ConnectRefusalSent`), as for the key refusal below.
+    if (!/^chl_[A-Za-z0-9_-]{20,}$/.test(key)) return send(res, 400, { error: "validation_error", message: "key missing or not a key" });
     if (key.startsWith("chl_bad")) {
       current = "rejected";
       log(`connect: a key ending in …${key.slice(-4)} rejected`);
-      return send(res, 403, { error: "rejected", reason: REJECT_REASON });
+      // The host's own word for loops' no (host.ts connect, `ConnectRefusalSent`): the page meets one wire.
+      return send(res, 403, { error: "key_rejected", reason: REJECT_REASON });
     }
     log(`connect: a key ending in …${key.slice(-4)} accepted; checking for ${checkMs} ms`);
     current = "checking";

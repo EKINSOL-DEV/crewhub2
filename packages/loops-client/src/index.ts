@@ -69,6 +69,8 @@ export type { HostTownOp } from "./hostSource.ts";
 export type { HostAnswer } from "./hostSource.ts";
 export type { HostArchiveState, HostConnection, HostDiscovery, HostHealth, HostHealthSent, HostKeyState, HostSessionState, HostSnapshotState, HostStreamState } from "./hostWire.ts";
 export { readConnection, readHostHealth, readHostMessage } from "./hostWire.ts";
+export { readConnectAnswer, readHostRefusal, readTownBackup, readTownBackups, readTownConflict, readTownRead, readTownWritten } from "./hostWire.ts";
+export type { ConnectAnswer, ConnectDone, ConnectDoneSent, ConnectRefusalSent, HostRefusal, TownBackup, TownBackupInfo, TownBackupSent, TownBackups, TownBackupsSent, TownConflict, TownConflictSent, TownHeld, TownRead, TownReadSent, TownRefusalSent, TownUnready, TownWritten, TownWrittenSent } from "./hostWire.ts";
 export type { HostMessage, LoopsState } from "./hostWire.ts";
 export { ACTIVITY_TYPES, ACTIVITY_TYPES_QUERY, LOG_FACT_STATUSES, LOG_FACT_TYPES, LOG_RUNS_KEPT, openTicketsOf, quietCandidates, selectLogFacts } from "./logFacts.ts";
 export type { LogFacts, OpenTicket } from "./logFacts.ts";
