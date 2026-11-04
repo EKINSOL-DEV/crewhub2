@@ -1,7 +1,8 @@
 /**
- * The host's memory of the closed buildings: `<configDir>/archived.json`, the slugs of the projects it learnt were
- * archived (from loops' event log or from the stream), so a loops whose log the host may not read from the start still
- * shows its closed buildings on the next start. The snapshot checks every remembered slug with loops
+ * The file adapter of the host's memory of the closed buildings (the module is `archiveMemory.ts`; without a store it
+ * remembers for this run only): `<configDir>/archived.json`, the slugs of the projects it learnt were archived (from
+ * loops' event log or from the stream), so a loops whose log the host may not read from the start still shows its
+ * closed buildings on the next start. The snapshot checks every remembered slug with loops
  * (`GET /api/projects/{slug}`, archived only when loops says so), so a wrong or stale entry costs one read and shows
  * nothing; a restored project leaves the file at the next save. Mode 0600 in the 0700 folder, written whole, never a
  * key. The host writes it only when the set changed.
@@ -19,7 +20,7 @@ export function plainTime(iso: string): string {
   return m === null ? iso : `${m[1]} ${m[2]} UTC`;
 }
 
-export interface ArchiveMemory {
+export interface ArchiveRecord {
   /** Sorted, unique. */
   slugs: string[];
   /** When the list was learnt or last changed, ISO 8601. */
@@ -32,8 +33,8 @@ export interface ArchiveStore {
   /** The file. For the log. */
   file: string;
   /** The memory, or null when there is none or it is unreadable. */
-  read(): ArchiveMemory | null;
-  save(memory: ArchiveMemory): void;
+  read(): ArchiveRecord | null;
+  save(memory: ArchiveRecord): void;
 }
 
 /**
@@ -44,7 +45,7 @@ export interface ArchiveStore {
 export const normaliseSlugs = (slugs: Iterable<string>): string[] => [...new Set([...slugs].filter(isSegment))].sort();
 
 /** The file's JSON as a memory, or null when it is not one. */
-export function parseArchiveMemory(text: string): ArchiveMemory | null {
+export function parseArchiveMemory(text: string): ArchiveRecord | null {
   let raw: unknown;
   try {
     raw = JSON.parse(text);
@@ -54,7 +55,7 @@ export function parseArchiveMemory(text: string): ArchiveMemory | null {
   if (raw === null || typeof raw !== "object") return null;
   const record = raw as { v?: unknown; slugs?: unknown; at?: unknown; target?: unknown };
   if (record.v !== 1 || !Array.isArray(record.slugs)) return null;
-  const out: ArchiveMemory = { slugs: normaliseSlugs(record.slugs.filter((s): s is string => typeof s === "string")), at: typeof record.at === "string" ? record.at : "" };
+  const out: ArchiveRecord = { slugs: normaliseSlugs(record.slugs.filter((s): s is string => typeof s === "string")), at: typeof record.at === "string" ? record.at : "" };
   if (typeof record.target === "string") out.target = record.target;
   return out;
 }
