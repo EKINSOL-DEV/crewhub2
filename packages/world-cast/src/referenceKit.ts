@@ -46,43 +46,50 @@ export function referenceKit(colors: CastManifest["colors"], theme: StyleTheme =
     mesh.position.y = 0.015;
     return mesh;
   };
+  const part = (part: FigurePart, color: string): THREE.Mesh => {
+    const [a, b, c] = part.size;
+    let g: THREE.BufferGeometry;
+    switch (part.shape) {
+      case "box": {
+        const radius = Math.min(part.radius ?? PROP_LIMITS.cornerRadiusDefault, a / 3, b / 3, c / 3);
+        g = geometry(`box:${a},${b},${c},${radius}`, () => (radius <= PROP_LIMITS.plainBevel ? new THREE.BoxGeometry(a, b, c) : new RoundedBoxGeometry(a, b, c, radius <= 0.03 ? 1 : 2, radius)));
+        break;
+      }
+      case "cylinder":
+        g = geometry(`cylinder:${a},${b},${c}`, () => new THREE.CylinderGeometry(a, c, b, Math.max(a, c) <= PROP_LIMITS.smallCylinder ? 10 : 20));
+        break;
+      case "cone":
+        g = geometry(`cone:${a},${b}`, () => new THREE.CylinderGeometry(0, a, b, 20));
+        break;
+      case "sphere":
+        g = Math.max(a, b, c) <= PROP_LIMITS.smallSphere ? geometry("small-sphere", () => new THREE.SphereGeometry(1, 8, 6)) : geometry("sphere", () => new THREE.SphereGeometry(1, 12, 10));
+        break;
+      case "torus":
+        g = geometry(`torus:${a},${b}`, () => new THREE.TorusGeometry(a, b, 10, 32).rotateX(Math.PI / 2));
+        break;
+      case "wedge":
+        g = geometry(`wedge:${a},${b},${c},${part.sweep ?? 360}`, () => new THREE.CylinderGeometry(a, c, b, 16, 1, false, Math.PI / 2, (part.sweep ?? 360) * DEG));
+        break;
+    }
+    const mesh = new THREE.Mesh(g, material(color));
+    if (part.shape === "sphere") mesh.scale.set(a, b, c);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.position.set(...part.position);
+    const [rx, ry, rz] = part.rotation ?? [0, 0, 0];
+    mesh.rotation.set(rx * DEG, ry * DEG, rz * DEG, "XYZ");
+    return mesh;
+  };
   return {
     theme,
     hex,
     material,
-    part(part: FigurePart, color: string) {
-      const [a, b, c] = part.size;
-      let g: THREE.BufferGeometry;
-      switch (part.shape) {
-        case "box": {
-          const radius = Math.min(part.radius ?? PROP_LIMITS.cornerRadiusDefault, a / 3, b / 3, c / 3);
-          g = geometry(`box:${a},${b},${c},${radius}`, () => (radius <= PROP_LIMITS.plainBevel ? new THREE.BoxGeometry(a, b, c) : new RoundedBoxGeometry(a, b, c, radius <= 0.03 ? 1 : 2, radius)));
-          break;
-        }
-        case "cylinder":
-          g = geometry(`cylinder:${a},${b},${c}`, () => new THREE.CylinderGeometry(a, c, b, Math.max(a, c) <= PROP_LIMITS.smallCylinder ? 10 : 20));
-          break;
-        case "cone":
-          g = geometry(`cone:${a},${b}`, () => new THREE.CylinderGeometry(0, a, b, 20));
-          break;
-        case "sphere":
-          g = Math.max(a, b, c) <= PROP_LIMITS.smallSphere ? geometry("small-sphere", () => new THREE.SphereGeometry(1, 8, 6)) : geometry("sphere", () => new THREE.SphereGeometry(1, 12, 10));
-          break;
-        case "torus":
-          g = geometry(`torus:${a},${b}`, () => new THREE.TorusGeometry(a, b, 10, 32).rotateX(Math.PI / 2));
-          break;
-        case "wedge":
-          g = geometry(`wedge:${a},${b},${c},${part.sweep ?? 360}`, () => new THREE.CylinderGeometry(a, c, b, 16, 1, false, Math.PI / 2, (part.sweep ?? 360) * DEG));
-          break;
-      }
-      const mesh = new THREE.Mesh(g, material(color));
-      if (part.shape === "sphere") mesh.scale.set(a, b, c);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      mesh.position.set(...part.position);
-      const [rx, ry, rz] = part.rotation ?? [0, 0, 0];
-      mesh.rotation.set(rx * DEG, ry * DEG, rz * DEG, "XYZ");
-      return mesh;
+    part,
+    // The part as data: what its mesh holds, copied so the mesh is dropped. A figure's parts are not meshes until it is drawn near (FigureKit).
+    piece(p, color) {
+      const mesh = part(p, color);
+      mesh.updateMatrix();
+      return { geometry: mesh.geometry, material: mesh.material as THREE.Material, position: mesh.position.clone(), rotation: mesh.rotation.clone(), scale: mesh.scale.clone(), matrix: mesh.matrix.clone(), castShadow: mesh.castShadow, receiveShadow: mesh.receiveShadow };
     },
     contactShadow(radius) {
       const mesh = flat(radius, "stale", 0.25);

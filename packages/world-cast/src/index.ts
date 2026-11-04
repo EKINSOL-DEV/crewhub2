@@ -250,10 +250,9 @@ export interface FigureKit {
   part(part: FigurePart, color: string): THREE.Mesh;
   /**
    * The same part as data (`StaticPart`, @crewhub/world-style): the geometry, material, position, rotation, scale and
-   * composed matrix the mesh of `part` has. A figure holds its parts so until it is drawn near (round 23). Optional: a
-   * kit without it has them read off the mesh `part` makes.
+   * composed matrix the mesh of `part` has. A figure holds its parts so until it is drawn near (round 23).
    */
-  piece?(part: FigurePart, color: string): StaticPart;
+  piece(part: FigurePart, color: string): StaticPart;
   /** A shared material; `glow` makes it emissive (a number is the strength in its own colour, a name a glow colour). */
   material(color: string, options?: { glow?: number | string }): THREE.MeshStandardMaterial;
   /** The colour string of a colour name in the current theme. */
