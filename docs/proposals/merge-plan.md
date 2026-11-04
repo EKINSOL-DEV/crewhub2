@@ -372,7 +372,12 @@ head by merging that head into it, never by a rebase; the answer branch itself s
 | `53c46ad` | C4, the chat path | q14 → `port/task/q14-dm-read-cap@5894792` | `6394fb2` 1444 / `54b126c` 1442 |
 | `e3e21f8` | C3, the world runtimes | q14 → `port/task/q14-dm-read-cap@5894792`; `cookie+expiry` → `port/task/q1-cookie-expiry@e6c5a34` | `ae05bc2` 1457 / `e25381b` 1455 |
 | `29261f5` | C5, the archive memory | the same two ports | `5e650fd` 1472 / `7bca93b` 1470 |
+| `8ff4368` | C7, the wire | q14 → `port/task/q14-dm-read-cap@5894792`; q15 → `port/task/q15-body-cap@f336f0c`; q3 → `port/task/q3-health-less@f336f0c`; `tab` → `port/task/r27-tab-pairing@f336f0c`; `cookie+expiry` → `port/task/q1-cookie-expiry@f336f0c` | `d54cca3` 1480 / `2572fdb` 1478 |
+| `2e2df46` | C2, the world view's navigation | the same five ports | `84d23ce` 1491 / `821897c` 1489 |
+| `36f8e1b` | C8, an agent's appearance | the same five ports | `c850b66` 1517 / `14feea2` 1515 |
 
-To replay Nicky's answers on such a head, pass each port named on its row: for example
-`node tools/answers-replay.mjs 29261f5 cookie+expiry q3 q8 q11 q14 q15 --check --use q14=port/task/q14-dm-read-cap@5894792 --use cookie+expiry=port/task/q1-cookie-expiry@e6c5a34`.
+To replay Nicky's answers on such a head, pass each port named on its row: for example, on `36f8e1b`,
+`node tools/answers-replay.mjs 36f8e1b cookie+expiry q3 q8 q11 q14 q15 --check --use q14=port/task/q14-dm-read-cap@5894792 --use q15=port/task/q15-body-cap@f336f0c --use q3=port/task/q3-health-less@f336f0c --use cookie+expiry=port/task/q1-cookie-expiry@f336f0c`
+(for `tab`, `--use tab=port/task/r27-tab-pairing@f336f0c` in place of the `cookie+expiry` one). From C7 on, only q8 and
+q11 merge as themselves.
 The port branches are local to the merge worktree's repository until crewy pushes them.
