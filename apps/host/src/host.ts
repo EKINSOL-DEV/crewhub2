@@ -23,6 +23,7 @@ import { pipeline } from "node:stream/promises";
 import type { HostConnection, HostHealthSent, HostMessage } from "@crewhub/loops-client";
 import { WORLD_API_PREFIX, fillPattern, matchWorldRoute } from "./allowList.ts";
 import { DEV_ORIGINS_HEADER, devOriginAcceptedLine, devOriginVerdict } from "./devOrigin.ts";
+import { MINT_HEADER, MINT_PATH } from "./runningHost.ts";
 import type { ArchiveStore } from "./archiveStore.ts";
 import type { KeySource } from "./config.ts";
 import { type Connection, type ConnectionTimings, type HostStep, createConnection } from "./connection.ts";
@@ -94,8 +95,8 @@ export interface HostOptions {
   now?: () => number;
 }
 
-export const MINT_PATH = "/pair-mint";
-export const MINT_HEADER = "x-crewhub-world-mint";
+/** The mint route's names are the road's (`runningHost.ts`, `mint`); the host answers them and its tests ask them here. */
+export { MINT_HEADER, MINT_PATH } from "./runningHost.ts";
 
 /**
  * On every HTML page the host serves (review F6): the world may be framed by its own origin only, so a page on another

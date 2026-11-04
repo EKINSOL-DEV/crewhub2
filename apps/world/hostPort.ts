@@ -53,7 +53,7 @@ export function hostPortPlan(env: Readonly<Record<string, string | undefined>>, 
  *     the host is this checkout's, or when the host is from before the id (it cannot tell, and says so);
  *   - refuses when the host names another checkout: the line names the port, both checkouts (this one by its path,
  *     the other by its id and key name) and the way out.
- * Pure: `devHostVerdict` takes the answer; the host package fetches it (`apps/host/src/checkout.ts`, `probeCheckout`:
+ * Pure: `devHostVerdict` takes the answer; the host package fetches it (`apps/host/src/checkout.ts`, `probeCheckout`, on the road of `runningHost.ts`:
  * the world's own code never calls the network outside the live source, and the dev server is Node, not the page).
  */
 import type { HostAnswer } from "../host/src/checkout.ts";
@@ -89,10 +89,10 @@ export function devHostVerdict(input: { port: number; explicit: boolean; local: 
 /**
  * The third thing the dev server does (round 23): once it listens it tells the host its origin, so the page's writes
  * (connect, sign-in, the town) pass the host's origin guard without CREWHUB_WORLD_ALLOWED_ORIGINS. The host side is
- * `apps/host/src/devOrigin.ts` (loopback only, this checkout only, never a wildcard); the call is `tellDevOrigin` in
+ * `apps/host/src/devOrigin.ts` (loopback only, this checkout only, never a wildcard); the call is `tellOrigin` in
  * the host package. Pure here: which of Vite's URLs are origins worth telling, and the one line about the outcome.
  */
-import type { TellOutcome } from "../host/src/checkout.ts";
+import type { TellOutcome } from "../host/src/runningHost.ts";
 
 /** The loopback origins among Vite's local URLs (`http://127.0.0.1:5294/` → `http://127.0.0.1:5294`), in order, once each. */
 export function devOriginsOf(localUrls: readonly string[]): string[] {
