@@ -2,8 +2,8 @@
  * A program on this machine and the host on a port: one road (round 60, H1). `npm run host -- open` and `npm run world`
  * ask a host that already runs for a pairing link (`mint`), the doctor asks whether its port is free, a host's or
  * somebody else's (`portState`), and this checkout's dev server asks whose host answers (`probe`, through
- * `checkout.ts`) and tells it its origin (`tellOrigin`). Every question is one loopback fetch with a short timeout,
- * never a browser's (no Origin header), and every answer is read once: health through the wire's own reader
+ * `checkout.ts`) and tells it its origin (`tellOrigin`). Every question is one loopback request with a short timeout
+ * (the doctor's a socket connect first), never a browser's (no Origin header), and every answer is read once: health through the wire's own reader
  * (`readHostHealth`, `@crewhub/loops-client`), the run file's secret through `runFile.ts`. Nothing here throws on a
  * dead port: silence, "not a host", "free" or null are answers. The secret is never printed.
  */
@@ -63,12 +63,13 @@ export async function portState(port: number): Promise<PortState> {
  * Asks the host that runs on `port` for a one-time pairing link, with the run file's secret (`runFile.ts`; the file's
  * 0600 mode is what makes "can read it" mean "the same user"). The link is minted on the host's own origin; `origin`
  * puts another in its place (the Vite dev server, which proxies the pairing to the host). Null when there is no run
- * file, no host answers, or it refuses the secret.
+ * file, no host answers (1.5 s), or it refuses the secret.
  */
-export async function mint(port: number, origin: string | null, timeoutMs = 1500, secret: string | null = readRunFile(port)?.mintSecret ?? null): Promise<string | null> {
+export async function mint(port: number, origin: string | null): Promise<string | null> {
+  const secret = readRunFile(port)?.mintSecret ?? null;
   if (secret === null) return null;
   try {
-    const response = await fetch(`http://127.0.0.1:${port}${MINT_PATH}`, { headers: { [MINT_HEADER]: secret }, signal: AbortSignal.timeout(timeoutMs) });
+    const response = await fetch(`http://127.0.0.1:${port}${MINT_PATH}`, { headers: { [MINT_HEADER]: secret }, signal: AbortSignal.timeout(1500) });
     if (!response.ok) return null;
     const body = (await response.json()) as { link?: unknown };
     if (typeof body.link !== "string") return null;

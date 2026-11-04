@@ -1,8 +1,12 @@
 /* The program's road to a running host (runningHost.ts, round 60 H1): what a port answers a program, read once. The hosts
    are the test's own (testHost on port 0) or hand servers that answer whatever a port might; nothing named. */
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { afterEach, describe, it } from "node:test";
+import { runFilePath, writeRunFile } from "../src/runFile.ts";
 import { MINT_HEADER, mint, portState, probe } from "../src/runningHost.ts";
 import { testHost } from "./testHost.ts";
 
@@ -66,31 +70,56 @@ describe("the road to a running host", () => {
     assert.deepEqual(await portState(await answering(404, { error: "not_found" })), { kind: "taken" });
   });
 
-  it("mint: a link from the host that runs there, with the run file's secret; on another origin when asked; null otherwise", async () => {
+  /** The run files go in a temp folder of the test's own: TMPDIR points there until the test ends (as runFile.test.ts). */
+  function ownTmpdir(): string {
+    const dir = mkdtempSync(path.join(tmpdir(), "chw-road-"));
+    const before = process.env["TMPDIR"];
+    process.env["TMPDIR"] = dir;
+    cleanup.push(() => {
+      if (before === undefined) delete process.env["TMPDIR"];
+      else process.env["TMPDIR"] = before;
+      rmSync(dir, { recursive: true, force: true });
+    });
+    return dir;
+  }
+
+  it("mint: a link from the host that runs there, with the secret from its run file; on another origin when asked; null otherwise", async () => {
+    ownTmpdir();
     const host = await testHost({ loopsUrl: "http://127.0.0.1:1", mintSecret: "the-run-file-secret", retryMs: { min: 20, max: 100 }, log: () => undefined });
     cleanup.push(() => host.close());
-    const link = await mint(host.port, null, 1500, "the-run-file-secret");
+    assert.equal(await mint(host.port, null), null, "no run file yet: nothing is asked");
+    const remove = writeRunFile(host.port, { pid: process.pid, url: host.url, mintSecret: "the-run-file-secret" });
+    cleanup.push(remove);
+    const link = await mint(host.port, null);
     assert.ok(link !== null && link.startsWith(`${host.url}/pair/`), String(link));
-    const elsewhere = await mint(host.port, "http://127.0.0.1:5294", 1500, "the-run-file-secret");
+    const elsewhere = await mint(host.port, "http://127.0.0.1:5294");
     assert.ok(elsewhere !== null && elsewhere.startsWith("http://127.0.0.1:5294/pair/"), String(elsewhere));
     assert.notEqual(elsewhere, link, "a fresh token each time");
-    assert.equal(await mint(host.port, null, 1500, "a-guess"), null, "the wrong secret: the host answers not_found");
-    assert.equal(await mint(host.port, null, 1500, null), null, "no run file to read: nothing is asked");
-    assert.equal(await mint(await answering(200, { ok: true }), null, 1500, "s"), null, "an answer without a link");
-    assert.equal(await mint(await closedPort(), null, 500, "s"), null, "nothing listens");
+    // Another process's run file on the same port (a wrong secret): the host answers not_found.
+    writeFileSync(runFilePath(host.port), JSON.stringify({ pid: 1, url: host.url, mintSecret: "a-guess" }));
+    assert.equal(await mint(host.port, null), null, "the wrong secret");
+    // A hand-made file is no run file: only what writeRunFile writes (pid, url, mintSecret) is read.
+    writeFileSync(runFilePath(host.port), JSON.stringify({ mintSecret: "the-run-file-secret" }));
+    assert.equal(await mint(host.port, null), null, "no pid, no url: no run file");
   });
 
-  it("the secret travels in the mint header only, never in the path or a query", async () => {
+  it("mint: null when the port answers without a link or does not answer, and the secret travels in the mint header only", async () => {
+    ownTmpdir();
     const seen: { url: string; header: string | undefined }[] = [];
     const server = createServer((req, res) => {
       seen.push({ url: req.url ?? "", header: req.headers[MINT_HEADER] as string | undefined });
       res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ link: "http://127.0.0.1:1/pair/t" }));
+      res.end(JSON.stringify(seen.length === 1 ? { ok: true } : { link: "http://127.0.0.1:1/pair/t" }));
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
     cleanup.push(() => new Promise<void>((resolve) => server.close(() => resolve())));
     const port = (server.address() as { port: number }).port;
-    assert.equal(await mint(port, null, 1500, "s3cret"), "http://127.0.0.1:1/pair/t");
-    assert.deepEqual(seen, [{ url: "/pair-mint", header: "s3cret" }]);
+    cleanup.push(writeRunFile(port, { pid: process.pid, url: `http://127.0.0.1:${port}`, mintSecret: "s3cret" }));
+    assert.equal(await mint(port, null), null, "an answer without a link");
+    assert.equal(await mint(port, null), "http://127.0.0.1:1/pair/t");
+    assert.deepEqual(seen, [{ url: "/pair-mint", header: "s3cret" }, { url: "/pair-mint", header: "s3cret" }]);
+    const closed = await closedPort();
+    cleanup.push(writeRunFile(closed, { pid: process.pid, url: `http://127.0.0.1:${closed}`, mintSecret: "s3cret" }));
+    assert.equal(await mint(closed, null), null, "nothing listens");
   });
 });

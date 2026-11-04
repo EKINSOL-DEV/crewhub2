@@ -53,8 +53,9 @@ export function hostPortPlan(env: Readonly<Record<string, string | undefined>>, 
  *     the host is this checkout's, or when the host is from before the id (it cannot tell, and says so);
  *   - refuses when the host names another checkout: the line names the port, both checkouts (this one by its path,
  *     the other by its id and key name) and the way out.
- * Pure: `devHostVerdict` takes the answer; the host package fetches it (`apps/host/src/checkout.ts`, `probeCheckout`, on the road of `runningHost.ts`:
- * the world's own code never calls the network outside the live source, and the dev server is Node, not the page).
+ * Pure: `devHostVerdict` takes the answer; the host package fetches it (`apps/host/src/checkout.ts`, `probeCheckout`,
+ * on the road of `runningHost.ts`: the world's own code never calls the network outside the live source, and the dev
+ * server is Node, not the page).
  */
 import type { HostAnswer } from "../host/src/checkout.ts";
 

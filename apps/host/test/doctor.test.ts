@@ -215,6 +215,11 @@ describe("the doctor", () => {
     const before = byId(await runDoctor({ env: await hostOn({ loops: "down", keyName: "x", sharedKey: false }) }));
     assert.equal(before.port!.status, "fix", "a host from before the states: its loops word decides");
     assert.match(before.port!.text, /but loops is down: the host retries by itself/);
+    // The wire's reader takes the states whole or not at all (round 60, review-h1 B1): a newer host with a stream word
+    // this checkout does not know is read like a host from before the states, its `loops` word deciding.
+    const newer = byId(await runDoctor({ env: await hostOn({ loops: "ok", keyName: "k", sharedKey: false, connection: states("paused", "rejected") }) }));
+    assert.equal(newer.port!.status, "ok");
+    assert.match(newer.port!.text, /\(loops ok, key k\)/);
     const taken = byId(await runDoctor({ env: await hostOn("<html>", "text/html") }));
     assert.equal(taken.port!.status, "fix");
     assert.match(taken.port!.text, /something else listens/);
