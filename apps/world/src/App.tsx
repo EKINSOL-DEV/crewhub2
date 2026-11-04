@@ -744,7 +744,7 @@ function World() {
     spokenConnection.current = connection;
   }, [connection]);
   // The host's health as the Pair screen last saw it (the gate's read first); the screen polls and keeps it fresh.
-  const [health, setHealth] = useState<HostHealth>(() => pageConfig().source.health ?? { loops: "ok", keyName: "", sharedKey: false, pairing: "on", paired: false });
+  const [health, setHealth] = useState<HostHealth>(() => SOURCE.health ?? { loops: "ok", keyName: "", sharedKey: false, pairing: "on", paired: false });
   // The text view's Chat line and the Chat panel's small print say the chat session's state (round 14): one health read
   // when either opens on a live page, so the words are the host's current ones, not the gate's first read.
   const chatOpen = chat !== null;
@@ -894,7 +894,7 @@ function World() {
         {!demo && connection === "connecting" && <FirstSnapshot />}
       </main>
 
-      {connectionOpen && connection && <ConnectionPanel state={connection} initial={pageConfig().source.health} onClose={closeConnection} />}
+      {connectionOpen && connection && <ConnectionPanel state={connection} initial={SOURCE.health} onClose={closeConnection} />}
 
       {chat && !demo && <ChatPanel agent={chat.agent} health={hostHealth} road={chatRoad} full={narrow} answers={answers} recentEmpty={recentEmptyWords("live", chatRoad)} targetOf={answerTargetOf} onAnswer={openAnswer} onClose={closeChat} />}
 
@@ -1041,6 +1041,9 @@ const SPEEDS: readonly { speed: PlaybackSpeed; label: string }[] = [
   { speed: 4, label: "4x" },
   { speed: 16, label: "16x" },
 ];
+
+/** The source this page runs on, decided before mount (state/page.ts reads it once). */
+const SOURCE = pageConfig().source;
 
 /* The chrome around the scene, memoised: the world model changes many times a second under load, and none of these show
    it, so they render only when their own props change. */
