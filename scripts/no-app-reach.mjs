@@ -1,7 +1,8 @@
 /* no-app-reach: no unit test may reach the Mac app (round 35).
  *
  * Preloaded into every test process by `npm test` (`node --import ./scripts/no-app-reach.mjs --test …`) and, through
- * NODE_OPTIONS, into every Node process a test spawns. It patches `node:net` and `node:fs` in that process so that:
+ * NODE_OPTIONS, into every Node process a test spawns. It patches `node:net`, `node:fs`, `node:child_process`,
+ * `process.kill` and `node:sqlite` in that process so that:
  *   - a connection to port 8091, 8000 or 9443 on any host (the Mac app's ports) is refused before a packet leaves, and
  *     so is one to 8291 to 8293 (the development crewhub-loops), 8391 (a running loops-fake), 5180 (somebody's
  *     `npm run world`) or 5173 (a Vite dev server) (round 55);
@@ -16,6 +17,16 @@
  *     port; a test's host listens on port 0 and lands in the ephemeral range, 32768-60999 on Linux and 49152-65535 on
  *     macOS, round 56b), is refused in the real TMPDIR (round 56): the
  *     first preloaded process's, handed down in CREWHUB_TEST_REAL_TMPDIR, as well as each process's own.
+ *   - a child a test starts (spawn, spawnSync, exec, execSync, execFile, execFileSync, fork, and the promisified exec
+ *     and execFile) with an explicit env still gets the guard: its NODE_OPTIONS gets the guard's --import and its env
+ *     the real TMPDIR, added and never replaced (round 58d); a child without an env inherits both;
+ *   - process.kill reaches only the test's own process and its own live children (the pids its child_process calls
+ *     returned, each forgotten when it exits, since a reaped pid may be anybody's); any other pid, signal 0 included,
+ *     and a process group (pid 0 or below) is refused before a signal is sent (round 58d);
+ *   - a node:sqlite database (new DatabaseSync(path), even with { open: false }) opens only in the test's temp folders
+ *     (os.tmpdir() and the real TMPDIR) and in none of the guarded folders, or in :memory: (round 58d). An ES module
+ *     import of node:sqlite resolves (module.registerHooks) to a module that re-exports it with the guard's
+ *     DatabaseSync, since syncBuiltinESMExports skips the scheme-only builtins.
  * A refusal throws an Error whose message starts with "no-app-reach:" and sets the process's exit code to 1, so the test
  * file fails even when the code under test swallows the error (a discovery probe reports "down" and goes on). With
  * CREWHUB_TEST_REACH_LOG=<file> the guard records instead (every connect and every refusal, one line each, with the
@@ -30,17 +41,21 @@
  * CREWHUB_TEST_GUARD_HOME=<absolute folder> (round 56, the guard's own tests only) adds a decoy home whose three folders
  * are refused as well; it never replaces $HOME or the user's home. CREWHUB_TEST_REAL_TMPDIR adds, never replaces, too.
  *
- * Not guarded (round 55's docs/proposals/mutation-harness.md, a day round's work): node:sqlite (it opens past node:fs),
- * spawn and exec, and process.kill.
+ * Not guarded: node:sqlite's backup() and a database a SQL ATTACH names (SQLite opens those itself), and a process a
+ * child of a child starts with an explicit env from a non-Node program (only Node children carry the preload).
  *
  * It changes nothing for a real host: only the test scripts preload it. The predicates are exported for the unit test
- * in scripts/test/no-app-reach.test.ts, which also checks that the preload is active, and noAppReachPorts.test.ts. */
+ * in scripts/test/no-app-reach.test.ts, which also checks that the preload is active, noAppReachPorts.test.ts,
+ * noAppReachHome.test.ts and noAppReachRoads.test.ts (the three roads of round 58d). */
+import childProcess from "node:child_process";
 import fs from "node:fs";
-import { syncBuiltinESMExports } from "node:module";
+import { registerHooks, syncBuiltinESMExports } from "node:module";
 import net from "node:net";
 import { homedir, tmpdir, userInfo } from "node:os";
 import path from "node:path";
+import sqlite from "node:sqlite";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { APP_PORTS, NAMED_PORTS, VITE_PORT } from "./named-ports.mjs";
 
 const HOME = homedir();
@@ -105,6 +120,53 @@ const DECOY_WORDS = "the guard test's decoy (CREWHUB_TEST_GUARD_DECOY)";
 /** Ports a test listens on never (round 55): somebody's process holds them, or a host's discovery would take a test's listener for loops. Vite's stays open, as round 55's brief listed it. */
 export const LISTEN_PORTS = NAMED_PORTS.map(({ port }) => port).filter((port) => port !== VITE_PORT);
 export const MARK = Symbol.for("crewhub-world.no-app-reach");
+/** The pids of the children this process started and that have not exited (round 58d): what process.kill may reach. */
+export const OWN_CHILDREN = new Set();
+/**
+ * Why a test may not send `signal` to `pid`, or null (round 58d). Allowed: the test's own process (`self`) and its own
+ * live children (`own`, the pids its child_process calls returned, each dropped when it exits: a reaped pid may be
+ * anybody's). Signal 0 decides like any other: it is aimed at a process too. A pid of 0 or below is a process group
+ * (the test runner's among them): refused. A pid that is not a number is Node's to refuse.
+ */
+export function refusesKill(pid, signal, own = OWN_CHILDREN, self = process.pid) {
+  if (typeof pid !== "number" || !Number.isInteger(pid)) return null;
+  const sig = signal ?? "SIGTERM";
+  if (pid <= 0) return `pid ${pid}, a process group: every process in it, the test runner's too (signal ${sig})`;
+  if (pid === self || own.has(pid)) return null;
+  return `pid ${pid} is not a live child this test started (signal ${sig})`;
+}
+
+/** This file: what NODE_OPTIONS imports in every child. */
+export const GUARD_FILE = fileURLToPath(import.meta.url);
+
+/** The child_process functions that start a child (round 58d): each may be given an explicit env. */
+export const CHILD_FORMS = ["spawn", "spawnSync", "exec", "execSync", "execFile", "execFileSync", "fork"];
+/**
+ * An env a test hands a child explicitly, with what the guard needs added (round 58d): the guard's `--import` in
+ * NODE_OPTIONS (after the child's own options) and the real TMPDIR (`CREWHUB_TEST_REAL_TMPDIR`). Added, never replaced:
+ * a child that names its own real TMPDIR (a guard test's decoy) keeps it. A new object; `env` is not changed.
+ */
+export function handDownEnv(env, parent = process.env, guardFile = GUARD_FILE) {
+  const out = { ...env };
+  const options = typeof out.NODE_OPTIONS === "string" ? out.NODE_OPTIONS : "";
+  if (!options.includes(guardFile)) out.NODE_OPTIONS = `${options} --import ${JSON.stringify(guardFile)}`.trim();
+  if (out.CREWHUB_TEST_REAL_TMPDIR === undefined && typeof parent.CREWHUB_TEST_REAL_TMPDIR === "string") out.CREWHUB_TEST_REAL_TMPDIR = parent.CREWHUB_TEST_REAL_TMPDIR;
+  return out;
+}
+/**
+ * A child_process call's arguments with its options' env handed down (`handDownEnv`). The options are the first plain
+ * object after the command (arrays are arguments, functions callbacks); without an `env` the child inherits
+ * process.env, which carries the guard already, and the same array comes back.
+ */
+export function guardedArgs(args, parent = process.env, guardFile = GUARD_FILE) {
+  const at = args.findIndex((a, i) => i > 0 && typeof a === "object" && a !== null && !Array.isArray(a));
+  if (at === -1) return args;
+  const options = args[at];
+  if (typeof options.env !== "object" || options.env === null) return args;
+  const out = [...args];
+  out[at] = { ...options, env: handDownEnv(options.env, parent, guardFile) };
+  return out;
+}
 
 const under = (file, dir) => file === dir || file.startsWith(dir + path.sep);
 
@@ -125,6 +187,27 @@ export function refusesPath(input, folders = FOLDERS, tmpDirs = TMP_DIRS) {
   for (const folder of folders) if (under(p, folder.dir)) return `${p} ${folder.why}`;
   if (isRealRunFile(p, tmpDirs)) return `${p} is a real host's run file (its mint secret) in the real TMPDIR`;
   return null;
+}
+
+/**
+ * Why a test may not open a node:sqlite database there, or null (round 58d). `:memory:` and `""` (SQLite's anonymous
+ * database) are no file; a path (a string, a Buffer or a file: URL) must not be refused by `refusesPath` (a guarded
+ * folder, even one in a temp folder) and must lie in one of the test's temp folders (`tmpDirs`: os.tmpdir() and the
+ * real TMPDIR handed down). node:sqlite opens past node:fs, so its own constructor is the one place to ask.
+ */
+export function refusesDatabase(location, folders = FOLDERS, tmpDirs = TMP_DIRS) {
+  let p = location;
+  if (p instanceof URL) {
+    if (p.protocol !== "file:") return null;
+    p = fileURLToPath(p);
+  }
+  if (Buffer.isBuffer(p)) p = p.toString("utf8");
+  if (typeof p !== "string" || p === ":memory:" || p === "") return null;
+  const file = path.resolve(p);
+  const reason = refusesPath(file, folders, tmpDirs);
+  if (reason !== null) return reason;
+  if (tmpDirs.some((dir) => under(file, dir))) return null;
+  return `${file} is outside the test's temp folders (${tmpDirs.join(", ")}): a test's database lives in its own temp folder or in :memory:`;
 }
 
 /** The target of `socket.connect(...args)` as { port, host } or { path }, whatever form the call took. */
@@ -267,15 +350,80 @@ if (globalThis[MARK] === undefined) {
     if (recording) return false;
     throw fail("fs", reason, name, p);
   });
+  // child_process (round 58d): a child given an explicit env still gets the guard and the real TMPDIR (guardedArgs).
+  // exec and execFile carry their own promisified form (util.promisify.custom), wrapped the same way.
+  // A child the async forms start is the test's own until it exits (OWN_CHILDREN, for process.kill); a sync form's
+  // child has exited when the call returns.
+  const own = (child) => {
+    if (typeof child?.pid !== "number" || typeof child.once !== "function") return child;
+    const pid = child.pid;
+    OWN_CHILDREN.add(pid);
+    child.once("exit", () => OWN_CHILDREN.delete(pid));
+    return child;
+  };
+  for (const name of CHILD_FORMS) {
+    const original = childProcess[name];
+    const wrapped = function guardedChild(...args) {
+      return own(original.apply(this, guardedArgs(args)));
+    };
+    Object.defineProperty(wrapped, "name", { value: original.name });
+    const custom = original[promisify.custom];
+    if (typeof custom === "function")
+      Object.defineProperty(wrapped, promisify.custom, {
+        value: (...args) => {
+          const promise = custom(...guardedArgs(args));
+          own(promise.child);
+          return promise;
+        },
+      });
+    wrapped[MARK] = true;
+    childProcess[name] = wrapped;
+  }
+  // node:sqlite (round 58d): DatabaseSync asks refusesDatabase before anything is opened (even with { open: false }).
+  const Database = sqlite.DatabaseSync;
+  const GuardedDatabaseSync = class DatabaseSync extends Database {
+    constructor(location, ...rest) {
+      const reason = refusesDatabase(location);
+      if (reason !== null) {
+        refuse("sqlite", reason);
+        throw fail("sqlite", reason, "open", location);
+      }
+      super(location, ...rest);
+    }
+  };
+  GuardedDatabaseSync[MARK] = true;
+  sqlite.DatabaseSync = GuardedDatabaseSync;
+  // require("node:sqlite") reads the exports object, changed above; syncBuiltinESMExports skips the scheme-only builtins,
+  // so an ES module import of node:sqlite resolves to a module that re-exports it with the guard's DatabaseSync (its
+  // own import of node:sqlite goes past this hook).
+  state.sqlite = sqlite;
+  const SQLITE_MODULE = `data:text/javascript,${encodeURIComponent('const guard = globalThis[Symbol.for("crewhub-world.no-app-reach")]; export * from "node:sqlite"; export const DatabaseSync = guard.sqlite.DatabaseSync; export default guard.sqlite;')}`;
+  registerHooks({
+    resolve(specifier, context, nextResolve) {
+      if (specifier === "node:sqlite" && context.parentURL !== SQLITE_MODULE) return { url: SQLITE_MODULE, shortCircuit: true };
+      return nextResolve(specifier, context);
+    },
+  });
   syncBuiltinESMExports();
+
+  // process.kill (round 58d): only the test's own process and its own live children (refusesKill), refused before any
+  // signal; in record mode the refusal looks like a pid that is not there.
+  const kill = process.kill;
+  process.kill = function guardedKill(pid, signal) {
+    const reason = refusesKill(pid, signal);
+    if (reason === null) return kill.call(process, pid, signal);
+    refuse("kill", reason);
+    if (recording) throw Object.assign(new Error("kill ESRCH (no-app-reach)"), { code: "ESRCH", errno: -3, syscall: "kill" });
+    throw new Error(`no-app-reach: a test reached for ${reason} (kill)`);
+  };
+  process.kill[MARK] = true;
 
   // A child that moves TMPDIR still knows the real one (an env the test gives explicitly may leave it out: then the
   // child's own TMPDIR is all it guards).
   if (process.env.CREWHUB_TEST_REAL_TMPDIR === undefined) process.env.CREWHUB_TEST_REAL_TMPDIR = tmpdir();
   // Every Node process a test spawns gets the same guard (NODE_OPTIONS is read by node, not by the test).
-  const here = fileURLToPath(import.meta.url);
   const nodeOptions = process.env.NODE_OPTIONS ?? "";
-  if (!nodeOptions.includes(here)) process.env.NODE_OPTIONS = `${nodeOptions} --import ${JSON.stringify(here)}`.trim();
+  if (!nodeOptions.includes(GUARD_FILE)) process.env.NODE_OPTIONS = `${nodeOptions} --import ${JSON.stringify(GUARD_FILE)}`.trim();
 
   process.on("exit", () => {
     if (state.refusals > 0 && !recording && process.exitCode === 0) process.exitCode = 1;
