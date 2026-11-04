@@ -18,7 +18,11 @@ listen on 8091, 8000, 9443, 8291 to 8293, 8391 and 5180: the table's TCP and lis
 ports. **Round 56** (`task/r56-guard-home`) closed two more: the folders are refused under the user's own home
 (`os.userInfo().homedir`) as well as `$HOME`, and a real host's run file (`crewhub-world-host-<1024 to 32767>.json`, below both ephemeral ranges since round 56b: Linux's port 0 lands at 32768)
 directly in the real `TMPDIR` is refused, also in a child that moves its `TMPDIR` (the first process hands the real one
-down). A child given an explicit env without that hand-down *and* a moved `TMPDIR` still guards only its own. The rest
+down). A child given an explicit env without that hand-down *and* a moved `TMPDIR` still guards only its own. **Round
+58d** (`task/r58d-guard-gaps`) closed the three gaps left: a child started with an explicit env gets the guard's
+`NODE_OPTIONS` and the real `TMPDIR` handed down (every `child_process` form); `process.kill` reaches only the test's own
+process and its live children (signal 0 too; a process group never); `new DatabaseSync(path)` opens only in the test's
+temp folders or `:memory:`. The table's node:sqlite and `spawn`/`exec`/`process.kill` cells are history now. The rest
 of the table still holds:
 
 | Road | Refused by no-app-reach | Not refused |
