@@ -1,5 +1,5 @@
-/* The director's plan log: the last LOG_LIMIT plans, newest first. Its own module so the cap test can load it in node
-   (state/director.ts reaches React and the scene); the runtime's `#onModel` takes this step (round 45). */
+/* The director's plan log: the last LOG_LIMIT plans, newest first (round 45); the director runtime's `#onModel`
+   (state/director.ts) takes this step, and the cap test (inCodeCaps.test.ts) pins it. */
 import type { PlanRecord } from "@crewhub/demo";
 
 export const LOG_LIMIT = 40;

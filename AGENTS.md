@@ -69,7 +69,10 @@ proposals, and implemented behavior.
   serves it on the wire ([docs/LOOPS_REAL_VS_FAKE.md](docs/LOOPS_REAL_VS_FAKE.md)) and
   never runs on the app's port 8091.
 - `packages/loops-client` holds the crewhub-loops types, hand-written runtime
-  validators for every response and event, and the `WorldSource` seam. It stays free
+  validators for every response and event, the `WorldSource` seam, and the wire
+  between the host and the page (`hostWire.ts`: the `/world-api` routes, the health
+  answer and the stream's message kinds, defined once; the host writes through it,
+  the page and the stubs read through it). It stays free
   of React, Three.js, the DOM, the network, and runtime dependencies. It replaces
   `packages/protocol`.
 - `packages/world-model` turns facts into the world: projection, reducer, text

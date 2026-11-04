@@ -7,34 +7,12 @@
  * time. While loops is down the host beats itself every `heartbeatMs`.
  */
 import { UPSTREAM_BODY_LIMIT } from "./bodyCap.ts";
-import type { Envelope, HostKeyState, ChatThreadFact } from "@crewhub/loops-client";
+import type { Envelope, HostMessage, LoopsState } from "@crewhub/loops-client";
 import { type LoopsClient, type StreamResume, isUnauthorized } from "./loops.ts";
-import type { ChatLine } from "@crewhub/loops-client";
 import { SnapshotError, isSeq, readTail } from "./snapshot.ts";
-
-export type LoopsState = "ok" | "down" | "unauthorized";
 
 /** Why the stream is `busy`: loops admits four streams per key. */
 export const BUSY_REASON = "stream budget exhausted (429): another host or tab uses this key";
-
-export type HostMessage =
-  /**
-   * `stream: "busy"` with the reason when loops refused the stream with 429 (`loops` stays `down` for the world from before).
-   * `key` is the host's own word on its key (`HostConnection.key.state`: none, unchecked, checking, rejected, ok), stamped by
-   * the host on every status it sends a tab: `loops` keeps one legacy word, "unauthorized", for no key and for a rejected
-   * key alike, so after a Forget in another tab a tab hears `unauthorized, key none` and shows the Connect screen, and for a
-   * key loops revoked `unauthorized, key rejected`. The upstream itself sends no key; the host adds it.
-   */
-  | { type: "status"; loops: LoopsState; stream?: "busy"; reason?: string; key?: HostKeyState["state"] }
-  | { type: "event"; envelope: Envelope }
-  | { type: "heartbeat"; seq: number; ts: string }
-  /** An agent's message to the person, read by the host with its own key where loops lets it (chatPath.ts): a bubble. */
-  | { type: "chat"; chat: ChatLine }
-  /** The installation's town document changed on the host (round 20, worldDb.ts): the browsers refetch `/world-api/town`. */
-  | { type: "town"; rev: number }
-  /** The chat threads' facts (round 24), where loops lets the key read the chat: the whole list, at attach and after a `dm.*` event. */
-  | { type: "threads"; threads: ChatThreadFact[] }
-  | { type: "reset"; reason: "gone" | "reconnected" | "cursor" };
 
 export interface UpstreamOptions {
   bufferSize?: number;
