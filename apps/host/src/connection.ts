@@ -386,12 +386,13 @@ export function createConnection(options: ConnectionOptions): Connection {
               if (holder === mine && mine.state === "rejected") scheduleRecheck(mine);
             });
           } else if (message.loops === "ok") {
-            if (secondOpinion(mine, "ok")) {
-              log(`key ${mine.name} (${mine.source}) accepted on the stream`);
-              // The key was never checked with a 200 (loops was not up at the host's start, round 29 High 1): the
-              // check's own tail runs now, so health says whether the key reads the chat and the dm gate opens.
-              if (chat.reads() === "unknown") void chat.check();
-            }
+            if (secondOpinion(mine, "ok")) log(`key ${mine.name} (${mine.source}) accepted on the stream`);
+            // The chat road is asked whenever the stream opens with it unknown, whether or not the word changed: the
+            // key was never checked with a 200 (loops was not up at the host's start, round 29 High 1), or it was
+            // `ok` already and this link's check came back unreachable (loops half up after a restart, round 62 H-1:
+            // the word stays `ok`, so the stream's second opinion changes nothing). The check's own tail runs now, so
+            // health says whether the key reads the chat and the dm gate opens; `check()` asks once per link.
+            if (chat.reads() === "unknown") void chat.check();
           } else if (message.stream !== "busy" && appRoads) void discovery.refresh();
           return;
         }
