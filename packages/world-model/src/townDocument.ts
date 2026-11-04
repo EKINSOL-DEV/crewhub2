@@ -11,6 +11,7 @@
 import { PROP_ID_PATTERN, validatePropModel } from "@crewhub/world-engine";
 import type { PropModel, PropValidation, Rotation } from "@crewhub/world-engine";
 import type { ProjectColor, ProjectIcon, RoomKind } from "./model.ts";
+import { ROOM_KINDS } from "./halls.ts";
 import { DEFAULT_ZONE_ID } from "./zones.ts";
 import type { TownZone } from "./zones.ts";
 
@@ -21,18 +22,6 @@ export const DEFAULT_STYLE_ID = "greenhouse";
 export const RULE_IDS = ["milestone-banner", "release-crate", "deploy-sticker", "bug-jar", "release-trophy"] as const;
 export type RuleId = (typeof RULE_IDS)[number];
 
-export const ROOM_KINDS: readonly RoomKind[] = [
-  "lobby",
-  "lead-office",
-  "workers",
-  "analyst",
-  "design",
-  "storage",
-  "planning",
-  "review",
-  "dispatch",
-  "meeting",
-];
 export const ATTACHMENT_KINDS = ["room", "agent", "ticket", "project"] as const;
 export type AttachmentKind = (typeof ATTACHMENT_KINDS)[number];
 
