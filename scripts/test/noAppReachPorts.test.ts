@@ -78,10 +78,10 @@ test("the rules: listen on the Mac app's, the development loops', a fake's or th
   assert.equal(listenRule([5173]), null, "5173 stays open to listen on: the brief's listen list leaves Vite's port out");
 });
 
-test("the decoy knob: only a whole number in 49152-65535 counts, and then that port alone is refused, for connect and listen", () => {
-  assert.equal(guard.decoyOf("49152"), 49152);
-  assert.equal(guard.decoyOf("65535"), 65535);
-  for (const text of [undefined, "", "49151", "65536", "8091", "5180", "0", "50000.5", " 50000", "50000 ", "5e4", "-50000", "abc"]) assert.equal(guard.decoyOf(text), null, `"${text}" is ignored`);
+test("the decoy knob: only a whole number in 1024-65535 counts, and then that port alone is refused, for connect and listen", () => {
+  // Linux's port 0 lands in 32768-60999, macOS's in 49152-65535 (round 56b: CI ran on Linux and every decoy was ignored).
+  for (const port of [1024, 32768, 40000, 49151, 49152, 60999, 65535]) assert.equal(guard.decoyOf(String(port)), port, `${port} is a decoy`);
+  for (const text of [undefined, "", "1023", "65536", "0", "50000.5", " 50000", "50000 ", "5e4", "-50000", "abc"]) assert.equal(guard.decoyOf(text), null, `"${text}" is ignored`);
   assert.equal(guard.DECOY_PORT, null, "this test process has no decoy: only its children get one");
   assert.match(connectRule([{ port: 50123, host: "127.0.0.1" }], 50123) ?? "", /guard test's decoy/);
   assert.match(connectRule([[{ port: 50123, host: "127.0.0.1" }, () => undefined]], 50123) ?? "", /guard test's decoy/, "the normalized form");

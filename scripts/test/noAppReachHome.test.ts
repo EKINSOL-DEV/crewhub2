@@ -55,12 +55,13 @@ test("the rules: the folders under $HOME, the user's own home and a decoy home a
   assert.deepEqual(guard.guardedHomes({}, "/same", "/same"), ["/same"], "one home once");
 });
 
-test("the rules: a real host's run file in a real TMPDIR is refused; a test's own (port 0 lands at 49152 or up, port 1, a subfolder) is not", () => {
+test("the rules: a real host's run file in a real TMPDIR is refused; a test's own (port 0 lands at 32768 or up, port 1, a subfolder) is not", () => {
   const tmp = "/tmp/real-tmp";
   assert.equal(guard.isRealRunFile(`${tmp}/crewhub-world-host-5390.json`, [tmp]), true, "a chosen port");
   assert.equal(guard.isRealRunFile(`${tmp}/crewhub-world-host-1024.json`, [tmp]), true);
-  assert.equal(guard.isRealRunFile(`${tmp}/crewhub-world-host-49151.json`, [tmp]), true);
-  assert.equal(guard.isRealRunFile(`${tmp}/crewhub-world-host-49152.json`, [tmp]), false, "a test host's port");
+  assert.equal(guard.isRealRunFile(`${tmp}/crewhub-world-host-32767.json`, [tmp]), true);
+  // A test's host listens on port 0: Linux gives 32768-60999, macOS 49152-65535 (round 56b).
+  for (const port of [32768, 40000, 49151, 49152, 60999]) assert.equal(guard.isRealRunFile(`${tmp}/crewhub-world-host-${port}.json`, [tmp]), false, `${port}: a test host's port`);
   assert.equal(guard.isRealRunFile(`${tmp}/crewhub-world-host-65001.json`, [tmp]), false);
   assert.equal(guard.isRealRunFile(`${tmp}/crewhub-world-host-1.json`, [tmp]), false, "port 1: runFile.test.ts's 'no host there'");
   assert.equal(guard.isRealRunFile(`${tmp}/crewhub-run-x/crewhub-world-host-5390.json`, [tmp]), false, "a test's own mkdtemp folder");
