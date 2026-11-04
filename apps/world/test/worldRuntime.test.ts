@@ -1,7 +1,7 @@
 /* The world runtime (state/world.ts) through its interface: built from a config over `createDemoSource` with a manual
    demo scheduler and a fake frame clock, read through `state`, `subscribe` and its outlets (said, threads, the host's
    reconnect, the first snapshot). Round 59d, C3: the facts once pinned on reduceGap.ts and agentName.ts (folded in) are
-   here, with the start listener's routing (the held round 58d branch's routeMessage facts) and the demo DM read-back. */
+   here (agentName's null case too: a reply from an agent the model does not place carries no name), with the start listener's routing (the held round 58d branch's routeMessage facts) and the demo DM read-back. */
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createDemoSource, createManualScheduler, type DemoSource } from "@crewhub/demo";
@@ -199,6 +199,25 @@ test("the demo's own dock answers: an agent's reply is read back into the said o
   assert.equal(byAgent.get("postman")?.agentName, "Postman");
   for (const line of got.said) assert.ok(line.text !== "" && !line.text.includes("\n"), "one line");
   assert.ok(!got.said.some((l) => asked.some((m) => m.id === l.messageId)), "the person's own messages are never read back");
+});
+
+test("a reply from an agent the model does not place is read back without a name (here the building limit hides CR Lead's building)", async () => {
+  const { world, demo, scheduler, clock, got } = demoWorld({ buildingLimit: 0 });
+  scheduler.advance(400_000);
+  await settle(300);
+  world.setRoleOverrides({});
+  drain(clock);
+  assert.equal(world.state.model.buildings.length, 0);
+  assert.ok(!world.state.model.townHall.some((a) => a.name === "cr-lead"), "CR Lead is placed nowhere in this model");
+  demo.sendDm("cr-lead", "Anything blocked?", "c1");
+  for (let i = 0; i < 60 && !got.said.some((l) => l.agentId === "cr-lead"); i += 1) {
+    scheduler.advance(1_000);
+    await settle(5);
+  }
+  await until(() => got.said.some((l) => l.agentId === "cr-lead"));
+  const line = got.said.find((l) => l.agentId === "cr-lead")!;
+  assert.equal("agentName" in line, false, "no agentName at all, not a null one");
+  assert.ok(line.text !== "");
 });
 
 test("an agent's DM from a source that is not the dock's own demo (live, the stress fixture) is never read back", async () => {

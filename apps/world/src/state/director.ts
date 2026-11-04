@@ -53,7 +53,7 @@ export interface DirectorRuntimeConfig {
   buildingPlan: () => BuildingPlan;
 }
 
-export class DirectorRuntime {
+class DirectorRuntime {
   readonly #config: DirectorRuntimeConfig;
   #navWorld: DirectorNav | null = null;
   /** The model the reach is asked about: the last one the director saw. */
@@ -192,6 +192,8 @@ export class DirectorRuntime {
     for (const listener of this.#listeners) listener();
   }
 }
+
+export type { DirectorRuntime };
 
 export function createDirectorRuntime(config: DirectorRuntimeConfig): DirectorRuntime {
   return new DirectorRuntime(config);
