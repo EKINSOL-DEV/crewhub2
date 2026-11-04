@@ -106,7 +106,7 @@ async function open({ phone = false, stress = phone && phoneStress, fast = false
   };
   // The page (lib/page.mjs): a phone or a window, the device scale, the theme, the stored quality, fps and cast, the
   // observer, the phone's CPU slowed four times, the pairing step in live mode; the browser's own page errors are printed.
-  const page = await openPage(browser, { width: phone ? 375 : 1440, theme: theme === "dark" ? "dark" : "light", dpr, store: { "crewhub-world.quality": fast ? "fast" : pretty ? "pretty" : quality, "crewhub-world.fps": fps ? "on" : "off", ...castChoice(castId) }, initScripts: [longTasks], cpuThrottle: phone ? 4 : 1, pair: live ? (p) => live.pair(p) : null });
+  const page = await openPage(browser, { width: phone ? 375 : 1440, theme: theme === "dark" ? "dark" : "light", dpr, touch: dpr > 1, store: { "crewhub-world.quality": fast ? "fast" : pretty ? "pretty" : quality, "crewhub-world.fps": fps ? "on" : "off", ...castChoice(castId) }, initScripts: [longTasks], cpuThrottle: phone ? 4 : 1, pair: live ? (p) => live.pair(p) : null });
   const context = page.context();
   openContexts.add(context);
   context.on("close", () => openContexts.delete(context));

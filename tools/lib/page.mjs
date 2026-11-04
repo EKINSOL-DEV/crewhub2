@@ -11,29 +11,39 @@ import { dressed, store, watch } from "./world.mjs";
 export const viewportFor = (width) => (width <= 480 ? { viewport: { width, height: 812 }, isMobile: true, hasTouch: true } : { viewport: { width, height: 900 } });
 
 /**
- * The browser context's options for a tool's page: `viewportFor(width)`, the theme as the colour scheme, the device
- * scale factor (1 unless `dpr`; a phone at more than 1 is a touch device whatever its width), reduced motion when asked.
+ * The browser context's options for a tool's page: the viewport of `viewportFor(width)`, a touch device (`isMobile`,
+ * `hasTouch`) when `touch` says so (left out: a phone up to 480 wide, or a device scale above 1, whatever the width),
+ * the device scale factor (1 unless `dpr`), the theme as the colour scheme, reduced motion when asked.
  */
-export function contextOptions({ width = 1440, theme = "light", dpr = 1, reducedMotion = null } = {}) {
+export function contextOptions({ width = 1440, theme = "light", dpr = 1, touch = null, reducedMotion = null } = {}) {
+  const { viewport } = viewportFor(width);
+  const touchDevice = touch === null ? width <= 480 || dpr > 1 : touch;
   return {
-    ...viewportFor(width),
-    ...(dpr > 1 ? { isMobile: true, hasTouch: true } : {}),
+    viewport,
+    ...(touchDevice ? { isMobile: true, hasTouch: true } : {}),
     deviceScaleFactor: dpr,
     colorScheme: theme,
     ...(reducedMotion === null ? {} : { reducedMotion }),
   };
 }
 
+/** Playwright's own context keys: a caller of `openPage` says width, theme, dpr and touch instead, never these. */
+const PLAYWRIGHT_KEYS = ["viewport", "colorScheme", "isMobile", "hasTouch", "deviceScaleFactor"];
+
 /**
- * Opens a page in a context of its own and answers it. `origin` is the page's own origin for the watch (what leaves it
+ * Opens a page in a context of its own and answers it. `width`, `theme`, `dpr`, `touch` and `reducedMotion` are the
+ * context's (`contextOptions`); the browser's own keys are refused. `origin` is the page's own origin for the watch (what leaves it
  * is a problem); `problems` the list the watch fills, `tag` its label; left out, nothing is watched. `store` are the
  * localStorage entries set before the app reads them (null and undefined values skipped); `cpuThrottle` above 1 slows
  * the page's CPU through the browser's own throttle; `pair` is the rig's pairing step, run before the first address;
  * `initScripts` run in the page before the app, after the store (a measurement's observer); `url` is opened last, with
  * `waitUntil` when given. The context is the page's (`page.context()`).
  */
-export async function openPage(browser, { origin, width, theme, dpr, reducedMotion, store: entries = null, initScripts = [], cpuThrottle = 1, problems = null, tag = "", pair = null, url = null, waitUntil = null } = {}) {
-  const context = await browser.newContext(contextOptions({ width, theme, dpr, reducedMotion }));
+export async function openPage(browser, options = {}) {
+  const stray = PLAYWRIGHT_KEYS.filter((key) => key in options);
+  if (stray.length > 0) throw new Error(`openPage: ${stray.join(", ")} ${stray.length === 1 ? "is" : "are"} the browser's own: say width, theme, dpr and touch`);
+  const { origin, width, theme, dpr, touch, reducedMotion, store: entries = null, initScripts = [], cpuThrottle = 1, problems = null, tag = "", pair = null, url = null, waitUntil = null } = options;
+  const context = await browser.newContext(contextOptions({ width, theme, dpr, touch, reducedMotion }));
   if (entries !== null) await store(context, entries);
   for (const script of initScripts) await context.addInitScript(script);
   const page = await context.newPage();
