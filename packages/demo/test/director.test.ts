@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { before, test } from "node:test";
 import { DEFAULT_PRESENCE, Projection, effectivePresence, emptyMemory, immovableReason, movedAgents, reduceWorld } from "@crewhub/world-model";
 import type { AgentPlacement, PresenceSettings, WorldModel } from "@crewhub/world-model";
-import { QUICK_DEBOUNCE_MS, QUICK_MIN_GAP_MS, createDirectorFeed, movementSignals } from "../src/director.ts";
+import { QUICK_DEBOUNCE_MS, QUICK_MIN_GAP_MS, createDirectorFeed, movementSignals, scriptPlan } from "../src/director.ts";
 import { createManualScheduler } from "../src/scheduler.ts";
 import { DEMO_SEED, SCRIPT_DURATION_MS } from "../src/script.ts";
 import { createDemoSource } from "../src/source.ts";
@@ -211,4 +211,12 @@ test("live mode: the demo's switch left on makes no live plan; the live opt-in a
   // And the same stored settings in demo mode: the live opt-in alone runs nothing there.
   const liveOnlyInDemo = feedOf(effectivePresence({ ...DEFAULT_PRESENCE, liveDirectorEnabled: true }, "demo"));
   assert.deepEqual(runAll(liveOnlyInDemo), []);
+});
+
+test("a scripted plan is empty for a closed building and for a slug the model does not have (round 54, r54-mut-demo: director.ts:139)", () => {
+  const found = models.flatMap((m) => m.buildings.map((b) => ({ m, slug: b.slug }))).find(({ m, slug }) => scriptPlan(m, slug, DEMO_SEED, 0, propTags).length > 0);
+  assert.ok(found, "some building gets a plan when it is open");
+  const closed: WorldModel = { ...found.m, buildings: found.m.buildings.map((b) => (b.slug === found.slug ? { ...b, archived: true } : b)) };
+  assert.deepEqual(scriptPlan(closed, found.slug, DEMO_SEED, 0, propTags), []);
+  assert.deepEqual(scriptPlan(found.m, "no-such-building", DEMO_SEED, 0, propTags), []);
 });
