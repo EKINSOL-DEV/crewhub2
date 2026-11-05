@@ -986,9 +986,12 @@ function PlaybackPosition({ playback }: { playback: PlaybackControls }) {
         {position}
         <span className="playback-duration"> / {duration}</span>
       </span>
-      <span className="playback-loop" title="How many times the script has looped">
-        loop {loop}
-      </span>
+      {/* "loop 0" read as a code on first start (round 65, w1-18): the count shows once the script has looped. */}
+      {loop > 0 && (
+        <span className="playback-loop" title="How many times the script has looped">
+          loop {loop}
+        </span>
+      )}
     </>
   );
 }

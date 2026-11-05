@@ -76,6 +76,8 @@ export async function run({ pass, page, check, out }) {
   ok("camera keys are said (w5-6)", /Zoomed in\./.test(zoomedIn) && /Rotated left\./.test(rotated) && /Home view\./.test(homeView), `${zoomedIn.slice(-30)} | ${rotated.slice(-30)} | ${homeView.slice(-30)}`);
 
   // 3. Speed control and scrub: stall, attention, release, stale
+  // Round 65 (w1-18): before the script has looped the playback bar shows no loop count ("loop 0" read as a code).
+  const loopAtStart = (await p.locator(".playback-loop").allInnerTexts()).map((t) => t.trim());
   await speed(p, "16x").catch((e) => note("16x " + e.message.split("\n")[0]));
   await p.waitForTimeout(2000);
   await p.getByRole("button", { name: "Pause", exact: true }).click().catch((e) => note("pause " + e.message.split("\n")[0]));
@@ -91,6 +93,14 @@ export async function run({ pass, page, check, out }) {
     if (label === "stale") ok("stale in text view", /stale|unknown/i.test(t));
     await shot(p, `04-${label}`);
   }
+  // Round 65 (w1-18): sought to the script's last seconds and played, it loops: the bar then says "loop 1".
+  ok("seek near the end", await seek(p, 955000));
+  await speed(p, "16x").catch((e) => note("16x " + e.message.split("\n")[0]));
+  await p.waitForTimeout(3000);
+  await p.getByRole("button", { name: "Pause", exact: true }).click().catch((e) => note("pause " + e.message.split("\n")[0]));
+  const loopAfter = (await p.locator(".playback-loop").allInnerTexts()).map((t) => t.replace(/\s+/g, " ").trim());
+  await shot(p, "04b-looped");
+  ok("the loop count is absent before the script has looped and says 'loop 1' after (round 65, w1-18)", loopAtStart.length === 0 && loopAfter.length === 1 && loopAfter[0] === "loop 1", `at start [${loopAtStart.join("|")}], after [${loopAfter.join("|")}]`);
 
   // 4. Inside a building while playing: drone, walks
   await seek(p, 200000);
