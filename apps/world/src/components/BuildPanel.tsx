@@ -13,6 +13,7 @@ import { BuildLayout } from "./LayoutPanel";
 import type { TownPlan } from "../world/townPlan";
 import { buildStatusLine } from "../world/buildStatus";
 import { BuildZones } from "./ZonePanel";
+import { elsewhereWords } from "../world/elsewhereWords";
 
 interface Props {
   build: BuildMode;
@@ -38,6 +39,8 @@ export function BuildPanel({ build, town, plan, inside, demo, onClose, onUndo, o
   const { state, check, selectedPlacement } = build;
   const chosen = state.propId ? town.catalogue.get(state.propId) : null;
   const selected = selectedPlacement ? town.catalogue.get(selectedPlacement.propId) : null;
+  // Another browser's move brought the town's last revision (round 65, w6-12): said here, in the sheet and the live region.
+  const elsewhere = town.elsewhere ? elsewhereWords(town.elsewhere) : null;
 
   const request = (e: FormEvent) => {
     e.preventDefault();
@@ -81,6 +84,11 @@ export function BuildPanel({ build, town, plan, inside, demo, onClose, onUndo, o
           })}
           {state.message && <span className="build-message">{state.message}</span>}
         </p>
+        {elsewhere && (
+          <p className="hint build-elsewhere" role="status" aria-live="polite">
+            {elsewhere}
+          </p>
+        )}
         {chosen && check && (
           <Chip className={check.ok ? "ghost-ok" : "ghost-bad"} aria-hidden="true">
             {check.ok ? "fits" : "does not fit"}

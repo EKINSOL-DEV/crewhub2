@@ -2,6 +2,7 @@
  * The seam between a source of crewhub-loops data and the world model. The demo (`packages/demo`)
  * implements it for the demo; the host source (`GET /world-api/snapshot` + SSE, `hostSource.ts`) for a real crewhub-loops.
  */
+import type { TownOpKind } from "./hostWire.ts";
 import type {
   AgentOut,
   BoardResponse,
@@ -186,7 +187,8 @@ export interface HostSourceOptions {
   firstSnapshot?: { body: unknown } | { response: Promise<Response> };
   /**
    * The host's town document changed (round 20, `{type: "town", rev}` on the stream): the town runtime refetches
-   * `/world-api/town`. Called with the host's revision; nothing else is read here.
+   * `/world-api/town`. Called with the host's revision and, from a host that says it (round 65, w6-12), the move that
+   * changed the town; nothing else is read here.
    */
-  onTown?: (rev: number) => void;
+  onTown?: (rev: number, op?: TownOpKind) => void;
 }

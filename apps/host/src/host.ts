@@ -573,7 +573,8 @@ export async function createHost(options: HostOptions): Promise<Host> {
     }
     if (outcome.changed) {
       log(`town of ${installation}: ${kind}, revision ${outcome.rev}`);
-      conn.broadcast({ type: "town", rev: outcome.rev });
+      // Round 65 (w6-12): the move's kind rides along, so a browser can say "Undone in another browser".
+      conn.broadcast({ type: "town", rev: outcome.rev, op: kind });
     }
     sendJson(res, 200, { ok: true, rev: outcome.rev, document: current, canUndo: outcome.canUndo, canRedo: outcome.canRedo, changed: outcome.changed } satisfies TownWrittenSent);
   }
