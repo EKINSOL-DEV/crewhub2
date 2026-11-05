@@ -440,3 +440,49 @@ One line per heading of [design-choices.md](design-choices.md); the choice itsel
   204 and the host answers, so only a static deploy sees it (w1).
 - **The fake's `startAt`** runs its clock ahead of the wall clock, so Recent answers rows show loops' times a few
   minutes in the future over such a fake (w3); against a real loops the clocks agree.
+
+## Round 67: the prepared branches walked
+
+If Nicky answers "all", `sugg/all-r65-on-head` (`feat/world-demo@8f783a3` plus the 40 prepared branches, `9daea890` on
+5 Nov) is what a person meets. Four walkers (v1 to v4) walked round 64's six journeys on its production build, in a
+headless Chromium on their own ports, each walking branches they did not build; every prepared suggestion by its own
+finding's steps, and anything new checked against the base `8f783a3`. Every prepared suggestion walked was seen to work
+but one, which works by half; two new findings, both confusing, none broken.
+
+- **1. First start (v1).** w1-12, w1-14, w1-15, w1-17, w1-18 and w1-19 work as their lines say. **w1-11 works by half:**
+  inside a building a click on a name pill opens that figure's card and the signs still zoom their room; in the town a
+  hovered figure's pill (G-Man at the Lodge) still lets the click through, so the figure is selected and no card opens
+  (a click on the body does). The base does the same, so nothing is new; the town's figures got no pick of their own.
+  What became of it: finished on `sugg/w1-11` (`130f8896`, v3, reviewed by v1): the town's pills now take the click
+  or tap and open the card, as the interior's do; carried into `sugg/all-r65` (`9fef220f`).
+- **2. Connecting (v2).** w2-1, w2-4 and w2-7 work (Escape over the tour closes the dialog a person opened; the panel's
+  variable name whole on its own line, at 320 px too; "I opened the link" says the browser is still not paired).
+  w5-22's "Connected: Live." was heard at every connect, a reload at the Connect screen included. Nothing new.
+- **3. Chat (v1).** w3-1, w3-2, w3-4 and w3-5 work. **New, v1-1 · confusing:** a chat mark clicked after its bubble's
+  12 s ("CR Lead answered: open CrewHub World") enters the building, where nothing shows the answer: no bubble, no line,
+  the chip still "Chat 1"; the answer is in the Chat panel's Recent answers and on the card, a further click away that
+  nothing points to. From `sugg/w3-4` (the mark now outlives the bubble; on the base the mark went with it, so a mark
+  after the bubble did not exist). One way: a mark whose bubble is gone opens the Chat panel on that agent, as a bubble
+  tap does. What became of it: fixed on `sugg/w3-4` (`cb2342dc`, v4, reviewed by v1) the smaller way: the mark's
+  click enters the building as before and shows the answer's bubble again over the agent for its 12 s; the mark stays
+  until the chat is opened. Carried into `sugg/all-r65` (`c580dc1c`).
+- **4. A phone (v3).** w4-2, w4-6, w4-8, w4-9, w4-10, w4-11, w4-12, w4-18, w4-21 and w4-22 work, upright and sideways,
+  on the iPhone 13 profile (journey 1 on the Pixel 5 too); round 64's fixes w4-14 and w4-19 hold. The live chat over a
+  viewer key (a bubble, the Chat count, Recent answers) was seen on the phone this time, which round 64 could not. The
+  same screens on the base match in every measurement but the two the suggestions changed (the playback bar's menu
+  button and slider, the shorter build sheet). Nothing new.
+- **5. Keyboard and screen reader (v2).** w5-6, w5-11, w5-15, w5-16 (the tick's half), w5-17, w5-18 and w5-22 work;
+  round 64's fixes w5-14, w5-24 and w5-25 hold. The Tab order is round 64's with the Chat chip right after Settings.
+  Nothing new (what looked new, the fixed Escape order with two sheets open and the sheets covering the header's
+  buttons, is the base's own).
+- **6. The town editor (v4).** w6-2, w6-3, w6-4, w6-5, w6-6, w6-7, w6-10, w6-12, w6-13 with w6-15, and w6-14 work.
+  **New, v4-1 · confusing:** "Zone 1 added. Undo takes it away." stayed under "Add a zone" after a later edit (a building
+  moved to a plot, a Tidy), when Undo would do something else; two lines then promised two different undos. From
+  `sugg/w6-6` (the base had no zone line). Fixed on `sugg/w6-6` by v2, reviewed by v4: the line belongs to the revision
+  its edit made, so a later edit clears it, that edit's undo brings it back, a redo brings it back; carried into the
+  integration branches (`sugg/w6-6@9b1bbc2e`, in `sugg/all-r65` as `61e69721`).
+  ![The build sheet with the layout's undo line and the zone's, both standing](../images/walkthrough-r64/r67/v4-1-two-undo-lines.png)
+
+Walked and not covered: a real crewhub-loops (the fake only), a real screen reader (the live regions were read, not
+spoken), the casting room on a desktop, Export and Import by keyboard, the older-host and "checking" screens. The four reports are the
+round's record; this section is their sum.
