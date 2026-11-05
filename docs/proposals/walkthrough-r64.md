@@ -453,7 +453,8 @@ but one, which works by half; two new findings, both confusing, none broken.
   inside a building a click on a name pill opens that figure's card and the signs still zoom their room; in the town a
   hovered figure's pill (G-Man at the Lodge) still lets the click through, so the figure is selected and no card opens
   (a click on the body does). The base does the same, so nothing is new; the town's figures got no pick of their own.
-  What became of it: _the Lead fills in_.
+  What became of it: finished on `sugg/w1-11` (`130f8896`, v3, reviewed by v1): the town's pills now take the click
+  or tap and open the card, as the interior's do; carried into `sugg/all-r65` (`9fef220f`).
 - **2. Connecting (v2).** w2-1, w2-4 and w2-7 work (Escape over the tour closes the dialog a person opened; the panel's
   variable name whole on its own line, at 320 px too; "I opened the link" says the browser is still not paired).
   w5-22's "Connected: Live." was heard at every connect, a reload at the Connect screen included. Nothing new.
@@ -462,7 +463,9 @@ but one, which works by half; two new findings, both confusing, none broken.
   the chip still "Chat 1"; the answer is in the Chat panel's Recent answers and on the card, a further click away that
   nothing points to. From `sugg/w3-4` (the mark now outlives the bubble; on the base the mark went with it, so a mark
   after the bubble did not exist). One way: a mark whose bubble is gone opens the Chat panel on that agent, as a bubble
-  tap does. What became of it: _the Lead fills in_.
+  tap does. What became of it: fixed on `sugg/w3-4` (`cb2342dc`, v4, reviewed by v1) the smaller way: the mark's
+  click enters the building as before and shows the answer's bubble again over the agent for its 12 s; the mark stays
+  until the chat is opened. Carried into `sugg/all-r65` (`c580dc1c`).
 - **4. A phone (v3).** w4-2, w4-6, w4-8, w4-9, w4-10, w4-11, w4-12, w4-18, w4-21 and w4-22 work, upright and sideways,
   on the iPhone 13 profile (journey 1 on the Pixel 5 too); round 64's fixes w4-14 and w4-19 hold. The live chat over a
   viewer key (a bubble, the Chat count, Recent answers) was seen on the phone this time, which round 64 could not. The
@@ -477,7 +480,7 @@ but one, which works by half; two new findings, both confusing, none broken.
   moved to a plot, a Tidy), when Undo would do something else; two lines then promised two different undos. From
   `sugg/w6-6` (the base had no zone line). Fixed on `sugg/w6-6` by v2, reviewed by v4: the line belongs to the revision
   its edit made, so a later edit clears it, that edit's undo brings it back, a redo brings it back; carried into the
-  integration branches as _the Lead fills in_.
+  integration branches (`sugg/w6-6@9b1bbc2e`, in `sugg/all-r65` as `61e69721`).
   ![The build sheet with the layout's undo line and the zone's, both standing](../images/walkthrough-r64/r67/v4-1-two-undo-lines.png)
 
 Walked and not covered: a real crewhub-loops (the fake only), a real screen reader (the live regions were read, not
