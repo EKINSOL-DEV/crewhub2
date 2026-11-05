@@ -486,3 +486,27 @@ but one, which works by half; two new findings, both confusing, none broken.
 Walked and not covered: a real crewhub-loops (the fake only), a real screen reader (the live regions were read, not
 spoken), the casting room on a desktop, Export and Import by keyboard, the older-host and "checking" screens. The four reports are the
 round's record; this section is their sum.
+
+**Round 68: the screens round 67 did not walk.** One walker (wc) walked them on `sugg/all-r65-on-head@46c04f06`'s
+production build, as above: the casting room on a desktop (1440 x 900, every control, by mouse and by keyboard), Export
+and Import by keyboard (Settings › Town, live and in the demo), and the older-host and "checking" screens (the connect
+stub's states behind a preview of the same build). All three work; nothing the 40 branches brought was found broken or
+confusing there (w6-10's one revision number holds in the export's name, w5-15's hidden key hints and w6-6's zone line
+too). What a person meets that the base has as well, each checked against the base's code, none from a prepared branch:
+- *Casting room, Town distance view:* the first room's title is the chosen state and the five comparison rooms are
+  always Blocked, Walking, Idle, Waiting on a person and Stalled, so with State Blocked two rooms read "Blocked"; with a
+  scene chosen the first room is titled by the scene ("Walk") and the chosen state is nowhere in the picture.
+- *Casting room:* two controls named "Camera", the select and the camera buttons' group, so a screen reader hears the
+  name twice.
+- *Import a town, the restore preview:* a placement is named by its id, "1 prop taken away: user:reading-nook.", beside
+  "1 prop leaves the catalogue: Reading nook."
+- *Older host, the Connection panel's Town row and the text view:* "This host keeps no world database (it could not
+  open world.db), so the town stays in this browser." That is the page's line for a town read answering no world
+  database; behind the stub it came from the stub's inner host, so a real host from before the smooth connection may
+  read differently.
+- *Older host, the text view:* the chat lines say the host "has not said yet whether its key reads the chat" and to
+  "wait a moment: the road is decided once the host has connected", while an older host never says it.
+- *Checking screen:* the spoken line is "Checking the key…. The host is asking…", the title's ellipsis and the
+  sentence's full stop together.
+The walker's report (r68-wc) is the record; the casting room's own files, the restore preview's wording, the older
+host's lines and the checking screen's spoken line are unchanged between `feat/world-demo` and the candidate.
