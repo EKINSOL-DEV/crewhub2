@@ -108,7 +108,7 @@ test("recent answers and the card: the empty state per road and per none case, a
   }
   assert.match(recentEmptyWords("live", NONE("unknown")), /^No answers can arrive: this crewhub-loops does not let the world's key read the chat\. For bubbles, make a viewer key in Settings > Agents > Connect CrewHub World/);
   assert.equal(recentEmptyWords("live", null), recentEmptyWords("live", view(false, "unknown", "")), "no road known: the none words with no origin");
-  assert.match(cardAnswersEmpty("demo", null), /^No answer yet: write to it in the demo's chat dock/);
+  assert.match(cardAnswersEmpty("demo", null), /^No answer yet: write to it in the demo's chat \(the dock at the bottom right, or Agent chats at the top on a phone\)/);
   assert.equal(cardAnswersEmpty("live", KEY), "No answer from it since this page opened; this crewhub-loops lets the world's key read the chat of the person who made the key, so one to them would show here.");
   assert.equal(cardAnswersEmpty("live", PAGE), "No answer from it since this page opened; this page reads your own chat from crewhub-loops, so one to you would show here.");
   assert.equal(cardAnswersEmpty("live", undefined), cardAnswersEmpty("live", null));

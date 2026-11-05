@@ -182,7 +182,8 @@ export function recentEmptyWords(mode: "demo" | "live", view: ChatRoadView | nul
  * one sentence; the same facts as `recentEmptyWords`, said for one agent.
  */
 export function cardAnswersEmpty(mode: "demo" | "live", view: ChatRoadView | null | undefined): string {
-  if (mode === "demo") return "No answer yet: write to it in the demo's chat dock (bottom right) and its scripted reply shows here.";
+  // The dock's place by width (round 65, w4-9): on a phone the dock is the Agent chats button at the top.
+  if (mode === "demo") return "No answer yet: write to it in the demo's chat (the dock at the bottom right, or Agent chats at the top on a phone) and its scripted reply shows here.";
   if (view?.road === "key") return "No answer from it since this page opened; this crewhub-loops lets the world's key read the chat of the person who made the key, so one to them would show here.";
   if (view?.road === "page") return "No answer from it since this page opened; this page reads your own chat from crewhub-loops, so one to you would show here.";
   const none = noneWords(view ?? { pageProbe: "unknown", pageOrigin: "" });
