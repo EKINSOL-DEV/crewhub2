@@ -7,6 +7,8 @@
 import { Check, Copy, Link2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createCopyFlash, type CopyFlash } from "../state/copyFlash";
+import { useHealthView } from "../state/health";
+import { stillUnpaired } from "../state/pairRetry";
 import { useT } from "../i18n";
 import { hrefWithoutOverride, writeSourceSetting } from "../state/source";
 import { Button, Card } from "./primitives";
@@ -33,6 +35,15 @@ export function PairContent({ onRetry }: { onRetry: () => void }) {
     return () => own.dispose();
   }, []);
   const copy = () => void flash.current?.copy(globalThis.navigator?.clipboard, command);
+  // "I opened the link" pressed before any link was opened (walk finding w2-7): once the host has answered again and this
+  // screen still stands, a line under the button says so (state/pairRetry.ts); a polite region, so it is said too.
+  const view = useHealthView();
+  const [pressedAt, setPressedAt] = useState<number | null>(null);
+  const retry = () => {
+    setPressedAt(Date.now());
+    onRetry();
+  };
+  const still = stillUnpaired(pressedAt, view.read);
   return (
     <>
       <Card.Body>
@@ -46,10 +57,13 @@ export function PairContent({ onRetry }: { onRetry: () => void }) {
         <p className="hint pair-note">{t("world.pair.note")}</p>
       </Card.Body>
       <Card.Footer>
-        <Button variant="primary" onClick={onRetry} icon={<Link2 className="icon icon-sm" aria-hidden="true" />}>
+        <Button variant="primary" onClick={retry} icon={<Link2 className="icon icon-sm" aria-hidden="true" />}>
           {t("world.pair.retry")}
         </Button>
         <Button onClick={switchToDemo}>{t("world.pair.demo")}</Button>
+        <p className="hint pair-still" role="status" aria-live="polite">
+          {still ? t("world.pair.still") : ""}
+        </p>
       </Card.Footer>
     </>
   );
