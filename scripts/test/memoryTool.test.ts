@@ -66,10 +66,11 @@ test("the tally names the reads with another status (round 63): a count per stat
   const counter = createDmReadCounter();
   const start = 1_000_000;
   const read = (id: string, status: number | null, at: number) => (counter.reads.get(id) ?? counter.reads.set(id, []).get(id)!).push({ status, at, ms: 5 });
+  // Kept out of time order (the review's finding): the later read's id comes first, so only a sort by time names them right.
   read("m-ok", 200, start + 1000);
-  read("m-late", 503, start + 9 * 60000 + 30000);
   read("m-early", 404, start + 15 * 60000 + 12000);
   read("m-early", 200, start + 16 * 60000);
+  read("m-late", 503, start + 9 * 60000 + 30000);
   for (let i = 0; i < FIRST_BAD + 2; i++) read(`m-${i}`, 503, start + 20 * 60000 + i * 1000);
   read("m-err", null, start + 2000);
   const t = counter.tally(start);
@@ -434,8 +435,8 @@ test("snapshots off the fake's loop are named (round 63): multiples of its lengt
   assert.deepEqual(offLoopMinutes([0, 12, 40, 60, 120], 4), [], "speed 4: a loop of 4 minutes");
   assert.deepEqual(offLoopMinutes([10, 30], 4), [10, 30]);
   assert.deepEqual(offLoopMinutes([10, 30], 1), [], "speed 16: every whole minute");
-  assert.deepEqual(offLoopMinutes([10, 30], 0), [], "no loop, nothing to keep to");
-  assert.deepEqual(offLoopMinutes([10, 30], null), []);
+  assert.deepEqual(offLoopMinutes([10.5, 30], 0), [], "no loop, nothing to keep to (10.5 is off a loop of a minute)");
+  assert.deepEqual(offLoopMinutes([10.5, 30], null), []);
   const loop = { minutes: 16, scenario: "small-team", speed: 1 };
   assert.equal(loopWarning([16, 32, 48], loop), null);
   assert.equal(loopWarning([10, 16], null), null, "no fake, no warning");

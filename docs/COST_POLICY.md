@@ -488,7 +488,7 @@ report before the run):
 - **The snapshots go on the fake's loop** (round 63): every minute a multiple of the loop's length, the scenario's story
   at the run's speed (`small-team` and `studio` 16 minutes at speed 1 and 4 at speed 4; `fresh` and `one` 10 and 2.5).
   Then every snapshot reads the same moment of the loop, and the fit's window starts and ends on that moment: an hour
-  at speed 1 `16,32,48,64` (the fit reads 16, 32 and 48); three hours `16,32,48,64,80,96,112,128,144,160,176` (the fit
+  at speed 1 `--minutes 64` with `16,32,48,64` (a snapshot past `--minutes` is never taken; the fit reads 16, 32 and 48); three hours `16,32,48,64,80,96,112,128,144,160,176` (the fit
   reads 112 to 176); two hours at speed 4 `12,20,40,60,80,100,120` (the fit reads 40 to 120). A snapshot at another
   moment reads another state of the town, not growth. `memory.mjs live` warns before the run when `--snapshots` names
   a minute off the in-process fake's loop, and keeps the loop and those minutes in its JSON (`loop`).
