@@ -13,22 +13,41 @@ export function zoneLabel(zone: Pick<Zone, "name" | "source">): string {
 export const zoneAddedWords = (name: string): string => `${name} added. Undo takes it away.`;
 export const zoneRemovedWords = (name: string): string => `${name} removed.`;
 
-/** What a zone part last said, and what must hold for it to stand: the zone there (added) or gone (removed). */
+/**
+ * What a zone part last said, and what must hold for it to stand: the zone there (added) or gone (removed), and the town
+ * on the revision the edit made (round 67, v4-1: the line promises what Undo does, so it must not outlive that step).
+ */
 export interface ZoneSaid {
   text: string;
   zoneId: string;
   added: boolean;
+  /** The revision the edit made, pinned when the zone first holds (the commit lands later, async); null until then. */
+  revision: number | null;
 }
-export const zoneAddedSaid = (zoneId: string, name: string): ZoneSaid => ({ text: zoneAddedWords(name), zoneId, added: true });
+export const zoneAddedSaid = (zoneId: string, name: string): ZoneSaid => ({ text: zoneAddedWords(name), zoneId, added: true, revision: null });
 /** A hand-made zone removed; a group's zone only forgets its look and stays, which is no "removed": null. */
-export const zoneRemovedSaid = (zone: Pick<Zone, "id" | "name" | "source">): ZoneSaid | null => (zone.source === "town" ? { text: zoneRemovedWords(zoneLabel(zone)), zoneId: zone.id, added: false } : null);
+export const zoneRemovedSaid = (zone: Pick<Zone, "id" | "name" | "source">): ZoneSaid | null => (zone.source === "town" ? { text: zoneRemovedWords(zoneLabel(zone)), zoneId: zone.id, added: false, revision: null } : null);
+
+/** The town document's parts the line is judged by: its revision and its zones. */
+type ZoneDoc = { revision: number; zones?: readonly { id: string }[] };
+/** The zone is there (added) or gone (removed), as the line says. */
+const zoneHolds = (said: ZoneSaid, doc: ZoneDoc): boolean => (doc.zones ?? []).some((z) => z.id === said.zoneId) === said.added;
+
+/** The said with the revision its edit made, pinned once the zone holds; unchanged when pinned already or not landed yet. */
+export function pinZoneSaid(said: ZoneSaid | null, doc: ZoneDoc): ZoneSaid | null {
+  if (said === null || said.revision !== null || !zoneHolds(said, doc)) return said;
+  return { ...said, revision: doc.revision };
+}
+
 /**
- * The line while what it describes holds, else "" (s1's review of w6-6): after Add and Undo it said "Zone 1 added…" with
- * Zone 1 gone, and a second Add left the region unchanged, so a screen reader heard nothing. An undo here or in another
- * browser clears it; the words coming back are a change in the region.
+ * The line while what it describes holds, else "": the zone there or gone (s1's review of w6-6: after Add and Undo it
+ * said "Zone 1 added…" with Zone 1 gone, and a second Add left the region unchanged, so a screen reader heard nothing),
+ * and the town on the revision the edit made (v4-1: after a later edit, a building moved or a Tidy, it still promised
+ * that Undo takes the zone away). A later edit or an undo, here or in another browser, clears it; a redo, the same
+ * revision again, brings it back; the words coming back are a change in the region.
  */
-export function zoneSaidShown(said: ZoneSaid | null, zoneIds: readonly string[]): string {
-  return said !== null && zoneIds.includes(said.zoneId) === said.added ? said.text : "";
+export function zoneSaidShown(said: ZoneSaid | null, doc: ZoneDoc): string {
+  return said !== null && said.revision === doc.revision && zoneHolds(said, doc) ? said.text : "";
 }
 
 export type ZoneReasonWord = "by hand" | "from its group in crewhub-loops" | "no zone";

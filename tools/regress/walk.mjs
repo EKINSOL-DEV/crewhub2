@@ -235,6 +235,23 @@ export async function run({ pass, page, check, out }) {
   const zoneLineAgain = await build.locator(".build-zones .zone-said").innerText().catch(() => "?");
   const zoneChanges = await p.evaluate(() => globalThis.__zoneChanges);
   ok("Add, Undo, Add: the line clears at the undo and the second Add changes the region", zoneLineAfterUndo.trim() === "" && /^Zone \d+ added\./.test(zoneLineAgain.trim()) && zoneChanges > 0, `after undo "${zoneLineAfterUndo.trim()}"; again "${zoneLineAgain.trim()}", ${zoneChanges} change(s)`);
+  // Round 67 (v4-1): the line does not outlive the undo step it promises. A later edit (a prop placed here; a building
+  // moved or a Tidy in the town) clears it, as a placement's message clears at the next edit; the undo of that later edit
+  // brings it back, since Undo then takes the zone away again.
+  let placedAfterZone = "";
+  for (let i = 0; i < Math.min(entries, 8) && !/Placed /.test(placedAfterZone); i++) {
+    await build.locator(".build-palette .palette-item").nth(i).click();
+    await p.waitForTimeout(300);
+    await canvas(p).focus();
+    await p.keyboard.press("Enter");
+    await p.waitForTimeout(800);
+    placedAfterZone = (await status.innerText().catch(() => "")).replace(/\s+/g, " ");
+  }
+  const zoneLineAfterEdit = (await build.locator(".build-zones .zone-said").innerText().catch(() => "?")).trim();
+  await p.keyboard.press(process.platform === "darwin" ? "Meta+z" : "Control+z");
+  await p.waitForTimeout(500);
+  const zoneLineAfterEditUndone = (await build.locator(".build-zones .zone-said").innerText().catch(() => "?")).trim();
+  ok("the zone line clears at the next edit, when Undo no longer takes the zone away, and is back once that edit is undone (v4-1)", /Placed /.test(placedAfterZone) && zoneLineAfterEdit === "" && /^Zone \d+ added\. Undo takes it away\.$/.test(zoneLineAfterEditUndone), `${/Placed /.test(placedAfterZone) ? "a prop placed" : "no prop placed"}; after the edit "${zoneLineAfterEdit}"; after its undo "${zoneLineAfterEditUndone}"`);
   await p.keyboard.press("b");
 
   // 7. Settings: style, director, model calls, graphics, town export

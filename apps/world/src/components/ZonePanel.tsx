@@ -2,7 +2,7 @@
    mode's zone part (which zone a building belongs to, and that zone's look). Every write is a town document edit
    (`set-zone`, `remove-zone`, `assign`), so it is one undo step and travels with an export. A zone that comes from a
    crewhub-loops group keeps the group's name; its look, and a colour or emblem the group lacks, are kept here. */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { DEFAULT_ZONE_ID, ZONE_COLORS, ZONE_EMBLEMS, nextZoneMark, zoneById, type Building, type TownZone, type WorldModel, type Zone, type ZoneLook } from "@crewhub/world-model";
 import { useCast } from "../state/cast";
@@ -13,7 +13,7 @@ import { castRegistry } from "../world/cast";
 import { resolveLook } from "../world/look";
 import { styleRegistry } from "../world/style";
 import { buildingLook, lookRegistries, zoneLook, type LookContext } from "../world/worldLook";
-import { ZONE_COLOR_NAMES, ZONE_EMBLEM_NAMES, townKeeping, zoneAddedSaid, zoneLabel, zoneReason, zoneRemovedSaid, zoneSaidShown, zoneSettingsHint, zonesOriginWords, type ZoneSaid } from "../world/zoneText";
+import { ZONE_COLOR_NAMES, ZONE_EMBLEM_NAMES, pinZoneSaid, townKeeping, zoneAddedSaid, zoneLabel, zoneReason, zoneRemovedSaid, zoneSaidShown, zoneSettingsHint, zonesOriginWords, type ZoneSaid } from "../world/zoneText";
 import { Button, Chip, Field } from "./primitives";
 
 /** A style option as the settings show it; the style's manifest declares them (`options`), or none. */
@@ -53,6 +53,12 @@ function useZoneEdits(town: TownState) {
   const [error, setError] = useState<string | null>(null);
   // What the last "Add a zone" or "Remove this zone" did, for the sheet and the live region (round 65, w6-6).
   const [said, setSaid] = useState<ZoneSaid | null>(null);
+  // The line belongs to the revision its edit made (round 67, v4-1): pinned once the zone holds (the commit lands later),
+  // shown while the town is on that revision, cleared by a later edit or an undo, back after a redo.
+  useEffect(() => {
+    const pinned = pinZoneSaid(said, town.doc);
+    if (pinned !== said) setSaid(pinned);
+  }, [said, town.doc]);
   const run = (edit: Parameters<ReturnType<typeof townRuntime>["edit"]>[0]) => {
     const result = townRuntime().edit(edit);
     setError(result.ok ? null : result.error);
@@ -60,8 +66,8 @@ function useZoneEdits(town: TownState) {
   };
   return {
     error,
-    // Shown while what it describes holds (zoneSaidShown): an undo clears it, and the same words again are a change.
-    said: zoneSaidShown(said, (town.doc.zones ?? []).map((z) => z.id)),
+    // Shown while what it describes holds (zoneSaidShown): a later edit or an undo clears it, and the same words again are a change.
+    said: zoneSaidShown(said, town.doc),
     change: (zone: Zone, patch: Partial<TownZone>) => run({ type: "set-zone", zone: { ...entryOf(zone, town), ...patch } }),
     look: (zone: Zone, patch: ZoneLook) => {
       const entry = entryOf(zone, town);
