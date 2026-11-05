@@ -40,7 +40,7 @@ interface Props {
 }
 
 export function AgentCard({ facts, sections, freshness, demo, following, sheet, onFollow, onChat, onClose, portrait }: Props) {
-  // The Follow button's key hint and titles by input kind (round 65, w4-2): none on a touch device.
+  // The Follow button's titles by input kind (round 65, w4-2); world.css hides its key hint on a touch device.
   const follow = followWords(useTouchInput());
   const { t } = useT();
   const id = useId();
@@ -114,7 +114,7 @@ export function AgentCard({ facts, sections, freshness, demo, following, sheet, 
         )}
       </Card.Body>
       <Card.Footer className="agent-card-foot">
-        <Button size="sm" pressed={following} icon={<Eye className="icon" aria-hidden="true" />} onClick={onFollow} {...(follow.kbd ? { kbd: follow.kbd } : {})} title={following ? follow.stop : follow.follow}>
+        <Button size="sm" pressed={following} icon={<Eye className="icon" aria-hidden="true" />} onClick={onFollow} kbd="⇧F" title={following ? follow.stop : follow.follow}>
           {following ? "Following" : "Follow"}
         </Button>
         {onChat && facts.chat.self && (

@@ -327,6 +327,21 @@ export async function run({ pass, page, check, out }) {
       ok("375: the Help menu's row 'Open the text view', tapped, opens the text view and closes the menu (round 64, w4-7)", rowShown && opened && menuClosed, `row ${rowShown ? "shown" : "missing"}, text view ${opened ? "open" : "not open"}, menu ${menuClosed ? "closed" : "still open"}`);
       await p.keyboard.press("Escape");
       await p.waitForTimeout(300);
+      // Round 65 (w4-2, s4's review): no key hint is drawn on a touch device. Inside a building with a prop chosen the sheet
+      // has its most buttons with a hint: Turn [R], Place [Enter], Done [Esc]. Before, all were on show.
+      await p.locator(".world-labels").getByRole("button", { name: /crewhub-loops/ }).first().tap();
+      await p.waitForTimeout(2500);
+      await p.getByRole("button", { name: /^Build/ }).first().tap();
+      await p.waitForTimeout(600);
+      await p.locator(".build-sheet").getByRole("button", { name: /Workstation/ }).first().tap();
+      await p.waitForTimeout(500);
+      const hints = await p.evaluate(() => { const all = [...document.querySelectorAll(".btn-kbd")]; return { inDom: all.length, drawn: all.filter((e) => e.getBoundingClientRect().width > 0).map((e) => e.textContent) }; });
+      await shot(p, "12h-375-build-no-key-hints");
+      ok("375 touch: with a prop chosen no key hint is drawn, though the buttons carry them (round 65, w4-2, s4's review)", hints.inDom > 0 && hints.drawn.length === 0, JSON.stringify(hints));
+      await p.getByRole("button", { name: /^Build/ }).first().tap().catch(() => {});
+      await p.waitForTimeout(300);
+      await p.locator("nav.world-breadcrumb").getByRole("button").first().tap().catch(() => {});
+      await p.waitForTimeout(1200);
     }
     await p.context().close();
   }

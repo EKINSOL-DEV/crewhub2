@@ -2,6 +2,7 @@
    On a touch device (no hover, a coarse pointer) the words are a tap's and the joystick's, with no key hints; with a
    pointer and a keyboard they are as they were. */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { buildWords, followWords, walkWords } from "../src/state/inputWords.ts";
 import { tourSteps } from "../src/state/tour.ts";
@@ -73,6 +74,12 @@ test("the build sheet and the card's Follow on a touch device: tap, drag, no key
   assert.match(touch.chosen, /^Tap a floor to place it\.$/);
   assert.match(touch.placed, /a drag moves it\.$/);
   assert.match(touch.selected, /^A drag moves it\.$/);
-  assert.deepEqual(followWords(false), { kbd: "⇧F", follow: "The camera follows this figure wherever it walks (Shift+F)", stop: "Stop following (Shift+F or Escape)" });
-  assert.deepEqual(followWords(true), { kbd: undefined, follow: "The camera follows this figure wherever it walks", stop: "Stop following" });
+  assert.deepEqual(followWords(false), { follow: "The camera follows this figure wherever it walks (Shift+F)", stop: "Stop following (Shift+F or Escape)" });
+  assert.deepEqual(followWords(true), { follow: "The camera follows this figure wherever it walks", stop: "Stop following" });
+});
+
+test("no key hint is drawn on a touch device: world.css hides every button's .btn-kbd under a coarse pointer (round 65, w4-2, s4's review)", () => {
+  const css = readFileSync(new URL("../src/styles/world.css", import.meta.url), "utf8");
+  const blocks = [...css.matchAll(/@media \(pointer: coarse\) \{([^@]*?)\n\}/g)].map((m) => m[1] ?? "");
+  assert.ok(blocks.some((body) => /(^|\s)\.btn-kbd\s*\{\s*display:\s*none;?\s*\}/.test(body)), "a coarse-pointer block with .btn-kbd { display: none }");
 });

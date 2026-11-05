@@ -43,9 +43,9 @@ export function figureCardWords(touch: boolean): string {
   return touch ? "A tap on it opens its card." : "Enter opens its card.";
 }
 
-/** The card's Follow button: its key hint and titles. */
-export function followWords(touch: boolean): { kbd: string | undefined; follow: string; stop: string } {
+/** The card's Follow button: its titles. Its key hint, as every button's, is hidden under a coarse pointer (world.css). */
+export function followWords(touch: boolean): { follow: string; stop: string } {
   return touch
-    ? { kbd: undefined, follow: "The camera follows this figure wherever it walks", stop: "Stop following" }
-    : { kbd: "⇧F", follow: "The camera follows this figure wherever it walks (Shift+F)", stop: "Stop following (Shift+F or Escape)" };
+    ? { follow: "The camera follows this figure wherever it walks", stop: "Stop following" }
+    : { follow: "The camera follows this figure wherever it walks (Shift+F)", stop: "Stop following (Shift+F or Escape)" };
 }
