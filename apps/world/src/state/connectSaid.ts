@@ -1,5 +1,5 @@
 /* The connect that was just made, said once as Live (round 65, walk finding w5-22). The Connect screen says "Key sent
-   to the host; checking it with crewhub-loops." and, the key accepted, the town takes its place; the chip's first
+   to the host; checking it with crewhub-loops." and, the key good, the town takes its place; the chip's first
    state on a load is never said (a plain load would say it to everyone), so a screen reader person heard the check
    start and never its end. The Connect screen marks the connect (`markConnected`); the App takes the mark once the
    connection is live (`takeConnected`) and says "Connected: Live." instead of the change sentence. The mark lives in
@@ -8,7 +8,10 @@ import type { ConnectionState } from "@crewhub/loops-client";
 
 let pending = false;
 
-/** The Connect screen's key was accepted by the host: the town that follows says it is live. */
+/**
+ * The host took the Connect screen's key (loops may still refuse it): the town that follows says it is live. After a
+ * refusal the mark waits for a later Live, which is then still true.
+ */
 export function markConnected(): void {
   pending = true;
 }
