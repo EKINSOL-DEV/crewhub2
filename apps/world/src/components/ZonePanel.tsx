@@ -2,7 +2,7 @@
    mode's zone part (which zone a building belongs to, and that zone's look). Every write is a town document edit
    (`set-zone`, `remove-zone`, `assign`), so it is one undo step and travels with an export. A zone that comes from a
    crewhub-loops group keeps the group's name; its look, and a colour or emblem the group lacks, are kept here. */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { DEFAULT_ZONE_ID, ZONE_COLORS, ZONE_EMBLEMS, nextZoneMark, zoneById, type Building, type TownZone, type WorldModel, type Zone, type ZoneLook } from "@crewhub/world-model";
 import { useCast } from "../state/cast";
@@ -245,11 +245,19 @@ export function ZoneSettings({ model, town }: { model: WorldModel; town: TownSta
   );
 }
 
-/** Build mode: the zone of each building (the entered one alone when inside), and the look of that zone. */
+/**
+ * Build mode: the zone of one building, and the look of that zone when inside. Inside it is the entered building; in the
+ * town a picker as Layout has (round 65, w6-13: a Region's twenty selects made the sheet a 3,500 px scroll).
+ */
 export function BuildZones({ model, town, inside }: { model: WorldModel; town: TownState; inside: Building | null }) {
   const context = useLookContext(model, town);
   const edits = useZoneEdits(town);
-  const buildings = inside ? [inside] : model.buildings;
+  const [picked, setPicked] = useState<string>(inside?.slug ?? model.buildings[0]?.slug ?? "");
+  useEffect(() => {
+    if (inside) setPicked(inside.slug);
+  }, [inside]);
+  const shownBuilding = inside ?? model.buildings.find((b) => b.slug === picked) ?? model.buildings[0];
+  const buildings = shownBuilding ? [shownBuilding] : [];
   // Zones a building can be put in by hand: every one that exists, and "no zone".
   const choices = model.zones.some((z) => z.id === DEFAULT_ZONE_ID) ? model.zones : [...model.zones, zoneById([], DEFAULT_ZONE_ID)];
   const zone = inside ? zoneById(model.zones, inside.zoneId) : null;
@@ -258,6 +266,16 @@ export function BuildZones({ model, town, inside }: { model: WorldModel; town: T
       <h3 className="label" id="build-zones-title">
         Zones
       </h3>
+      {!inside && model.buildings.length > 1 && shownBuilding && (
+        <Field control="select" size="sm" label="Building" value={shownBuilding.slug} onChange={(e) => setPicked(e.currentTarget.value)}>
+          {model.buildings.map((b) => (
+            <option key={b.slug} value={b.slug}>
+              {b.name}
+              {b.archived ? " (archived)" : ""}
+            </option>
+          ))}
+        </Field>
+      )}
       <ul className="zone-assign">
         {buildings.map((building) => {
           const current = zoneById(model.zones, building.zoneId);

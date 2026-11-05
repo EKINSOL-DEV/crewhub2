@@ -167,6 +167,61 @@ export async function run({ pass, page, check, out }) {
   await p.waitForTimeout(1500);
   const step2 = { levels: await levels(p), at: await level(p) };
   ok("studio: Escape goes building → district → Region", step1.entered == null && step1.levels === "2" && step1.at === districtName && step2.levels === "1" && step2.at === "Region", `${step1.at} (${step1.levels}) → ${step2.at} (${step2.levels})`);
+  // Round 65 (sugg/w6-13, w6-15): build mode at the Region level. The zone part was twenty selects, a 3,500 px sheet, and
+  // the district cards on the left lay under the sheet. Now a building picker, as Layout has, and the town framed beside
+  // the open sheet; closing it goes back to the frame it left, and a camera a person moved stays where it is. Each wait is
+  // for the state; the ceilings are wide because a Region draws about one frame a second on a loaded machine.
+  {
+    const q = await open();
+    await town(q, 3000, `${BASE}?scenario=studio`);
+    const CEILING = { timeout: 45000, polling: 500 };
+    const frame = () => q.evaluate(() => { const t = globalThis.__town; return t ? { x: t.controls.target.x, z: t.controls.target.z, zoom: t.camera.zoom } : null; });
+    const sameFrame = (a, b) => a !== null && b !== null && Math.abs(a.x - b.x) < 0.2 && Math.abs(a.z - b.z) < 0.2 && Math.abs(a.zoom - b.zoom) < 1e-3;
+    const home = await frame();
+    await canvas(q).focus();
+    await q.keyboard.press("b");
+    await q.waitForFunction(() => document.querySelector(".build-sheet") !== null, null, CEILING).catch(() => {});
+    const clear = await q.waitForFunction(() => {
+      const sheet = document.querySelector(".build-sheet")?.getBoundingClientRect();
+      const cards = [...document.querySelectorAll(".district-card")].map((c) => c.getBoundingClientRect()).filter((r) => r.width > 0);
+      return !!sheet && cards.length > 0 && cards.every((c) => c.left >= sheet.right || c.right <= sheet.left || c.top >= sheet.bottom || c.bottom <= sheet.top);
+    }, null, CEILING).then(() => true).catch(() => false);
+    await shot(q, "20b-studio-build-region");
+    const facts = await q.evaluate(() => {
+      const sheet = document.querySelector(".build-sheet")?.getBoundingClientRect();
+      const cards = [...document.querySelectorAll(".district-card")].map((c) => c.getBoundingClientRect()).filter((r) => r.width > 0);
+      const under = sheet ? cards.filter((c) => !(c.left >= sheet.right || c.right <= sheet.left || c.top >= sheet.bottom || c.bottom <= sheet.top)).length : -1;
+      return { cards: cards.length, under, height: document.querySelector(".build-sheet .card-body")?.scrollHeight ?? 0 };
+    });
+    const beside = await frame();
+    ok("studio: the open build sheet lies beside the town, no district card under it (round 65, w6-15)", clear && facts.cards >= 2 && facts.under === 0 && !sameFrame(home, beside), `${facts.under} of ${facts.cards} cards under the sheet; target x ${home?.x.toFixed(1)} to ${beside?.x.toFixed(1)}`);
+    const zones = q.locator('section[aria-labelledby="build-zones-title"]');
+    const zoneSelects = zones.locator(".zone-assign select");
+    const picker = zones.getByLabel("Building", { exact: true });
+    const pickerShown = await picker.isVisible().catch(() => false);
+    const optionCount = pickerShown ? await picker.locator("option").count() : 0;
+    const firstLabel = (await zones.locator(".zone-assign label").first().innerText().catch(() => "")).trim();
+    const fourth = pickerShown ? ((await picker.locator("option").nth(3).innerText().catch(() => "")) || "").trim() : "";
+    if (pickerShown) await picker.selectOption({ index: 3 }).catch(() => {});
+    await q.waitForFunction((name) => [...document.querySelectorAll(".zone-assign label")].some((l) => l.textContent?.trim() === `Zone of ${name}`), fourth, CEILING).catch(() => {});
+    const pickedLabel = (await zones.locator(".zone-assign label").first().innerText().catch(() => "")).trim();
+    ok("studio: the zone part is one building and a picker of the twenty, as Layout has, and the sheet is no 3,500 px scroll (round 65, w6-13)", pickerShown && optionCount === 20 && (await zoneSelects.count()) === 1 && pickedLabel === `Zone of ${fourth}` && firstLabel !== pickedLabel && facts.height < 1600, `picker ${pickerShown ? "shown" : "absent"}, ${optionCount} buildings, ${await zoneSelects.count()} zone selects; "${firstLabel}", then "${pickedLabel}"; body ${facts.height} px`);
+    await q.keyboard.press("b");
+    await q.waitForFunction(() => document.querySelector(".build-sheet") === null, null, CEILING).catch(() => {});
+    const settledBack = await q.waitForFunction((want) => { const t = globalThis.__town; return !!t && Math.abs(t.controls.target.x - want.x) < 0.2 && Math.abs(t.controls.target.z - want.z) < 0.2 && Math.abs(t.camera.zoom - want.zoom) < 1e-3; }, home, CEILING).then(() => true).catch(() => false);
+    // A camera a person moved: the sheet's opening leaves it where it is. Its zoom may still be easing inward when it is
+    // read, so "stayed" is the target unmoved and the zoom not fallen back; frames are drawn before the second read.
+    await q.evaluate(() => globalThis.__town?.cameraAction("zoom-in"));
+    await q.waitForFunction((from) => (globalThis.__town?.camera?.zoom ?? 0) > from * 1.24, home?.zoom ?? 1, CEILING).catch(() => {});
+    const placed = await frame();
+    await canvas(q).focus();
+    await q.keyboard.press("b");
+    await q.waitForFunction(() => document.querySelector(".build-sheet") !== null, null, CEILING).catch(() => {});
+    const drawnBefore = await q.evaluate(() => new Promise((resolve) => { let left = 3; const tick = () => (--left ? requestAnimationFrame(tick) : resolve(true)); requestAnimationFrame(tick); }));
+    const withSheet = await frame();
+    ok("studio: closing the sheet goes back to the frame it left, and a camera a person moved stays when it opens (round 65, w6-15)", settledBack && drawnBefore === true && placed !== null && withSheet !== null && home !== null && placed.zoom > home.zoom && Math.abs(placed.x - withSheet.x) < 0.2 && Math.abs(placed.z - withSheet.z) < 0.2 && withSheet.zoom >= placed.zoom - 1e-3, `back ${settledBack}; moved to zoom ${placed?.zoom.toFixed(3)}, with the sheet ${withSheet?.zoom.toFixed(3)}, target x ${placed?.x.toFixed(1)} and ${withSheet?.x.toFixed(1)}`);
+    await q.context().close();
+  }
   await shot(p, "21-region-again");
   await p.context().close();
 }
