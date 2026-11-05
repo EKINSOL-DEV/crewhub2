@@ -443,6 +443,9 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
   });
   /** After a write: a revision announced meanwhile that is newer than ours is fetched now. */
   const settle = () => {
+    // The host tells the streams before it answers, so a browser hears its own move while the write is on its way: a
+    // revision this browser now has was not another browser's to say (round 65, w6-12, s1's review).
+    if (announcedOp !== null && rev !== null && announcedOp.rev <= rev) announcedOp = null;
     const seen = announced;
     announced = null;
     if (seen !== null && writing === 0) heard(seen, announcedOp?.rev === seen ? (announcedOp.op ?? undefined) : undefined);
