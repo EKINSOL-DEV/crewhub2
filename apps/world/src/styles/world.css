@@ -1022,6 +1022,15 @@
   .settings-sheet {
     top: 3.75rem;
   }
+  /* The Chat panel's disclosure rows ("About this chat", "Recent answers") are thumb-sized (round 65, w4-21): 40 px
+     rows. Not a pad as the signs have: the rows stand in a stack with tappable rows right under them, and a pad would
+     reach into those. */
+  .chat-about > summary,
+  .chat-recent > summary {
+    display: flex;
+    align-items: center;
+    min-height: var(--control-h-touch);
+  }
 }
 
 /* ── Chat bubbles: the copied loops dock and chat (components/bubbles) ───────
