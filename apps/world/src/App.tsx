@@ -55,7 +55,7 @@ import type { ConnectionState } from "@crewhub/loops-client";
 import type { Pick } from "./world/buildingView";
 import { roomName } from "./world/roomWords";
 import { useBuildingPlan } from "./state/buildingPlan";
-import { dialogIsOpen, useOverlays } from "./state/overlays";
+import { dialogIsOpen, tourTakesEscape, useOverlays } from "./state/overlays";
 import { DirectorLog } from "./components/DirectorLog";
 import { PresenceSettings } from "./components/PresenceSettings";
 import { WhereForm } from "./components/WhereForm";
@@ -345,8 +345,9 @@ function World() {
   // Keys that work anywhere outside a text field: T, Escape and Backspace, and the camera keys. The handler is this
   // render's; the window listener is added once and calls the latest one (state/windowKeys.ts, round 32).
   useWindowKeydown((e: KeyboardEvent) => {
-    // The introduction: Escape skips it wherever the focus is (the card handles it itself while the focus is inside).
-    if (tourOpen && e.key === "Escape" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    // The introduction: Escape skips it wherever the focus is (the card handles it itself while the focus is inside),
+    // unless a dialog stands over it: that one holds the focus and takes Escape first (state/overlays.ts, w2-1).
+    if (tourTakesEscape(overlayState) && e.key === "Escape" && !e.ctrlKey && !e.metaKey && !e.altKey) {
       e.preventDefault();
       closeTour();
       return;

@@ -9,8 +9,10 @@
      they always have: a second one opening overwrites the first one's opener. The chat has its own. The prop editor and
      the tour have none (the tour's card returns the focus itself, to `tourReturn`).
    - **Escape** closes by a fixed order, not by which opened last: `ESCAPE_ORDER`. The tour stands before all of them, at
-     the top of App's key handler: Escape skips it wherever the focus is, a text field included. The text view is the
-     view's chain's (state/view.ts), after build mode. */
+     the top of App's key handler: Escape skips it wherever the focus is, a text field included, but only while no dialog
+     stands over the town (`tourTakesEscape`, walk finding w2-1): a dialog a person opened over the tour holds the focus
+     and takes Escape first; the tour's card takes it itself while the focus is inside. The text view is the view's
+     chain's (state/view.ts), after build mode. */
 import { useState } from "react";
 
 export type OverlayKind = "tour" | "editor" | "jump" | "chat" | "connection" | "settings" | "text";
@@ -31,6 +33,9 @@ const NOTHING_OPEN: Readonly<Record<OverlayKind, boolean>> = { tour: false, edit
 
 /** A dialog stands over the town: the tour waits for it (the tour itself does not count). */
 export const dialogIsOpen = ({ open }: Pick<OverlaysState<unknown>, "open">): boolean => open.settings || open.jump || open.connection || open.chat || open.text || open.editor;
+
+/** Escape is the tour's (App's key handler skips it wherever the focus is): the tour is open and no dialog stands over it. */
+export const tourTakesEscape = (state: Pick<OverlaysState<unknown>, "open">): boolean => state.open.tour && !dialogIsOpen(state);
 
 export interface OverlaysConfig<E> {
   /** The element that has the focus now, or null. */
