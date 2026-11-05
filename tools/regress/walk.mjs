@@ -77,6 +77,39 @@ export async function run({ pass, page, check, out }) {
   ok("Details (D) shows more labels and toggles back", during > before && after === before, `${before} → ${during} → ${after}`);
   ok("Details button pressed state", pressed === "true", String(pressed));
   ok("Details on shows room signs", signs > 0, String(signs));
+  // Round 65 (w1-11): a click on a figure's name pill opens that figure's card, as the tour's step 3 promises for "a
+  // click on one". Before, the pill let the click through to the room under it, which zoomed instead of the card.
+  {
+    const pill = p.locator(".world-labels .agent-anchor .name-pill:not(.person):not(.you-pill)").first();
+    const pillName = await pill.evaluate((el) => [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join("").trim()).catch(() => "");
+    const box = await pill.boundingBox().catch(() => null);
+    if (box) await p.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    const cardOpened = await p.locator(".agent-card").first().waitFor({ timeout: 3000 }).then(() => true).catch(() => false);
+    const cardTitle = (await p.locator(".agent-card .card-title").first().innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+    await shot(p, "03c-pill-card");
+    ok("a click on a figure's name pill opens that figure's card (round 65, w1-11)", cardOpened && pillName.length > 0 && cardTitle.includes(pillName), `pill "${pillName}", card ${cardOpened ? `"${cardTitle}"` : "not open"}`);
+    // The card, then the selection, so the Escape chain below starts from the building as before.
+    await p.keyboard.press("Escape");
+    await p.keyboard.press("Escape");
+    await p.waitForTimeout(400);
+    // Build mode picks no figure, and a pill must not start to: there the click stays the scene's.
+    const pillOnScreen = () => p.evaluate(() => { for (const el of document.querySelectorAll(".world-labels .agent-anchor .name-pill:not(.person):not(.you-pill)")) { const r = el.getBoundingClientRect(); if (el.closest(".anchor").style.visibility !== "hidden" && r.left > 400 && r.right < innerWidth - 80 && r.top > 80 && r.bottom < innerHeight - 90) return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; } return null; });
+    await canvas(p).focus();
+    await p.keyboard.press("b");
+    await p.waitForTimeout(800);
+    const inBuild = await pillOnScreen();
+    if (inBuild) await p.mouse.click(inBuild.x, inBuild.y);
+    await p.waitForTimeout(500);
+    const cardsInBuild = await p.locator(".agent-card").count();
+    ok("in build mode a click on a name pill opens no card (round 65, w1-11)", !!inBuild && cardsInBuild === 0, `pill ${inBuild ? "clicked" : "none on screen"}, ${cardsInBuild} card(s)`);
+    if (cardsInBuild) {
+      await p.keyboard.press("Escape");
+      await p.keyboard.press("Escape");
+      await p.waitForTimeout(300);
+    }
+    await p.keyboard.press("b");
+    await p.waitForTimeout(500);
+  }
   for (let i = 0; i < 3; i++) await p.keyboard.press("Escape");
   await p.waitForTimeout(1200);
   const home = await crumbs(p);
@@ -403,6 +436,22 @@ export async function run({ pass, page, check, out }) {
       ok("375: the Help menu's row 'Open the text view', tapped, opens the text view and closes the menu (round 64, w4-7)", rowShown && opened && menuClosed, `row ${rowShown ? "shown" : "missing"}, text view ${opened ? "open" : "not open"}, menu ${menuClosed ? "closed" : "still open"}`);
       await p.keyboard.press("Escape");
       await p.waitForTimeout(300);
+      // Round 65 (w4-8): on a phone one tap on a figure's name pill (shown with Details on) opens its card. Before, the
+      // first tap zoomed the figure's room and the card needed a second tap on the figure itself.
+      await canvas(p).focus();
+      await p.keyboard.press("ArrowRight");
+      await p.keyboard.press("Enter");
+      await p.waitForTimeout(2000);
+      await p.getByRole("button", { name: "Details (D)", exact: true }).tap().catch((e) => note("375 Details " + e.message.split("\n")[0]));
+      await p.waitForTimeout(900);
+      const pill = p.locator(".world-labels .agent-anchor .name-pill:not(.person):not(.you-pill)").first();
+      const pillName = await pill.evaluate((el) => [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join("").trim()).catch(() => "");
+      const box = await pill.boundingBox().catch(() => null);
+      if (box) await p.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+      const cardOpened = await p.locator(".agent-card").first().waitFor({ timeout: 3000 }).then(() => true).catch(() => false);
+      const cardTitle = (await p.locator(".agent-card .card-title").first().innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+      await shot(p, "12d-375-pill-card");
+      ok("375: one tap on a figure's name pill opens its card (round 65, w4-8)", cardOpened && pillName.length > 0 && cardTitle.includes(pillName), `pill "${pillName}", card ${cardOpened ? `"${cardTitle}"` : "not open"}`);
     }
     await p.context().close();
   }

@@ -327,6 +327,18 @@ export async function run({ pass, page, check, out }) {
   }
   ok("rooms: walking on reaches the floor", !!onFloor && /\/workers$/.test(onFloor.room), onFloor ? `${onFloor.room} (x ${onFloor.x.toFixed(2)}, z ${onFloor.z.toFixed(2)}, ${Math.hypot(onFloor.dx, onFloor.dz).toFixed(2)} from the stop)` : "no walk");
   await shot(p, "30-rooms-walk-floor");
+  // Round 65 (w1-11): walk mode picks no figure ("nothing is picked while walking"), and a name pill must not start to:
+  // a click on one on the floor opens no card and the walk goes on.
+  const walkPill = await p.evaluate(() => { for (const el of document.querySelectorAll(".world-labels .agent-anchor .name-pill:not(.person):not(.you-pill)")) { const r = el.getBoundingClientRect(); if (el.closest(".anchor").style.visibility !== "hidden" && r.left > 40 && r.right < innerWidth - 80 && r.top > 120 && r.bottom < innerHeight - 90) return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; } return null; });
+  if (walkPill) await p.mouse.click(walkPill.x, walkPill.y);
+  await p.waitForTimeout(500);
+  const walkCards = await p.locator(".agent-card").count();
+  const stillWalking = (await visitor(p)) !== null;
+  ok("rooms: in walk mode a click on a name pill opens no card and the walk goes on (round 65, w1-11)", !!walkPill && walkCards === 0 && stillWalking, `pill ${walkPill ? "clicked" : "none on screen"}, ${walkCards} card(s), ${stillWalking ? "walking" : "not walking"}`);
+  if (walkCards) {
+    await p.keyboard.press("Escape");
+    await p.waitForTimeout(300);
+  }
   // Round 33 (teardown c): the walk's key listeners (WalkControls in WorldCanvas.tsx) stand on window while the walk
   // lasts and are gone once Escape ends it.
   ({ listenersOf, close: closeInspector } = await inspector(p));
