@@ -157,8 +157,8 @@ Prepared branches are ready; an answer `do it` merges that branch, `journey N: a
 
   Prepared: `sugg/w3-4`: live, the mark stands until the chat is opened or the agent's next answer replaces it. One small
   change beyond the suggestion comes with it. Where a pin and a mark share a row, the pin's breathing ring and its touch
-  area now stay on the pin: the ring is 36 px wide at 375 px where it was 118, and 195 at 1440 where it was 277, so the
-  warm ring no longer runs round a mark that now stands longer. A tap on the row still enters the same building, except
+  area now stay on the pin: the ring is about 37 px wide at 375 px where it was 117, and about 191 at 1440 where it was
+  271, so the warm ring no longer runs round a mark that now stands longer. A tap on the row still enters the same building, except
   in the 2 px between the two on a phone, where it now does nothing.
 
 - **w3-5 · polish, wording.** "About this chat" says "Open an agent's chat head in loops' dock (the Agent chats menu at
@@ -370,7 +370,8 @@ Prepared branches are ready; an answer `do it` merges that branch, `journey N: a
   in the small team at 1280 x 720, 0.91 where it was 0.98. **What stays cut:** below 900 px wide Studio's Brand and Lab
   cards still reach under the sheet (up to 84 px at 601 x 700), and at 601 x 700, 640 x 800, 700 x 800 and 800 x 800
   Apps and Lab overlap and cover much of the town (at 640 x 800 Apps is nearly hidden). Below 800 px wide the small
-  team's Launch & Marketing sign reaches under it (up to 48 px). Measured in Studio and the small team only.
+  team's Launch & Marketing sign reaches under the sheet (up to 48 px). Measured in Studio and the small team only;
+  inside a building, one look at 640 x 800.
 
 - **w6-14 · polish.** "Show free plots" in the Region draws 56 badges in a tight pile over each district's centre,
   covering the district cards and each other; in the small town the sixteen read fine. ![The Region's free-plot badges](../images/walkthrough-r64/w6-14-free-plot-badges.png) **Suggestion:** at the Region level only the next free plot per district, the rest on entering the district.
