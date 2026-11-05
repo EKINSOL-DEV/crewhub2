@@ -232,11 +232,9 @@ export function ZoneSettings({ model, town }: { model: WorldModel; town: TownSta
           Add a zone
         </Button>
       </div>
-      {edits.said && (
-        <p className="hint zone-said" role="status" aria-live="polite">
-          {edits.said}
-        </p>
-      )}
+      <p className="hint zone-said" role="status" aria-live="polite">
+        {edits.said}
+      </p>
       {edits.error && (
         <p className="hint zone-error" role="alert">
           {edits.error}
@@ -306,11 +304,9 @@ export function BuildZones({ model, town, inside }: { model: WorldModel; town: T
           Add a zone
         </Button>
       </div>
-      {edits.said && (
-        <p className="hint zone-said" role="status" aria-live="polite">
-          {edits.said}
-        </p>
-      )}
+      <p className="hint zone-said" role="status" aria-live="polite">
+        {edits.said}
+      </p>
       <p className="hint">Names, colours and emblems of zones are in Settings.</p>
       {model.mode === "live" && <p className="hint build-zones-origin">Zones here: {zonesOriginWords({ zones: model.zones, assignments: town.doc.assignments, kept: townKeeping(town.storage, model.mode) })}</p>}
       {edits.error && (

@@ -214,11 +214,13 @@ export async function run({ pass, page, check, out }) {
   const afterEditor = await focusWhere();
   ok("the prop editor takes the focus when it opens and gives it back to New prop when it closes", inEditor === "editor" && afterEditor === "New prop", `open: ${inEditor}, closed: ${afterEditor}`);
   // Round 65 (w6-6): "Add a zone" says what it did in the sheet's zones part and the live region, as the layout's moves do.
+  // The region stands before the line comes, so a screen reader hears the line (s1's note).
+  const zoneRegionBefore = await build.locator(".build-zones .zone-said").count();
   await build.getByRole("button", { name: "Add a zone", exact: true }).click();
   await p.waitForTimeout(500);
   const zoneSaid = (await build.locator(".build-zones .zone-said").allInnerTexts().catch(() => [])).join(" ").trim();
   const zoneHeard = (await p.locator("[aria-live=polite]").allInnerTexts()).join(" ");
-  ok("adding a zone says so in the sheet and the live region", /^Zone \d+ added\. Undo takes it away\.$/.test(zoneSaid) && /Zone \d+ added\. Undo takes it away\./.test(zoneHeard), zoneSaid || "(nothing said)");
+  ok("adding a zone says so in the sheet and in a live region that stood before the line", zoneRegionBefore === 1 && /^Zone \d+ added\. Undo takes it away\.$/.test(zoneSaid) && /Zone \d+ added\. Undo takes it away\./.test(zoneHeard), `${zoneSaid || "(nothing said)"}; region before: ${zoneRegionBefore}`);
   await p.keyboard.press("b");
 
   // 7. Settings: style, director, model calls, graphics, town export
@@ -246,10 +248,11 @@ export async function run({ pass, page, check, out }) {
   ]);
   ok("town export downloads a file", !!download, download ? download.suggestedFilename() : "");
   // Round 65 (w6-6): "Remove this zone" (the zone added in build mode above) says so, in Settings' zones part and the live region.
+  const zoneGoneRegionBefore = await settingsSheet.locator(".zone-settings .zone-said").count();
   await settingsSheet.getByRole("button", { name: "Remove this zone", exact: true }).first().click().catch((e) => note("remove zone " + e.message.split("\n")[0]));
   await p.waitForTimeout(500);
   const zoneGone = (await settingsSheet.locator(".zone-settings .zone-said").allInnerTexts().catch(() => [])).join(" ").trim();
-  ok("removing a zone says so in Settings and the live region", /^Zone \d+ removed\.$/.test(zoneGone) && /Zone \d+ removed\./.test((await p.locator("[aria-live=polite]").allInnerTexts()).join(" ")), zoneGone || "(nothing said)");
+  ok("removing a zone says so in Settings and in a live region that stood before the line", zoneGoneRegionBefore === 1 && /^Zone \d+ removed\.$/.test(zoneGone) && /Zone \d+ removed\./.test((await p.locator("[aria-live=polite]").allInnerTexts()).join(" ")), `${zoneGone || "(nothing said)"}; region before: ${zoneGoneRegionBefore}`);
   await shot(p, "09-settings");
   await p.keyboard.press("Escape");
 
