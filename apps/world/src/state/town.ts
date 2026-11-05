@@ -23,7 +23,7 @@ import { placementDefinitions } from "../world/placements.ts";
 import { importPropRequest, type InvalidRequest } from "../world/propImport.ts";
 import { allocationEdit } from "../world/settlement.ts";
 import { createPropQueue } from "./propQueue.ts";
-import type { TownStore } from "./townStore.ts";
+import type { TownElsewhere, TownStore } from "./townStore.ts";
 import type { WorldRuntime } from "./world.ts";
 
 export interface TownState {
@@ -38,6 +38,8 @@ export interface TownState {
   loaded: boolean;
   /** The host's revision this browser is on (round 20), null in demo mode and while the host is away. */
   hostRev: number | null;
+  /** The last revision another browser's move brought (round 65, w6-12), until this browser's next move; null otherwise. */
+  elsewhere: TownElsewhere | null;
   /** Done prop tickets whose prop is invalid, while they are still done and not imported. */
   invalid: InvalidRequest[];
 }
@@ -203,6 +205,7 @@ class TownRuntime {
       storageNote: s.storageNote,
       loaded: s.loaded,
       hostRev: (this.store as { rev?: number | null }).rev ?? null,
+      elsewhere: s.elsewhere ?? null,
       invalid: this.#visibleInvalid(),
     };
   }

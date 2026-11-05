@@ -91,10 +91,10 @@ describe("the town routes", () => {
     const b = await openSse(`${host!.url}/world-api/stream?cursor=0`);
     try {
       await put({ document: DOC(0), baseRev: 0 });
-      assert.deepEqual(await a.next((m) => m.type === "town"), { type: "town", rev: 1 });
-      assert.deepEqual(await b.next((m) => m.type === "town"), { type: "town", rev: 1 });
+      assert.deepEqual(await a.next((m) => m.type === "town"), { type: "town", rev: 1, op: "commit" });
+      assert.deepEqual(await b.next((m) => m.type === "town"), { type: "town", rev: 1, op: "commit" });
       await put({ document: DOC(1), baseRev: 1 });
-      assert.deepEqual(await b.next((m) => m.type === "town"), { type: "town", rev: 2 });
+      assert.deepEqual(await b.next((m) => m.type === "town"), { type: "town", rev: 2, op: "commit" });
     } finally {
       a.close();
       b.close();
@@ -191,7 +191,7 @@ describe("the town routes' history and backups (round 21)", () => {
       assert.deepEqual((await (await put({ op: "commit", document: DOC(1), baseRev: 1 })).json() as { rev: number; canUndo: boolean }).canUndo, true);
       const undone = (await (await put({ op: "undo", baseRev: 2 })).json()) as { rev: number; document: unknown; canUndo: boolean; canRedo: boolean };
       assert.deepEqual([undone.rev, undone.document, undone.canUndo, undone.canRedo], [3, DOC(0), false, true]);
-      assert.deepEqual(await tab.next((m) => m.type === "town" && m.rev === 3), { type: "town", rev: 3 });
+      assert.deepEqual(await tab.next((m) => m.type === "town" && m.rev === 3), { type: "town", rev: 3, op: "undo" });
       const read = (await (await get("/town")).json()) as { rev: number; canUndo: boolean; canRedo: boolean; document: unknown };
       assert.deepEqual([read.rev, read.canUndo, read.canRedo, read.document], [3, false, true, DOC(0)]);
       const redone = (await (await put({ op: "redo", baseRev: 3 })).json()) as { rev: number; document: unknown };

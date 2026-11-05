@@ -359,13 +359,16 @@ export type HostMessage =
   | { type: "heartbeat"; seq: number; ts: string }
   /** An agent's message to the person, read by the host with its own key where loops lets it (apps/host chatPath.ts): a bubble. */
   | { type: "chat"; chat: ChatLine }
-  /** The installation's town document changed on the host (round 20, worldDb.ts): the browsers refetch `/world-api/town`. */
-  | { type: "town"; rev: number }
+  /** The installation's town document changed on the host (round 20, worldDb.ts): the browsers refetch `/world-api/town`. `op` (round 65, w6-12) is the move that changed it; an older host sends none. */
+  | { type: "town"; rev: number; op?: TownOpKind }
   /** The chat threads' facts (round 24), where loops lets the key read the chat: the whole list, at attach and after a `dm.*` event. */
   | { type: "threads"; threads: ChatThreadFact[] }
   | { type: "reset"; reason: "gone" | "reconnected" | "cursor" };
 
 const RESET_REASONS = ["gone", "reconnected", "cursor"] as const;
+/** The moves of the host's town history, as a `town` message names the one that changed it (round 65, w6-12). */
+export const TOWN_OPS = ["commit", "amend", "undo", "redo"] as const;
+export type TownOpKind = (typeof TOWN_OPS)[number];
 /** A `loops` word this page does not know is read as `down` (a newer host): the world from before took it so. */
 const loopsWord = knownOr(LOOPS_STATES, "host loops state", "down");
 /** A reset's reason is for the log: a word this page does not know passes through (and one missing is read as `gone`, below). */
@@ -406,8 +409,14 @@ export function readHostMessage(value: unknown): Result<HostMessage> {
       const chat = readChatLine(raw.chat);
       return chat === null ? fail("$.chat", "expected a chat line: agentId, text, at, messageId and threadId as strings") : okAs({ type: "chat", chat });
     }
-    case "town":
-      return typeof raw.rev === "number" && Number.isInteger(raw.rev) && raw.rev >= 0 ? okAs({ type: "town", rev: raw.rev }) : fail("$.rev", "expected a whole number from 0 up");
+    case "town": {
+      if (!(typeof raw.rev === "number" && Number.isInteger(raw.rev) && raw.rev >= 0)) return fail("$.rev", "expected a whole number from 0 up");
+      const out: HostMessage = { type: "town", rev: raw.rev };
+      // The move that changed the town; a word this page does not know, or none (an older host), is left out.
+      const op = oneOf(raw.op, TOWN_OPS);
+      if (op !== undefined) out.op = op;
+      return okAs(out);
+    }
     case "threads": {
       const threads = readThreadFacts(raw.threads);
       return threads === null ? fail("$.threads", "expected a list of thread facts") : okAs({ type: "threads", threads });
