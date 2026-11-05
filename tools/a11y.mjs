@@ -188,6 +188,30 @@ for (const [state, title] of Object.entries(SCREENS))
           await p.keyboard.press("Enter");
           await p.waitForTimeout(200);
           ok("connect: a wrong key marks the field invalid with words", (await p.locator('input[aria-invalid="true"]').count()) === 1 && /47 characters/.test(await p.locator(".connect-key").innerText()));
+          // Walk finding w5-25 (round 64): the reason is the field's description, and the live region says it once: Enter again
+          // says nothing new, and a key edited and refused again is said again. The words themselves stay as they were.
+          const described = await p.evaluate(() => (document.querySelector('input[type="password"]')?.getAttribute("aria-describedby") ?? "").split(/\s+/).map((id) => document.getElementById(id)?.textContent ?? "").join(" | "));
+          ok("connect: the wrong key's reason is in the field's description, with the paste note", /47 characters/.test(described) && /paste/i.test(described), described);
+          const reasonsSaid = () => (spoken(p).then((said) => (said.match(/47 characters/g) ?? []).length));
+          ok("connect: the wrong key's reason is said in the live region, once", (await reasonsSaid()) === 1, await spoken(p));
+          // Counts what a screen reader is told from here: each time the live region's words change to the reason.
+          await p.evaluate(() => {
+            const region = document.querySelector(".connect-page > [role=status]");
+            globalThis.__reasonSaid = 0;
+            new MutationObserver(() => {
+              if (/47 characters/.test(region.textContent ?? "")) globalThis.__reasonSaid += 1;
+            }).observe(region, { childList: true, characterData: true, subtree: true });
+          });
+          const reasonSaid = () => p.evaluate(() => globalThis.__reasonSaid);
+          await p.keyboard.press("Enter");
+          await p.waitForTimeout(200);
+          ok("connect: Enter again on the same key says nothing new", (await reasonSaid()) === 0, String(await reasonSaid()));
+          await p.getByLabel("Access key").fill("still not a key");
+          await p.waitForTimeout(200);
+          ok("connect: an edit takes the reason back, from the field and the live region", (await reasonsSaid()) === 0 && (await p.locator('input[aria-invalid="true"]').count()) === 0, await spoken(p));
+          await p.keyboard.press("Enter");
+          await p.waitForTimeout(200);
+          ok("connect: the edited key refused again is said once more", (await reasonSaid()) === 1 && (await reasonsSaid()) === 1, `${await reasonSaid()}: ${await spoken(p)}`);
         }
         if (state === "rejected") {
           const said2 = await spoken(p);
