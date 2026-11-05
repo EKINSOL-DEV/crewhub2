@@ -227,6 +227,12 @@
   outline: 0;
   box-shadow: var(--focus-ring);
 }
+/* A sign under the pointer lifts a little with a deeper shadow, as it reacts on focus (round 65, w1-15): before, only
+   the pointer's shape said the sign takes a click. */
+.town-sign:hover {
+  transform: translate(-50%, calc(var(--space-2) - 2px));
+  box-shadow: var(--shadow-md);
+}
 .agent-plate {
   transform: translate(-50%, -100%);
   pointer-events: none;
