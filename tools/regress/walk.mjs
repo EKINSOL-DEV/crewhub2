@@ -248,6 +248,14 @@ export async function run({ pass, page, check, out }) {
     // A building's sign is a quiet name, smaller than a finger: its ::after pad is what is tapped.
     const pads = await p.evaluate(() => [...document.querySelectorAll("button.town-sign")].flatMap((e) => { const s = getComputedStyle(e, "::after"); return s.content === "none" ? [0, 0] : [Math.round(parseFloat(s.width)), Math.round(parseFloat(s.height))]; }));
     ok(`375 ${scheme}: building signs have 40px hit pads`, pads.length > 0 && pads.every((n) => n >= 40), pads.join(","));
+    // Round 64 (w4-14, w2's review): the Demo chip, an icon at this width, stays beside the brand's title on its first
+    // line; the brand row wraps only for a chip grown to its word, never in the demo's usual state.
+    const beside = await p.evaluate(() => {
+      const chip = document.querySelector(".demo-chip")?.getBoundingClientRect();
+      const title = document.querySelector(".world-brand > strong")?.getBoundingClientRect();
+      return chip && title ? { chipLeft: Math.round(chip.left), chipTop: Math.round(chip.top), chipBottom: Math.round(chip.bottom), titleRight: Math.round(title.right), titleTop: Math.round(title.top), titleMid: Math.round((title.top + title.bottom) / 2), titleBottom: Math.round(title.bottom) } : null;
+    });
+    ok(`375 ${scheme}: the Demo chip sits beside the brand's title, on its first line`, beside !== null && beside.chipLeft >= beside.titleRight && beside.chipTop < beside.titleMid && beside.chipBottom > beside.titleTop, beside ? `chip at ${beside.chipLeft}, ${beside.chipTop}..${beside.chipBottom}; title to ${beside.titleRight}, ${beside.titleTop}..${beside.titleBottom}` : "no chip or title");
     await p.context().close();
   }
   p = await open({ theme: "dark" });

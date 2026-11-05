@@ -30,7 +30,7 @@
            are named, the key is nowhere; the host closed and started again with the stored key and the same secret
            file is Live again without a new link; the panel's Forget this key hands the Connect screen back and the
            stored key is gone. Under half a minute. One host at a time against that loops (4 streams per key).
-     walk  38 checks along a visitor's walk through the demo (keyboard, the text view, the timeline, chat, build mode and the prop editor's focus,
+     walk  40 checks along a visitor's walk through the demo (keyboard, the text view, the timeline, chat, build mode and the prop editor's focus,
            settings, the where form, reduced motion, a phone, both themes). About two minutes.
      demo  the jump list (/ opens it, a building's name, Enter lands inside; the postman's card in the town; a card that
            cannot be drawn says so in its place and the town stays, round 48), the scenario picker (the Demo chip, One

@@ -274,6 +274,14 @@ for (const [theme, width] of COMBOS) {
     await p.waitForTimeout(300);
     ok(`${tag}: Escape closes the panel and the focus is back on the chip`, (await p.locator(".connection-sheet").count()) === 0 && (await p.evaluate(() => document.activeElement?.classList.contains("connection-chip"))));
     if (width === 375) {
+      // Round 64 (w4-14, w2's review): the Live chip, an icon on the phone, stays beside the brand's title on its first
+      // line; only a chip grown to its word takes the next line. The brand row must not grow for the usual state.
+      const beside = await p.evaluate(() => {
+        const chip = document.querySelector("button.connection-chip")?.getBoundingClientRect();
+        const title = document.querySelector(".world-brand > strong")?.getBoundingClientRect();
+        return chip && title ? { chipLeft: Math.round(chip.left), chipTop: Math.round(chip.top), chipBottom: Math.round(chip.bottom), titleRight: Math.round(title.right), titleTop: Math.round(title.top), titleMid: Math.round((title.top + title.bottom) / 2), titleBottom: Math.round(title.bottom) } : null;
+      });
+      ok(`${tag}: the Live chip sits beside the brand's title, on its first line`, beside !== null && beside.chipLeft >= beside.titleRight && beside.chipTop < beside.titleMid && beside.chipBottom > beside.titleTop, beside ? `chip at ${beside.chipLeft}, ${beside.chipTop}..${beside.chipBottom}; title to ${beside.titleRight}, ${beside.titleTop}..${beside.titleBottom}` : "no chip or title");
       // Round 64 (w4-14): when the chip grows to its word on a phone (Loops down, Stream busy: the same width), the word
       // stays whole: the chip's box lies inside the left corner's room, left of the right toolbar, never under it or off
       // the screen. The stub's busy state (loops' 429 through the stream) shows it without a refused read in the console;

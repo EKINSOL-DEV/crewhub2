@@ -929,6 +929,13 @@
   .world-brand {
     flex-wrap: wrap;
   }
+  /* The title keeps its fold (w2's review): with the row wrapping, "CrewHub World" took its one-line width and pushed
+     even the Live icon and the Demo chip to a second line; folding to two lines as before, it leaves the icon chips
+     beside it and only a worded chip wraps. */
+  .world-brand > strong {
+    flex: 1 1 min-content;
+    min-width: 0;
+  }
   /* With four toolbar buttons beside it the brand keeps one line: the demo chip keeps its icon (and its label). */
   .demo-word,
   .demo-chip .menu-caret {
