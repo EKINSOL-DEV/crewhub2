@@ -195,10 +195,14 @@ export async function run({ pass, page, check, out }) {
   ok("place puts a prop down", /Placed /.test(placed) && /undo on/.test(stepsPlaced), (await build.locator(".build-message").innerText().catch(() => "")).trim() || placed.slice(0, 140));
   await p.keyboard.press(process.platform === "darwin" ? "Meta+z" : "Control+z");
   await p.waitForTimeout(500);
-  // The sheet keeps its last message; the undo itself is announced, the step moves to Redo and the prop is selected no more.
+  // The undo itself is announced, the step moves to Redo and the prop is selected no more.
   const undone = ((await p.locator("[aria-live=polite]").allInnerTexts()).join(" ").match(/Undone\./) ?? [""])[0];
   const stepsUndone = await steps();
   ok("undo takes the placement back", undone !== "" && /redo on/.test(stepsUndone) && !/redo on/.test(stepsPlaced), `${undone} (${stepsBefore} → ${stepsPlaced} → ${stepsUndone})`);
+  // Round 65 (w6-3): the sheet's "Placed … It is selected" line was about the prop the undo took away: it clears with
+  // the selection it described, instead of standing under "Choose a prop, or click a placed prop to select it".
+  const keptMessage = (await build.locator(".build-message").allInnerTexts().catch(() => [])).join(" ").trim();
+  ok("the sheet's message about the placed prop clears when the undo takes the prop away", keptMessage === "", keptMessage.slice(0, 120) || "(no message)");
   await shot(p, "08-build-undo");
   // Round 48 (r48-ui U7): the prop editor is a dialog: the focus goes into it when it opens and back to the button that
   // opened it when it closes (it stayed on New prop behind the sheet, and fell to the page on close).
