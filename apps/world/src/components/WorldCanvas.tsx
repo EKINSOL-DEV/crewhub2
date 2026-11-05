@@ -460,7 +460,8 @@ function useDeskProgress(ticketKey: string | null): FetchedProgress | undefined 
 }
 
 /** The town's own figures (the postman, the town hall's agents) carry a name pill while hovered or selected; with the
-    card open the pill of the selected one yields to it. The pill hangs from the figure's anchor (`a:town:<key>`). */
+    card open the pill of the selected one yields to it. The pill hangs from the figure's anchor (`a:town:<key>`).
+    A bubble over a figure whose pill is not drawn carries the speaker's name itself (round 65, walk finding w3-2). */
 function TownFigures({ model, selection, card, said, onSaidTap }: { model: WorldModel; selection: Selection; card: boolean; said: SaidMap; onSaidTap: (key: string) => void }) {
   const shown = selection.hover?.kind === "agent" ? selection.hover.key : !card && selection.selected?.kind === "agent" ? selection.selected.key : null;
   const figures = [...model.postOffice, ...model.townHall];
@@ -476,7 +477,8 @@ function TownFigures({ model, selection, card, said, onSaidTap }: { model: World
           <div key={agent.key} className={`anchor agent-anchor${agent.key === shown ? " picked" : ""}`} data-anchor={`a:town:${agent.key}`}>
             <span className="agent-stack">
               {line && (
-                <button type="button" className={`bubble said${line.fading ? " fading" : ""}`} title={`${agent.displayName} says: ${line.text}`} aria-label={saidLabel(agent.displayName, line.text, `Open ${agent.displayName}`)} data-said-agent={agent.name} onClick={() => onSaidTap(agent.key)}>
+                <button type="button" className={`bubble said${line.fading ? " fading" : ""}${agent.key === shown ? "" : " named"}`} title={`${agent.displayName} says: ${line.text}`} aria-label={saidLabel(agent.displayName, line.text, `Open ${agent.displayName}`)} data-said-agent={agent.name} onClick={() => onSaidTap(agent.key)}>
+                  {agent.key !== shown && <span className="bubble-name">{agent.displayName}</span>}
                   <MessageCircle className="icon icon-sm" aria-hidden="true" />
                   <span className="bubble-text">{line.text}</span>
                 </button>
@@ -923,7 +925,8 @@ function AgentLabel({
     <div className={`anchor agent-anchor${plate ? " picked" : ""}`} data-anchor={`a:${slug}:${agent.key}`}>
       <span className="agent-stack">
         {said && (
-          <button type="button" className={`bubble said${said.fading ? " fading" : ""}`} title={`${agent.displayName} says: ${said.text}`} aria-label={saidLabel(agent.displayName, said.text, `Open ${agent.displayName}`)} data-said-agent={agent.name} onClick={onTap}>
+          <button type="button" className={`bubble said${said.fading ? " fading" : ""}${pill || plate ? "" : " named"}`} title={`${agent.displayName} says: ${said.text}`} aria-label={saidLabel(agent.displayName, said.text, `Open ${agent.displayName}`)} data-said-agent={agent.name} onClick={onTap}>
+            {!pill && !plate && <span className="bubble-name">{agent.displayName}</span>}
             <MessageCircle className="icon icon-sm" aria-hidden="true" />
             <span className="bubble-text">{said.text}</span>
           </button>

@@ -55,6 +55,12 @@ export async function run({ pass, page, check, out }) {
     const said2 = (await bubble2.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
     ok("chat (key road): an agent's answer comes over the key's own stream and shows as a bubble, with no session anywhere", /Busy and calm/.test(said2) && fake2.sessionsOpen() === 0, said2.slice(0, 100) || `no bubble; host: ${lines2.slice(-4).join(" | ").slice(0, 200)}`);
     await shot(pg2, "58-chat-key-bubble");
+    // Walk finding w3-2 (round 65): at the town the figure's name pill is not drawn, so the bubble carries the speaker's
+    // name above its line; the title and the accessible name say it as before.
+    const name2 = (await bubble2.locator(".bubble-name").innerText().catch(() => "")).trim();
+    const pill2 = await pg2.locator('.agent-stack:has(.bubble.said[data-said-agent="g-man"]) .name-pill').count();
+    const nameAbove2 = await bubble2.evaluate((el) => { const n = el.querySelector(".bubble-name"); const t = el.querySelector(".bubble-text"); return !!n && !!t && n.getBoundingClientRect().bottom <= t.getBoundingClientRect().top + 1; }).catch(() => false);
+    ok("chat (w3-2): at the town, with no name pill drawn, the bubble carries the speaker's name above its line", name2 === "G-Man" && pill2 === 0 && nameAbove2 && /^G-Man says: /.test((await bubble2.getAttribute("aria-label").catch(() => "")) ?? ""), `name "${name2}", pills ${pill2}, name above the line ${nameAbove2}`);
     await bubble2.click().catch(() => {});
     await pg2.waitForSelector(".chat-sheet", { timeout: 5000 }).catch(() => {});
     const agent2 = await pg2.locator(".chat-sheet").getAttribute("data-agent").catch(() => null);
@@ -119,6 +125,7 @@ export async function run({ pass, page, check, out }) {
     const facts = await bubbleFacts(bubble3);
     await shot(pg2, "61-chat-bubble-wrapped");
     ok("chat (key road, round 14): the mark enters the building; the bubble there wraps to two or three lines (clamped at three, nothing cut off) and stands clear above the name label", (await level(pg2)) === "CrewHub World" && facts !== null && facts.whiteSpace === "normal" && facts.clamp === "3" && facts.lines >= 2 && facts.lines <= 3 && !facts.clipped && facts.label !== null && noOverlap(facts.bubble, facts.label) && facts.bubble.bottom <= facts.label.top, facts ? `${facts.lines} line(s), clamp ${facts.clamp}, clipped ${facts.clipped}, bubble bottom ${Math.round(facts.bubble.bottom)} vs label top ${facts.label ? Math.round(facts.label.top) : "none"}` : `no bubble inside; level ${await level(pg2)}`);
+    ok("chat (w3-2): inside, with the name pill drawn under the bubble, the bubble carries no name of its own", facts !== null && facts.label !== null && /CR Lead/.test(facts.label.text ?? "") && (await bubble3.locator(".bubble-name").count()) === 0, facts?.label ? `pill "${(facts.label.text ?? "").trim().slice(0, 30)}", names on the bubble ${await bubble3.locator(".bubble-name").count()}` : "no pill under the bubble");
     ok("chat (key road, round 14): the bubble's accessible name joins the line and the action without a double full stop", facts !== null && /^CR Lead says: \(demo reply\) .*\. Open CR Lead$/.test(facts.aria ?? "") && !/\.\./.test(facts.aria ?? "") && facts.title === (facts.aria ?? "").replace(/ Open CR Lead$/, ""), facts?.aria ?? "no bubble");
     await pg2.keyboard.press("Escape");
     await pg2.waitForFunction(() => !/CrewHub World/.test(document.querySelector("nav.world-breadcrumb .crumb-current")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
