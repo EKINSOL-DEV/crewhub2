@@ -850,7 +850,10 @@ const CornerTools = memo(function CornerTools(props: {
         items={[
           { label: translate("world.tour.show"), hint: translate("world.tour.showHint"), onSelect: openTour },
           { label: translate("world.tour.read"), hint: translate("world.tour.readHint"), onSelect: () => void window.open(INTRODUCTION_URL, "_blank", "noopener,noreferrer") },
-          { label: translate("world.text.open"), hint: translate("world.text.openHint"), onSelect: openText },
+          // The open waits a frame (w2's review of w4-7): the menu runs a row's onSelect before it closes and refocuses
+          // Help, and the text view takes the focused element as its return slot; opened at once, that slot would be
+          // the row, unmounted a tick later, and Escape from the view would drop the focus to the body.
+          { label: translate("world.text.open"), hint: translate("world.text.openHint"), onSelect: () => requestAnimationFrame(openText) },
         ]}
       />
       <Button variant="ghost" iconOnly aria-label="Settings" title="Settings" expanded={settingsOpen} icon={<Settings className="icon" aria-hidden="true" />} onClick={settingsOpen ? closeSettings : openSettings} />
