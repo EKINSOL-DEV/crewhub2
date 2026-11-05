@@ -115,6 +115,9 @@ export const roomNoun = (room: RoomKind, plan: BuildingPlan): string => placePhr
 /** The sentence build mode says once a prop stands: "Placed Oak bench on the floor." / "… in Administration." */
 export const placedWords = (propName: string, room: RoomKind, plan: BuildingPlan): string => `Placed ${propName} ${roomPlaceWords(room, plan)}.`;
 
+/** A refused move or turn of a placed prop: the verb and the prop's name before the engine's reason, as a refused placement says "Can't place <prop> here: <reason>" (round 65, w6-4). */
+export const refusedWords = (action: "move" | "turn", propName: string, reason: string): string => (action === "move" ? `Can't move ${propName} there: ${reason}` : `Can't turn ${propName} here: ${reason}`);
+
 /**
  * The building's rooms with the document's grid placements applied in document order, keyed by the template's own
  * room kinds (a placement in a hosted model room lands in its hall; one that no longer fits there is an error).
