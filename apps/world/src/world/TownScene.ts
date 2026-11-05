@@ -204,6 +204,8 @@ const CIVIC_LAWN = CIVIC_LOT;
    side of the town behind the near plane, where they were cut into shards. Zoom does the framing; this stays fixed. */
 const CAMERA_DISTANCE = 220;
 const HOME_OFFSET = new THREE.Vector3(1, 1.04, 1).normalize().multiplyScalar(CAMERA_DISTANCE);
+/* After a jump to a figure on a portrait phone the camera keeps it where it landed for this long (round 65, w4-11). */
+const JUMP_TRACK_MS = 6000;
 const UP = new THREE.Vector3(0, 1, 0);
 /* Framing heights: a building is seen up to its tall back walls, a room up to its people and desks. */
 /** Built interiors kept for a quick enter: the entered building's and the two most recently used others. */
@@ -464,6 +466,8 @@ export class TownScene {
   #dragging = false;
   /** The agent the camera follows (TownScene.follow), the level last asked of the app, and the zoom it settles on. */
   #following: string | null = null;
+  /** A jump's landing on a figure (`flyToAnchor`): its label anchor, where it last stood, and until when. */
+  #landing: { id: string; last: THREE.Vector3; until: number } | null = null;
   #followAsked: string | null | undefined = undefined;
   #followZoom: number | null = null;
   #portraitCamera: THREE.OrthographicCamera | null = null;
@@ -1611,13 +1615,47 @@ export class TownScene {
     this.moveTo(target, target.clone().add(direction.multiplyScalar(HOME_OFFSET.length())), THREE.MathUtils.clamp(this.#span / span, this.controls.minZoom, this.controls.maxZoom), false);
   }
 
-  /** Flies to the ground around a label's anchor (the jump list's town hall and post office). */
+  /**
+   * Flies to the ground around a label's anchor (the jump list's town hall and post office, and a town figure). The ground
+   * box reaches further away from the camera than towards it, so a building behind its anchor is in the frame. On a
+   * portrait phone a figure's box is centred on it instead, and the camera goes where the figure goes for a few seconds
+   * (round 65, w4-11): the postman out on a delivery had walked out of the narrow frame by the time the camera landed.
+   */
   flyToAnchor(id: string, reach = 13) {
     const anchor = this.#anchors.get(id);
-    if (anchor) this.frameGround({ minX: anchor.x - reach, maxX: anchor.x + reach, minZ: anchor.z - reach * 1.4, maxZ: anchor.z + reach * 0.6 }, 5);
+    if (!anchor) return;
+    const canvas = this.renderer.domElement;
+    const centred = id.startsWith("a:") && canvas.clientWidth < canvas.clientHeight * 0.8;
+    this.frameGround(centred ? { minX: anchor.x - reach, maxX: anchor.x + reach, minZ: anchor.z - reach, maxZ: anchor.z + reach } : { minX: anchor.x - reach, maxX: anchor.x + reach, minZ: anchor.z - reach * 1.4, maxZ: anchor.z + reach * 0.6 }, 5);
+    // After frameGround: its moveTo ends any landing before.
+    this.#landing = centred ? { id, last: anchor.clone(), until: performance.now() + JUMP_TRACK_MS } : null;
+  }
+
+  /**
+   * Every frame of a landing: the camera and where it is heading move as far as the figure did, on the ground. It adds no
+   * frames of its own (a figure that does not walk needs none). A drag, any other camera move, a walk, a follow or going
+   * inside ends it, and so does its time: it is no follow, and says nothing.
+   */
+  #landingTick() {
+    const landing = this.#landing;
+    if (!landing) return;
+    const anchor = this.#anchors.get(landing.id);
+    if (!anchor || this.#walk || this.#following || this.view.entered || performance.now() > landing.until) {
+      this.#landing = null;
+      return;
+    }
+    const delta = this.#v.copy(anchor).sub(landing.last).setY(0);
+    landing.last.copy(anchor);
+    this.controls.target.add(delta);
+    this.camera.position.add(delta);
+    if (this.#tween) {
+      this.#tween.target.add(delta);
+      this.#tween.position.add(delta);
+    }
   }
 
   moveTo(target: THREE.Vector3, position: THREE.Vector3, zoom: number, immediate: boolean) {
+    this.#landing = null;
     if (immediate || this.view.reducedMotion) {
       this.controls.target.copy(target);
       this.camera.position.copy(position);
@@ -1673,6 +1711,7 @@ export class TownScene {
 
   cancelTween = () => {
     this.#tween = null;
+    this.#landing = null;
   };
 
   /* ── Following a figure ─────────────────────────────────────────────────── */
@@ -2031,6 +2070,7 @@ export class TownScene {
     this.#followPostman(dt);
     const strolling = this.#walkStep(dt);
     this.#followTick(dt);
+    this.#landingTick();
     if (this.#tween) {
       const alpha = this.view.reducedMotion ? 1 : 1 - Math.exp(-dt * 6);
       this.camera.position.lerp(this.#tween.position, alpha);

@@ -508,6 +508,56 @@ export async function run({ pass, page, check, out }) {
       if (leftOpen) await p.keyboard.press("Escape");
       // w4-10's rows leave the playback paused: a fresh load, so the rows below start from the plain town.
       await town(p, 1500);
+      // Round 65 (w4-11): a jump to a town figure centres it in the portrait frame. The jump list, "post", Postman: the
+      // postman's label anchor lands within 12 px of the free area's middle sideways and within 40 px of it up and down
+      // (sideways the whole width, which the portrait frame spans; up and down the canvas less the chrome's insets). Before, the ground box around the figure reached further
+      // away than towards the camera, so the figure landed left of and below the middle (about 40 px each way here).
+      await p.getByRole("button", { name: /Jump to/ }).first().tap();
+      await p.waitForTimeout(600);
+      await p.keyboard.type("post");
+      await p.waitForTimeout(500);
+      await p.getByRole("dialog", { name: "Jump to" }).getByRole("option", { name: /Postman/ }).first().tap();
+      await p.waitForTimeout(2500);
+      const landed = await p.evaluate(() => {
+        const a = [...document.querySelectorAll(".world-labels .anchor")].find((x) => /Postman/.test(x.textContent ?? ""));
+        const m = /translate\(([-\d.]+)px, ([-\d.]+)px\)/.exec(a?.getAttribute("style") ?? "");
+        const canvas = document.querySelector("main.world-stage canvas");
+        const r = canvas?.getBoundingClientRect();
+        const ins = globalThis.__town?.insets?.();
+        if (!m || !r || !ins) return null;
+        const cx = r.left + r.width / 2, cy = r.top + (ins.top + (r.height - ins.bottom)) / 2;
+        return { x: Math.round(+m[1]), y: Math.round(+m[2]), cx: Math.round(cx), cy: Math.round(cy), dx: Math.round(+m[1] - cx), dy: Math.round(+m[2] - cy) };
+      });
+      await shot(p, "12f-375-jump-postman");
+      ok("375: a jump to the postman centres it in the portrait frame (round 65, w4-11)", landed !== null && Math.abs(landed.dx) <= 12 && Math.abs(landed.dy) <= 40, landed ? `anchor ${landed.x},${landed.y}; free middle ${landed.cx},${landed.cy}; off by ${landed.dx},${landed.dy}` : "no postman label, canvas or insets");
+      await p.keyboard.press("Escape");
+      await p.waitForTimeout(300);
+      // The same jump while he is out on a delivery (the finding's own moment, 0:38 of the story): he walks on after the
+      // camera has aimed, and before the fix ended about 40 px from the screen's left edge. He starts at 0:27, whatever a
+      // seek to 0:25 skips; seeking any later leaves him standing, so the row also holds that he really walked.
+      await seek(p, 25000);
+      for (let i = 0; i < 100 && Number(await p.locator("input.playback-scrub").inputValue().catch(() => "0")) < 30000; i++) await p.waitForTimeout(100);
+      const postmanAt = () => p.evaluate(() => { const a = globalThis.__town?.walks?.walker?.("postman"); return a ? { x: a.x, z: a.z } : null; });
+      const walkFrom = await postmanAt();
+      await p.getByRole("button", { name: /Jump to/ }).first().tap();
+      await p.waitForTimeout(400);
+      await p.keyboard.type("post");
+      await p.waitForTimeout(300);
+      await p.getByRole("dialog", { name: "Jump to" }).getByRole("option", { name: /Postman/ }).first().tap();
+      await p.waitForTimeout(4000);
+      const walkTo = await postmanAt();
+      const walked = walkFrom && walkTo ? Math.hypot(walkTo.x - walkFrom.x, walkTo.z - walkFrom.z) : 0;
+      const walkedTo = await p.evaluate(() => {
+        const a = [...document.querySelectorAll(".world-labels .anchor")].find((x) => /Postman/.test(x.textContent ?? ""));
+        const m = /translate\(([-\d.]+)px, ([-\d.]+)px\)/.exec(a?.getAttribute("style") ?? "");
+        return m ? { x: Math.round(+m[1]), middle: Math.round(innerWidth / 2) } : null;
+      });
+      await shot(p, "12f2-375-jump-postman-walking");
+      ok("375: a jump to the postman out on a delivery keeps him in the middle of the frame (round 65, w4-11)", walked >= 3 && walkedTo !== null && Math.abs(walkedTo.x - walkedTo.middle) <= 30, walkedTo ? `walked ${walked.toFixed(1)} units; label at x ${walkedTo.x}, the middle ${walkedTo.middle}` : "no postman label");
+      await p.keyboard.press("Escape");
+      await p.waitForTimeout(300);
+      // w4-11's rows seek and leave a figure selected: a fresh load again.
+      await town(p, 1500);
       // Round 65 (w4-6): a tap is not the keyboard. A sign tapped and "← Town" tapped leave no expanded plate and no ring
       // on the plot (before, the sign's focus fired the hover intent as the keyboard's Tab does, and the ring lingered);
       // a tap that zooms a room marks its sign with the accent border alone, no focus ring (before, the class drew it).
