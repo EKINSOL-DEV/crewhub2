@@ -221,6 +221,20 @@ export async function run({ pass, page, check, out }) {
   const zoneSaid = (await build.locator(".build-zones .zone-said").allInnerTexts().catch(() => [])).join(" ").trim();
   const zoneHeard = (await p.locator("[aria-live=polite]").allInnerTexts()).join(" ");
   ok("adding a zone says so in the sheet and in a live region that stood before the line", zoneRegionBefore === 1 && /^Zone \d+ added\. Undo takes it away\.$/.test(zoneSaid) && /Zone \d+ added\. Undo takes it away\./.test(zoneHeard), `${zoneSaid || "(nothing said)"}; region before: ${zoneRegionBefore}`);
+  // The line clears when the zone is undone, and the second Add writes into an empty region, so it is heard again (s1's review).
+  await undo.click();
+  await p.waitForTimeout(500);
+  const zoneLineAfterUndo = await build.locator(".build-zones .zone-said").innerText().catch(() => "?");
+  await build.evaluate((sheet) => {
+    const region = sheet.querySelector(".build-zones .zone-said");
+    globalThis.__zoneChanges = 0;
+    new MutationObserver((list) => (globalThis.__zoneChanges += list.length)).observe(region, { subtree: true, childList: true, characterData: true });
+  });
+  await build.getByRole("button", { name: "Add a zone", exact: true }).click();
+  await p.waitForTimeout(500);
+  const zoneLineAgain = await build.locator(".build-zones .zone-said").innerText().catch(() => "?");
+  const zoneChanges = await p.evaluate(() => globalThis.__zoneChanges);
+  ok("Add, Undo, Add: the line clears at the undo and the second Add changes the region", zoneLineAfterUndo.trim() === "" && /^Zone \d+ added\./.test(zoneLineAgain.trim()) && zoneChanges > 0, `after undo "${zoneLineAfterUndo.trim()}"; again "${zoneLineAgain.trim()}", ${zoneChanges} change(s)`);
   await p.keyboard.press("b");
 
   // 7. Settings: style, director, model calls, graphics, town export

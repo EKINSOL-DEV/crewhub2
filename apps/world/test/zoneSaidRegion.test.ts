@@ -10,7 +10,7 @@ const css = readFileSync(new URL("../src/styles/world.css", import.meta.url), "u
 
 test("both zone parts always render the region, and only its text comes and goes", () => {
   assert.equal(panel.match(/<p className="hint zone-said" role="status" aria-live="polite">/g)?.length, 2, "Settings' part and build mode's part");
-  assert.doesNotMatch(panel, /\{edits\.said && \(/, "no region that arrives with its text");
+  assert.doesNotMatch(panel, /edits\.said\s*(&&|\?)/, "no region that arrives with its text, however it is spelled");
 });
 
 test("an empty region takes no room in the sheet", () => {

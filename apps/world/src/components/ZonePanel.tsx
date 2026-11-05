@@ -13,7 +13,7 @@ import { castRegistry } from "../world/cast";
 import { resolveLook } from "../world/look";
 import { styleRegistry } from "../world/style";
 import { buildingLook, lookRegistries, zoneLook, type LookContext } from "../world/worldLook";
-import { ZONE_COLOR_NAMES, ZONE_EMBLEM_NAMES, townKeeping, zoneAddedWords, zoneLabel, zoneReason, zoneRemovedWords, zoneSettingsHint, zonesOriginWords } from "../world/zoneText";
+import { ZONE_COLOR_NAMES, ZONE_EMBLEM_NAMES, townKeeping, zoneAddedSaid, zoneLabel, zoneReason, zoneRemovedSaid, zoneSaidShown, zoneSettingsHint, zonesOriginWords, type ZoneSaid } from "../world/zoneText";
 import { Button, Chip, Field } from "./primitives";
 
 /** A style option as the settings show it; the style's manifest declares them (`options`), or none. */
@@ -52,7 +52,7 @@ function tidyLook(look: ZoneLook): ZoneLook {
 function useZoneEdits(town: TownState) {
   const [error, setError] = useState<string | null>(null);
   // What the last "Add a zone" or "Remove this zone" did, for the sheet and the live region (round 65, w6-6).
-  const [said, setSaid] = useState("");
+  const [said, setSaid] = useState<ZoneSaid | null>(null);
   const run = (edit: Parameters<ReturnType<typeof townRuntime>["edit"]>[0]) => {
     const result = townRuntime().edit(edit);
     setError(result.ok ? null : result.error);
@@ -60,7 +60,8 @@ function useZoneEdits(town: TownState) {
   };
   return {
     error,
-    said,
+    // Shown while what it describes holds (zoneSaidShown): an undo clears it, and the same words again are a change.
+    said: zoneSaidShown(said, (town.doc.zones ?? []).map((z) => z.id)),
     change: (zone: Zone, patch: Partial<TownZone>) => run({ type: "set-zone", zone: { ...entryOf(zone, town), ...patch } }),
     look: (zone: Zone, patch: ZoneLook) => {
       const entry = entryOf(zone, town);
@@ -68,7 +69,7 @@ function useZoneEdits(town: TownState) {
     },
     remove: (zone: Zone) => {
       const ok = run({ type: "remove-zone", id: zone.id });
-      if (ok) setSaid(zoneRemovedWords(zoneLabel(zone)));
+      if (ok) setSaid(zoneRemovedSaid(zone));
       return ok;
     },
     add: (zones: readonly Zone[]) => {
@@ -79,7 +80,7 @@ function useZoneEdits(town: TownState) {
       // A new district reads marked from the start: the next free colour and emblem (nextZoneMark), changeable here.
       const mark = nextZoneMark(zones);
       const ok = run({ type: "set-zone", zone: { id: `zone-${n}`, name: `Zone ${n}`, order, color: mark.color, emblem: mark.emblem, look: {} } });
-      if (ok) setSaid(zoneAddedWords(`Zone ${n}`));
+      if (ok) setSaid(zoneAddedSaid(`zone-${n}`, `Zone ${n}`));
       return ok;
     },
     assign: (slug: string, zoneId: string | null) => run({ type: "assign", slug, zoneId }),

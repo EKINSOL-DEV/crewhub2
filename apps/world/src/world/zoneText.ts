@@ -13,6 +13,24 @@ export function zoneLabel(zone: Pick<Zone, "name" | "source">): string {
 export const zoneAddedWords = (name: string): string => `${name} added. Undo takes it away.`;
 export const zoneRemovedWords = (name: string): string => `${name} removed.`;
 
+/** What a zone part last said, and what must hold for it to stand: the zone there (added) or gone (removed). */
+export interface ZoneSaid {
+  text: string;
+  zoneId: string;
+  added: boolean;
+}
+export const zoneAddedSaid = (zoneId: string, name: string): ZoneSaid => ({ text: zoneAddedWords(name), zoneId, added: true });
+/** A hand-made zone removed; a group's zone only forgets its look and stays, which is no "removed": null. */
+export const zoneRemovedSaid = (zone: Pick<Zone, "id" | "name" | "source">): ZoneSaid | null => (zone.source === "town" ? { text: zoneRemovedWords(zoneLabel(zone)), zoneId: zone.id, added: false } : null);
+/**
+ * The line while what it describes holds, else "" (s1's review of w6-6): after Add and Undo it said "Zone 1 added…" with
+ * Zone 1 gone, and a second Add left the region unchanged, so a screen reader heard nothing. An undo here or in another
+ * browser clears it; the words coming back are a change in the region.
+ */
+export function zoneSaidShown(said: ZoneSaid | null, zoneIds: readonly string[]): string {
+  return said !== null && zoneIds.includes(said.zoneId) === said.added ? said.text : "";
+}
+
 export type ZoneReasonWord = "by hand" | "from its group in crewhub-loops" | "no zone";
 
 /** Why a building is in its zone, from the document's manual assignments and the zone's source. */
