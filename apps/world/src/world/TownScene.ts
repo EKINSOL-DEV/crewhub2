@@ -2079,6 +2079,10 @@ export class TownScene {
     this.camera.position.add(this.#v);
     t.add(this.#v);
     this.#refitShadow();
+    // The labels project through the camera of this frame, not the last drawn one (round 65, w1-17): the renderer
+    // refreshes the camera's world matrix only when it draws, so while the walk camera eased through a front door the
+    // "You" tag was projected a frame behind, off the screen, and hidden exactly when the visitor stepped inside.
+    this.camera.updateMatrixWorld();
     this.placeLabels();
     // The town view's shadow casters rarely change (robots seen from the town cast none, the postman neither), so its
     // shadow map is drawn only when something changed; inside a building it follows every frame.

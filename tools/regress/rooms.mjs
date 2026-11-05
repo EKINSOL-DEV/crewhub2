@@ -316,6 +316,15 @@ export async function run({ pass, page, check, out }) {
   }
   await p.keyboard.up("ArrowUp");
   ok("rooms: walk mode enters through the front door into Administration", !!inside && /\/lobby$/.test(inside.room), inside ? `${inside.room} (x ${inside.x.toFixed(1)}, z ${inside.z.toFixed(1)})` : "never entered a building");
+  // Round 65 (w1-17): the "You" tag follows the visitor inside: through the door and the camera's settling after it,
+  // the tag stays on the screen (before, it was hidden for the frames the walk camera eased into the building, which is
+  // when a person looks for it).
+  const youSeen = [];
+  for (let i = 0; i < 16; i++) {
+    await p.waitForTimeout(75);
+    youSeen.push(await p.evaluate(() => { const el = document.querySelector('[data-anchor="you"]'); return el ? el.style.visibility || "visible" : "none"; }));
+  }
+  ok("rooms: the You tag stays shown through the front door and while the camera settles inside (round 65, w1-17)", youSeen.length === 16 && youSeen.every((v) => v === "visible"), `${youSeen.filter((v) => v !== "visible").length} of ${youSeen.length} samples not shown (${[...new Set(youSeen)].join(",")})`);
   await shot(p, "29-rooms-walk-in");
   let onFloor = null;
   if (inside) {
