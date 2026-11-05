@@ -165,12 +165,25 @@ export async function run({ pass, page, check, out }) {
     const bubbleGone = (await pg2.locator('.bubble.said[data-said-agent="cr-lead"]').count()) === 0;
     const markAfterBubble = (await pg2.locator('.chat-mark[data-said-mark="cr-lead"]').count()) === 1;
     await shot(pg2, "61b-chat-mark-outlives-bubble");
+    // Round 67 (walk finding v1-1): a mark clicked after its bubble went still leads to something to read: it enters the
+    // building and the answer's bubble shows again over the agent there, for its 12 s. Before, the building opened with
+    // nothing on screen about the answer. The mark stays (the chat was not opened).
+    await pg2.locator('.chat-mark[data-said-mark="cr-lead"]').click().catch(() => {});
+    await pg2.waitForFunction(() => /CrewHub World/.test(document.querySelector("nav.world-breadcrumb .crumb-current")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
+    const bubbleAgain = pg2.locator('.bubble.said[data-said-agent="cr-lead"]');
+    const bubbleAgainShown = await bubbleAgain.waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
+    const bubbleAgainTitle = await bubbleAgain.getAttribute("title").catch(() => null);
+    await shot(pg2, "61c-chat-bubble-again");
+    ok("chat (v1-1, round 67): a mark clicked after its bubble went enters the building and shows the answer's bubble again there", markAfterBubble && (await level(pg2)) === "CrewHub World" && bubbleAgainShown && /^CR Lead says: \(demo reply\) /.test(bubbleAgainTitle ?? ""), `mark stood ${markAfterBubble}; level ${await level(pg2)}; bubble again ${bubbleAgainShown ? `"${(bubbleAgainTitle ?? "").slice(0, 60)}"` : "none"}`);
+    await pg2.keyboard.press("Escape");
+    await pg2.waitForFunction(() => !/CrewHub World/.test(document.querySelector("nav.world-breadcrumb .crumb-current")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
+    const markStillAfterClick = (await pg2.locator('.chat-mark[data-said-mark="cr-lead"]').count()) === 1;
     await pg2.locator(".chat-open").click().catch(() => {});
     await pg2.waitForSelector(".chat-sheet", { timeout: 5000 }).catch(() => {});
     await pg2.keyboard.press("Escape");
     await pg2.waitForSelector('.chat-mark[data-said-mark="cr-lead"]', { state: "detached", timeout: 5000 }).catch(() => {});
     const markGone = (await pg2.locator('.chat-mark[data-said-mark="cr-lead"]').count()) === 0;
-    ok("chat (w3-4): back in the town the mark stands while the bubble lives, outlives it once the 12 s pass, and goes when the Chat panel is opened", markBack && bubbleGone && markAfterBubble && markGone, `mark on return ${markBack}, bubble gone ${bubbleGone}, mark after the bubble ${markAfterBubble}, gone after the panel ${markGone}`);
+    ok("chat (w3-4): back in the town the mark stands while the bubble lives, outlives it once the 12 s pass, and goes when the Chat panel is opened", markBack && bubbleGone && markAfterBubble && markStillAfterClick && markGone, `mark on return ${markBack}, bubble gone ${bubbleGone}, mark after the bubble ${markAfterBubble}, still after its click ${markStillAfterClick}, gone after the panel ${markGone}`);
     // Round 16: the text view's Recent answers section lists both answers newest first (cr-lead's, then g-man's) with
     // their times, after both bubbles went; its row opens the Chat panel on that agent.
     await pg2.keyboard.press("t");

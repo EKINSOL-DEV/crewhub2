@@ -29,6 +29,12 @@ export interface ChatStores {
     lines(): SaidMap;
     /** How many bubbles are alive right now (the long-session probe, state/soak.ts). */
     count(): number;
+    /**
+     * Shows the agent's newest answer as its bubble again, for SAID_MS, as when it came (round 67, walk finding v1-1): a chat
+     * mark outlives its bubble (w3-4), and its click leads where the answer must be readable. The Recent answers list and the
+     * unread answers are untouched (the mark stays until the chat opens). An agent with no answer: nothing.
+     */
+    again(agentId: string): void;
   };
   /** The Recent answers list: the last RECENT_ANSWERS lines the page saw, newest first; the same array until one arrives. */
   recent(): readonly Answer[];
@@ -115,6 +121,14 @@ export function createChatStores({ now, schedule }: ChatStoresConfig): ChatStore
       },
       lines: () => snapshot,
       count: () => lines.size,
+      again(agentId) {
+        const answer = recent.find((a) => a.agentId === agentId);
+        if (answer === undefined) return;
+        const nowMs = now();
+        lines.set(agentId, { text: answer.text, agentName: answer.agentName, messageId: answer.messageId, threadId: answer.threadId, shownAt: nowMs, until: nowMs + SAID_MS });
+        sweep(nowMs);
+        publishLines();
+      },
     },
     recent: () => recent,
     unread: {
