@@ -1,6 +1,8 @@
 /* Build mode's palette (plan 4.7 item 3): the catalogue in groups ("Mine" first), the chosen prop's verdict in words,
    the selected prop's actions, undo and redo, the prop editor, and the demo's "Request a prop". Only shown while
-   build mode is on. Kit Cards, Buttons, Fields and Chips only. */
+   build mode is on. Kit Cards, Buttons, Fields and Chips only. On a phone (world.css, under 600 px, where the sheet lies
+   over the lower part of the screen) two buttons show the palette alone or the rest, so the sheet stands shorter over
+   the floor a prop goes on (round 65, walk finding w4-18); wider, the buttons are not drawn and everything shows. */
 import { useState, type FormEvent } from "react";
 import { FlaskConical, Hammer, Pencil, Plus, Redo2, RotateCw, Trash2, Undo2, X } from "lucide-react";
 import type { Building, CatalogueGroupId } from "@crewhub/world-model";
@@ -36,6 +38,7 @@ export function BuildPanel({ build, town, plan, inside, demo, onClose, onUndo, o
   const shown = groups.find((g) => g.id === group) ?? groups[0];
   const [thing, setThing] = useState("");
   const [requested, setRequested] = useState("");
+  const [part, setPart] = useState<"props" | "more">("props");
   const { state, check, selectedPlacement } = build;
   const chosen = state.propId ? town.catalogue.get(state.propId) : null;
   const selected = selectedPlacement ? town.catalogue.get(selectedPlacement.propId) : null;
@@ -48,7 +51,7 @@ export function BuildPanel({ build, town, plan, inside, demo, onClose, onUndo, o
   };
 
   return (
-    <Card as="section" className="world-sheet build-sheet" aria-labelledby="build-title">
+    <Card as="section" className="world-sheet build-sheet" aria-labelledby="build-title" data-part={part}>
       <Card.Header
         title={
           <span className="build-title">
@@ -57,7 +60,20 @@ export function BuildPanel({ build, town, plan, inside, demo, onClose, onUndo, o
           </span>
         }
         titleId="build-title"
-        action={<Button variant="ghost" size="sm" iconOnly aria-label="Leave build mode (B)" title="Leave build mode (B)" icon={<X className="icon" aria-hidden="true" />} onClick={onClose} />}
+        action={
+          <div className="build-header-actions">
+            {/* In the header, which never scrolls away with the palette. */}
+            <div className="build-parts" role="group" aria-label="Part of the build sheet">
+              <Button size="sm" variant={part === "props" ? "primary" : "default"} pressed={part === "props"} onClick={() => setPart("props")}>
+                Props
+              </Button>
+              <Button size="sm" variant={part === "more" ? "primary" : "default"} pressed={part === "more"} onClick={() => setPart("more")}>
+                More
+              </Button>
+            </div>
+            <Button variant="ghost" size="sm" iconOnly aria-label="Leave build mode (B)" title="Leave build mode (B)" icon={<X className="icon" aria-hidden="true" />} onClick={onClose} />
+          </div>
+        }
       />
       <Card.Body>
         <div className="build-toolbar" role="toolbar" aria-label="Build actions">

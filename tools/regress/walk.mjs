@@ -175,6 +175,12 @@ export async function run({ pass, page, check, out }) {
   await shot(p, "07-build");
   const build = p.locator(".build-sheet");
   ok("build mode opens", /Build/.test(await build.innerText().catch(() => "")));
+  // Round 65 (w4-18): the phone's two parts are a phone's: a wide window draws no such buttons and shows the whole sheet.
+  const wideParts = await build.getByRole("group", { name: "Part of the build sheet" }).isVisible().catch(() => false);
+  const wideLayout = await build.getByRole("heading", { name: "Layout" }).isVisible().catch(() => false);
+  const widePalette = await build.locator(".build-palette").isVisible().catch(() => false);
+  const wideUndo = await build.getByRole("button", { name: "Undo", exact: true }).isVisible().catch(() => false);
+  ok("wide window: the build sheet has no Props and More, and shows the palette and the rest together (round 65, w4-18)", !wideParts && wideLayout && widePalette && wideUndo, `parts ${wideParts}, Layout ${wideLayout}, palette ${widePalette}, Undo ${wideUndo}`);
   // The palette is whatever the catalogue offers today: take its entries in order until one fits where the ghost starts.
   const status = build.locator(".build-status");
   const undo = build.getByRole("button", { name: "Undo", exact: true });
@@ -325,6 +331,62 @@ export async function run({ pass, page, check, out }) {
       const menuClosed = (await p.getByRole("menuitem").count()) === 0;
       await shot(p, "12c-375-text-view-from-help");
       ok("375: the Help menu's row 'Open the text view', tapped, opens the text view and closes the menu (round 64, w4-7)", rowShown && opened && menuClosed, `row ${rowShown ? "shown" : "missing"}, text view ${opened ? "open" : "not open"}, menu ${menuClosed ? "closed" : "still open"}`);
+      await p.keyboard.press("Escape");
+      await p.waitForTimeout(300);
+      // Round 65 (sugg/w4-18): inside a building the build sheet covered the lower 45 % of a phone's screen, where the
+      // floor is, so a placed prop stood under it. On a phone it shows the palette alone (the status, the groups and the
+      // props) and keeps the rest behind More (Undo, Redo, New prop, Layout, Zones, Request a prop), and stands under two
+      // fifths of the screen; More gives all of that back, and Props the palette.
+      await canvas(p).focus();
+      if ((await entered(p)) == null) await p.keyboard.press("Enter");
+      await p.waitForTimeout(1200);
+      await p.keyboard.press("b");
+      await p.waitForTimeout(600);
+      const phoneSheet = p.locator(".build-sheet");
+      const seen = async () => ({
+        layout: await phoneSheet.getByRole("heading", { name: "Layout" }).isVisible().catch(() => false),
+        undo: await phoneSheet.getByRole("button", { name: "Undo", exact: true }).isVisible().catch(() => false),
+        palette: await phoneSheet.locator(".build-palette").isVisible().catch(() => false),
+        status: await phoneSheet.locator(".build-status").isVisible().catch(() => false),
+      });
+      const parts = phoneSheet.getByRole("group", { name: "Part of the build sheet" });
+      const onProps = await seen();
+      const sheetBox = await phoneSheet.boundingBox().catch(() => null);
+      const vh = await p.evaluate(() => innerHeight);
+      await shot(p, "12d-375-build-sheet");
+      // A scrolled palette takes neither the two buttons nor the sentence out of the sheet (they went with it in a first
+      // try). A short window, so the body really does scroll: `scrolled` must be above 0, or this proves nothing.
+      const phoneSize = p.viewportSize();
+      await p.setViewportSize({ width: phoneSize.width, height: 480 });
+      await p.waitForFunction(() => { const body = document.querySelector(".build-sheet .card-body"); return !!body && body.scrollHeight > body.clientHeight + 20; }, null, { timeout: 10000, polling: 200 }).catch(() => {});
+      const held = await p.evaluate(() => {
+        const sheetEl = document.querySelector(".build-sheet");
+        const body = sheetEl?.querySelector(".card-body");
+        if (!sheetEl || !body) return null;
+        body.scrollTop = body.scrollHeight;
+        const bodyBox = body.getBoundingClientRect();
+        const sheetBox = sheetEl.getBoundingClientRect();
+        const buttons = sheetEl.querySelector(".build-parts")?.getBoundingClientRect();
+        const status = sheetEl.querySelector(".build-status")?.getBoundingClientRect();
+        const answer = { scrolled: Math.round(body.scrollTop), parts: !!buttons && buttons.height > 0 && buttons.top >= sheetBox.top - 1 && buttons.bottom <= bodyBox.top + 1, status: !!status && status.height > 0 && status.top >= bodyBox.top - 1 && status.bottom <= bodyBox.bottom + 1 };
+        body.scrollTop = 0;
+        return answer;
+      });
+      await p.setViewportSize(phoneSize);
+      await p.waitForTimeout(300);
+      const more = parts.getByRole("button", { name: "More", exact: true });
+      if (await more.isVisible().catch(() => false)) await more.tap();
+      await p.waitForTimeout(300);
+      const onMore = await seen();
+      await shot(p, "12e-375-build-sheet-more");
+      const props = parts.getByRole("button", { name: "Props", exact: true });
+      if (await props.isVisible().catch(() => false)) await props.tap();
+      await p.waitForTimeout(300);
+      const backOnProps = await seen();
+      const words = (o) => Object.entries(o).filter(([, shown]) => shown).map(([name]) => name).join("+") || "nothing";
+      ok("375: inside a building the build sheet is the palette under two fifths of the screen, and More holds the rest (round 65, w4-18)", onProps.palette && onProps.status && !onProps.layout && !onProps.undo && sheetBox !== null && sheetBox.height <= vh * 0.4 && onMore.layout && onMore.undo && onMore.status && !onMore.palette && backOnProps.palette && !backOnProps.layout && held !== null && held.scrolled > 0 && held.parts && held.status, `scrolled ${held ? held.scrolled : "?"}: buttons ${held?.parts}, sentence ${held?.status}; Props shows ${words(onProps)}, More shows ${words(onMore)}, back shows ${words(backOnProps)}; sheet ${sheetBox ? Math.round(sheetBox.height) : "?"} of ${vh}`);
+      await p.keyboard.press("Escape");
+      await p.waitForTimeout(300);
       await p.keyboard.press("Escape");
       await p.waitForTimeout(300);
     }

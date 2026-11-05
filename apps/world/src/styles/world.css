@@ -1174,6 +1174,15 @@
   flex-wrap: wrap;
   gap: var(--space-1);
 }
+.build-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+/* The phone's two parts of the sheet (the media rule below); not drawn when the whole sheet fits beside the scene. */
+.build-parts {
+  display: none;
+}
 .build-palette {
   display: flex;
   flex-direction: column;
@@ -1468,6 +1477,40 @@
     bottom: 4.5rem;
     width: auto;
     max-height: 45dvh;
+  }
+  /* Round 65 (w4-18): the palette alone while placing, the rest behind More. Hidden, not unmounted: what Layout and the
+     request hold stays, and a phone turned past this width shows all of it again. */
+  .build-sheet[data-part="props"] {
+    max-height: 32dvh;
+  }
+  .build-parts {
+    display: flex;
+    gap: var(--space-1);
+  }
+  /* The sentence that says whether the prop fits stays in view above a scrolled palette, and the groups take one sliding row. */
+  .build-status {
+    position: sticky;
+    top: calc(-1 * var(--space-4));
+    z-index: 1;
+    margin-top: calc(-1 * var(--space-4));
+    padding-top: var(--space-4);
+    background: var(--surface);
+  }
+  .build-groups {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    flex-shrink: 0;
+  }
+  .build-groups .btn {
+    flex-shrink: 0;
+  }
+  .build-sheet[data-part="props"] .card-body > .build-toolbar,
+  .build-sheet[data-part="props"] .card-body > .build-zones,
+  .build-sheet[data-part="props"] .card-body > .build-request,
+  .build-sheet[data-part="more"] .card-body > .build-actions,
+  .build-sheet[data-part="more"] .card-body > .build-groups,
+  .build-sheet[data-part="more"] .card-body > .build-palette {
+    display: none;
   }
   .editor-sheet {
     top: var(--space-3);
