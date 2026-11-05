@@ -10,6 +10,7 @@ round (the table below). A finding that is an open choice in [design-choices.md]
 
 **How to read it.** `w3-1` is walker 3's first finding; the walkers' full reports (steps, timings, selectors) are the
 round's reports, not in the repository. **Nothing changes until you say so;** a suggestion is one way, not the way.
+Prepared branches are ready; an answer `do it` merges that branch, `journey N: as suggested` merges the journey's.
 **How to answer:** one line per id (`w3-1: do it`, `w6-13: as it is`, `w1-12: <your words>`), or a journey at once
 (`journey 4: as suggested`).
 
@@ -35,56 +36,105 @@ round's reports, not in the repository. **Nothing changes until you say so;** a 
   (the pill lets the click through to the room under it; a click on the figure's body does open the card); on a phone
   the first tap on a figure zooms the room and the card needs a second tap, while the tour promises "a click on one
   opens its card". **Suggestion:** a click or tap on the pill or the figure opens the card; the room zoom stays for the floor and the signs.
+
+  Prepared: `sugg/w1-11`.
+
 - **w1-12 · confusing.** With Details on, three labels lead with **RULE** ("RULE milestone banner", "RULE release
   crate", "RULE bug jar: 2"), a build-mode word; a visitor reads a rule of the project. The text view says it well
   ("Banner in the lobby: milestone CR-M2 "Walkable town" is active"). ![The RULE labels in a building with Details on](../images/walkthrough-r64/w1-12-rule-labels.png) **Suggestion:** the label says the fact ("Milestone CR-M2 active", "Release 0.3.0: draft", "2 open bugs").
+
+  Prepared: `sugg/w1-12`.
+
 - **w1-13 · confusing.** An archived building's text says "Tickets: 2 backlog, 1 planned, 0 in progress, 0 review,
   1 done" and four lines later "Administration: Backlog 0, Planning 0, Review 0, Done 0", "The floor: quiet". (No
   picture: text.) **Suggestion:** one of the two, or a line that the boarded-up racks hold nothing because the tickets
   are archived with the project.
+
+  Not prepared: "one of the two" does not say which line to keep.
+
 - **w1-14 · polish.** The tour's last card (step 6) covers the breadcrumb bar ("Town · Jump to /") while it rings the
   Demo chip above. ![Step 6 of the tour over the breadcrumb bar](../images/walkthrough-r64/w1-14-tour-step6.png) **Suggestion:** the card below the bar, or to its right.
+
+  Prepared: `sugg/w1-14`.
+
 - **w1-15 · polish.** A building sign has no hover state: the pointer changes and nothing else does (the sign reacts
   on focus only). **Suggestion:** a small lift or outline on hover, as on focus.
+
+  Prepared: `sugg/w1-15`.
+
 - **w1-16 · polish.** With Details on, label pairs touch: the two "waits on Nicky" tags by the Review rack overlap
   each other's corner (label layout, as design-choices already notes). ![Two waits-on-Nicky tags overlapping at a rack](../images/walkthrough-r64/w1-16-labels-touch.png) **Suggestion:** none new; the label layout's known gap.
+
+  Not prepared: the write-up has no suggestion for it.
+
 - **w1-17 · polish.** In walk mode the figure at the door carries "You"; once it walks through the door the tag is
   gone and the breadcrumb alone says where it is. **Suggestion:** the "You" tag follows the visitor inside, or the sheet says "You are inside CrewHub World".
+
+  Prepared: `sugg/w1-17`; on the base the tag was hidden for about half a second at the door, not for good.
+
 - **w1-18 · polish.** "loop 0" in the playback bar reads as a code on first start; its tooltip ("How many times the
   script has looped") never reaches a keyboard or a thumb. **Suggestion:** "loop 0" only once the script has looped, or
   a word a first visitor can place ("replay 0").
+
+  Prepared: `sugg/w1-18`.
+
 - **w1-19 · polish.** Fresh install's plot carries a board that says "Create a project in crewhub-loops" in letters a
   few pixels high from the home view; only the text view says it in words. ![Fresh install: the clearing with the staked plot](../images/walkthrough-r64/w1-19-fresh-install.png) **Suggestion:** a label over the plot with the sentence, as the buildings have signs.
+
+  Prepared: `sugg/w1-19`.
 
 ## 2. Connecting: the Connect screen, a key, Live, Forget, a second tab, the host restarting, a stale stretch (w2)
 
 - **w2-1 · confusing.** With the tour's card and the Connection panel both open, Escape closes the tour, not the panel
   a person just opened (the focus is in the panel). **Suggestion:** Escape closes the layer that holds the focus; the tour takes Escape only while its card has it.
+
+  Prepared: `sugg/w2-1`.
+
 - **w2-2 / w3-7 · confusing.** Two sheets open at once: the Connection panel stays open under the text view (left and
   right), and the Chat panel and the text view stack at the same top-right corner, the lower one showing a sliver of
   cut words ("Te", "Liv", "Ch…"); at 1100 px a person cannot read the text view without closing the panel and does
   not know the first sheet is still open. ![The Chat panel over the open text view at 1100 px](../images/walkthrough-r64/w3-7-two-sheets.png) **Suggestion:** one sheet at a time (opening one closes the other), or side by side when the window is wide enough.
   Same family as design choice X2.
+
+  Not prepared: design choice X2's family (the sheets over each other).
+
 - **w2-3 (the page's half) · confusing.** When every event that arrives is old (the fake's clock was an hour behind
   after a sleep, now fixed), the chip says **Live** ("Events arrive as they happen") while the panel says "Last event
   1 h ago" and the text view says the snapshot is stale and every status unknown: three signals disagreeing on one
   screen. The Stale state keys on arrivals, not on the events' age. ![Live chip, Last event 1 h ago, a stale text view](../images/walkthrough-r64/w2-3-live-but-stale.png) **Suggestion:** the chip goes Stale when the newest event is older than the stale threshold, whatever still arrives.
+
+  Not prepared: which threshold, and whether a quiet but healthy team then reads Stale, are not decided.
+
 - **w2-4 · polish.** The panel's crewhub-loops row breaks "CREWHUB_WORLD_LOOPS_UR / L" mid-word (a long token in a
   narrow column). ![The panel's discovery line with the variable broken in two](../images/walkthrough-r64/w2-4-panel-wrap.png) **Suggestion:** the variable name on its own unbreakable line, the URL under it.
+
+  Prepared: `sugg/w2-4`.
+
 - **w2-5 · confusing.** A host restart shows as "Stale: nothing has arrived for a while; the world may be behind" (the
   host is gone, loops is fine), then Live again. A person who restarted `npm run world` on purpose gets no word that
   says so. **Suggestion:** a state of its own for a refused connection to the host ("The world's host is not answering; it
   may be restarting"), the mirror of design choice L1.
+
+  Not prepared: the mirror of design choice L1.
+
 - **w2-6 · polish.** The browser's console shows two red lines at every Live start (the page's own chat probe at the
   loops origin: a CORS refusal and a 401) when the world's origin is not set on loops; nothing is wrong, and the panel
   says so, but a person who opens the console to look for a problem finds two. **Suggestion:** none that avoids the
   browser's CORS line; a note in LOOPS_SETUP that the two lines are expected.
+
+  Not prepared: its LOOPS_SETUP note is already merged (round 65).
+
 - **w2-7 · confusing.** On the Pair screen, "I opened the link" pressed before any link was opened does nothing and
   says nothing; the button looks dead (the page re-asks health every 2.5 s anyway). **Suggestion:** a line under the button: "This browser is still not paired: open the link npm run world printed first."
+
+  Prepared: `sugg/w2-7`.
+
 - **w2-8 · confusing.** A key with too few rights (a builder or read-only bot) is refused with "crewhub-loops refused
   the key on the event stream (401 or 403): it was revoked or its bot disabled meanwhile": the cause named is the wrong
   one for 403, and "(401 or 403)" is a status code shown to a person. **Suggestion:** two sentences, one per status: 403 "the key is alive but its bot cannot read the stream: make the bot
   with Read only unticked"; 401 "revoked or disabled". Related: design choice W15.
+
+  Not prepared: design choice W15's family.
 
 ## 3. Chat: the panel, a thread, sending, the bubbles over the town, Recent answers, loops refusing or slow (w3)
 
@@ -92,17 +142,31 @@ round's reports, not in the repository. **Nothing changes until you say so;** a 
   the agent inside another building) shows nothing on screen for the 12 s it lives: the mark hangs from a building
   label that is hidden at that zoom, the Chat chip shows no count; only the text view and Recent answers have it.
   **Suggestion:** a count on the Chat chip (or the dock button) for every answer, whatever the camera shows.
+
+  Prepared: `sugg/w3-1`.
+
 - **w3-2 · confusing.** A bubble over a figure in the town carries no name: at the Lodge it floats between two robots
   with the text only (the name is in the title and the accessible name); inside a building the name pill sits under
   the bubble, so there it is clear. ![G-Man's bubble between two figures at the Lodge](../images/walkthrough-r64/w3-2-bubble-no-name.png) **Suggestion:** the speaker's name on the bubble (or its pill shown) whenever the pill is not drawn at that zoom.
+
+  Prepared: `sugg/w3-2`.
+
 - **w3-4 · polish.** The bubble's 12 s start when the page sees the line, not when the person gets there: a person who
   reads the says-line in the text view first finds the bubble and its mark gone on return. **Suggestion:** the mark
   outlives the bubble (until the answer is read or the next one comes), or the bubble's clock starts on screen.
+
+  Built but not approved: sugg/w3-4 turns round 14's phone row red (the chat mark's tap meets a pin); not to take as it stands (round 65).
+
 - **w3-5 · polish, wording.** "About this chat" says "Open an agent's chat head in loops' dock (the Agent chats menu at
   this width)": a newcomer does not know "chat head", "dock", or which width is meant (the frame's). **Suggestion:** "In the frame, open an agent's chat (the Agent chats menu on a narrow frame)".
+
+  Prepared: `sugg/w3-5`.
+
 - **w3-6 · confusing.** With loops frozen (not closed), the chip went Live, Stale at 40 s, **Live again** at 46 s
   while loops was still silent (the page reopened its stream and the host answered the open at once), then Loops down
   at 86 s; the panel at that moment said "Now Live" with "Last event 7 min ago" under it. **Suggestion:** a reopened stream does not say Live until a heartbeat or an event has come through it.
+
+  Not prepared: already fixed and merged (round 65).
 
 ## 4. Phone: a touch device, the journeys above with thumbs only, the sheets and the controls (w4)
 
@@ -110,100 +174,193 @@ round's reports, not in the repository. **Nothing changes until you say so;** a 
   "a click on a building enters it", "the jump list (/)", "the text view (T)", "Follow ⇧F", "W A S D or the arrow keys
   move you, Shift hurries, drag to look around, Escape stops" (the joystick is never named), "Enter or a click places
   it, arrow keys move it, R turns it". **Suggestion:** touch words on a touch device ("a tap", "the joystick", no key hints), chosen by the page's input kind.
+
+  Prepared: `sugg/w4-2`, in the four places the finding names; a few spoken key hints elsewhere stay.
+
 - **w4-3 · confusing (screen reader).** The tour's step 4 ends, for a screen reader, with "Highlighted on the screen:
   Agent chatsChat with G-Man, 0 unreadPin an agentPin CR Lead…": the phone's dock is a tall column and the step reads
   the target's every button run together. **Suggestion:** the step's own name for the target ("the chat"), the family
   of design choice T3.
+
+  Not prepared: design choice T3's family.
+
 - **w4-6 · polish.** A tapped sign keeps a red focus ring on a touch device: a building's expanded plate stays ringed
   in the middle of the town after "← Town", a room sign keeps its ring through walk mode, the Stale chip after a tap.
   ![The crewhub-loops plate still ringed over the town after the way back](../images/walkthrough-r64/w4-6-focus-ring-touch.png) **Suggestion:** the ring on `:focus-visible` only, so a tap shows none.
+
+  Prepared: `sugg/w4-6`.
+
 - **w4-9 · confusing, wording.** The card's Answers section says "write to it in the demo's chat dock (bottom right)";
   on the phone the dock is the "Agent chats" button at the top right. **Suggestion:** "in the demo's chat (the dock at
   the bottom right, or Agent chats at the top on a phone)", or the place by width.
+
+  Prepared: `sugg/w4-9`.
+
 - **w4-10 · polish.** The playback slider is 88 px wide for a 16-minute story (four speed buttons take the bar): a
   thumb moves 11 s per pixel. ![The phone's playback bar with its short slider](../images/walkthrough-r64/w4-10-slider.png) **Suggestion:** the speeds in one menu button on a phone, the slider taking the rest.
+
+  Prepared: `sugg/w4-10`, on a phone held upright; held sideways it keeps the four buttons.
+
 - **w4-11 · polish.** The jump to the postman frames it at the screen's left edge, half under it, the CR building
   filling the right. ![The postman at the left edge after the jump](../images/walkthrough-r64/w4-11-postman-edge.png) **Suggestion:** a jump to a figure centres it in the portrait frame.
+
+  Prepared: `sugg/w4-11`; the camera also goes with the figure for 6 s, because the postman walks on while it lands.
+
 - **w4-12 · polish.** Settings › Town's paired selects cut their words at 390 px ("Follow the town (C…", "The style's
   own (O…"), so a person cannot read what is chosen without opening each. ![Settings › Town on the phone, the selects cut](../images/walkthrough-r64/w4-12-settings-selects.png) **Suggestion:** one column on a phone.
+
+  Prepared: `sugg/w4-12`.
+
 - **w4-18 · confusing.** Inside a building the build sheet covers the lower 45 % of the screen, where the building
   stands; a tap over the road still placed the prop in the nearest free cell, under the sheet, so the person cannot
   see what they placed without panning. ![The build sheet over the building, the placed prop under it](../images/walkthrough-r64/w4-18-build-sheet-covers.png) **Suggestion:** a shorter sheet (the palette only, the rest behind a tab), or the camera framing the floor above it.
+
+  Prepared: `sugg/w4-18`, the first way; the lower floor is still partly under the sheet.
+
 - **w4-20 · polish.** Sideways (750 x 342) inside a building the labels pile up in a staircase and the building's
   plate lies over the playback bar; label layout, worse in a short window. ![Landscape, Details on: labels overlapping](../images/walkthrough-r64/w4-20-landscape-labels.png) **Suggestion:** fewer labels at once in a short window (Details shows the racks' counts on demand).
+
+  Not prepared: "fewer labels" does not say which labels.
+
 - **w4-21 · polish.** The Chat panel's "About this chat" and "Recent answers" rows are 18 and 20 px tall, the only
   controls under 40 px in the panel; a thumb misses them. **Suggestion:** 40 px rows (a pad, as the signs have).
+
+  Prepared: `sugg/w4-21`, real 40 px rows, not a pad.
+
 - **w4-22 · polish.** The Chat panel says nothing when loops is down: the chip says "Loops down", the Connection panel
   "Stream down; the host retries", but the panel keeps "Sign in to crewhub-loops below to type" and a frame that cannot
   load. **Suggestion:** one line from the chip's state at the top of the panel ("crewhub-loops is not answering").
+
+  Prepared: `sugg/w4-22`.
 
 ## 5. Keyboard and screen reader: focus order and visibility, the text view's tree, live regions (w5)
 
 - **w5-6 · polish.** The camera keys (+, -, [, ], H) say nothing to a screen reader, while D and F say "Details on" and
   "Frame rate overlay on". **Suggestion:** one polite line each ("Zoomed in", "Rotated left", "Home view").
+
+  Prepared: `sugg/w5-6`.
+
 - **w5-9 · confusing.** The chat dock's message box drops keystrokes that come fast: with no pause between keys every
   other character is lost ("Where are you?" became "?"); 30 ms apart everything arrives; a paste is fine. The draft
   lives in a react-query cache that notifies React in a batch, so the controlled textarea is reset before the next
   input event is read (a verbatim loops copy). **Suggestion:** a local state for the draft, the cache written after;
   a fix in crewhub-loops first, then a re-copy.
+
+  Not prepared: a verbatim crewhub-loops copy; the fix belongs there first.
+
 - **w5-10 · confusing.** In the dock's message box Enter adds a newline; Cmd+Enter and Ctrl+Enter do nothing; only the
   Send button sends (a loops copy, so crewhub-loops' own choice). **Suggestion:** Enter sends and Shift+Enter breaks
   the line, as most chats do; or Cmd+Enter sends.
+
+  Not prepared: a verbatim crewhub-loops copy; the fix belongs there first.
+
 - **w5-11 · confusing (screen reader).** A card opened by Enter on the stage says nothing: the focus stays on the stage
   by design (the arrows keep moving the ring) and no live region changes; a blind person does not know a card opened
   until the next Tab lands on "Close the card of cr-dev-1". **Suggestion:** one polite line when a card opens from the keyboard ("Card of cr-dev-1 open; Tab reaches it").
+
+  Prepared: `sugg/w5-11`.
+
 - **w5-15 · polish.** The key hints are read as part of a control's name: "Town Esc" (the breadcrumb's back button),
   "Follow ⇧F", "Request a propDemo", "Workstation3×2". **Suggestion:** `aria-hidden` on the kbd and chip spans (the
   keys are in the guide).
+
+  Prepared: `sugg/w5-15`.
+
 - **w5-16 · polish.** The Help menu's items carry their description in the name ("Show the introduction Six short steps
   over the world: …" as one item name) and the scenario picker reads its tick glyph ("Small team 4 projects ✓"). **Suggestion:** the name alone, the description as
   `aria-describedby`, the tick hidden (the item is already checked).
+
+  Prepared: `sugg/w5-16`, the tick's half only; the name's half is a crewhub-loops copy.
+
 - **w5-17 · confusing.** In live mode the Chat chip sits at the top right under Settings, but comes last in the Tab
   order, after the stage, the signs, the pins and the camera toolbar (stop 23 of 23); a keyboard person looking at
   the header does not find it there. **Suggestion:** the chip in the header's DOM order, right after Settings.
+
+  Prepared: `sugg/w5-17`.
+
 - **w5-18 · polish.** Choosing a scenario in the Demo chip's menu reloads the page; nothing is focused afterwards and
   only "Opening CrewHub…" is said (Settings › Source says "Changing it reloads the page"; the picker does not). **Suggestion:** the same sentence in the picker, and the focus on the Demo chip after the reload.
+
+  Prepared: `sugg/w5-18`.
+
 - **w5-22 · polish.** After a successful connect, "Key sent to the host; checking it with crewhub-loops" is said, then
   the page reloads and says only "Opening CrewHub…"; the Live chip is never announced on a fresh load, so a screen
   reader person hears the check start and never its end. **Suggestion:** the connection said once after the reload
   that follows a connect ("Connected: Live").
+
+  Prepared: `sugg/w5-22`; it depends on timing: it fills the silence the walker met, in other runs it only shortens the sentence.
+
 - **w5-23 · polish.** At loops' return two polite lines come 21 ms apart ("Catching up…", then "Live…"); a screen
   reader coalesces or reads both. **Suggestion:** none needed; a longer catch-up would make the first one true.
+
+  Not prepared: the write-up has no suggestion for it.
+
 - **w5-25 · confusing (screen reader).** A malformed key's reason ("That does not look like an access key: one starts
   with chl_ and is 47 characters long") is shown under the field and the field is marked invalid, but no live region
   changes and the field's description still names only the paste note, so a screen reader hears nothing on Enter (a
   key the host rejects is fine: the reason is said and the focus returns to the field). **Suggestion:** the error joins the field's `aria-describedby` (the Field primitive's `error`) and is said once.
+
+  Not prepared: already fixed and merged (round 65).
 
 ## 6. The town editor: casts, zones, undo and redo, what survives a reload (w6)
 
 - **w6-2 · confusing.** A refused placement says its reason twice: "Workstation can't stand here: It overlaps
   something or sticks out of the room." and right under it "Can't place Workstation here: It overlaps something or
   sticks out of the room."; the live region says both too. **Suggestion:** one line (the status shows the check's reason, the message the action's; keep the message).
+
+  Prepared: `sugg/w6-2`.
+
 - **w6-3 · confusing.** The sheet keeps "Placed Oak bench … It is selected: arrow keys move it, R turns it." after the
   selection is gone (a click elsewhere, Undo, Delete), under a first line that says "Choose a prop, or click a placed
   prop to select it". **Suggestion:** the message clears when the selection it describes ends.
+
+  Prepared: `sugg/w6-3`.
+
 - **w6-4 · confusing.** A dragged prop that lands on something is refused with "Can't: It overlaps something or sticks
   out of the room.", naming no prop and no verb. **Suggestion:** "Can't move Soft landing there: it overlaps …", as the placement's refusal names the prop.
+
+  Prepared: `sugg/w6-4`.
+
 - **w6-5 · confusing.** The region map calls the buildings without a zone "Old town" where the sheet says "No zone (the
   town's own district)" and the text view "No zone (buildings without a zone)"; nothing says the two are one.
   ![The region map with the Old town card](../images/walkthrough-r64/w6-5-old-town.png) **Suggestion:** one name in all three places ("Old town" everywhere, or "No zone" on the map too).
+
+  Prepared: `sugg/w6-5`.
+
 - **w6-6 · polish.** "Add a zone" and "Remove this zone" say nothing: Zone 1 appears in the selects and the Undo button
   comes on, no line in the sheet and nothing in the live region, while every layout move says what it did. **Suggestion:** "Zone 1 added. Undo takes it away." and "Zone 1 removed.", as the moves say.
+
+  Prepared: `sugg/w6-6`.
+
 - **w6-7 · confusing.** Escape with build mode and the text view both open closes build mode behind the text view, not
   the text view on top (Settings over build mode does it the other way round). **Suggestion:** Escape closes the layer that holds the focus, as w2-1 asks for the tour.
+
+  Prepared: `sugg/w6-7`.
+
 - **w6-10 · confusing.** Two revision numbers for one town: the Connection panel says "Revision 1" while Settings says
   "Layout revision 0"; after edits the page says 5, the text view "Town layout revision 4", and the export is named
   after the document's number; after two tabs of undos and redos three numbers at once (10, 4 and 3). Both are called
   the revision. **Suggestion:** one number on screen (the host's record), the document's kept out of sight or named
   differently ("layout 4 of record 5").
+
+  Prepared: `sugg/w6-10`.
+
 - **w6-12 · polish.** Another browser's undo changes the town without a word: the zone or prop disappears and the
   build sheet says nothing; only its Undo and Redo buttons change state. **Suggestion:** "Undone in another browser. Revision 7." in the sheet and the live region.
+
+  Prepared: `sugg/w6-12`.
+
 - **w6-13 / w6-15 · polish.** At the Region level (Studio, 20 buildings) the build sheet is a 3 500 px scroll: the
   palette, Layout, then twenty "Zone of <building>" selects with a three-line hint each, before "Add a zone"; and the
   district card and the labels on the left are drawn under the sheet and cut by it ("…ting on a person"), in the small
   town too. ![The Region's build sheet, the cards under it](../images/walkthrough-r64/w6-13-region-build-sheet.png) **Suggestion:** a building picker for the zone (as Layout has), and the scene framed beside the open sheet.
+
+  Prepared: `sugg/w6-13`.
+
 - **w6-14 · polish.** "Show free plots" in the Region draws 56 badges in a tight pile over each district's centre,
   covering the district cards and each other; in the small town the sixteen read fine. ![The Region's free-plot badges](../images/walkthrough-r64/w6-14-free-plot-badges.png) **Suggestion:** at the Region level only the next free plot per district, the rest on entering the district.
+
+  Prepared: `sugg/w6-14`.
 
 ## What the walks added to the open design choices
 
