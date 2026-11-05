@@ -15,7 +15,10 @@ Nothing in it talks to a real crewhub-loops. It has no runtime dependency beyond
 
 ```sh
 npm run loops:fake -- --port 8391 [--scenario small-team] [--speed 1] [--builder-key]   # default 8391; 8091, 8000, 9443 and 5180 are refused
+npm run loops:fake -- --help                                                            # the usage; the fake does not start
 ```
+
+An unknown flag or a stray word is refused with exit 2, and the fake does not start.
 
 `npm run loops:fake -- --builder-key` plays the same storyline but the key behaves like loops' builder key (CL-120):
 it reads a ticket, its comments and `GET /api/auth/me`, and everything else, health included, answers 403 `forbidden`

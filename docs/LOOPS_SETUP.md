@@ -78,7 +78,8 @@ pairing cookie for development (the host says so loudly at start; production ref
 env lines for the host and never the key. `npm run loops:fake -- --builder-key` makes the key behave like loops'
 tickets-only keys (the builder key and the CL-313 reader key: tickets, comments, auth/me; everything else 403), so
 the host shows Unauthorized. `--scenario fresh|one|small-team|studio` picks the demo scenario and `--speed 0|1|4|16`
-the pace. The switch to the app later changes only the key file (section 3).
+the pace. `--help` prints these options and exits without starting; an unknown flag or a stray word is refused with
+exit 2, and does not start it either. The switch to the app later changes only the key file (section 3).
 
 ## 1. What crewhub-loops must have
 
