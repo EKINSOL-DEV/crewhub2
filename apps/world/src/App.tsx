@@ -22,7 +22,7 @@ import type { AnswerTarget } from "./state/recentAnswers";
 import { useHealthNeed, useHostHealth, useLiveScreen } from "./state/health";
 import { installSoakProbe } from "./state/soak";
 import { pageReads } from "./state/soakPage";
-import { answerMarks, markWords, type SaidMark } from "./world/saidText";
+import { answerMarks, markWords, saidMarks, type SaidMark } from "./world/saidText";
 import { JumpList } from "./components/JumpList";
 import { RecentAnswers } from "./components/RecentAnswers";
 import { IconSprite } from "./components/Icon";
@@ -180,18 +180,19 @@ function World() {
   }, [town.hostRev]);
   // The civic places go by what stands there at this size: the lodge, the mailbox, the mail hut.
   const civic = useMemo(() => civicWords(plan.civic), [plan.civic.hall, plan.civic.post]);
-  // What the agents just said to the person (round 12, state/said.ts): bubbles over the figures, and (round 14) the text
-  // view's "says" lines and the chat marks over the buildings from the town.
-  const said = useSaid();
-  // The Recent answers list (round 16, state/recentAnswers.ts): the last answers the page saw, in the Chat panel and the
-  // text view; a row opens that agent's chat by the card's rule (round 13), or its card in the demo.
-  const answers = useRecentAnswers();
   // The answers not opened yet (round 65, w3-1 and w3-4): opening the chat (the panel, or the card in the demo) reads
   // every answer known, and an answer that comes while the panel is open is read as it lands.
   const unread = useUnreadAnswers();
-  // The chat marks over the buildings (walk finding w3-4): from the unread answers, so a mark outlives its bubble until
-  // the chat opens or the agent's next answer replaces it.
-  const marks = useMemo(() => answerMarks(model, unread), [model, unread]);
+  // What the agents just said to the person (round 12, state/said.ts): bubbles over the figures, and (round 14) the text
+  // view's "says" lines and the chat marks over the buildings from the town.
+  const said = useSaid();
+  // Live (walk finding w3-4): the marks come from the answers not opened yet, so a mark outlives its bubble until the
+  // chat opens or the agent's next answer replaces it. The demo keeps the bubble's 12 s: its reply is read in the
+  // dock, which the page's chat opening never sees (s1's review of the first commit).
+  const marks = useMemo(() => (model.mode === "demo" ? saidMarks(model, said, Date.now()) : answerMarks(model, unread)), [model, said, unread]);
+  // The Recent answers list (round 16, state/recentAnswers.ts): the last answers the page saw, in the Chat panel and the
+  // text view; a row opens that agent's chat by the card's rule (round 13), or its card in the demo.
+  const answers = useRecentAnswers();
   // The host's health as last read (the chat session's state for the Chat panel and the text view's Chat line); null in demo mode.
   const hostHealth = useHostHealth();
   // The chat road (round 28): the host's key, the page's own read, or neither; the words of every place that speaks of the chat.
