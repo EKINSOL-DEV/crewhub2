@@ -244,6 +244,7 @@ export const EN: Record<string, string> = {
   "world.connection.panel.session": "Chat",
   "world.connection.panel.answering": "The host answers again.",
   "world.connection.changed": "Connection: {state}. {hint}",
+  "world.connection.connected": "Connected: {state}.",
   "world.newTab": "Opens in a new tab.",
   "world.connect.spoken": "{title}. {lead}",
 };

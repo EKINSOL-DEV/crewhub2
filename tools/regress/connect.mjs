@@ -121,6 +121,10 @@ export async function run({ pass, page, check, out }) {
       const live = await until(pg, "live", 30000);
       const marker = await marked(pg);
       ok("connect: the town appears with the Live chip, without a reload", live === "live" && marker === "set", `${live}, marker ${marker}`);
+      // The town that follows the accepted key says it is live, once (round 65, w5-22): before, only "Opening CrewHub…" after "Key sent to the host…".
+      await pg.waitForTimeout(800);
+      const saidLive = (await pg.locator("[aria-live=polite]").allInnerTexts()).join(" ").replace(/\s+/g, " ").trim();
+      ok("connect: the connection is said once the town is live (w5-22)", /Connected: Live\./.test(saidLive), saidLive.slice(-80));
       await dressed(pg, 30000).catch(() => {});
       await shot(pg, "38-connect-town");
       ok("connect: the key is in no DOM, storage or URL", !(await leaked(pg, GOOD_KEY)));
