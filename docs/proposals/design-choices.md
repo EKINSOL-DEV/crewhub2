@@ -1,4 +1,4 @@
-# Design choices for Nicky (rounds 41 to 55, 2026-11-04)
+# Design choices for Nicky (rounds 41 to 66, 2026-11-05)
 
 **How this relates to [open-questions.md](open-questions.md):** those are the fifteen merge decisions (pairing, health,
 the answer branches); these are smaller product choices the reviews of rounds 41 to 51 wrote down and left alone:
@@ -387,7 +387,8 @@ option below does that.
 **Recommended:** `snapshot`: one signal for the chip, the panel's Now row, the text view and the lane chips, and a quiet
 team is not called Stale. Two limits. That a real loops' stamp moves on an upload with no change comes from
 [the integration plan](../LOOPS_INTEGRATION_PLAN.md) and [the gap analysis](../LOOPS_GAP_ANALYSIS.md), and has not been
-measured; check it first, because if it does not move this option has the suggestion's fault. And a probe's clock more than
+measured; check it first, because if it does not move this option has the suggestion's fault, the slice stops and L3
+comes back to you. And a probe's clock more than
 5 minutes off the page's would read Stale, as the lane chips already do (gap L10).
 **Cost:** a day's slice. `snapshot`: one rule in `apps/world/src/App.tsx`, where the connection reaches the chip, the
 panel, the text view and the spoken line; the hint in `apps/world/src/i18n/en.ts` and `components/ConnectionChip.tsx`; a

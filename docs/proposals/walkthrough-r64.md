@@ -297,8 +297,8 @@ Prepared branches are ready; an answer `do it` merges that branch, `journey N: a
   arrive as they happen." at that moment, and the branch says "Connected: Live." instead, so its browser row's red proves
   a change of words, not a silence filled. The silent run the walker met was not reproduced and its cause was not found;
   only the branch's node test (`connectSaid.test.ts`) covers that case, a first value of Live right after a connect. None
-  of those runs reloaded the page after the key either. Read it as a shorter sentence in the runs seen, and a guard for
-  the silence if that race comes back.
+  of those runs reloaded the page after the key either. Read it as a shorter sentence in the runs seen, and a guard if
+  that silence comes back.
 
 - **w5-23 · polish.** At loops' return two polite lines come 21 ms apart ("Catching up…", then "Live…"); a screen
   reader coalesces or reads both. **Suggestion:** none needed; a longer catch-up would make the first one true.
