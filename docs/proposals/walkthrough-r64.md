@@ -368,8 +368,8 @@ Prepared branches are ready; an answer `do it` merges that branch, `journey N: a
   Prepared: `sugg/w6-13`: the building picker, and the scene framed beside the open sheet, again after a resize. From
   601 px wide every plot stays clear of the sheet, and the town is smaller for it: zoom 0.35 at 601 wide, 0.5 at 768, and
   in the small team at 1280 x 720, 0.91 where it was 0.98. **What stays cut:** below 900 px wide Studio's Brand and Lab
-  cards still reach under the sheet (up to 84 px at 601 x 700), and at 601 x 700, 640 x 800, 700 x 800 and 800 x 800
-  Apps and Lab overlap and cover much of the town (at 640 x 800 Apps is nearly hidden). Below 800 px wide the small
+  cards still reach under the sheet (up to 84 px at 601 x 700), and at every size measured there but 768 x 1024 Apps
+  and Lab overlap and cover much of the town (at 640 x 800 Apps is nearly hidden). Below 800 px wide the small
   team's Launch & Marketing sign reaches under the sheet (up to 48 px). Measured in Studio and the small team only;
   inside a building, one look at 640 x 800.
 
