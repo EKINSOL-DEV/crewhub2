@@ -116,6 +116,36 @@ export async function run({ pass, page, check, out }) {
     await shot(p, `04-${label}`);
   }
 
+  // Round 67 (the rest of w1-11, v1's walk): in the town too, a click on a figure's name pill opens its card. The jump
+  // list lands beside the postman, selected, so his pill shows (TownFigures: a pill while hovered or selected). Before,
+  // the town's pill let the click through to the ground behind him, which only cleared the selection: no card, as the
+  // interior's pills did before round 65. The playback is paused first, so he stands still under the click.
+  {
+    await p.getByRole("button", { name: "Pause", exact: true }).click().catch((e) => note("pause " + e.message.split("\n")[0]));
+    await canvas(p).focus();
+    await p.keyboard.press("/");
+    await p.getByRole("dialog", { name: "Jump to" }).waitFor({ timeout: 3000 }).catch(() => {});
+    await p.keyboard.type("postman");
+    await p.waitForTimeout(400);
+    await p.keyboard.press("Enter");
+    await p.waitForTimeout(2500);
+    const townPill = p.locator('.world-labels [data-anchor^="a:town:"] .name-pill').first();
+    const townName = await townPill.evaluate((el) => [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join("").trim()).catch(() => "");
+    const townBox = await townPill.boundingBox().catch(() => null);
+    if (townBox) await p.mouse.click(townBox.x + townBox.width / 2, townBox.y + townBox.height / 2);
+    const townCard = await p.locator(".agent-card").first().waitFor({ timeout: 3000 }).then(() => true).catch(() => false);
+    const townTitle = (await p.locator(".agent-card .card-title").first().innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+    await shot(p, "03d-town-pill-card");
+    ok("in the town a click on a figure's name pill opens that figure's card (round 67, w1-11)", townCard && townName.length > 0 && townTitle.includes(townName), `pill "${townName || "none shown"}", card ${townCard ? `"${townTitle}"` : "not open"}`);
+    // The card, the selection, then the home view, so the rows below start from the town as before.
+    await p.keyboard.press("Escape");
+    await p.keyboard.press("Escape");
+    await p.waitForTimeout(400);
+    await canvas(p).focus();
+    await p.keyboard.press("h");
+    await p.waitForTimeout(1200);
+  }
+
   // 4. Inside a building while playing: drone, walks
   await seek(p, 200000);
   await speed(p, "4x").catch((e) => note("4x " + e.message.split("\n")[0]));

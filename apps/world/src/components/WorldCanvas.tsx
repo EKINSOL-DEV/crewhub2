@@ -342,7 +342,16 @@ export default function WorldCanvas(props: Props) {
         )}
         {!inside && (
           <>
-            <TownFigures model={model} selection={props.view.selection} card={props.view.card} said={props.said} onSaidTap={props.onSaidTap} />
+            <TownFigures
+              model={model}
+              selection={props.view.selection}
+              card={props.view.card}
+              said={props.said}
+              onSaidTap={props.onSaidTap}
+              // A click or tap on a town figure's pill opens its card as inside a building (round 67, the rest of w1-11); not
+              // in build mode or walk mode, where the scene picks no figure either.
+              {...(props.town?.build || props.view.walk ? {} : { onPick: (key: string) => onIntent({ type: "pick", target: { kind: "agent", key }, hover: false }) })}
+            />
             <div className="anchor" data-anchor="c:town-hall">
               <span className="town-sign civic">
                 <span className="sign-title">
@@ -460,8 +469,10 @@ function useDeskProgress(ticketKey: string | null): FetchedProgress | undefined 
 }
 
 /** The town's own figures (the postman, the town hall's agents) carry a name pill while hovered or selected; with the
-    card open the pill of the selected one yields to it. The pill hangs from the figure's anchor (`a:town:<key>`). */
-function TownFigures({ model, selection, card, said, onSaidTap }: { model: WorldModel; selection: Selection; card: boolean; said: SaidMap; onSaidTap: (key: string) => void }) {
+    card open the pill of the selected one yields to it. The pill hangs from the figure's anchor (`a:town:<key>`). With
+    `onPick` the pill takes the click or tap itself and opens the card, as the interior's pills do (round 67, w1-11):
+    before, it let the click through to the ground behind the figure, which only selected him. */
+function TownFigures({ model, selection, card, said, onSaidTap, onPick }: { model: WorldModel; selection: Selection; card: boolean; said: SaidMap; onSaidTap: (key: string) => void; onPick?: (key: string) => void }) {
   const shown = selection.hover?.kind === "agent" ? selection.hover.key : !card && selection.selected?.kind === "agent" ? selection.selected.key : null;
   const figures = [...model.postOffice, ...model.townHall];
   // Every town figure that just said something to the person carries its bubble (round 12); the shown one its pill too.
@@ -482,7 +493,7 @@ function TownFigures({ model, selection, card, said, onSaidTap }: { model: World
                 </button>
               )}
               {agent.key === shown && (
-                <span className="name-pill" title={`${agent.displayName}: ${look.words}`}>
+                <span className={`name-pill${onPick ? " pickable" : ""}`} title={`${agent.displayName}: ${look.words}`} onClick={onPick ? () => onPick(agent.key) : undefined}>
                   <span className="pill-dot" data-tone={look.tone} aria-hidden="true" />
                   {agent.displayName}
                   <span className="sr-only">: {look.words}</span>
