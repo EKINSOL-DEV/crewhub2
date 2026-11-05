@@ -145,7 +145,7 @@ function ZoneName({ zone, onCommit }: { zone: Zone; onCommit: (name: string | nu
       label="Name"
       value={draft ?? zone.name ?? ""}
       maxLength={60}
-      placeholder={zone.source === "default" ? "No zone" : "Unnamed zone"}
+      placeholder={zoneLabel({ name: null, source: zone.source })}
       disabled={group}
       {...(group ? { hint: "The name of the group in crewhub-loops." } : {})}
       onChange={(e) => setDraft(e.currentTarget.value)}
