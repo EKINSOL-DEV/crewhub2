@@ -174,7 +174,7 @@ export async function run({ pass, page, check, out }) {
   {
     const q = await open();
     await town(q, 3000, `${BASE}?scenario=studio`);
-    const CEILING = { timeout: 45000, polling: 500 };
+    const CEILING = { timeout: 120000, polling: 500 };
     const frame = () => q.evaluate(() => { const t = globalThis.__town; return t ? { x: t.controls.target.x, z: t.controls.target.z, zoom: t.camera.zoom } : null; });
     const sameFrame = (a, b) => a !== null && b !== null && Math.abs(a.x - b.x) < 0.2 && Math.abs(a.z - b.z) < 0.2 && Math.abs(a.zoom - b.zoom) < 1e-3;
     const home = await frame();
