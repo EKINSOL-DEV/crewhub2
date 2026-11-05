@@ -8,7 +8,7 @@ import type { Building, PlacedProp, RoomKind } from "@crewhub/world-model";
 import { buildingTemplate } from "../world/buildingTemplate";
 import { useBuildingPlan } from "./buildingPlan";
 import type { Pick } from "../world/buildingView";
-import { cellAt, checkGhost, freeCellIn, placedWords, resolveBuildingPlacements, roomSite, type GhostCheck } from "../world/placements";
+import { cellAt, checkGhost, freeCellIn, placedWords, refusedWords, resolveBuildingPlacements, roomSite, type GhostCheck } from "../world/placements";
 import type { Ghost } from "../world/propLayer";
 import { townRuntime } from "./runtimes";
 import type { TownState } from "./town";
@@ -138,7 +138,7 @@ export function useBuildMode(town: TownState, inside: Building | null, focusedRo
       if (!inside || !template || "town" in p.at) return;
       const verdict = checkGhost(town.doc, inside.slug, template, town.definitions, { id: p.id, propId: p.propId, room, cell, rotation });
       if (!verdict.ok) {
-        say(`Can't: ${verdict.reason}`);
+        say(refusedWords(rotation !== p.rotation ? "turn" : "move", nameOf(p.propId), verdict.reason));
         return;
       }
       const edits =
@@ -148,7 +148,7 @@ export function useBuildMode(town: TownState, inside: Building | null, focusedRo
       const result = townRuntime().editAll(edits);
       say(result.ok ? done : result.error);
     },
-    [inside, say, template, town.definitions, town.doc],
+    [inside, nameOf, say, template, town.definitions, town.doc],
   );
 
   const rotate = useCallback(() => {
