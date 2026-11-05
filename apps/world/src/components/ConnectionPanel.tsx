@@ -154,7 +154,7 @@ export function ConnectionPanel({ state, onClose }: ConnectionPanelProps) {
           {connection && (
             <>
               <dt>{t("world.connection.panel.loops")}</dt>
-              <dd>{found ? foundWords : t("world.connection.panel.searching")}</dd>
+              <dd className={found && parts ? "connection-wide" : undefined}>{found ? foundWords : t("world.connection.panel.searching")}</dd>
               <dt>{t("world.connection.panel.key")}</dt>
               <dd>{keyWords}</dd>
               <dt>{t("world.connection.panel.stream")}</dt>
