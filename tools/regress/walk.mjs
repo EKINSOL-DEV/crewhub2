@@ -34,6 +34,9 @@ export async function run({ pass, page, check, out }) {
   await shot(p, "02-building");
   const crumb = await crumbs(p);
   ok("entered a building by keyboard", /Town/.test(crumb) && (await entered(p)) !== null, crumb);
+  // The breadcrumb's back button is named "Town", not "Town Esc": the key hint is visual only (round 65, w5-15).
+  const backNamed = await p.getByRole("button", { name: "Town", exact: true }).count();
+  ok("key hints are not part of a control's name (w5-15)", backNamed === 1, `buttons named exactly Town: ${backNamed}`);
   await p.keyboard.press("ArrowRight");
   await p.waitForTimeout(400);
   const status1 = await p.locator("[aria-live=polite]").allInnerTexts();
