@@ -923,6 +923,19 @@
   .world-brand {
     font-size: var(--text-sm);
   }
+  /* The brand row wraps (round 64, w4-14): a connection chip that grows to its word (Loops down, Stream busy, Pair
+     again) has no room beside the two-line brand, and ran under the right toolbar, cut to "Loops d"; now it takes the
+     corner's next line, whole. */
+  .world-brand {
+    flex-wrap: wrap;
+  }
+  /* The title keeps its fold (w2's review): with the row wrapping, "CrewHub World" took its one-line width and pushed
+     even the Live icon and the Demo chip to a second line; folding to two lines as before, it leaves the icon chips
+     beside it and only a worded chip wraps. */
+  .world-brand > strong {
+    flex: 1 1 min-content;
+    min-width: 0;
+  }
   /* With four toolbar buttons beside it the brand keeps one line: the demo chip keeps its icon (and its label). */
   .demo-word,
   .demo-chip .menu-caret {
@@ -1035,6 +1048,13 @@
 .world-chat > .menu-wrap > .menu {
   left: auto;
   right: 0;
+  /* A phone held sideways is 342 px tall and the Agent chats menu is taller (round 64, w4-19): the menu ends inside the
+     window and scrolls in itself, so its last items can be reached. 11rem is the phone's two header rows, the chat row's
+     gap and the trigger above the menu's top (about 10.5rem; 7.5rem sideways) plus a margin. The copied dock and menu
+     (components/bubbles, primitives/Menu.tsx) stay verbatim; this is the world's own wrapper rule. */
+  max-height: calc(100dvh - 11rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .demo-chat-chip {
   position: relative;

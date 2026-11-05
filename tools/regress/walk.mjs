@@ -5,8 +5,9 @@
  * One group of regress.mjs (round 61, T3): `run({ pass, page, check, out })` with the run's rig and plan (`pass`), the
  * page helpers (`page`), the check recorder (`check`) and the output folder (`out`); see regress.mjs for the four.
  */
+import { devices } from "playwright-core";
 import { announced, labels, readTextView as text, textView as sheet } from "../lib/page.mjs";
-import { seek, speed } from "../lib/world.mjs";
+import { dressed, seek, speed, watch } from "../lib/world.mjs";
 import { decodePng } from "../lib/png.ts";
 
 export async function run({ pass, page, check, out }) {
@@ -302,6 +303,14 @@ export async function run({ pass, page, check, out }) {
     // A building's sign is a quiet name, smaller than a finger: its ::after pad is what is tapped.
     const pads = await p.evaluate(() => [...document.querySelectorAll("button.town-sign")].flatMap((e) => { const s = getComputedStyle(e, "::after"); return s.content === "none" ? [0, 0] : [Math.round(parseFloat(s.width)), Math.round(parseFloat(s.height))]; }));
     ok(`375 ${scheme}: building signs have 40px hit pads`, pads.length > 0 && pads.every((n) => n >= 40), pads.join(","));
+    // Round 64 (w4-14, w2's review): the Demo chip, an icon at this width, stays beside the brand's title on its first
+    // line; the brand row wraps only for a chip grown to its word, never in the demo's usual state.
+    const beside = await p.evaluate(() => {
+      const chip = document.querySelector(".demo-chip")?.getBoundingClientRect();
+      const title = document.querySelector(".world-brand > strong")?.getBoundingClientRect();
+      return chip && title ? { chipLeft: Math.round(chip.left), chipTop: Math.round(chip.top), chipBottom: Math.round(chip.bottom), titleRight: Math.round(title.right), titleTop: Math.round(title.top), titleMid: Math.round((title.top + title.bottom) / 2), titleBottom: Math.round(title.bottom) } : null;
+    });
+    ok(`375 ${scheme}: the Demo chip sits beside the brand's title, on its first line`, beside !== null && beside.chipLeft >= beside.titleRight && beside.chipTop < beside.titleMid && beside.chipBottom > beside.titleTop, beside ? `chip at ${beside.chipLeft}, ${beside.chipTop}..${beside.chipBottom}; title to ${beside.titleRight}, ${beside.titleTop}..${beside.titleBottom}` : "no chip or title");
     if (scheme === "light") {
       // Round 64 (w4-7): a thumb has no T key and never meets the skip link, so a visible control must open the text view:
       // the "?" (Help) menu's row "Open the text view", tapped, as the tour's step 5 promises. Before, the menu held the
@@ -346,4 +355,31 @@ export async function run({ pass, page, check, out }) {
   const afterEscape = await activeIs();
   ok("keyboard: the Help menu's row 'Open the text view' opens the text view with the focus on it, and Escape gives the focus back to Help (round 64, w4-7, w2's review)", /Open the text view/.test(onRow) && openedByKey && /text-view/.test(onView) && afterEscape === "button Help", `row "${onRow}", opened ${openedByKey}, focus on "${onView}", after Escape "${afterEscape}"`);
   await p.context().close();
+
+  // 12. A phone held sideways (round 64, w4-19): the dock's Agent chats menu is taller than the window, so it scrolls
+  // inside itself and its last item can be brought into view and tapped. Playwright's own device profile (750 x 342,
+  // scale 3, touch), not a narrow window: the menu is loops' narrow mode, below 900 px.
+  {
+    const ctx = await browser.newContext({ ...devices["iPhone 13 landscape"], colorScheme: "dark" });
+    const pg = await ctx.newPage();
+    watch(pg, pass.origin, pass.problems, "landscape");
+    await pg.goto(pass.base);
+    await dressed(pg);
+    await pg.waitForTimeout(1500);
+    await pg.getByRole("button", { name: /Agent chats/ }).first().tap();
+    const menu = pg.locator('[role="menu"]').filter({ hasText: /Pin an agent/i }).first();
+    await menu.waitFor({ timeout: 3000 }).catch(() => {});
+    const facts = await menu.evaluate((m) => ({ overflowY: getComputedStyle(m).overflowY, client: m.clientHeight, scroll: m.scrollHeight, bottom: Math.round(m.getBoundingClientRect().bottom), vh: innerHeight })).catch(() => null);
+    const last = menu.getByRole("menuitem").last();
+    await last.scrollIntoViewIfNeeded().catch(() => {});
+    const lastBox = await last.boundingBox().catch(() => null);
+    const lastName = (await last.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+    const reachable = facts !== null && lastBox !== null && lastBox.y >= 0 && lastBox.y + lastBox.height <= facts.vh + 1 && facts.bottom <= facts.vh + 1 && (facts.scroll <= facts.client || /auto|scroll/.test(facts.overflowY));
+    await shot(pg, "14-landscape-dock-menu");
+    await last.tap().catch(() => {});
+    await pg.waitForTimeout(500);
+    const closed = (await menu.isVisible().catch(() => false)) === false;
+    ok("landscape phone: the Agent chats menu fits the window or scrolls, and its last item can be reached and tapped", reachable && closed, facts ? `menu ${facts.client}/${facts.scroll} overflow ${facts.overflowY}, bottom ${facts.bottom} of ${facts.vh}; "${lastName}" at y ${lastBox ? Math.round(lastBox.y) : "?"}..${lastBox ? Math.round(lastBox.y + lastBox.height) : "?"}; tapped: menu ${closed ? "closed" : "still open"}` : "no menu");
+    await ctx.close();
+  }
 }

@@ -273,6 +273,34 @@ for (const [theme, width] of COMBOS) {
     await p.keyboard.press("Escape");
     await p.waitForTimeout(300);
     ok(`${tag}: Escape closes the panel and the focus is back on the chip`, (await p.locator(".connection-sheet").count()) === 0 && (await p.evaluate(() => document.activeElement?.classList.contains("connection-chip"))));
+    if (width === 375) {
+      // Round 64 (w4-14, w2's review): the Live chip, an icon on the phone, stays beside the brand's title on its first
+      // line; only a chip grown to its word takes the next line. The brand row must not grow for the usual state.
+      const beside = await p.evaluate(() => {
+        const chip = document.querySelector("button.connection-chip")?.getBoundingClientRect();
+        const title = document.querySelector(".world-brand > strong")?.getBoundingClientRect();
+        return chip && title ? { chipLeft: Math.round(chip.left), chipTop: Math.round(chip.top), chipBottom: Math.round(chip.bottom), titleRight: Math.round(title.right), titleTop: Math.round(title.top), titleMid: Math.round((title.top + title.bottom) / 2), titleBottom: Math.round(title.bottom) } : null;
+      });
+      ok(`${tag}: the Live chip sits beside the brand's title, on its first line`, beside !== null && beside.chipLeft >= beside.titleRight && beside.chipTop < beside.titleMid && beside.chipBottom > beside.titleTop, beside ? `chip at ${beside.chipLeft}, ${beside.chipTop}..${beside.chipBottom}; title to ${beside.titleRight}, ${beside.titleTop}..${beside.titleBottom}` : "no chip or title");
+      // Round 64 (w4-14): when the chip grows to its word on a phone (Loops down, Stream busy: the same width), the word
+      // stays whole: the chip's box lies inside the left corner's room, left of the right toolbar, never under it or off
+      // the screen. The stub's busy state (loops' 429 through the stream) shows it without a refused read in the console;
+      // its loops-down state answers the page's reads with 503, which the closing check would count.
+      for (const [state, chipWord] of [["busy", "stream-busy"]]) {
+        await stub.setState(state);
+        await chipState(p, chipWord);
+        await p.waitForTimeout(500);
+        const boxes = await p.evaluate(() => {
+          const chip = document.querySelector("button.connection-chip")?.getBoundingClientRect();
+          const right = document.querySelector(".world-corner-right")?.getBoundingClientRect();
+          const corner = document.querySelector(".world-corner-left")?.getBoundingClientRect();
+          return chip && right && corner ? { chipRight: Math.round(chip.right), chipLeft: Math.round(chip.left), toolbarLeft: Math.round(right.left), cornerRight: Math.round(corner.right), width: innerWidth } : null;
+        });
+        const whole = boxes !== null && boxes.chipLeft >= 0 && boxes.chipRight <= boxes.toolbarLeft && boxes.chipRight <= boxes.cornerRight + 1 && boxes.chipRight <= boxes.width;
+        ok(`${tag}: the ${chipWord} chip's word is whole on the phone (its box left of the right toolbar)`, whole, boxes ? `chip ${boxes.chipLeft}..${boxes.chipRight}, toolbar from ${boxes.toolbarLeft}, left corner to ${boxes.cornerRight} of ${boxes.width}` : "no chip, toolbar or corner");
+      }
+      await stub.setState("connected");
+    }
     if (theme === "light" && width === 1440) {
       // A state change over the live town is said once: loops refuses the stream (429) under the running page.
       await stub.setState("busy");
