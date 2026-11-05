@@ -10,7 +10,7 @@ import { test } from "node:test";
 
 const MAIN = fileURLToPath(new URL("../src/main.ts", import.meta.url));
 const KEY_FILE = fileURLToPath(new URL("../../../tools/out/loops-fake.key", import.meta.url));
-const USAGE_LINE = "npm run loops:fake -- --port 8391 [--scenario small-team] [--speed 1] [--builder-key] [--help]";
+const USAGE_LINE = "npm run loops:fake -- --port 8391 [--scenario small-team] [--speed 1] [--builder-key] [--viewer-key] [--help]";
 
 /** The key file's state: a run that writes it or chmods it changes this (a chmod moves the ctime, even to the same mode). */
 function keyFileState(): { mtimeMs: number; ctimeMs: number } | null {
@@ -40,7 +40,7 @@ for (const args of [
     const { code, stdout, stderr } = await run(...args);
     assert.equal(code, 0, stdout.slice(0, 300));
     assert.equal(stdout.split("\n")[0], `Usage: ${USAGE_LINE}`);
-    for (const option of ["--port <port>", "--scenario <id>", "--speed <n>", "--builder-key", "--help, -h"]) assert.ok(stdout.includes(`\n  ${option}`), `a line for ${option}`);
+    for (const option of ["--port <port>", "--scenario <id>", "--speed <n>", "--builder-key", "--viewer-key", "--help, -h"]) assert.ok(stdout.includes(`\n  ${option}`), `a line for ${option}`);
     assert.equal(stderr, "");
     assert.doesNotMatch(stdout, /listening on/);
     assert.deepEqual(keyFileState(), before, "the key file is left alone");

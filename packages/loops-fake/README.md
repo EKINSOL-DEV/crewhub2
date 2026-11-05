@@ -16,8 +16,8 @@ Nothing in it talks to a real crewhub-loops. It has no runtime dependency beyond
 ## By hand
 
 ```sh
-npm run loops:fake -- --port 8391 [--scenario small-team] [--speed 1] [--builder-key]   # default 8391; 8091, 8000, 9443 and 5180 are refused
-npm run loops:fake -- --help                                                            # the usage; the fake does not start
+npm run loops:fake -- --port 8391 [--scenario small-team] [--speed 1] [--builder-key] [--viewer-key]   # default 8391; 8091, 8000, 9443 and 5180 are refused
+npm run loops:fake -- --help                                                                           # the usage; the fake does not start
 ```
 
 An unknown flag or a stray word is refused with exit 2, and the fake does not start.
@@ -25,7 +25,10 @@ An unknown flag or a stray word is refused with exit 2, and the fake does not st
 `npm run loops:fake -- --builder-key` plays the same storyline but the key behaves like loops' builder key (CL-120):
 it reads a ticket, its comments and `GET /api/auth/me`, and everything else, health included, answers 403 `forbidden`
 "This key reads tickets, comments and attachments only". The host then shows Unauthorized, so that chip can be tried
-by hand without a real install.
+by hand without a real install. `npm run loops:fake -- --viewer-key` (round 65) makes the key read the chat, as loops'
+viewer key does (`keyReadsChat` below): the world shows speech bubbles and Recent answers over the fake; the two flags
+together are refused. `GET /` is a small HTML page saying the fake has no web app, for the world's Chat panel, which
+frames the loops origin's root; every other path outside `/api` is the JSON 404.
 
 The key is written to `tools/out/loops-fake.key` (mode 0600) on the first run and reused after that, so a restarted
 fake keeps a running host's key valid. The key is never printed. The command prints the two environment lines for

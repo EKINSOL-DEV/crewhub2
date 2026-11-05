@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseFakeArgs } from "../src/fakeArgs.ts";
 
-const USAGE = "Usage: npm run loops:fake -- --port 8391 [--scenario small-team] [--speed 1] [--builder-key] [--help]";
+const USAGE = "Usage: npm run loops:fake -- --port 8391 [--scenario small-team] [--speed 1] [--builder-key] [--viewer-key] [--help]";
 
 function refusal(...argv: string[]): string {
   const parsed = parseFakeArgs(argv);
@@ -13,16 +13,16 @@ function refusal(...argv: string[]): string {
 }
 
 test("no flags: the defaults", () => {
-  assert.deepEqual(parseFakeArgs([]), { kind: "start", port: 8391, scenario: "small-team", speed: 1, builderKey: false });
+  assert.deepEqual(parseFakeArgs([]), { kind: "start", port: 8391, scenario: "small-team", speed: 1, builderKey: false, viewerKey: false });
 });
 
 test("every option is read, in any order", () => {
-  assert.deepEqual(parseFakeArgs(["--builder-key", "--speed", "16", "--scenario", "studio", "--port", "0"]), { kind: "start", port: 0, scenario: "studio", speed: 16, builderKey: true });
-  assert.deepEqual(parseFakeArgs(["--speed", "0"]), { kind: "start", port: 8391, scenario: "small-team", speed: 0, builderKey: false });
+  assert.deepEqual(parseFakeArgs(["--builder-key", "--speed", "16", "--scenario", "studio", "--port", "0"]), { kind: "start", port: 0, scenario: "studio", speed: 16, builderKey: true, viewerKey: false });
+  assert.deepEqual(parseFakeArgs(["--speed", "0"]), { kind: "start", port: 8391, scenario: "small-team", speed: 0, builderKey: false, viewerKey: false });
 });
 
 test("a repeated option keeps its first value, as before", () => {
-  assert.deepEqual(parseFakeArgs(["--port", "5386", "--port", "0"]), { kind: "start", port: 5386, scenario: "small-team", speed: 1, builderKey: false });
+  assert.deepEqual(parseFakeArgs(["--port", "5386", "--port", "0"]), { kind: "start", port: 5386, scenario: "small-team", speed: 1, builderKey: false, viewerKey: false });
 });
 
 test("--help and -h answer with the usage and one line per option, wherever they stand", () => {
@@ -31,12 +31,13 @@ test("--help and -h answer with the usage and one line per option, wherever they
     assert.equal(parsed.kind, "help", argv.join(" "));
     const lines = parsed.kind === "help" ? parsed.text.split("\n") : [];
     assert.equal(lines[0], USAGE);
-    assert.equal(lines.length, 6);
+    assert.equal(lines.length, 7);
     assert.match(lines[1] ?? "", /^ {2}--port <port> .*default 8391.*0 takes a free port.*8091, 8000, 9443, 5180/);
     assert.match(lines[2] ?? "", /^ {2}--scenario <id> .*default small-team.*fresh, one, small-team, studio/);
     assert.match(lines[3] ?? "", /^ {2}--speed <n> .*default 1.*0, 1, 4, 16/);
     assert.match(lines[4] ?? "", /^ {2}--builder-key /);
-    assert.match(lines[5] ?? "", /^ {2}--help, -h /);
+    assert.match(lines[5] ?? "", /^ {2}--viewer-key /);
+    assert.match(lines[6] ?? "", /^ {2}--help, -h /);
   }
 });
 
