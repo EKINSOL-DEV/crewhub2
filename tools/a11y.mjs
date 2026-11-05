@@ -240,6 +240,13 @@ for (const [theme, width] of COMBOS) {
     await p.waitForSelector(".chat-sheet", { timeout: 5000 });
     await p.waitForTimeout(400);
     writeFileSync(`${outDir}chat-${theme}-${width}.txt`, await p.locator(".chat-sheet").ariaSnapshot());
+    // Round 65 (w4-21): on a phone the panel's two disclosure rows ("About this chat", "Recent answers") are thumb-sized:
+    // at least 40 px tall, an invisible ::after pad counting, and still list items, whose triangle says they open. Before,
+    // they were 18 and 20 px, the only controls under 40 px in the panel (the 40 px rule above does not see a summary).
+    if (width === 375) {
+      const rows = await p.evaluate(() => [...document.querySelectorAll(".chat-sheet summary")].map((el) => { const r = el.getBoundingClientRect(); const after = getComputedStyle(el, "::after"); const padH = after.content !== "none" ? parseFloat(after.height) || 0 : 0; return { text: (el.textContent ?? "").trim().slice(0, 20), hit: Math.round(Math.max(r.height, padH)), display: getComputedStyle(el).display }; }));
+      ok(`${tag}: the Chat panel's disclosure rows are at least 40 px tall and keep their triangles (round 65, w4-21)`, rows.length === 2 && rows.every((r) => r.hit >= 39.5 && r.display === "list-item"), rows.map((r) => `"${r.text}" ${r.hit}, ${r.display}`).join("; "));
+    }
     ok(`${tag}: Enter on the chat chip opens the Chat panel, a dialog named Chat with the focus inside, its frame titled, its app link saying it opens a new tab`, await p.evaluate(() => { const d = document.querySelector(".chat-sheet"); const frame = d?.querySelector("iframe"); const link = d?.querySelector(".chat-open-app"); return !!d && d.getAttribute("role") === "dialog" && document.getElementById(d.getAttribute("aria-labelledby") ?? "")?.textContent === "Chat" && d.contains(document.activeElement) && !!frame?.getAttribute("title") && /Opens in a new tab/.test(link?.textContent ?? ""); }));
     await p.keyboard.press("Escape");
     await p.waitForTimeout(300);
