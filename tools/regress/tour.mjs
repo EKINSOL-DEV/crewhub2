@@ -71,7 +71,18 @@ export async function run({ pass, page, check, out }) {
   await pg.getByRole("menuitem", { name: /Show the introduction/ }).click();
   await card.waitFor({ timeout: 3000 }).catch(() => {});
   ok("tour: the ? menu reopens it", (await card.count()) === 1);
+  // Walk finding w2-1 (round 65): a dialog opened over the tour holds the focus and takes Escape first; the card stays
+  // and the focus returns to the dialog's opener. Escape once more then skips the tour.
+  await pg.getByRole("button", { name: "Settings", exact: true }).click();
+  await pg.locator(".settings-sheet").waitFor({ timeout: 3000 }).catch(() => {});
+  const sheetOver = (await pg.locator(".settings-sheet").count()) === 1 && (await card.count()) === 1;
   await pg.keyboard.press("Escape");
+  await pg.waitForTimeout(200);
+  const afterOne = { sheet: await pg.locator(".settings-sheet").count(), card: await card.count(), on: await pg.evaluate(() => document.activeElement?.getAttribute("aria-label") ?? document.activeElement?.tagName).catch(() => "") };
+  ok("tour (w2-1): Escape with Settings open over the tour closes Settings, the card stays and the focus is back on the Settings button", sheetOver && afterOne.sheet === 0 && afterOne.card === 1 && afterOne.on === "Settings", `sheet over the card ${sheetOver}; after Escape: sheet ${afterOne.sheet}, card ${afterOne.card}, focus ${afterOne.on}`);
+  await pg.keyboard.press("Escape");
+  await pg.waitForTimeout(200);
+  ok("tour (w2-1): Escape once more skips the tour", (await card.count()) === 0);
   await pg.context().close();
   // A phone: the card spans the width at the far edge from what it describes, inside the screen, no horizontal scroll.
   const phone = await person({ width: 375, theme: "dark" });
