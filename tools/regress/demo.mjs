@@ -209,6 +209,83 @@ export async function run({ pass, page, check, out }) {
     ok("studio: closing the sheet goes back to the frame it left, and a camera a person moved stays when it opens (round 65, w6-15)", settledBack && drawnBefore === true && placed !== null && withSheet !== null && home !== null && placed.zoom > home.zoom && Math.abs(placed.x - withSheet.x) < 0.2 && Math.abs(placed.z - withSheet.z) < 0.2 && withSheet.zoom >= placed.zoom - 1e-3, `back ${settledBack}; moved to zoom ${placed?.zoom.toFixed(3)}, with the sheet ${withSheet?.zoom.toFixed(3)}, target x ${placed?.x.toFixed(1)} and ${withSheet?.x.toFixed(1)}`);
     await q.context().close();
   }
+  // Round 66 (sugg/w6-13, m1's note): a window that changes under the open build sheet is framed again, height binding or
+  // not, and windows from 601 px wide, portrait ones too, keep every plot of the town clear of the sheet and on the canvas.
+  // Reduced motion lands a frame at once; the camera's flight is the rows above. Plots are read from the camera, cards
+  // from the page.
+  {
+    const q = await open({ reducedMotion: "reduce" });
+    await town(q, 3000, `${BASE}?scenario=studio`);
+    const CEILING = { timeout: 120000, polling: 500 };
+    const seen = () => q.evaluate(() => {
+      const t = globalThis.__town;
+      const sheet = document.querySelector(".build-sheet")?.getBoundingClientRect();
+      const box = t.renderer.domElement.getBoundingClientRect();
+      const v = t.controls.target.clone();
+      const lots = t.view.plan.lots.filter((l) => !l.folded);
+      let under = 0, off = 0;
+      for (const lot of lots) {
+        let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+        for (const dx of [-12, 12]) for (const dz of [-12, 12]) for (const y of [0, 2]) {
+          v.set(lot.centre.x + dx, y, lot.centre.z + dz).project(t.camera);
+          const sx = box.left + ((v.x + 1) / 2) * box.width, sy = box.top + ((1 - v.y) / 2) * box.height;
+          x0 = Math.min(x0, sx); x1 = Math.max(x1, sx); y0 = Math.min(y0, sy); y1 = Math.max(y1, sy);
+        }
+        if (sheet && x0 < sheet.right && y0 < sheet.bottom && y1 > sheet.top) under++;
+        if (x1 > box.right || x0 < box.left || y0 < box.top || y1 > box.bottom) off++;
+      }
+      const cards = [...document.querySelectorAll(".district-card")].map((c) => c.getBoundingClientRect()).filter((r) => r.width > 0);
+      const cardsUnder = sheet ? cards.filter((c) => !(c.left >= sheet.right || c.right <= sheet.left || c.top >= sheet.bottom || c.bottom <= sheet.top)).length : -1;
+      return { lots: lots.length, under, off, cards: cards.length, cardsUnder, x: t.controls.target.x, z: t.controls.target.z, zoom: t.camera.zoom };
+    });
+    const settled = (want) => q.waitForFunction((w) => {
+      const t = globalThis.__town;
+      return !!t && !!document.querySelector(".build-sheet") && t.renderer.domElement.clientWidth === w;
+    }, want, CEILING).then(() => q.waitForTimeout(1500)).catch(() => {});
+    await q.setViewportSize({ width: 1280, height: 720 });
+    await canvas(q).focus();
+    await q.keyboard.press("b");
+    await settled(1280);
+    const wide = await seen();
+    await q.setViewportSize({ width: 1000, height: 720 });
+    await settled(1000);
+    const resized = await seen();
+    ok("studio: a resize to 1000 px with the sheet open frames the town again where the height binds, nothing under the sheet (round 66, w6-13)", wide.cards >= 2 && resized.under === 0 && resized.off === 0 && resized.cardsUnder === 0 && Math.abs(resized.x - wide.x) > 1, `target x ${wide.x.toFixed(1)} to ${resized.x.toFixed(1)}, zoom ${resized.zoom.toFixed(3)}; ${resized.under} plots and ${resized.cardsUnder} of ${resized.cards} cards under the sheet, ${resized.off} plots off the canvas`);
+    const narrow = [];
+    for (const [width, height] of [[640, 800], [768, 1024], [601, 700]]) {
+      await q.setViewportSize({ width, height });
+      await settled(width);
+      narrow.push({ width, height, ...(await seen()) });
+    }
+    await shot(q, "20c-studio-build-601");
+    ok("studio: from 601 px wide, portrait too, every plot of the town is clear of the sheet and on the canvas (round 66, w6-13)", narrow.every((n) => n.lots === 20 && n.under === 0 && n.off === 0), narrow.map((n) => `${n.width}x${n.height}: zoom ${n.zoom.toFixed(3)}, ${n.under} under, ${n.off} off`).join("; "));
+    // Closing there: home again at zoom 1, and a person's zoom-out limit is what it was, though the frame beside the sheet
+    // went below it.
+    const lowest = Math.min(...narrow.map((n) => n.zoom));
+    await canvas(q).focus();
+    await q.keyboard.press("b");
+    await q.waitForFunction(() => document.querySelector(".build-sheet") === null, null, CEILING).catch(() => {});
+    await q.waitForTimeout(1500);
+    const closed = await seen();
+    await q.evaluate(() => { for (let i = 0; i < 6; i++) globalThis.__town?.cameraAction("zoom-out"); });
+    await q.waitForTimeout(1500);
+    const zoomedOut = await seen();
+    ok("studio: closing the sheet in a narrow window goes home at zoom 1, and a person's zoom-out limit is still 0.6 (round 66, w6-13)", lowest < 0.6 && Math.abs(closed.zoom - 1) < 1e-3 && Math.abs(zoomedOut.zoom - 0.6) < 1e-3, `lowest beside the sheet ${lowest.toFixed(3)}; closed ${closed.zoom.toFixed(3)}; zoomed out ${zoomedOut.zoom.toFixed(3)}`);
+    // A camera a person moved stays through a resize, as through the sheet's opening.
+    await q.setViewportSize({ width: 1280, height: 720 });
+    await q.evaluate(() => globalThis.__town?.cameraAction("home"));
+    await canvas(q).focus();
+    await q.keyboard.press("b");
+    await settled(1280);
+    await q.evaluate(() => globalThis.__town?.cameraAction("zoom-in"));
+    await q.waitForTimeout(800);
+    const moved = await seen();
+    await q.setViewportSize({ width: 1000, height: 720 });
+    await settled(1000);
+    const after = await seen();
+    ok("studio: a camera a person moved stays through a resize with the sheet open (round 66, w6-13)", Math.abs(moved.x - after.x) < 0.2 && Math.abs(moved.z - after.z) < 0.2 && Math.abs(moved.zoom - after.zoom) < 1e-3, `target x ${moved.x.toFixed(1)} and ${after.x.toFixed(1)}, zoom ${moved.zoom.toFixed(3)} and ${after.zoom.toFixed(3)}`);
+    await q.context().close();
+  }
   await shot(p, "21-region-again");
   await p.context().close();
 }
