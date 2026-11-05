@@ -1,4 +1,5 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type Ref } from "react";
+import { touchInput } from "./state/media";
 import { ArrowLeft, BookOpen, ChevronRight, CircleHelp, Eye, FlaskConical, Hammer, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Footprints, Scan, Search, Settings, Sun, Tags, X } from "lucide-react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { roleWords, ruleProps, zoningOf, type AgentPlacement, type CivicWords, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomWording, type TextLine, type WorldModel } from "@crewhub/world-model";
@@ -246,7 +247,7 @@ function World() {
   // keeps the ref and the state, says the sentence, and closes the page's overlay the view asks closed.
   const dispatch = useStable((intent: ViewIntent): ViewStep => {
     const before = viewRef.current;
-    const step = stepView(before, intent, { model, districts, plan, rooms });
+    const step = stepView(before, intent, { model, districts, plan, rooms, touch: touchInput() });
     if (step.view !== before) {
       viewRef.current = step.view;
       setView(step.view);

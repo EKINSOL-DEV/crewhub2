@@ -4,6 +4,7 @@
    per-browser flag that keeps it from coming back after Skip or Done. The component is components/Tour.tsx. */
 
 import { storedValue } from "./setting.ts";
+import type { InputKind } from "./inputWords.ts";
 
 export const TOUR_KEY = "crewhub-world.tour";
 /** The full document, on GitHub: the host and Vite serve the world, not the repository's docs folder, and a page cannot
@@ -21,27 +22,31 @@ export interface TourStep {
   targetName: string;
 }
 
-/** The steps in the order the person meets them, by mode: the chat and the chip differ between the demo and live. */
-export function tourSteps(mode: "demo" | "live"): TourStep[] {
+/**
+ * The steps in the order the person meets them, by mode: the chat and the chip differ between the demo and live. By input
+ * kind (round 65, w4-2): on a touch device a tap enters and opens, and no key is named.
+ */
+export function tourSteps(mode: "demo" | "live", input: InputKind = "pointer"): TourStep[] {
+  const touch = input === "touch";
   return [
     {
       id: "town",
       title: "The town",
-      text: "One building per project, on a town plan that grows with the project count; a click on a building enters it.",
+      text: `One building per project, on a town plan that grows with the project count; a ${touch ? "tap" : "click"} on a building enters it.`,
       target: "main.world-stage",
       targetName: "the town",
     },
     {
       id: "building",
       title: "A building and its three rooms",
-      text: "Inside, Administration by the front door carries the racks of packages (the tickets), the floor holds the workers' desks, and the lead sits in the office at the back; the jump list (/) names every building.",
+      text: `Inside, Administration by the front door carries the racks of packages (the tickets), the floor holds the workers' desks, and the lead sits in the office at the back; the jump list${touch ? "" : " (/)"} names every building.`,
       target: ".jump-button",
       targetName: "the jump list button",
     },
     {
       id: "card",
       title: "A figure's card",
-      text: "Agents are figures in rooms by role; a click on one opens its card: where it is, when loops last saw it, its work ticket and its latest progress line.",
+      text: `Agents are figures in rooms by role; a ${touch ? "tap" : "click"} on one opens its card: where it is, when loops last saw it, its work ticket and its latest progress line.`,
       target: "main.world-stage",
       targetName: "the town, where the figures stand",
     },
@@ -63,9 +68,9 @@ export function tourSteps(mode: "demo" | "live"): TourStep[] {
     {
       id: "text",
       title: "The text view",
-      text: "Every fact the scene shows is also a sentence: the text view (T) describes the whole world as text, and Where is …? answers for one agent in zone labels.",
+      text: `Every fact the scene shows is also a sentence: the text view ${touch ? "(in the ? menu)" : "(T)"} describes the whole world as text, and Where is …? answers for one agent in zone labels.`,
       target: null,
-      targetName: "the text view, opened with T",
+      targetName: touch ? "the text view, in the ? menu" : "the text view, opened with T",
     },
     mode === "demo"
       ? {

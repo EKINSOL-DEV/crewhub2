@@ -5,6 +5,8 @@ import { useState, type FormEvent } from "react";
 import { FlaskConical, Hammer, Pencil, Plus, Redo2, RotateCw, Trash2, Undo2, X } from "lucide-react";
 import type { Building, CatalogueGroupId } from "@crewhub/world-model";
 import type { BuildMode } from "../state/build";
+import { buildWords } from "../state/inputWords";
+import { useTouchInput } from "../state/media";
 import type { TownState } from "../state/town";
 import { pageConfig } from "../state/page";
 import { useWorld } from "../state/runtimes";
@@ -30,6 +32,8 @@ interface Props {
 }
 
 export function BuildPanel({ build, town, plan, inside, demo, onClose, onUndo, onRedo, onEdit, onRequest }: Props) {
+  // The sheet's words by input kind (round 65, w4-2): tap, not click, and no key on a touch device.
+  const words = buildWords(useTouchInput());
   const { model } = useWorld();
   const groups = town.catalogue.groups();
   const [group, setGroup] = useState<CatalogueGroupId>(groups[0]?.id ?? "work");
@@ -81,6 +85,7 @@ export function BuildPanel({ build, town, plan, inside, demo, onClose, onUndo, o
             chosen: chosen?.name ?? null,
             check,
             message: state.message,
+            words,
           })}
           {state.message && <span className="build-message">{state.message}</span>}
         </p>

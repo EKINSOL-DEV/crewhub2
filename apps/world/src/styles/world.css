@@ -315,6 +315,13 @@
     display: block;
   }
 }
+/* A touch device has no keys to name (round 65, w4-2): no button draws its key hint under a coarse pointer. A narrow window
+   with a mouse keeps those the narrow rules keep. */
+@media (pointer: coarse) {
+  .btn-kbd {
+    display: none;
+  }
+}
 
 /* ── Playback bar: shown only when the source offers playback ─────────────── */
 .playback-bar {

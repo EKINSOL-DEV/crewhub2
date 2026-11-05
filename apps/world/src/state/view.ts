@@ -6,6 +6,7 @@
    dispatches and keeps the value; WorldCanvas and TownScene read it and send intents back. Before this module the same
    facts lived in ten `useState`s, fifteen callbacks and a second walk-back copy in the scene. */
 import { archivedWords, laneLook, type AgentPlacement, type RoomKind, type RoomWording, type WorldModel } from "@crewhub/world-model";
+import { figureCardWords, followStopWords, walkWords } from "./inputWords.ts";
 import type { Pick as Target } from "../world/buildingView.ts";
 import { buildingTemplate } from "../world/buildingTemplate.ts";
 import { firstRoom, roomNeighbor } from "../world/interiorLayout.ts";
@@ -117,6 +118,8 @@ export interface ViewFacts {
   plan: TownPlan;
   /** The viewer's building template: the words for places. */
   rooms: RoomWording;
+  /** A touch device (round 65, w4-2): walk mode's sentence names the joystick, not the keys. */
+  touch?: boolean;
 }
 
 export interface ViewStep {
@@ -207,7 +210,7 @@ export function stepView(view: View, intent: ViewIntent, facts: ViewFacts): View
     return step(next, isRegion(districts) ? `The region: ${districts.map((x) => x.name).join(", ")}.` : "The town.");
   };
   const focusRoom = (kind: RoomKind, zoom: boolean): ViewStep => step({ ...view, room: kind, zoomed: zoom ? kind : view.zoomed }, zoom ? `${zoomedTo(roomSummaryOf(kind), kind, rooms)} Escape goes back to the building.` : roomSummaryOf(kind));
-  const follow = (key: string | null): ViewStep => step({ ...view, following: key }, key ? `Following ${agentNameOf(model, key)}. Escape, Shift+F or a drag stops following.` : "Stopped following.");
+  const follow = (key: string | null): ViewStep => step({ ...view, following: key }, key ? `Following ${agentNameOf(model, key)}. ${followStopWords(!!facts.touch)}` : "Stopped following.");
   // Said (round 65, w5-11): the focus stays on the stage, so a screen reader would otherwise not know the card opened.
   const openCard = (): ViewStep => step({ ...view, card: true }, `Card of ${agentNameOf(model, selectedAgentOf(view) ?? "")} open; Tab reaches it.`);
 
@@ -223,7 +226,7 @@ export function stepView(view: View, intent: ViewIntent, facts: ViewFacts): View
       const went = go(entry.place, entry.agent);
       if (entry.agent && !entry.place.building) {
         // A figure outside the buildings: the camera lands close beside it, selected; Enter opens its card.
-        return step({ ...went.view, flight: { id: view.flight.id + 1, anchor: `a:town:${entry.agent}`, reach: 5 } }, `${entry.label}. ${entry.detail} Enter opens its card.`);
+        return step({ ...went.view, flight: { id: view.flight.id + 1, anchor: `a:town:${entry.agent}`, reach: 5 } }, `${entry.label}. ${entry.detail} ${figureCardWords(!!facts.touch)}`);
       }
       if (entry.civic) return step({ ...went.view, flight: { id: view.flight.id + 1, anchor: `c:${entry.civic}` } }, `${entry.label}. ${entry.detail}`);
       return went;
@@ -262,7 +265,7 @@ export function stepView(view: View, intent: ViewIntent, facts: ViewFacts): View
       // A walk takes the camera: a follow ends and the agent card closes.
       return step(
         { ...view, walk: { entered: view.entered, room: view.room, zoomed: view.zoomed, district: view.district }, ...cleared, ringVisible: false },
-        "Walking. W A S D or the arrow keys move you, Shift hurries, drag to look around. Walk through a door to go in or out. Escape stops.",
+        walkWords(!!facts.touch),
       );
     case "stopWalk": {
       /* Back to the level the walk began on (a building gone meanwhile: the town). */
