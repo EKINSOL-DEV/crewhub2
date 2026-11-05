@@ -208,7 +208,8 @@ export function stepView(view: View, intent: ViewIntent, facts: ViewFacts): View
   };
   const focusRoom = (kind: RoomKind, zoom: boolean): ViewStep => step({ ...view, room: kind, zoomed: zoom ? kind : view.zoomed }, zoom ? `${zoomedTo(roomSummaryOf(kind), kind, rooms)} Escape goes back to the building.` : roomSummaryOf(kind));
   const follow = (key: string | null): ViewStep => step({ ...view, following: key }, key ? `Following ${agentNameOf(model, key)}. Escape, Shift+F or a drag stops following.` : "Stopped following.");
-  const openCard = (): ViewStep => step({ ...view, card: true }, null);
+  // Said (round 65, w5-11): the focus stays on the stage, so a screen reader would otherwise not know the card opened.
+  const openCard = (): ViewStep => step({ ...view, card: true }, `Card of ${agentNameOf(model, selectedAgentOf(view) ?? "")} open; Tab reaches it.`);
 
   switch (intent.type) {
     case "enter":

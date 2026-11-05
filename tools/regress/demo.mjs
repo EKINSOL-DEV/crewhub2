@@ -46,6 +46,10 @@ export async function run({ pass, page, check, out }) {
   await p.keyboard.press("Enter");
   const townCard = p.locator(".agent-card");
   await townCard.first().waitFor({ timeout: 3000 }).catch(() => {});
+  // The card opened from the keyboard says so (round 65, w5-11): the focus stays on the stage, so nothing else would tell a screen reader.
+  await p.waitForTimeout(500);
+  const cardSaid = (await p.locator("[aria-live=polite]").allInnerTexts()).join(" ").replace(/\s+/g, " ").trim();
+  ok("a card opened by Enter is said (w5-11)", /Card of Postman open; Tab reaches it\./.test(cardSaid), cardSaid.slice(-60));
   const townCardText = (await townCard.first().innerText().catch(() => "")).replace(/\s+/g, " ");
   ok("jump list: the postman's card opens in the town", (await entered(p)) == null && (await townCard.count()) > 0 && /the post office/.test(townCardText), townCardText.slice(0, 100) || "no card");
   await shot(p, "15b-town-card");
