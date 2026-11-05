@@ -108,6 +108,9 @@ export async function run({ pass, page, check, out }) {
   };
   const first = await pick(null);
   ok("scenario picker opens on the Demo chip", first.items.length >= 3 && first.checked === "Small team", `${first.items.join(", ")}; checked: ${first.checked}`);
+  // The checked row's tick is drawn, not read (round 65, w5-16): the row's accessible name has no glyph (the menu is still open).
+  const pickerTree = await menu.ariaSnapshot();
+  ok("the picker's tick is not in the checked row's name (w5-16)", /\[checked\]/.test(pickerTree) && !/✓/.test(pickerTree), pickerTree.split("\n").filter((l) => /checked/.test(l)).join(" | ").slice(0, 120));
   await shot(p, "16-picker");
   await p.keyboard.press("Escape");
   const one = await pick("One project");
