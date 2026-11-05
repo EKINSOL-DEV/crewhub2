@@ -454,6 +454,8 @@ export class TownScene {
   #atHome = true;
   /** The camera stands where a person or a jump put it, not on a frame: the sheet's opening does not pull it away. */
   #placed = false;
+  /** How far a person may zoom out: their limit, or further when the frame beside the open sheet went further. */
+  #zoomLimit = MIN_ZOOM;
   /** Buildings holding a built interior, most recently used last (buildingView.ts prepareInterior). */
   #interiors: string[] = [];
   #cancelPrepare: (() => void) | null = null;
@@ -1411,10 +1413,13 @@ export class TownScene {
       // A room focus or a district change under a follow does not pull the camera away either.
     } else if (view.entered && previous.zoomed !== view.zoomed) this.frameBuilding(view.entered, view.zoomed);
     else if (!view.entered && (previous.district ?? null) !== (view.district ?? null)) this.#frameOutside();
-    else if (!previous.sheetOpen !== !view.sheetOpen && !this.#placed) {
-      if (view.entered) this.frameBuilding(view.entered, view.zoomed);
+    else if (!previous.sheetOpen !== !view.sheetOpen) {
+      if (this.#placed) {
+        if (!view.sheetOpen) this.#intoLimits();
+      } else if (view.entered) this.frameBuilding(view.entered, view.zoomed);
       else this.#frameOutside();
     }
+    if (!view.sheetOpen) this.#zoomLimit = MIN_ZOOM;
     if (previous.walk && !walking) this.#endWalk(previous.walk);
     this.#life.configure({ ambient: view.ambient, reducedMotion: view.reducedMotion, quality: view.quality });
     if (previous.theme !== view.theme || previous.quality !== view.quality || previous.reducedMotion !== view.reducedMotion || previous.dayNight !== view.dayNight) this.#drift();
@@ -1528,7 +1533,7 @@ export class TownScene {
     const { target, span } = this.#homeFrame();
     this.#atHome = true;
     // Zoom 1 is the home frame without the sheet (`resize`); beside an open sheet the town fits a smaller free area.
-    this.moveTo(target, target.clone().add(HOME_OFFSET), this.view.sheetOpen ? THREE.MathUtils.clamp(this.#span / span, SHEET_MIN_ZOOM, 1) : 1, immediate);
+    this.moveTo(target, target.clone().add(HOME_OFFSET), this.#framedZoom(this.view.sheetOpen ? Math.min(1, this.#span / span) : 1), immediate);
     this.#placed = false;
   }
 
@@ -1608,8 +1613,25 @@ export class TownScene {
       ? this.frameRects([bounds], room ? ROOM_FRAME_HEIGHT : BUILDING_FRAME_HEIGHT, direction, portraitInsets(insets), room ? PORTRAIT_ROOM_MARGIN : PORTRAIT_BUILDING_MARGIN)
       : this.frameRects([bounds], room ? ROOM_FRAME_HEIGHT : BUILDING_FRAME_HEIGHT, direction, insets, room ? 1.06 : 1.02);
     const offset = direction.multiplyScalar(HOME_OFFSET.length());
-    this.moveTo(target, target.clone().add(offset), THREE.MathUtils.clamp(this.#span / span, this.view.sheetOpen ? SHEET_MIN_ZOOM : MIN_ZOOM, this.controls.maxZoom), false);
+    this.moveTo(target, target.clone().add(offset), this.#framedZoom(this.#span / span), false);
     this.#placed = false;
+  }
+
+  /** A frame's zoom. Beside the open sheet it may go below a person's limit, and they may then zoom out as far as the frame. */
+  #framedZoom(zoom: number): number {
+    const framed = THREE.MathUtils.clamp(zoom, this.view.sheetOpen ? SHEET_MIN_ZOOM : MIN_ZOOM, this.controls.maxZoom);
+    this.#zoomLimit = Math.min(MIN_ZOOM, framed);
+    return framed;
+  }
+
+  /** The sheet closed on a camera a person moved: past a person's limits it eases back inside them, and stays otherwise. */
+  #intoLimits() {
+    const b = this.view.plan.ground,
+      from = this.#tween?.target ?? this.controls.target;
+    const target = new THREE.Vector3(THREE.MathUtils.clamp(from.x, b.minX, b.maxX), from.y, THREE.MathUtils.clamp(from.z, b.minZ, b.maxZ));
+    const zoom = Math.max(MIN_ZOOM, this.#tween?.zoom ?? this.camera.zoom);
+    if (target.equals(from) && zoom === (this.#tween?.zoom ?? this.camera.zoom)) return;
+    this.moveTo(target, target.clone().add(this.#tween?.position ?? this.camera.position).sub(from), zoom, false);
   }
 
   /** The view outside a building: the district the view is in, else the home frame. */
@@ -1626,7 +1648,7 @@ export class TownScene {
     const portrait = canvas.clientWidth < canvas.clientHeight * 0.8;
     const insets = this.insets();
     const { span, target } = this.frameRects([bounds], height, direction, portrait ? portraitInsets(insets) : insets, portrait ? 0.96 : 1.04);
-    this.moveTo(target, target.clone().add(direction.multiplyScalar(HOME_OFFSET.length())), THREE.MathUtils.clamp(this.#span / span, this.view.sheetOpen ? SHEET_MIN_ZOOM : MIN_ZOOM, this.controls.maxZoom), false);
+    this.moveTo(target, target.clone().add(direction.multiplyScalar(HOME_OFFSET.length())), this.#framedZoom(this.#span / span), false);
     this.#placed = false;
   }
 
@@ -2103,9 +2125,9 @@ export class TownScene {
     if (this.#stepDressing()) moving = true;
     const ticked = performance.now();
     // Beside the open sheet, and on the way back from there, a frame may go past a person's limits. The controls clamp the
-    // zoom on every update, so its limit follows the frame down and comes back as the camera rises past it.
+    // zoom on every update, so its limit stays under the camera until the camera rises past it.
     const beside = this.view.sheetOpen || this.#tween !== null;
-    this.controls.minZoom = beside ? Math.min(MIN_ZOOM, this.camera.zoom, this.#tween?.zoom ?? MIN_ZOOM) : MIN_ZOOM;
+    this.controls.minZoom = beside ? Math.min(this.#zoomLimit, this.camera.zoom) : MIN_ZOOM;
     this.controls.update();
     // Keep panning inside the town; the frame's centre beside the sheet may lie off the ground by what the sheet shifts it.
     const b = this.view.plan.ground,

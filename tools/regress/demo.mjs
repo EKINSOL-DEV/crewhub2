@@ -284,6 +284,56 @@ export async function run({ pass, page, check, out }) {
     await settled(1000);
     const after = await seen();
     ok("studio: a camera a person moved stays through a resize with the sheet open (round 66, w6-13)", Math.abs(moved.x - after.x) < 0.2 && Math.abs(moved.z - after.z) < 0.2 && Math.abs(moved.zoom - after.zoom) < 1e-3, `target x ${moved.x.toFixed(1)} and ${after.x.toFixed(1)}, zoom ${moved.zoom.toFixed(3)} and ${after.zoom.toFixed(3)}`);
+    // Zoom out comes back after a Zoom in, down to the frame beside the sheet, in a window narrow enough to frame below a
+    // person's limit. Reviewed in round 66: the limit had followed the camera up, and Home was the only way back.
+    await q.setViewportSize({ width: 640, height: 800 });
+    await q.evaluate(() => globalThis.__town?.cameraAction("home"));
+    await settled(640);
+    const framed = await seen();
+    await q.evaluate(() => globalThis.__town?.cameraAction("zoom-in"));
+    await q.waitForTimeout(800);
+    const zoomedIn = await seen();
+    await q.evaluate(() => { for (let i = 0; i < 4; i++) globalThis.__town?.cameraAction("zoom-out"); });
+    await q.waitForTimeout(800);
+    const zoomedBack = await seen();
+    ok("studio: beside the sheet in a narrow window, Zoom out comes back after a Zoom in, down to the frame and no further (round 66, w6-13)", framed.zoom < 0.6 && zoomedIn.zoom > framed.zoom * 1.2 && Math.abs(zoomedBack.zoom - framed.zoom) < 1e-3, `framed ${framed.zoom.toFixed(3)}; zoomed in ${zoomedIn.zoom.toFixed(3)}; zoomed out ${zoomedBack.zoom.toFixed(3)}`);
+    await q.context().close();
+  }
+  // The sheet's closing in a narrow window, the camera on the frame below a person's limit or moved from it: it eases
+  // home, or back inside the limits, with no jump. Real motion, the small team, and each drawn frame read: no one frame
+  // takes more than half of the way.
+  for (const moved of [false, true]) {
+    const q = await open();
+    await town(q, 2500);
+    await q.setViewportSize({ width: 640, height: 800 });
+    await canvas(q).focus();
+    await q.keyboard.press("b");
+    await q.waitForFunction(() => document.querySelector(".build-sheet") !== null && (globalThis.__town?.camera?.zoom ?? 1) < 0.59, null, { timeout: 120000, polling: 250 }).catch(() => {});
+    await q.waitForTimeout(2500);
+    if (moved) {
+      await q.evaluate(() => globalThis.__town?.cameraAction("zoom-in"));
+      await q.waitForTimeout(1500);
+    }
+    await canvas(q).focus();
+    await q.evaluate(() => {
+      const t = globalThis.__town;
+      const seen = [{ x: t.controls.target.x, z: t.controls.target.z, zoom: t.camera.zoom }];
+      const until = performance.now() + 6000;
+      const tick = () => {
+        seen.push({ x: t.controls.target.x, z: t.controls.target.z, zoom: t.camera.zoom });
+        if (performance.now() < until) requestAnimationFrame(tick);
+        else globalThis.__framesRead = { seen, ground: t.view.plan.ground, open: document.querySelector(".build-sheet") !== null };
+      };
+      requestAnimationFrame(tick);
+    });
+    await q.keyboard.press("b");
+    await q.waitForFunction(() => globalThis.__framesRead !== undefined, null, { timeout: 120000, polling: 250 }).catch(() => {});
+    const read = await q.evaluate(() => globalThis.__framesRead ?? { seen: [{ x: 0, z: 0, zoom: 0 }], ground: { minX: 0, maxX: 0, minZ: 0, maxZ: 0 }, open: true });
+    const steps = read.seen.slice(1).map((s, i) => ({ zoom: Math.abs(s.zoom - read.seen[i].zoom), way: Math.hypot(s.x - read.seen[i].x, s.z - read.seen[i].z) }));
+    const sum = (key) => steps.reduce((all, s) => all + s[key], 0);
+    const most = (key) => Math.max(0, ...steps.map((s) => s[key]));
+    const first = read.seen[0], last = read.seen[read.seen.length - 1], g = read.ground;
+    ok(`small team: closing the sheet in a narrow window, ${moved ? "the camera moved" : "the camera on the frame"}: it eases inside a person's limits, no one frame takes half the way (round 66, w6-13)`, !read.open && first.zoom < 0.6 && last.zoom >= 0.6 - 1e-3 && last.x >= g.minX - 1e-3 && last.x <= g.maxX + 1e-3 && last.z >= g.minZ - 1e-3 && last.z <= g.maxZ + 1e-3 && most("zoom") <= sum("zoom") / 2 && most("way") <= Math.max(sum("way") / 2, 0.01), `zoom ${first.zoom.toFixed(3)} to ${last.zoom.toFixed(3)}, largest frame ${most("zoom").toFixed(3)} of ${sum("zoom").toFixed(3)}; target largest frame ${most("way").toFixed(2)} of ${sum("way").toFixed(2)}; closed ${!read.open}`);
     await q.context().close();
   }
   await shot(p, "21-region-again");
