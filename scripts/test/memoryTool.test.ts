@@ -4,7 +4,7 @@
    names of three's classes read from a chunk's class bodies. Node only: no browser, no host. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CHAT_FLAGS, CHAT_OPTIONS, chatAgents, chatSettings, createDmReadCounter, formatChat, lostIn, nextDm, pageChatCounter } from "../../tools/lib/chatSoak.mjs";
+import { CHAT_FLAGS, CHAT_OPTIONS, FIRST_BAD, chatAgents, chatSettings, createDmReadCounter, formatBadStatuses, formatChat, formatFirstBad, lostIn, nextDm, pageChatCounter } from "../../tools/lib/chatSoak.mjs";
 import { SHAPES, formatShapes, resolveThreeNames, shapeCounts, summarize, topBySize } from "../../tools/lib/heap.mjs";
 
 const parsed = (over: Record<string, unknown> = {}) => ({ ...CHAT_OPTIONS, ...Object.fromEntries(CHAT_FLAGS.map((f) => [f, false])), ...over });
@@ -52,13 +52,40 @@ test("the read counter sees only the host's reads of agent messages, by id, with
   await Promise.all([other, a1, a2, b]);
   assert.equal(await c, "socket hung up", "the error is passed on");
   const t = counter.tally();
-  assert.deepEqual(t, { ids: 3, total: 4, once: 2, twice: 1, more: 0, ok: 2, bad: 1, inFlight: 0, maxInFlight: 4, errors: 1 });
+  assert.deepEqual({ ...t, firstBad: undefined }, { ids: 3, total: 4, once: 2, twice: 1, more: 0, ok: 2, bad: 1, badStatuses: { 404: 1 }, firstBad: undefined, inFlight: 0, maxInFlight: 4, errors: 1 });
+  assert.deepEqual(t.firstBad, [{ id: "m-404", status: 404, minute: null }], "with no start, the bad read is named without a minute");
   assert.equal(t.ok + t.bad + t.errors, t.total, "ok, bad and errors are disjoint (round 47): a read that threw is an error, not also bad");
   const w = counter.inWindow(0, Date.now() + 1);
   assert.deepEqual([w.count, w.statuses], [4, { 200: 2, 404: 1, error: 1 }]);
   assert.deepEqual(counter.reads.get("m-1")?.map((r) => r.status), [200, 200]);
-  assert.match(formatChat({ sent: 5, burstSent: 0, reads: t, rows: 4, lost: 0 }), /^chat sent 5 reads 3 ids\/4 total \(twice 1, bad 1, errors 1, in flight 0, max 4\) rows 4$/);
+  assert.match(formatChat({ sent: 5, burstSent: 0, reads: t, rows: 4, lost: 0 }), /^chat sent 5 reads 3 ids\/4 total \(twice 1, bad 1 \[404 ×1\], errors 1, in flight 0, max 4\) rows 4$/);
   assert.match(formatChat({ sent: 305, burstSent: 300, reads: t, rows: 4, lost: 172 }), /\(burst 300\).* lost 172$/);
+});
+
+test("the tally names the reads with another status (round 63): a count per status, the first few by time with their minute", () => {
+  const counter = createDmReadCounter();
+  const start = 1_000_000;
+  const read = (id: string, status: number | null, at: number) => (counter.reads.get(id) ?? counter.reads.set(id, []).get(id)!).push({ status, at, ms: 5 });
+  // Kept out of time order (the review's finding): the later read's id comes first, so only a sort by time names them right.
+  read("m-ok", 200, start + 1000);
+  read("m-early", 404, start + 15 * 60000 + 12000);
+  read("m-early", 200, start + 16 * 60000);
+  read("m-late", 503, start + 9 * 60000 + 30000);
+  for (let i = 0; i < FIRST_BAD + 2; i++) read(`m-${i}`, 503, start + 20 * 60000 + i * 1000);
+  read("m-err", null, start + 2000);
+  const t = counter.tally(start);
+  assert.equal(t.bad, FIRST_BAD + 4);
+  assert.deepEqual(t.badStatuses, { 404: 1, 503: FIRST_BAD + 3 }, "per status; the 200 and the error not among them");
+  assert.equal(t.firstBad.length, FIRST_BAD, "at most FIRST_BAD named");
+  assert.deepEqual(t.firstBad.slice(0, 3), [
+    { id: "m-late", status: 503, minute: 9.5 },
+    { id: "m-early", status: 404, minute: 15.2 },
+    { id: "m-0", status: 503, minute: 20 },
+  ], "by time, not by id or by status");
+  assert.equal(formatBadStatuses(t), `404 ×1, 503 ×${FIRST_BAD + 3}`);
+  assert.match(formatFirstBad(t), /^minute 9\.5 503 m-late, minute 15\.2 404 m-early, minute 20 503 m-0, /);
+  assert.equal(formatBadStatuses(createDmReadCounter().tally()), "", "none, nothing said");
+  assert.equal(formatChat({ sent: 1, burstSent: 0, reads: createDmReadCounter().tally(), rows: 0, lost: 0 }), "chat sent 1 reads 0 ids/0 total (twice 0, bad 0, errors 0, in flight 0, max 0) rows 0", "no brackets with no bad read");
 });
 
 test("the agents the soak writes to are the scenario's leads, else the threads' agents; the sender takes them in turn", async () => {
@@ -215,7 +242,7 @@ test("--burst-at is checked against --minutes: the burst must follow a sample th
    window cannot be judged. The fixture is round 46's snapshot totals, (code) rows and the rows the first and the last
    snapshot's top-40 tables share, cut from its 178 kB JSON. */
 import { readFileSync } from "node:fs";
-import { judge, formatVerdict, fitWindow, rowKind, snapshotDiff, type VerdictSnapshot } from "../../tools/lib/verdict.mjs";
+import { judge, formatVerdict, fitWindow, loopWarning, offLoopMinutes, rowKind, snapshotDiff, type VerdictSnapshot } from "../../tools/lib/verdict.mjs";
 
 const r46 = JSON.parse(readFileSync(new URL("./fixtures/soak/r46-potlings-3h.json", import.meta.url), "utf8")) as { minutes: number; snapshots: VerdictSnapshot[]; first: [string, number, number][]; last: [string, number, number][] };
 const sums = (rows: [string, number, number][]) => rows.map(([name, count, size]) => [name, { count, size }] as const);
@@ -399,4 +426,20 @@ test("the snapshot rows by kind, as item 3 lists them", () => {
   });
   const d = snapshotDiff([["fo", { count: 1, size: 100 }]], [["oi", { count: 2, size: 300 }]]);
   assert.equal(d.jsBytes, 200, "a name in one snapshot only counts from or to nothing");
+});
+
+test("snapshots off the fake's loop are named (round 63): multiples of its length read the same moment of it", () => {
+  assert.deepEqual(offLoopMinutes([16, 32, 48, 64], 16), [], "round 63's one-hour run at speed 1");
+  assert.deepEqual(offLoopMinutes([10, 16, 32, 48, 60, 64], 16), [10, 60], "round 63's two extra minutes for the (code) comparison");
+  assert.deepEqual(offLoopMinutes([10, 30, 60, 90, 120, 150, 180], 16), [10, 30, 60, 90, 120, 150, 180], "round 62's chat soak: none on the loop");
+  assert.deepEqual(offLoopMinutes([0, 12, 40, 60, 120], 4), [], "speed 4: a loop of 4 minutes");
+  assert.deepEqual(offLoopMinutes([10, 30], 4), [10, 30]);
+  assert.deepEqual(offLoopMinutes([10, 30], 1), [], "speed 16: every whole minute");
+  assert.deepEqual(offLoopMinutes([10.5, 30], 0), [], "no loop, nothing to keep to (10.5 is off a loop of a minute)");
+  assert.deepEqual(offLoopMinutes([10.5, 30], null), []);
+  const loop = { minutes: 16, scenario: "small-team", speed: 1 };
+  assert.equal(loopWarning([16, 32, 48], loop), null);
+  assert.equal(loopWarning([10, 16], null), null, "no fake, no warning");
+  assert.match(loopWarning([10, 16, 60], loop) ?? "", /^warning: --snapshots 10, 60 are not multiples of the fake's loop \(16 minutes: small-team at speed 1\)/);
+  assert.match(loopWarning([10, 16], loop) ?? "", /^warning: --snapshots 10 is not a multiple of .* so it reads another moment/);
 });

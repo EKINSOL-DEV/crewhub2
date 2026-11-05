@@ -27,6 +27,10 @@ export interface DmTally {
   more: number;
   ok: number;
   bad: number;
+  /** Round 63: the reads with another status than 200, counted by status. */
+  badStatuses: Record<string, number>;
+  /** Round 63: the first `FIRST_BAD` of them by time, with the run's minute (null when the tally had no start). */
+  firstBad: { id: string; status: number; minute: number | null }[];
   inFlight: number;
   maxInFlight: number;
   errors: number;
@@ -40,7 +44,7 @@ export interface DmWindow {
 export interface DmReadCounter {
   reads: Map<string, DmRead[]>;
   wrap(realFetch: typeof fetch): typeof fetch;
-  tally(): DmTally;
+  tally(startedAt?: number | null): DmTally;
   inWindow(from: number, ms: number): DmWindow;
 }
 export function createDmReadCounter(): DmReadCounter;
@@ -59,3 +63,6 @@ export interface ChatPoint {
   lost: number;
 }
 export function formatChat(chat: ChatPoint): string;
+export const FIRST_BAD: number;
+export function formatBadStatuses(tally: Pick<DmTally, "badStatuses">): string;
+export function formatFirstBad(tally: Pick<DmTally, "firstBad">): string;

@@ -3,6 +3,8 @@ export const RULES: { fitMBPerHour: number; jsObjectsMB: number; codeMBPerHour: 
 export const INSPECTOR_RECORDS: string;
 export function fitWindow(minutes: number): { from: number; to: number } | null;
 export function slopePerHour(minutes: number[], ys: number[]): number | null;
+export function offLoopMinutes(snapshotMinutes: number[], loopMinutes: number | null | undefined): number[];
+export function loopWarning(snapshotMinutes: number[], loop: { minutes: number; scenario: string; speed: number } | null): string | null;
 
 export type RowKind = "arrays" | "strings" | "external strings" | "objects" | "closures" | "numbers" | "named constructors" | "code" | "inspector" | "V8 bookkeeping" | "native";
 export function rowKind(name: string): RowKind;

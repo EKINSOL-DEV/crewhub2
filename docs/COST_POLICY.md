@@ -464,6 +464,9 @@ read:
 - The stores at their caps (`window.__worldStores`: Recent answers 10, bubbles 2 to 3, threads 3), DOM nodes and
   listeners flat (463 to 492 and 237 to 240 with the Chat panel open), frame p95 about 18 ms, reconnects about 17 an
   hour (the fake's stream ends every 300 s and its sealed cursor expires at the 16-minute pass boundary).
+- **A read with another status than 200 is named** (round 63): the tally line gives a count per status and the first
+  five such reads with their id and minute, and the JSON keeps them (`chat.end.tally.badStatuses`, `firstBad`). Round
+  63's hour at `84b635a` had one of 772, whose status the tool did not keep then; its row came later, nothing was lost.
 - Anything a tool keeps in the page counts against the page: round 41's scratch rig kept every row's label (0.3 MB in
   three hours); the tool now keeps the row count and the last 20 labels, nothing more.
 
@@ -480,10 +483,15 @@ report before the run):
 - **The numbers come from the tool's snapshots:** each snapshot's total (`snapshots[].bytes`, the `<n> MB in <k>
   nodes` line) minus its `(code)` row (`snapshots[].top`, always among the 40 largest kinds; the `(code)` line of
   the snapshot table) and minus that class's row (the tool reads it from the whole sums, in or out of the 40). A fit
-  needs points: ask `--snapshots` for at least three minutes inside the window, one every
-  10 to 30 minutes (an hour: `10,20,30,40,50,60`; three hours: `10,30,60,90,120,150,180`, which puts 120, 150 and 180
-  in the window); every snapshot pauses the page about a second per 50 MB of heap, so its own sample is not a frame
-  measurement.
+  needs points: ask `--snapshots` for at least three minutes inside the window; every snapshot pauses the page about a
+  second per 50 MB of heap, so its own sample is not a frame measurement.
+- **The snapshots go on the fake's loop** (round 63): every minute a multiple of the loop's length, the scenario's story
+  at the run's speed (`small-team` and `studio` 16 minutes at speed 1 and 4 at speed 4; `fresh` and `one` 10 and 2.5).
+  Then every snapshot reads the same moment of the loop, and the fit's window starts and ends on that moment: an hour
+  at speed 1 `--minutes 64` with `16,32,48,64` (a snapshot past `--minutes` is never taken; the fit reads 16, 32 and 48); three hours `16,32,48,64,80,96,112,128,144,160,176` (the fit
+  reads 112 to 176); two hours at speed 4 `12,20,40,60,80,100,120` (the fit reads 40 to 120). A snapshot at another
+  moment reads another state of the town, not growth. `memory.mjs live` warns before the run when `--snapshots` names
+  a minute off the in-process fake's loop, and keeps the loop and those minutes in its JSON (`loop`).
 - **The tool prints the verdict** at the run's end (round 47, `tools/lib/verdict.mjs`), and the JSON keeps it as
   `verdict`: the total, `(code)`, the total without code and what the fit reads at each snapshot, the window marked;
   the fit; the inspector's records on a line of their own (records, MB an hour over the window, bytes a record); the JS
@@ -531,6 +539,14 @@ report before the run):
   so crewy took the class out of the fit by name and added the record ceiling above. That run logged no requests and had
   no control without the inspector: the attribution rests on the rows' names and counts, and on this class having read
   as one record per refetch since round 27.
+- History, round 63: until then the snapshots were set every 10 to 30 minutes. Round 62's chat soak (5 November, ended
+  04:56, `2ab965cd`, `small-team` at speed 1) took them 30 minutes apart, at seven moments of the 16-minute loop: its
+  meshes read 479 to 689, and its fit, -0.126 MB an hour, was flattered by a thin last moment. Round 63's two one-hour
+  runs side by side (5 November, 05:05 to 06:09, `84b635a` and round 59d's base `bf69fbe`, the same settings) read 560
+  meshes at 16, 32, 48 and 64 minutes on both heads, and the total without `(code)` and the inspector's records flat at
+  those minutes (35.30 to 35.35 MB). Their extra snapshots at 10 and 60, at other moments, made both fits fail (0.386
+  and 0.665 MB an hour). Their `(code)` rose alike from minute 10 to 60 (+0.77 and +0.71 MB), so round 62's higher
+  `(code)` than round 27's is not the rounds since 59d. Since then the snapshots go on the loop and the tool warns.
 
 **4. How to name the holder.** In this order; stop when the holder is named.
 
