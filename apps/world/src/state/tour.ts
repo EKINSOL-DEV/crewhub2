@@ -151,9 +151,11 @@ const GAP = 12;
 /**
  * Where the card goes so that it never covers the element it describes: below the target when there is room, else
  * above, else beside it; a step without a target is centred. On a phone (under 600 px) the card spans the width and
- * sits at the bottom, or at the top when the target is in the lower half of the screen.
+ * sits at the bottom, or at the top when the target is in the lower half of the screen. A card below its target also
+ * keeps clear of `avoid` (the breadcrumb bar under the header; round 65, w1-14): it goes under that bar when the
+ * screen has the room.
  */
-export function placeStep(target: Rect | null, viewport: { width: number; height: number }, card: { width: number; height: number }): Placement {
+export function placeStep(target: Rect | null, viewport: { width: number; height: number }, card: { width: number; height: number }, avoid: Rect | null = null): Placement {
   const phone = viewport.width < 600;
   if (target === null) {
     return { left: Math.max(GUTTER, (viewport.width - card.width) / 2), top: phone ? viewport.height - card.height - GUTTER : Math.max(GUTTER, (viewport.height - card.height) / 2), side: "centre" };
@@ -165,7 +167,9 @@ export function placeStep(target: Rect | null, viewport: { width: number; height
   }
   const clampLeft = (x: number) => Math.min(Math.max(GUTTER, x), Math.max(GUTTER, viewport.width - card.width - GUTTER));
   const centred = clampLeft(target.left + target.width / 2 - card.width / 2);
-  const below = target.top + target.height + GAP;
+  let below = target.top + target.height + GAP;
+  // The bar to keep clear of, when the card below the target would lie over it and there is room under the bar.
+  if (avoid && below < avoid.top + avoid.height && below + card.height > avoid.top && avoid.top + avoid.height + GAP + card.height + GUTTER <= viewport.height) below = avoid.top + avoid.height + GAP;
   if (below + card.height + GUTTER <= viewport.height) return { left: centred, top: below, side: "below" };
   const above = target.top - GAP - card.height;
   if (above >= GUTTER) return { left: centred, top: above, side: "above" };

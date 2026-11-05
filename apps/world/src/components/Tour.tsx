@@ -82,7 +82,8 @@ export function Tour({ mode, onClose, reducedMotion, returnTo = null, fallback =
   }, [measure]);
   useLayoutEffect(() => {
     const size = card.current ? { width: card.current.offsetWidth, height: card.current.offsetHeight } : { width: 320, height: 160 };
-    setPlacement(placeStep(target.rect, { width: window.innerWidth, height: window.innerHeight }, size));
+    // The breadcrumb bar under the header: a card below a chip in the header keeps clear of it (round 65, w1-14).
+    setPlacement(placeStep(target.rect, { width: window.innerWidth, height: window.innerHeight }, size, rectOf(document.querySelector("nav.world-breadcrumb"))));
   }, [target, index]);
 
   const close = (reason: "skip" | "done") => onClose(reason);
