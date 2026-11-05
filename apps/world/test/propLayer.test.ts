@@ -24,7 +24,7 @@ const style = {
 } as unknown as ResolvedStyle;
 const b = building("crewhub");
 const template = buildingTemplate(b);
-const rule = (id: string, key: RuleProp["key"]): RuleProp => ({ id, rule: "milestone" as RuleProp["rule"], key, anchor: { kind: "room", building: "crewhub", room: "lobby" }, count: null, text: "" });
+const rule = (id: string, key: RuleProp["key"]): RuleProp => ({ id, rule: "milestone" as RuleProp["rule"], key, anchor: { kind: "room", building: "crewhub", room: "lobby" }, count: null, text: "", label: "" });
 const town = (extra: Partial<TownLayer> = {}): TownLayer => ({ doc: { placements: [] } as unknown as TownLayer["doc"], catalogue: new Map() as unknown as TownLayer["catalogue"], definitions: {}, rules: [rule("rule:banner:crewhub:m1", "banner"), rule("rule:crate:crewhub:c1", "crate")], invalid: [], fresh: new Set(), build: null, ...extra });
 const input = (detailed: boolean, prepare = false, extra: Partial<TownLayer> = {}): SyncInput => ({ building: b, template, placements: { rooms: new Map(), errors: [] }, desks: new Map(), town: town(extra), detailed, prepare });
 const layer = () => new PropLayer({ style, slug: "crewhub", reducedMotion: () => false, surface: () => 0.5, toWorld: (v) => v.clone() });

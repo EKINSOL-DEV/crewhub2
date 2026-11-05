@@ -88,6 +88,21 @@ export async function run({ pass, page, check, out }) {
   const rotated = await announced(p, "[");
   const homeView = await announced(p, "h");
   ok("camera keys are said (w5-6)", /Zoomed in\./.test(zoomedIn) && /Rotated left\./.test(rotated) && /Home view\./.test(homeView), `${zoomedIn.slice(-30)} | ${rotated.slice(-30)} | ${homeView.slice(-30)}`);
+  // Round 65 (w1-12): inside the first building with Details on, a rule prop's label says the fact ("Milestone CR-M2
+  // active", "Release 0.3.0: draft", "2 open bugs"), not the build-mode word RULE and the prop's name.
+  {
+    await canvas(p).focus();
+    await p.keyboard.press("Enter");
+    await p.waitForTimeout(1800);
+    await p.keyboard.press("d");
+    await p.waitForTimeout(1200);
+    const ruleTags = (await p.locator(".world-labels .rule-tag").allInnerTexts()).map((t) => t.replace(/\s+/g, " ").trim());
+    await shot(p, "03d-rule-labels");
+    ok("Details on: the rule props' labels say the fact and none leads with the word rule (round 65, w1-12)", ruleTags.length > 0 && ruleTags.every((t) => !/^rule\b/i.test(t) && /^(Milestone \S+ active|Release .+: (draft|published)|\d+ open bugs?|\S+: awaiting-deploy)$/.test(t)), ruleTags.join(" | ") || "no rule labels");
+    await p.keyboard.press("d");
+    await p.keyboard.press("Escape");
+    await p.waitForTimeout(1200);
+  }
 
   // 3. Speed control and scrub: stall, attention, release, stale
   // Round 65 (w1-18): before the script has looped the playback bar shows no loop count ("loop 0" read as a code).
