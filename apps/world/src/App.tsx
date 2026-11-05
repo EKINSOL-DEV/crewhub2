@@ -180,6 +180,9 @@ function World() {
   }, [town.hostRev]);
   // The civic places go by what stands there at this size: the lodge, the mailbox, the mail hut.
   const civic = useMemo(() => civicWords(plan.civic), [plan.civic.hall, plan.civic.post]);
+  // The answers not opened yet (round 65, w3-1 and w3-4): opening the chat (the panel, or the card in the demo) reads
+  // every answer known, and an answer that comes while the panel is open is read as it lands.
+  const unread = useUnreadAnswers();
   // What the agents just said to the person (round 12, state/said.ts): bubbles over the figures, and (round 14) the text
   // view's "says" lines and the chat marks over the buildings from the town.
   const said = useSaid();
@@ -187,9 +190,6 @@ function World() {
   // The Recent answers list (round 16, state/recentAnswers.ts): the last answers the page saw, in the Chat panel and the
   // text view; a row opens that agent's chat by the card's rule (round 13), or its card in the demo.
   const answers = useRecentAnswers();
-  // The answers not opened yet (round 65, w3-1 and w3-4): opening the chat (the panel, or the card in the demo) reads
-  // every answer known, and an answer that comes while the panel is open is read as it lands.
-  const unread = useUnreadAnswers();
   // The host's health as last read (the chat session's state for the Chat panel and the text view's Chat line); null in demo mode.
   const hostHealth = useHostHealth();
   // The chat road (round 28): the host's key, the page's own read, or neither; the words of every place that speaks of the chat.

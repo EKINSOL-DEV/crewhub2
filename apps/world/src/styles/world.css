@@ -1069,8 +1069,11 @@
   margin-left: var(--space-1);
   padding: 0 0.4em;
   border-radius: var(--radius-pill);
-  background: var(--accent-strong);
-  color: var(--surface);
+  /* Small accent text on the soft accent, with the strong accent's edge: 4.5:1 or better in both themes (s1's review:
+     the surface on the strong accent was 3.99:1 in the light theme); apps/world/test/chatCountContrast.test.ts holds it. */
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border: 1px solid var(--accent-strong);
   font-size: var(--text-2xs);
   font-weight: var(--weight-semibold);
   line-height: 1.5;
