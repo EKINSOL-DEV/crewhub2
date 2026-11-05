@@ -25,6 +25,20 @@ export async function run({ pass, page, check, out }) {
   let tv = await text(p);
   ok("text view opens with demo line", /Demo mode/.test(tv), tv.slice(0, 80).replace(/\n/g, " | "));
   ok("text view lists buildings", /CrewHub World \(CR\)/.test(tv) && /crewhub-loops \(CL\)/.test(tv) && /Launch & Marketing \(MK\)/.test(tv));
+  // Round 65 (w1-19): the Fresh install scenario's staked plot carries a sign in words over the scene, as the buildings
+  // have signs; before, only the board painted on the plot said it, in letters a few pixels high from the home view.
+  {
+    const back = p.url();
+    const url = new URL(back);
+    url.searchParams.set("scenario", "fresh");
+    await town(p, 2500, url.toString());
+    const sign = p.locator('.world-labels [data-anchor="c:staked"] .town-sign');
+    const words = (await sign.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+    const shown = await sign.isVisible().catch(() => false);
+    await shot(p, "01b-fresh-plot-sign");
+    ok("fresh install: the staked plot carries a sign that says 'Create a project in crewhub-loops' (round 65, w1-19)", shown && words === "Create a project in crewhub-loops", words || "no sign");
+    await town(p, 2500, back);
+  }
 
   // 2. Keyboard: enter a building, move between rooms, zoom a room, Details, back out
   await canvas(p).focus();

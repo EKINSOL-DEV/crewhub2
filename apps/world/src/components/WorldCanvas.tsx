@@ -34,7 +34,7 @@ import { keysDirection } from "../world/visitor";
 import { LaneChip } from "../world/lane";
 import { countsLine } from "../world/townLayout";
 import { agentLook, type AgentBubble } from "@crewhub/world-model";
-import { civicLabel, civicWords } from "../world/settlementDressing";
+import { civicLabel, civicWords, STAKED_SIGN } from "../world/settlementDressing";
 import { namesLine } from "../world/namesLine";
 import { freeLots, type TownPlan } from "../world/townPlan";
 import { lotKey } from "../world/settlement";
@@ -359,6 +359,16 @@ export default function WorldCanvas(props: Props) {
                 {props.details && <span className="sign-counts civic-names">{model.postOffice.length ? namesLine(model.postOffice.map((a) => a.displayName)) : "the postman is out"}</span>}
               </span>
             </div>
+            {props.plan.staked && (
+              /* The clearing's staked plot says in words what the board on it paints a few pixels high (round 65, w1-19). */
+              <div className="anchor" data-anchor="c:staked">
+                <span className="town-sign civic">
+                  <span className="sign-title">
+                    <strong>{STAKED_SIGN.replace("\n", " ")}</strong>
+                  </span>
+                </span>
+              </div>
+            )}
           </>
         )}
         </OverlayBoundary>
