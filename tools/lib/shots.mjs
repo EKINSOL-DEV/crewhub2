@@ -1,7 +1,7 @@
 /* The world in screenshots: a list of views, in every theme and at every width asked for. Shared by shots.mjs (one
    run) and castworld.mjs (one run per cast). */
 import { openPage } from "./page.mjs";
-import { castChoice, dressed, seek, speed, worldUrl } from "./world.mjs";
+import { castChoice, dressed, seek, speed, worldUrl, pause as pausePlayback } from "./world.mjs";
 
 export const VIEWS = ["town", "building", "room", "walk", "stress", "person", "events"];
 
@@ -147,7 +147,7 @@ export async function worldShots(browser, { base, origin, out, views, themes, wi
         const p = await open(worldUrl(base, null, scenario, plan));
         const model = (fn) => p.evaluate((src) => { const t = globalThis.__town; const m = t?.view?.model; return m ? new Function("m", "t", `return (${src})(m, t)`)(m, t) : null; }, fn.toString()).catch(() => null);
         const untilModel = async (check, ms = 20000) => { const d = Date.now() + ms; while (Date.now() < d) { if (await model(check)) return true; await p.waitForTimeout(250); } return false; };
-        const pause = () => p.getByRole("button", { name: "Pause", exact: true }).click().catch(() => notes.push(`${theme} ${width}: no Pause button`));
+        const pause = () => pausePlayback(p).catch(() => notes.push(`${theme} ${width}: no Pause button or menu row`));
         const enterSlug = async (slug) => {
           await p.locator("canvas").first().focus();
           for (let i = 0; i < 8; i++) {

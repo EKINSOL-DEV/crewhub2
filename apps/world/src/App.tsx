@@ -916,17 +916,33 @@ function usePlaybackValue<T extends string | number>(playback: PlaybackControls,
 
 /* The speed buttons change rarely; the position ticks every second of script time (16 a second at 16x). They subscribe
    apart, so the ticking time does not re-render the buttons. */
+/* Below this width the speeds are one menu button (round 65, w4-10): four buttons took a phone's bar and left the slider
+   88 px, 11 s of story a pixel. */
+const COMPACT_BAR = "(max-width: 599px)";
+
 const PlaybackBar = memo(function PlaybackBar({ playback }: { playback: PlaybackControls }) {
   const speed = usePlaybackValue(playback, () => playback.speed()) as PlaybackSpeed;
+  const compact = useMedia(COMPACT_BAR);
+  const current = SPEEDS.find((s) => s.speed === speed) ?? SPEEDS[1]!;
   return (
     <section className="playback-bar" aria-label="Demo playback" data-chrome="">
-      <div className="segmented playback-speeds" role="group" aria-label="Playback speed">
-        {SPEEDS.map((s) => (
-          <Button key={s.speed} size="sm" className="btn-segmented" pressed={speed === s.speed} aria-label={s.speed ? `Play at ${s.label}` : "Pause"} onClick={() => playback.setSpeed(s.speed)}>
-            {s.speed ? s.label : <Pause className="icon" aria-hidden="true" />}
-          </Button>
-        ))}
-      </div>
+      {compact ? (
+        <Menu
+          name="Playback speed"
+          className="playback-speed-menu"
+          initialFocus="checked"
+          trigger={{ variant: "ghost", size: "sm", ariaLabel: `Playback speed: ${current.label}`, label: current.speed ? current.label : <Pause className="icon" aria-hidden="true" /> }}
+          items={SPEEDS.map((s) => ({ label: s.label, checked: speed === s.speed, onSelect: () => playback.setSpeed(s.speed) }))}
+        />
+      ) : (
+        <div className="segmented playback-speeds" role="group" aria-label="Playback speed">
+          {SPEEDS.map((s) => (
+            <Button key={s.speed} size="sm" className="btn-segmented" pressed={speed === s.speed} aria-label={s.speed ? `Play at ${s.label}` : "Pause"} onClick={() => playback.setSpeed(s.speed)}>
+              {s.speed ? s.label : <Pause className="icon" aria-hidden="true" />}
+            </Button>
+          ))}
+        </div>
+      )}
       <PlaybackPosition playback={playback} />
     </section>
   );

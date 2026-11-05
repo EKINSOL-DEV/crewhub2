@@ -7,7 +7,7 @@
  */
 import { devices } from "playwright-core";
 import { announced, labels, readTextView as text, textView as sheet } from "../lib/page.mjs";
-import { dressed, seek, speed, watch } from "../lib/world.mjs";
+import { dressed, pause, seek, speed, watch } from "../lib/world.mjs";
 import { decodePng } from "../lib/png.ts";
 
 export async function run({ pass, page, check, out }) {
@@ -327,6 +327,25 @@ export async function run({ pass, page, check, out }) {
       ok("375: the Help menu's row 'Open the text view', tapped, opens the text view and closes the menu (round 64, w4-7)", rowShown && opened && menuClosed, `row ${rowShown ? "shown" : "missing"}, text view ${opened ? "open" : "not open"}, menu ${menuClosed ? "closed" : "still open"}`);
       await p.keyboard.press("Escape");
       await p.waitForTimeout(300);
+      // Round 65 (w4-10): on a phone the four speed buttons are one menu button and the slider takes the rest of the bar
+      // (before: four buttons took it and the slider was 88 px, 11 s of story a pixel). The menu, tapped, lists the
+      // speeds; "4x" chosen, the button says 4x and the playback runs at 4x.
+      const barBefore = await p.evaluate(() => { const bar = document.querySelector(".playback-bar"); const scrub = bar?.querySelector(".playback-scrub"); const menu = bar?.querySelector('button[aria-haspopup="menu"]'); const plain = bar ? [...bar.querySelectorAll("button")].filter((b) => /^Play at |^Pause$/.test(b.getAttribute("aria-label") ?? "")).length : -1; return { bar: bar ? Math.round(bar.getBoundingClientRect().width) : null, scrub: scrub ? Math.round(scrub.getBoundingClientRect().width) : null, menu: menu ? (menu.getAttribute("aria-label") ?? menu.textContent ?? "").trim() : null, plainSpeedButtons: plain }; });
+      const speedMenu = p.locator('.playback-bar button[aria-haspopup="menu"]').first();
+      let chosen = null;
+      if (await speedMenu.count()) {
+        await speedMenu.tap();
+        await p.waitForTimeout(300);
+        await shot(p, "12h-375-speed-menu");
+        const row = p.getByRole("menuitemradio", { name: /^4x$/ }).or(p.getByRole("menuitem", { name: /^4x$/ })).first();
+        if (await row.count()) await row.tap();
+        await p.waitForTimeout(400);
+        chosen = await p.evaluate(() => { const menu = document.querySelector('.playback-bar button[aria-haspopup="menu"]'); return { label: (menu?.getAttribute("aria-label") ?? menu?.textContent ?? "").trim(), open: (() => { const m = document.querySelector('.playback-bar [role="menu"]'); return !!m && !m.hidden; })(), speed: globalThis.__town?.playback?.speed?.() ?? null }; });
+      }
+      ok("375: the playback speeds are one menu button and the slider takes the rest; 4x chosen from the menu (round 65, w4-10)", barBefore.menu !== null && barBefore.plainSpeedButtons === 0 && barBefore.scrub !== null && barBefore.bar !== null && barBefore.scrub >= barBefore.bar * 0.45 && chosen !== null && /4x/.test(chosen.label) && !chosen.open, `${JSON.stringify(barBefore)}; chosen ${JSON.stringify(chosen)}`);
+      await pause(p).catch((e) => note("pause " + e.message.split("\n")[0]));
+      const paused = await p.locator('.playback-bar button[aria-haspopup="menu"]').getAttribute("aria-label").catch(() => "");
+      ok("375: the tools' pause reaches the phone's speed menu (round 65, w4-10)", paused === "Playback speed: Pause", String(paused));
     }
     await p.context().close();
   }
