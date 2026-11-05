@@ -327,6 +327,24 @@ export async function run({ pass, page, check, out }) {
       ok("375: the Help menu's row 'Open the text view', tapped, opens the text view and closes the menu (round 64, w4-7)", rowShown && opened && menuClosed, `row ${rowShown ? "shown" : "missing"}, text view ${opened ? "open" : "not open"}, menu ${menuClosed ? "closed" : "still open"}`);
       await p.keyboard.press("Escape");
       await p.waitForTimeout(300);
+      // Round 65 (w4-12): Settings › Town's paired selects (a style option for me and for the town) stand in one column
+      // on a phone, each wide enough for its chosen words. Before, two columns at 390 px cut "Follow the town (C…".
+      await p.getByRole("button", { name: /settings/i }).first().tap();
+      await p.waitForTimeout(600);
+      const pairs = await p.evaluate(() => {
+        const c = document.createElement("canvas").getContext("2d");
+        return [...document.querySelectorAll(".style-options .zone-fields")].map((pair) => {
+          const selects = [...pair.querySelectorAll("select")];
+          const boxes = selects.map((s) => s.getBoundingClientRect());
+          const fits = selects.map((s, i) => { const st = getComputedStyle(s); c.font = `${st.fontWeight} ${st.fontSize} ${st.fontFamily}`; const text = s.selectedOptions[0]?.textContent ?? ""; return { text, textWidth: Math.round(c.measureText(text).width), boxWidth: Math.round(boxes[i].width), fits: c.measureText(text).width + parseFloat(st.paddingLeft) + parseFloat(st.paddingRight) + 24 <= boxes[i].width }; });
+          return { option: pair.dataset.styleOption, stacked: boxes.length === 2 && Math.round(boxes[0].left) === Math.round(boxes[1].left) && boxes[1].top >= boxes[0].bottom, fits };
+        });
+      });
+      await p.locator(".style-options").first().scrollIntoViewIfNeeded().catch(() => {});
+      await shot(p, "12g-375-settings-town");
+      ok("375: Settings › Town's paired selects stand in one column, their chosen words fitting (round 65, w4-12)", pairs.length > 0 && pairs.every((x) => x.stacked && x.fits.every((f) => f.fits)), pairs.map((x) => `${x.option}: ${x.stacked ? "stacked" : "side by side"}, ${x.fits.map((f) => `"${f.text}" ${f.textWidth} in ${f.boxWidth}${f.fits ? "" : " (cut)"}`).join("; ")}`).join(" | "));
+      await p.keyboard.press("Escape");
+      await p.waitForTimeout(300);
     }
     await p.context().close();
   }

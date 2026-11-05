@@ -1022,6 +1022,11 @@
   .settings-sheet {
     top: 3.75rem;
   }
+  /* Settings › Town's paired selects (a style option for me and for the town) stand in one column (round 65, w4-12):
+     two columns at a phone's width cut their chosen words ("Follow the town (C…"). */
+  .style-options .zone-fields {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ── Chat bubbles: the copied loops dock and chat (components/bubbles) ───────
