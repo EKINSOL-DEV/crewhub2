@@ -346,6 +346,12 @@ export async function run({ pass, page, check, out }) {
       await pause(p).catch((e) => note("pause " + e.message.split("\n")[0]));
       const paused = await p.locator('.playback-bar button[aria-haspopup="menu"]').getAttribute("aria-label").catch(() => "");
       ok("375: the tools' pause reaches the phone's speed menu (round 65, w4-10)", paused === "Playback speed: Pause", String(paused));
+      // Asked for the speed it already has (perf's phone stress run does this): nothing to do, no throw, the menu not left
+      // open. Before, the checked row's name was "4x ✓", so the exact name found nothing and the click timed out.
+      const twice = await speed(p, "4x").then(() => speed(p, "4x")).then(() => pause(p)).then(() => pause(p)).then(() => "ok").catch((e) => e.message.split("\n")[0]);
+      const leftOpen = await p.evaluate(() => { const m = document.querySelector('.playback-bar [role="menu"]'); return !!m && !m.hidden; });
+      ok("375: the tools' speed and pause, asked for the current choice, do nothing and leave the menu closed (round 65, w4-10, s4's review)", twice === "ok" && !leftOpen, `${twice}; menu ${leftOpen ? "left open" : "closed"}`);
+      if (leftOpen) await p.keyboard.press("Escape");
     }
     await p.context().close();
   }

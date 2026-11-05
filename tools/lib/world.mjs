@@ -116,9 +116,12 @@ export const seek = (page, ms) =>
     return true;
   }, ms);
 
-/* Below 600 px the speeds are one menu button (round 65, w4-10): its row, by its word; a closed menu's rows are hidden. */
+/* Below 600 px the speeds are one menu button (round 65, w4-10): its row, by its word; a closed menu's rows are hidden. The
+   checked row's name carries its tick, so the current choice has no row of that exact name: nothing to do then (s4's review). */
 const chooseSpeed = async (page, word) => {
-  await page.locator('.playback-bar button[aria-haspopup="menu"]').click({ timeout: 5000 });
+  const trigger = page.locator('.playback-bar button[aria-haspopup="menu"]');
+  if ((await trigger.getAttribute("aria-label", { timeout: 5000 })) === `Playback speed: ${word}`) return;
+  await trigger.click({ timeout: 5000 });
   await page.getByRole("menuitemradio", { name: word, exact: true }).click({ timeout: 5000 });
 };
 /** Sets a playback speed: its button, named "Play at 4x" (aria-label; the text alone does not match), or on a phone the menu's row. */
