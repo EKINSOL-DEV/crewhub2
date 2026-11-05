@@ -55,6 +55,8 @@ export interface TownView {
   entered: string | null;
   /** Where every building stands and how large the settlement is (townPlan.ts). */
   plan: TownPlan;
+  /** The build sheet is open: framing keeps its subject beside it (w6-15). */
+  sheetOpen?: boolean | undefined;
   /** Free lots to anchor a label on (`lot:x,z`): the plots a picked-up building can move to (build mode). */
   lotAnchors?: readonly { x: number; z: number }[] | undefined;
   /** Index (in `model.buildings`) of the building with the keyboard focus ring. */
@@ -290,6 +292,10 @@ interface Insets {
 const NO_INSETS: Insets = { top: 0, bottom: 0, left: 0, right: 0 };
 const CHROME: Insets = { top: 104, bottom: 84, left: 24, right: 76 };
 const PHONE_CHROME: Insets = { top: 156, bottom: 76, left: 12, right: 60 };
+/* The build sheet's right edge and a gap (world.css `.build-sheet`: 1rem from the left, 20rem wide). Up to 600 px it lies
+   along the bottom instead and frames nothing. Round 65, w6-15. */
+const SHEET_RIGHT = 348;
+const SHEET_BESIDE_MIN_WIDTH = 600;
 
 export class TownScene {
   readonly renderer: THREE.WebGLRenderer;
@@ -438,6 +444,8 @@ export class TownScene {
   #fitKey = "";
   /** True while the camera shows the home frame: a visitor who moved it is left alone when the town grows. */
   #atHome = true;
+  /** The camera stands where a person or a jump put it, not on a frame: the sheet's opening does not pull it away. */
+  #placed = false;
   /** Buildings holding a built interior, most recently used last (buildingView.ts prepareInterior). */
   #interiors: string[] = [];
   #cancelPrepare: (() => void) | null = null;
@@ -1395,6 +1403,10 @@ export class TownScene {
       // A room focus or a district change under a follow does not pull the camera away either.
     } else if (view.entered && previous.zoomed !== view.zoomed) this.frameBuilding(view.entered, view.zoomed);
     else if (!view.entered && (previous.district ?? null) !== (view.district ?? null)) this.#frameOutside();
+    else if (!previous.sheetOpen !== !view.sheetOpen && !this.#placed) {
+      if (view.entered) this.frameBuilding(view.entered, view.zoomed);
+      else this.#frameOutside();
+    }
     if (previous.walk && !walking) this.#endWalk(previous.walk);
     this.#life.configure({ ambient: view.ambient, reducedMotion: view.reducedMotion, quality: view.quality });
     if (previous.theme !== view.theme || previous.quality !== view.quality || previous.reducedMotion !== view.reducedMotion || previous.dayNight !== view.dayNight) this.#drift();
@@ -1427,8 +1439,8 @@ export class TownScene {
     return this.frameRects([bounds], height, this.#v.copy(this.camera.position).sub(this.controls.target)).span;
   }
 
-  /** The chrome over the canvas at its current size. */
-  insets(): Insets {
+  /** The chrome over the canvas at its current size; with `sheet`, the open build sheet too. */
+  insets(sheet = true): Insets {
     const canvas = this.renderer.domElement;
     const width = canvas.clientWidth,
       height = canvas.clientHeight;
@@ -1438,7 +1450,8 @@ export class TownScene {
     const fit = (a: number, b: number, size: number) => Math.min(1, size / 3 / Math.max(1, a + b));
     const fy = fit(chrome.top, chrome.bottom, height),
       fx = fit(chrome.left, chrome.right, width);
-    return { top: chrome.top * fy, bottom: chrome.bottom * fy, left: chrome.left * fx, right: chrome.right * fx };
+    const left = chrome.left * fx;
+    return { top: chrome.top * fy, bottom: chrome.bottom * fy, left: sheet && this.view.sheetOpen && width > SHEET_BESIDE_MIN_WIDTH ? Math.max(left, SHEET_RIGHT) : left, right: chrome.right * fx };
   }
 
   /**
@@ -1487,10 +1500,10 @@ export class TownScene {
    * The home frame. On a portrait phone it frames tight (`homeRects` compact) and lets the town run under the side
    * controls, so the town fills the tall screen instead of floating small in its middle.
    */
-  #homeFrame() {
+  #homeFrame(sheet = true) {
     const canvas = this.renderer.domElement;
     const portrait = canvas.clientWidth < canvas.clientHeight * 0.8;
-    let insets = this.insets();
+    let insets = this.insets(sheet);
     // A region's districts carry a card above their far corner: the frame keeps headroom for the topmost one.
     if ((this.view.districts?.length ?? 0) > 1) insets = { ...insets, top: insets.top + (canvas.clientWidth < NARROW_CANVAS ? DISTRICT_CARD.phone : DISTRICT_CARD.desktop) };
     const rects = FIXED_FRAME ? [FIXED_FRAME] : homeRects(this.view.plan, portrait ? 0 : 1.5, portrait);
@@ -1503,9 +1516,11 @@ export class TownScene {
   }
 
   home(immediate: boolean) {
-    const { target } = this.#homeFrame();
+    const { target, span } = this.#homeFrame();
     this.#atHome = true;
-    this.moveTo(target, target.clone().add(HOME_OFFSET), 1, immediate);
+    // Zoom 1 is the home frame without the sheet (`resize`); beside an open sheet the town fits a smaller free area.
+    this.moveTo(target, target.clone().add(HOME_OFFSET), this.view.sheetOpen ? THREE.MathUtils.clamp(this.#span / span, this.controls.minZoom, 1) : 1, immediate);
+    this.#placed = false;
   }
 
   /** One pickable box per building, on its lot; `userData.plot` is the building's index in the model. */
@@ -1585,6 +1600,7 @@ export class TownScene {
       : this.frameRects([bounds], room ? ROOM_FRAME_HEIGHT : BUILDING_FRAME_HEIGHT, direction, insets, room ? 1.06 : 1.02);
     const offset = direction.multiplyScalar(HOME_OFFSET.length());
     this.moveTo(target, target.clone().add(offset), THREE.MathUtils.clamp(this.#span / span, 0.6, this.controls.maxZoom), false);
+    this.#placed = false;
   }
 
   /** The view outside a building: the district the view is in, else the home frame. */
@@ -1602,15 +1618,20 @@ export class TownScene {
     const insets = this.insets();
     const { span, target } = this.frameRects([bounds], height, direction, portrait ? { ...insets, left: 0, right: 0 } : insets, portrait ? 0.96 : 1.04);
     this.moveTo(target, target.clone().add(direction.multiplyScalar(HOME_OFFSET.length())), THREE.MathUtils.clamp(this.#span / span, this.controls.minZoom, this.controls.maxZoom), false);
+    this.#placed = false;
   }
 
   /** Flies to the ground around a label's anchor (the jump list's town hall and post office). */
   flyToAnchor(id: string, reach = 13) {
     const anchor = this.#anchors.get(id);
-    if (anchor) this.frameGround({ minX: anchor.x - reach, maxX: anchor.x + reach, minZ: anchor.z - reach * 1.4, maxZ: anchor.z + reach * 0.6 }, 5);
+    if (anchor) {
+      this.frameGround({ minX: anchor.x - reach, maxX: anchor.x + reach, minZ: anchor.z - reach * 1.4, maxZ: anchor.z + reach * 0.6 }, 5);
+      this.#placed = true;
+    }
   }
 
   moveTo(target: THREE.Vector3, position: THREE.Vector3, zoom: number, immediate: boolean) {
+    this.#placed = true;
     if (immediate || this.view.reducedMotion) {
       this.controls.target.copy(target);
       this.camera.position.copy(position);
@@ -1804,6 +1825,7 @@ export class TownScene {
   }
   #leftHome = () => {
     this.#atHome = false;
+    this.#placed = true;
   };
 
   #setPointer(event: PointerEvent) {
@@ -1965,7 +1987,7 @@ export class TownScene {
       position = this.camera.position.clone();
     this.controls.target.set(0, 0, 0);
     this.camera.position.copy(HOME_OFFSET);
-    this.#span = this.#homeFrame().span;
+    this.#span = this.#homeFrame(false).span;
     // Zoom is relative to the home frame: however large the town, the closest view is about one desk.
     this.controls.maxZoom = Math.max(4, this.#span / DESK_SPAN);
     this.controls.target.copy(target);

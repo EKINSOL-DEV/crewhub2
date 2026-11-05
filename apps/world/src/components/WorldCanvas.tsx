@@ -191,6 +191,7 @@ export default function WorldCanvas(props: Props) {
   const view = {
     model: props.model,
     plan: props.plan,
+    sheetOpen: !!props.town?.build,
     lotAnchors,
     entered: props.view.entered,
     focused: props.view.focused,
