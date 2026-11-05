@@ -123,10 +123,19 @@ export async function run({ pass, page, check, out }) {
     await pg2.keyboard.press("Escape");
     await pg2.waitForFunction(() => !/CrewHub World/.test(document.querySelector("nav.world-breadcrumb .crumb-current")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
     const markBack = (await pg2.locator('.chat-mark[data-said-mark="cr-lead"]').count()) === 1;
-    await pg2.waitForSelector('.chat-mark[data-said-mark="cr-lead"]', { state: "detached", timeout: 20000 }).catch(() => {});
-    const markGone = (await pg2.locator('.chat-mark[data-said-mark="cr-lead"]').count()) === 0;
+    // Walk finding w3-4 (round 65): the mark outlives the bubble. The bubble's 12 s pass (the text view's says-line goes
+    // with it); the mark stands until the Chat panel is opened, then goes.
+    await pg2.waitForFunction(() => (window.__worldStores?.().said ?? 0) === 0, null, { timeout: 20000 }).catch(() => {});
+    await pg2.waitForTimeout(500);
     const bubbleGone = (await pg2.locator('.bubble.said[data-said-agent="cr-lead"]').count()) === 0;
-    ok("chat (key road, round 14): back in the town the mark stands while the bubble lives and goes when it expires", markBack && markGone && bubbleGone, `mark on return ${markBack}, gone ${markGone}, bubble gone ${bubbleGone}`);
+    const markAfterBubble = (await pg2.locator('.chat-mark[data-said-mark="cr-lead"]').count()) === 1;
+    await shot(pg2, "61b-chat-mark-outlives-bubble");
+    await pg2.locator(".chat-open").click().catch(() => {});
+    await pg2.waitForSelector(".chat-sheet", { timeout: 5000 }).catch(() => {});
+    await pg2.keyboard.press("Escape");
+    await pg2.waitForSelector('.chat-mark[data-said-mark="cr-lead"]', { state: "detached", timeout: 5000 }).catch(() => {});
+    const markGone = (await pg2.locator('.chat-mark[data-said-mark="cr-lead"]').count()) === 0;
+    ok("chat (w3-4): back in the town the mark stands while the bubble lives, outlives it once the 12 s pass, and goes when the Chat panel is opened", markBack && bubbleGone && markAfterBubble && markGone, `mark on return ${markBack}, bubble gone ${bubbleGone}, mark after the bubble ${markAfterBubble}, gone after the panel ${markGone}`);
     // Round 16: the text view's Recent answers section lists both answers newest first (cr-lead's, then g-man's) with
     // their times, after both bubbles went; its row opens the Chat panel on that agent.
     await pg2.keyboard.press("t");

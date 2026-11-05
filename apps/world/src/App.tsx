@@ -22,7 +22,7 @@ import type { AnswerTarget } from "./state/recentAnswers";
 import { useHealthNeed, useHostHealth, useLiveScreen } from "./state/health";
 import { installSoakProbe } from "./state/soak";
 import { pageReads } from "./state/soakPage";
-import { markWords, saidMarks, type SaidMark } from "./world/saidText";
+import { answerMarks, markWords, type SaidMark } from "./world/saidText";
 import { JumpList } from "./components/JumpList";
 import { RecentAnswers } from "./components/RecentAnswers";
 import { IconSprite } from "./components/Icon";
@@ -44,7 +44,7 @@ import { toggleFps } from "./state/fps";
 import { readRoleOverrides, writeRoleOverrides } from "./state/roleOverrides";
 import { useBuildMode } from "./state/build";
 import { useDark, useTheme } from "./state/theme";
-import { townRuntime, useChat, useChatRoad, useConnection, useConnectionKey, useDirectorFeed, useRecentAnswers, useSaid, useTown, useWorld, worldRuntime } from "./state/runtimes";
+import { chatStores, townRuntime, useChat, useChatRoad, useConnection, useConnectionKey, useDirectorFeed, useRecentAnswers, useSaid, useTown, useUnreadAnswers, useWorld, worldRuntime } from "./state/runtimes";
 import type { TownLayer } from "./world/propLayer";
 import { pageConfig } from "./state/page";
 import { translate } from "./i18n";
@@ -183,10 +183,15 @@ function World() {
   // What the agents just said to the person (round 12, state/said.ts): bubbles over the figures, and (round 14) the text
   // view's "says" lines and the chat marks over the buildings from the town.
   const said = useSaid();
-  const marks = useMemo(() => saidMarks(model, said, Date.now()), [model, said]);
   // The Recent answers list (round 16, state/recentAnswers.ts): the last answers the page saw, in the Chat panel and the
   // text view; a row opens that agent's chat by the card's rule (round 13), or its card in the demo.
   const answers = useRecentAnswers();
+  // The answers not opened yet (round 65, w3-1 and w3-4): opening the chat (the panel, or the card in the demo) reads
+  // every answer known, and an answer that comes while the panel is open is read as it lands.
+  const unread = useUnreadAnswers();
+  // The chat marks over the buildings (walk finding w3-4): from the unread answers, so a mark outlives its bubble until
+  // the chat opens or the agent's next answer replaces it.
+  const marks = useMemo(() => answerMarks(model, unread), [model, unread]);
   // The host's health as last read (the chat session's state for the Chat panel and the text view's Chat line); null in demo mode.
   const hostHealth = useHostHealth();
   // The chat road (round 28): the host's key, the page's own read, or neither; the words of every place that speaks of the chat.
@@ -285,6 +290,7 @@ function World() {
   // page's chat (state/chat.ts) says: the agent's card in the demo, whose chat is its scripted dock, or the Chat panel,
   // whose Escape and close button return the focus to the opener.
   const openChat = useStable((key: string | null) => {
+    chatStores.unread.read();
     const opening = talk.open(key);
     if ("card" in opening) {
       if (opening.card !== null) pick({ kind: "agent", key: opening.card }, false);
@@ -295,6 +301,9 @@ function World() {
     setAnnouncement(translate("world.chat.panel.announce"));
   });
   const closeChat = useCallback(() => overlays.close("chat"), []);
+  useEffect(() => {
+    if (chatOpen) chatStores.unread.read();
+  }, [chatOpen, answers]);
   const openAnswer = useStable((_a: Answer, target: AnswerTarget) => openChat(target.agent?.key ?? null));
 
   const openText = useCallback(() => overlays.open("text"), []);
