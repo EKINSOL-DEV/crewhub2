@@ -11,6 +11,7 @@ import { useWorld } from "../state/runtimes";
 import { Button, Card, Chip, Field } from "./primitives";
 import { BuildLayout } from "./LayoutPanel";
 import type { TownPlan } from "../world/townPlan";
+import { buildStatusLine } from "../world/buildStatus";
 import { BuildZones } from "./ZonePanel";
 
 interface Props {
@@ -26,8 +27,6 @@ interface Props {
   onEdit: (propId: string | null) => void;
   onRequest: (thing: string) => string;
 }
-
-const ROTATION_WORDS = ["facing the camera", "turned a quarter", "turned half", "turned three quarters"] as const;
 
 export function BuildPanel({ build, town, plan, inside, demo, onClose, onUndo, onRedo, onEdit, onRequest }: Props) {
   const { model } = useWorld();
@@ -73,17 +72,13 @@ export function BuildPanel({ build, town, plan, inside, demo, onClose, onUndo, o
         </div>
 
         <p className="build-status" role="status" aria-live="polite">
-          {!inside
-            ? "Enter a building to place props."
-            : selectedPlacement
-              ? `${selected?.name ?? selectedPlacement.propId} selected, ${ROTATION_WORDS[selectedPlacement.rotation]}.`
-              : chosen
-                ? check
-                  ? check.ok
-                    ? `${chosen.name} fits here.`
-                    : `${chosen.name} can't stand here: ${check.reason}`
-                  : `${chosen.name}: point at a floor or use the arrow keys.`
-                : "Choose a prop, or click a placed prop to select it."}
+          {buildStatusLine({
+            inside: inside !== null,
+            selected: selectedPlacement ? { name: selected?.name ?? selectedPlacement.propId, rotation: selectedPlacement.rotation } : null,
+            chosen: chosen?.name ?? null,
+            check,
+            message: state.message,
+          })}
           {state.message && <span className="build-message">{state.message}</span>}
         </p>
         {chosen && check && (
