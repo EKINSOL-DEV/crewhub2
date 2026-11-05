@@ -11,6 +11,7 @@ import { ConnectionChip, connectionLine, connectionWord } from "./components/Con
 import { ConnectionPanel } from "./components/ConnectionPanel";
 import { ChatPanel } from "./components/ChatPanel";
 import { Tour } from "./components/Tour";
+import { rememberFocus, takeFocus } from "./state/afterReload";
 import { nextAnnouncement } from "./state/announce";
 import { cameraWords } from "./state/cameraWords";
 import { escapeLayer, sceneOwnsKey } from "./state/sceneKeys";
@@ -121,6 +122,11 @@ function World() {
   const { text: textOpen, settings: settingsOpen, connection: connectionOpen, tour: tourOpen, jump: jumpOpen, chat: chatOpen, editor: editorOpen } = overlayState.open;
   // The introduction inside the world (round 20): open by itself once per browser, or from Settings and the "?" menu.
   const tourAsked = useRef(false);
+  // A page the Demo chip's menu loaded (a scenario chosen) gives the chip the focus back (round 65, w5-18): the note is
+  // this tab's and taken once, so a plain reload focuses nothing, as before.
+  useEffect(() => {
+    if (takeFocus(globalThis.sessionStorage) === "demo-chip") document.querySelector<HTMLElement>(".demo-chip")?.focus();
+  }, []);
   const [announcement, setSpoken] = useState("");
   // The same sentence twice is heard twice (state/announce.ts, round 50 N3); one function for the page's life.
   const setAnnouncement = useCallback((text: string) => setSpoken((before) => nextAnnouncement(before, text)), []);
@@ -701,6 +707,8 @@ const SPEEDS: readonly { speed: PlaybackSpeed; label: string }[] = [
 /* The chrome around the scene, memoised: the world model changes many times a second under load, and none of these show
    it, so they render only when their own props change. */
 const SCENARIO_CHOICES = pageConfig().scenarioChoices;
+/** What the picker says of a choice, as Settings › Source does (i18n `world.source.hint.fixed`'s second sentence). */
+const SCENARIO_RELOADS = "Changing it reloads the page.";
 
 const Corner = memo(function Corner({
   demo,
@@ -749,7 +757,8 @@ const Corner = memo(function Corner({
               className: "demo-chip",
               icon: <FlaskConical className="icon" aria-hidden="true" />,
               label: <span className="demo-word">Demo: {scenario}</span>,
-              ariaLabel: `Demo: scripted data. Scenario: ${scenario}. Choose a scenario`,
+              // Said with the chip, as Settings › Source's hint is with its select (round 65, w5-18).
+              ariaLabel: `Demo: scripted data. Scenario: ${scenario}. Choose a scenario; ${SCENARIO_RELOADS.toLowerCase()}`,
             }}
             items={[
               { group: "Demo scenario" },
@@ -758,9 +767,17 @@ const Corner = memo(function Corner({
                 value: choice.id,
                 hint: choice.summary,
                 checked: choice.current,
-                // Each scenario is its own page (its own source and town document): choosing one loads it.
-                onSelect: () => !choice.current && globalThis.location.assign(choice.href),
+                // Each scenario is its own page (its own source and town document): choosing one loads it, and the chip
+                // takes the focus once that page is back (round 65, w5-18).
+                onSelect: () => {
+                  if (choice.current) return;
+                  rememberFocus(globalThis.sessionStorage, "demo-chip");
+                  globalThis.location.assign(choice.href);
+                },
               })),
+              { separator: true },
+              // The same sentence Settings › Source shows under its select (round 65, w5-18).
+              { group: SCENARIO_RELOADS },
             ]}
           />
         )}
