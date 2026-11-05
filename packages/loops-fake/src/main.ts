@@ -3,10 +3,10 @@
  * crewhub-loops on 127.0.0.1 for running the world in live mode before the install. `--builder-key` makes the key behave like
  * loops' builder key (tickets, comments and `auth/me` only; everything else 403), so the host shows Unauthorized.
  * `--viewer-key` (round 65) makes the key read the chat, as loops' viewer key does (`keyReadsChat`), so the world shows
- * bubbles and Recent answers over the fake; the two cannot be given together. The key lives in `tools/out/loops-fake.key`, or for a test
- * in the file `LOOPS_FAKE_KEY_FILE` names inside the temp folder (anywhere else is refused like a bad flag) (mode 0600; reused
+ * bubbles and Recent answers over the fake; the two cannot be given together. The key lives in `tools/out/loops-fake.key` (mode 0600; reused
  * when it exists, so a restarted fake keeps the host's key valid) and is never printed. `--help` or `-h` prints the usage and
  * exits 0; an unknown flag, a stray word or a bad value is refused with exit 2 (`fakeArgs.ts`). Neither starts the fake.
+ * `LOOPS_FAKE_KEY_FILE` is for tests only and names another key file; a path outside the temp folder is refused, exit 2, no start.
  */
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
