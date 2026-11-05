@@ -100,8 +100,8 @@ export type ViewIntent =
   | { type: "startWalk" }
   | { type: "stopWalk" }
   | { type: "closeCard" }
-  /** Escape, once the page's dialogs had their turn: `open` says which of the view's own overlays stand. */
-  | { type: "escape"; open: { text: boolean; build: boolean } }
+  /** Escape, once the page's dialogs had their turn: `open` says which of the view's own overlays stand, `focus` which of them holds the focus (round 65, w6-7). */
+  | { type: "escape"; open: { text: boolean; build: boolean }; focus?: "text" | "build" | null }
   /** A key pressed with the scene focused: the arrow keys, Home, End and Enter (`onCanvas`: on the canvas itself). */
   | { type: "key"; key: string; onCanvas: boolean }
   | { type: "camera"; action: CameraAction }
@@ -281,6 +281,8 @@ export function stepView(view: View, intent: ViewIntent, facts: ViewFacts): View
       // The innermost thing first: the walk, build mode, the text view, the follow, the card, the selection, the
       // zoomed room, the building, the district.
       if (view.walk) return stepView(view, { type: "stopWalk" }, facts);
+      // The text view with the focus in it closes before build mode (w6-7): Escape closes the layer that holds the focus.
+      if (intent.open.text && intent.focus === "text") return { view, say: null, close: "text", handled: true };
       if (intent.open.build) return { view, say: null, close: "build", handled: true };
       if (intent.open.text) return { view, say: null, close: "text", handled: true };
       if (view.following) return follow(null);

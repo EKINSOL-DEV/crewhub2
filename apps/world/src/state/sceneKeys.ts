@@ -12,3 +12,13 @@ interface Closest {
 export function sceneOwnsKey(target: Closest | null): boolean {
   return !target?.closest?.('[role="dialog"], .agent-card');
 }
+
+/**
+ * The layer that holds the focus when Escape is pressed (round 65, w6-7): the text view, the build sheet, or neither
+ * (the scene, a corner tool). With build mode and the text view both open, Escape closes the one the focus is in.
+ */
+export function escapeLayer(target: Closest | null): "text" | "build" | null {
+  if (target?.closest?.("#text-view")) return "text";
+  if (target?.closest?.(".build-sheet")) return "build";
+  return null;
+}

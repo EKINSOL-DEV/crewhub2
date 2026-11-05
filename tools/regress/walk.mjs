@@ -214,6 +214,19 @@ export async function run({ pass, page, check, out }) {
   const afterEditor = await focusWhere();
   ok("the prop editor takes the focus when it opens and gives it back to New prop when it closes", inEditor === "editor" && afterEditor === "New prop", `open: ${inEditor}, closed: ${afterEditor}`);
   await p.keyboard.press("b");
+  // Round 65 (w6-7): with build mode and the text view both open, Escape closes the layer that holds the focus: the
+  // text view (the focus is in it when T opens it), and build mode stays; before, build mode closed behind it.
+  await p.keyboard.press("b");
+  await p.waitForTimeout(400);
+  await p.keyboard.press("t");
+  await p.waitForTimeout(500);
+  const focusInText = await p.evaluate(() => !!document.activeElement?.closest("#text-view"));
+  await p.keyboard.press("Escape");
+  await p.waitForTimeout(500);
+  const layersLeft = { build: await build.count(), text: await p.locator("#text-view").count() };
+  ok("Escape with the focus in the text view closes the text view and leaves build mode on", focusInText && layersLeft.build === 1 && layersLeft.text === 0, `focus in text view: ${focusInText}; after Escape build sheet ${layersLeft.build}, text view ${layersLeft.text}`);
+  await p.keyboard.press("b");
+  await p.waitForTimeout(300);
 
   // 7. Settings: style, director, model calls, graphics, town export
   await p.getByRole("button", { name: /settings/i }).first().click().catch((e) => note("settings " + e.message.split("\n")[0]));

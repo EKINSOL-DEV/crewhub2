@@ -12,7 +12,7 @@ import { ConnectionPanel } from "./components/ConnectionPanel";
 import { ChatPanel } from "./components/ChatPanel";
 import { Tour } from "./components/Tour";
 import { nextAnnouncement } from "./state/announce";
-import { sceneOwnsKey } from "./state/sceneKeys";
+import { escapeLayer, sceneOwnsKey } from "./state/sceneKeys";
 import { INTRODUCTION_URL, readTourDone, tourShouldStart, writeTourDone } from "./state/tour";
 import { chatPlaceLine, recentEmptyWords } from "./state/chatRoad";
 import { FirstSnapshot } from "./components/FirstSnapshot";
@@ -384,14 +384,18 @@ function World() {
       openJump();
       return;
     }
-    if (build.key(e)) {
+    // Round 65 (w6-7): Escape closes the layer that holds the focus. With the focus in the text view, the text view
+    // closes before build mode's drag, selection or chosen prop, and before build mode itself (state/view.ts `focus`).
+    const focusLayer = e.key === "Escape" ? escapeLayer(e.target instanceof Element ? e.target : null) : null;
+    if (!(focusLayer === "text" && textOpen) && build.key(e)) {
       e.preventDefault();
       return;
     }
     if (e.key === "Escape") {
-      // The view's Escape chain (state/view.ts), innermost first: the walk, build mode, the text view, the follow, the
-      // card, the selection, the zoomed room, the building, the district. Nothing left: the key is nobody's.
-      if (dispatch({ type: "escape", open: { text: textOpen, build: build.state.on } }).handled) e.preventDefault();
+      // The view's Escape chain (state/view.ts), innermost first: the walk, the text view when the focus is in it,
+      // build mode, the text view, the follow, the card, the selection, the zoomed room, the building, the district.
+      // Nothing left: the key is nobody's.
+      if (dispatch({ type: "escape", open: { text: textOpen, build: build.state.on }, focus: focusLayer }).handled) e.preventDefault();
       return;
     }
     if (e.key.toLowerCase() === "w" && !graphicsFailed && !build.state.on && !textOpen && !settingsOpen && !selection.selected) {
