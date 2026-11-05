@@ -58,6 +58,9 @@ export async function run({ pass, page, check, out }) {
   await p.waitForTimeout(1200);
   await shot(p, "03-room");
   ok("room focus announced", status1.join(" ").trim().length > 0, status1.filter((s) => s.trim()).join(" | ").slice(0, 120));
+  // Round 65 (w4-6): under the keyboard the zoomed room's sign wears the focus ring (the scene holds the visible focus).
+  const keyRing = await p.evaluate(() => { const s = document.querySelector(".world-labels .room-sign.focused"); return s ? getComputedStyle(s).boxShadow : "no sign"; });
+  ok("keyboard: the zoomed room's sign wears the focus ring (round 65, w4-6)", /0px 0px 0px 4px/.test(keyRing), keyRing.slice(0, 80));
   // Details (D): every label shows, the button says so, and D again takes them away. Back out of the room first, so the
   // count is the building's (a zoomed room already reveals its own labels).
   await p.keyboard.press("Escape");
@@ -136,6 +139,13 @@ export async function run({ pass, page, check, out }) {
     await p.keyboard.press("Escape");
     await p.waitForTimeout(1200);
   }
+  // Round 65 (w4-6): Tab from the scene lands on a building's sign and expands it (the keyboard's focus is visible).
+  await canvas(p).focus();
+  await p.keyboard.press("Tab");
+  await p.waitForTimeout(400);
+  const tabbed = await p.evaluate(() => { const a = document.activeElement; return { sign: !!a?.classList.contains("town-sign"), expanded: !!a?.classList.contains("expanded"), ring: globalThis.__town?.view?.ringVisible ?? null }; });
+  ok("keyboard: Tab onto a building's sign expands it and shows the ring (round 65, w4-6)", tabbed.sign && tabbed.expanded && tabbed.ring === true, JSON.stringify(tabbed));
+  await canvas(p).focus();
 
   // 3. Speed control and scrub: stall, attention, release, stale
   // Round 65 (w1-18): before the script has looped the playback bar shows no loop count ("loop 0" read as a code).
@@ -436,6 +446,31 @@ export async function run({ pass, page, check, out }) {
       ok("375: the Help menu's row 'Open the text view', tapped, opens the text view and closes the menu (round 64, w4-7)", rowShown && opened && menuClosed, `row ${rowShown ? "shown" : "missing"}, text view ${opened ? "open" : "not open"}, menu ${menuClosed ? "closed" : "still open"}`);
       await p.keyboard.press("Escape");
       await p.waitForTimeout(300);
+      // Round 65 (w4-6): a tap is not the keyboard. A sign tapped and "← Town" tapped leave no expanded plate and no ring
+      // on the plot (before, the sign's focus fired the hover intent as the keyboard's Tab does, and the ring lingered);
+      // a tap that zooms a room marks its sign with the accent border alone, no focus ring (before, the class drew it).
+      await p.locator(".world-labels").getByRole("button", { name: /crewhub-loops/ }).first().tap();
+      await p.waitForTimeout(2500);
+      await p.locator("nav.world-breadcrumb").getByRole("button").first().tap();
+      await p.waitForTimeout(2500);
+      const afterBack = await p.evaluate(() => ({ entered: globalThis.__town?.view?.entered ?? null, expanded: document.querySelectorAll(".town-sign.expanded").length, ring: globalThis.__town?.view?.ringVisible ?? null }));
+      await shot(p, "12d-375-after-back");
+      ok("375 touch: a sign tapped and ← Town tapped leave no expanded plate and no ring on the plot (round 65, w4-6)", afterBack.entered === null && afterBack.expanded === 0 && afterBack.ring === false, JSON.stringify(afterBack));
+      await p.locator(".world-labels").getByRole("button", { name: /crewhub-loops/ }).first().tap();
+      await p.waitForTimeout(2500);
+      const detailsPhone = p.getByRole("button", { name: /^Details/ }).first();
+      await detailsPhone.tap();
+      await p.waitForTimeout(700);
+      const leadAt = await p.evaluate(() => { const a = [...document.querySelectorAll(".world-labels .anchor")].find((x) => /CL Lead/.test(x.textContent ?? "")); const m = /translate\(([-\d.]+)px, ([-\d.]+)px\)/.exec(a?.getAttribute("style") ?? ""); return m ? { x: +m[1], y: +m[2] } : null; });
+      if (leadAt) await p.touchscreen.tap(leadAt.x, leadAt.y + 22);
+      await p.waitForTimeout(1500);
+      const roomSign = await p.evaluate(() => { const s = document.querySelector(".world-labels .room-sign.focused"); return s ? { room: globalThis.__town?.view?.room ?? null, shadow: getComputedStyle(s).boxShadow } : null; });
+      await shot(p, "12e-375-room-tapped");
+      ok("375 touch: a tap that zooms a room marks its sign without the focus ring (round 65, w4-6)", roomSign !== null && !/0px 0px 0px 4px/.test(roomSign.shadow), roomSign ? `room ${roomSign.room}, shadow ${roomSign.shadow.slice(0, 60)}` : `no zoomed room sign (lead at ${JSON.stringify(leadAt)})`);
+      await detailsPhone.tap().catch(() => {});
+      await p.waitForTimeout(300);
+      // Both rows of this round stand here: w4-6's above want the town, w4-8's below leaves a card open. A fresh load between them.
+      await town(p, 1500);
       // Round 65 (w4-8): on a phone one tap on a figure's name pill (shown with Details on) opens its card. Before, the
       // first tap zoomed the figure's room and the card needed a second tap on the figure itself.
       await canvas(p).focus();
