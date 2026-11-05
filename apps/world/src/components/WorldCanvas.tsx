@@ -54,6 +54,8 @@ interface Props {
   onSaidTap: (key: string) => void;
   /** The agents inside a building with a line in flight (round 14, world/saidText): a chat mark over the building from the town. */
   marks: SaidMark[];
+  /** A click on a mark (round 67, walk finding v1-1): the answer's bubble shows again where the mark leads. */
+  onMark: (agentId: string) => void;
   /** Where every building stands (state/plan.ts). */
   plan: TownPlan;
   /** The world view (state/view.ts): the level, the focus ring, the selection, the card, the follow, the walk and the camera commands. */
@@ -336,7 +338,7 @@ export default function WorldCanvas(props: Props) {
             />
           );
         })}
-        {!inside && <Wayfinding districts={props.districts} district={district} marks={props.marks} onIntent={onIntent} />}
+        {!inside && <Wayfinding districts={props.districts} district={district} marks={props.marks} onMark={props.onMark} onIntent={onIntent} />}
         {inside && !inside.archived && <Interior building={inside} model={model} props={props} compact={compact} />}
         {!compact && card && (
           <div className="anchor card-anchor" data-anchor={`card:${inside ? inside.slug : "town"}:${card.key}`}>
@@ -345,7 +347,16 @@ export default function WorldCanvas(props: Props) {
         )}
         {!inside && (
           <>
-            <TownFigures model={model} selection={props.view.selection} card={props.view.card} said={props.said} onSaidTap={props.onSaidTap} />
+            <TownFigures
+              model={model}
+              selection={props.view.selection}
+              card={props.view.card}
+              said={props.said}
+              onSaidTap={props.onSaidTap}
+              // A click or tap on a town figure's pill opens its card as inside a building (round 67, the rest of w1-11); not
+              // in build mode or walk mode, where the scene picks no figure either.
+              {...(props.town?.build || props.view.walk ? {} : { onPick: (key: string) => onIntent({ type: "pick", target: { kind: "agent", key }, hover: false }) })}
+            />
             <div className="anchor" data-anchor="c:town-hall">
               <span className="town-sign civic">
                 <span className="sign-title">
@@ -473,9 +484,11 @@ function useDeskProgress(ticketKey: string | null): FetchedProgress | undefined 
 }
 
 /** The town's own figures (the postman, the town hall's agents) carry a name pill while hovered or selected; with the
-    card open the pill of the selected one yields to it. The pill hangs from the figure's anchor (`a:town:<key>`).
+    card open the pill of the selected one yields to it. The pill hangs from the figure's anchor (`a:town:<key>`). With
+    `onPick` the pill takes the click or tap itself and opens the card, as the interior's pills do (round 67, w1-11):
+    before, it let the click through to the ground behind the figure, which only selected him.
     A bubble over a figure whose pill is not drawn carries the speaker's name itself (round 65, walk finding w3-2). */
-function TownFigures({ model, selection, card, said, onSaidTap }: { model: WorldModel; selection: Selection; card: boolean; said: SaidMap; onSaidTap: (key: string) => void }) {
+function TownFigures({ model, selection, card, said, onSaidTap, onPick }: { model: WorldModel; selection: Selection; card: boolean; said: SaidMap; onSaidTap: (key: string) => void; onPick?: (key: string) => void }) {
   const shown = selection.hover?.kind === "agent" ? selection.hover.key : !card && selection.selected?.kind === "agent" ? selection.selected.key : null;
   const figures = [...model.postOffice, ...model.townHall];
   // Every town figure that just said something to the person carries its bubble (round 12); the shown one its pill too.
@@ -497,7 +510,7 @@ function TownFigures({ model, selection, card, said, onSaidTap }: { model: World
                 </button>
               )}
               {agent.key === shown && (
-                <span className="name-pill" title={`${agent.displayName}: ${look.words}`}>
+                <span className={`name-pill${onPick ? " pickable" : ""}`} title={`${agent.displayName}: ${look.words}`} onClick={onPick ? () => onPick(agent.key) : undefined}>
                   <span className="pill-dot" data-tone={look.tone} aria-hidden="true" />
                   {agent.displayName}
                   <span className="sr-only">: {look.words}</span>
@@ -570,7 +583,7 @@ const TownSign = memo(function TownSign(props: {
    as long as the bubble lives (the figure is not drawn from the town); both in one row when both. The scene shows the
    cards from far and the building signs nearer (`data-detail` on the labels host, `labelDetail` in wayfinding.ts);
    every fact here is also a sentence in the text view. */
-function Wayfinding({ districts, district, marks, onIntent }: { districts: DistrictPlace[]; district: string | null; marks: SaidMark[]; onIntent: (intent: ViewIntent) => void }) {
+function Wayfinding({ districts, district, marks, onMark, onIntent }: { districts: DistrictPlace[]; district: string | null; marks: SaidMark[]; onMark: (agentId: string) => void; onIntent: (intent: ViewIntent) => void }) {
   // The model is new many times a second and these labels rarely change: they are worked out as plain values and
   // drawn again only when one of those differs.
   const cards =
@@ -592,6 +605,8 @@ function Wayfinding({ districts, district, marks, onIntent }: { districts: Distr
   const key = JSON.stringify([cards, roofs]);
   const go = useRef(onIntent);
   go.current = onIntent;
+  const mark = useRef(onMark);
+  mark.current = onMark;
   return useMemo(
     () => (
       <>
@@ -632,7 +647,7 @@ function Wayfinding({ districts, district, marks, onIntent }: { districts: Distr
             </button>
           );
           const chat = r.marks.map((m) => (
-            <button key={m.agent} type="button" className={`chat-mark${m.fading ? " fading" : ""}`} aria-label={markLabel(m)} title={`${m.name} says: ${m.text}`} data-said-mark={m.agent} onClick={() => go.current({ type: "enter", slug: r.slug })}>
+            <button key={m.agent} type="button" className={`chat-mark${m.fading ? " fading" : ""}`} aria-label={markLabel(m)} title={`${m.name} says: ${m.text}`} data-said-mark={m.agent} onClick={() => { mark.current(m.agent); go.current({ type: "enter", slug: r.slug }); }}>
               <MessageCircle className="icon icon-sm" aria-hidden="true" />
               <span className="chat-mark-name">{m.name}</span>
             </button>

@@ -311,6 +311,9 @@ function World() {
     setAnnouncement(translate("world.chat.panel.announce"));
   });
   const closeChat = useCallback(() => overlays.close("chat"), []);
+  // A click on a chat mark (round 67, walk finding v1-1): the mark enters the building, and the answer's bubble shows again
+  // over the agent there for its 12 s, so a mark clicked after its bubble went still leads to something to read.
+  const markAgain = useStable((agentId: string) => chatStores.said.again(agentId));
   useEffect(() => {
     if (chatOpen) chatStores.unread.read();
   }, [chatOpen, answers]);
@@ -551,6 +554,7 @@ function World() {
               said={said}
               onSaidTap={openChat}
               marks={marks}
+              onMark={markAgain}
               plan={plan}
               view={view}
               onIntent={dispatch}
