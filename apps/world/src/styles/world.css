@@ -2082,6 +2082,15 @@
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+/* "I opened the link" pressed with no link opened (walk finding w2-7): the line under the buttons, on a row of its own;
+   empty (and taking no room) until it is due, the live region standing from the start so the line is said. */
+.pair-still {
+  flex-basis: 100%;
+  margin: 0;
+}
+.pair-still:empty {
+  display: none;
+}
 /* ── The agent card: what an agent does now, beside its figure (a bottom sheet on a phone) ── */
 /* Above the corner chips and the chat corner (6): a card beside a figure near the top right was drawn under the live
    chat chip; it stays under the sheets and menus (8, 9). */

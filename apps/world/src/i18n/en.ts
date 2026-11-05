@@ -113,6 +113,7 @@ export const EN: Record<string, string> = {
   "world.pair.note": "The link works once, for 10 minutes. For another browser, npm run world -- --no-open prints the link. A paired browser stays paired across host restarts.",
   "world.pair.demo": "Use the demo",
   "world.pair.retry": "I opened the link",
+  "world.pair.still": "This browser is still not paired: open the link npm run world printed first.",
   "world.pair.label": "Pairing with the world's host",
   "world.pair.copyFailed": "Select the command and copy it",
   "world.chat.signInHint": "The agents' chats are in the crewhub-loops web app; this opens it in a new tab. For the agents' answers as speech bubbles over their figures, sign in to crewhub-loops as yourself in the Connection panel (the chip).",
