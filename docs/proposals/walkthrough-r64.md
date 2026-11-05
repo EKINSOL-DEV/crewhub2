@@ -365,7 +365,12 @@ Prepared branches are ready; an answer `do it` merges that branch, `journey N: a
   district card and the labels on the left are drawn under the sheet and cut by it ("…ting on a person"), in the small
   town too. ![The Region's build sheet, the cards under it](../images/walkthrough-r64/w6-13-region-build-sheet.png) **Suggestion:** a building picker for the zone (as Layout has), and the scene framed beside the open sheet.
 
-  Prepared: `sugg/w6-13`.
+  Prepared: `sugg/w6-13`: the building picker, and the scene framed beside the open sheet, again after a resize. From
+  601 px wide every plot stays clear of the sheet, and the town is smaller for it: zoom 0.35 at 601 wide, 0.5 at 768, and
+  in the small team at 1280 x 720, 0.91 where it was 0.98. **What stays cut:** below 900 px wide Studio's Brand and Lab
+  cards still reach under the sheet (up to 84 px at 601 x 700), and at 601 x 700, 640 x 800, 700 x 800 and 800 x 800
+  Apps and Lab overlap and cover much of the town (at 640 x 800 Apps is nearly hidden). Below 800 px wide the small
+  team's Launch & Marketing sign reaches under it (up to 48 px). Measured in Studio and the small team only.
 
 - **w6-14 · polish.** "Show free plots" in the Region draws 56 badges in a tight pile over each district's centre,
   covering the district cards and each other; in the small town the sixteen read fine. ![The Region's free-plot badges](../images/walkthrough-r64/w6-14-free-plot-badges.png) **Suggestion:** at the Region level only the next free plot per district, the rest on entering the district.
