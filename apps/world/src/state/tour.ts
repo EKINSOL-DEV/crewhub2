@@ -169,7 +169,7 @@ export function placeStep(target: Rect | null, viewport: { width: number; height
   const centred = clampLeft(target.left + target.width / 2 - card.width / 2);
   let below = target.top + target.height + GAP;
   // The bar to keep clear of, when the card below the target would lie over it and there is room under the bar.
-  if (avoid && below < avoid.top + avoid.height && below + card.height > avoid.top && avoid.top + avoid.height + GAP + card.height + GUTTER <= viewport.height) below = avoid.top + avoid.height + GAP;
+  if (avoid && centred < avoid.left + avoid.width && centred + card.width > avoid.left && below < avoid.top + avoid.height && below + card.height > avoid.top && avoid.top + avoid.height + GAP + card.height + GUTTER <= viewport.height) below = avoid.top + avoid.height + GAP;
   if (below + card.height + GUTTER <= viewport.height) return { left: centred, top: below, side: "below" };
   const above = target.top - GAP - card.height;
   if (above >= GUTTER) return { left: centred, top: above, side: "above" };

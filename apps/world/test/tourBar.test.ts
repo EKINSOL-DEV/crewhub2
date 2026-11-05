@@ -8,7 +8,8 @@ const desktop = { width: 1440, height: 900 };
 const card = { width: 352, height: 180 };
 // The Demo chip in the header's right half, and the breadcrumb bar right under the header.
 const chip = { left: 1180, top: 14, width: 110, height: 28 };
-const bar = { left: 0, top: 56, width: 1440, height: 40 };
+// As the page has it: a short bar at the left under the brand, not the screen's width.
+const bar = { left: 16, top: 56, width: 1200, height: 40 };
 
 test("round 65 (w1-14): the card below a header chip goes under the breadcrumb bar, still below its target", () => {
   const placed = placeStep(chip, desktop, card, bar);
@@ -29,4 +30,14 @@ test("round 65 (w1-14): a bar the card does not touch changes nothing, and a tar
   // No room under the bar (a short window): the card stays where it was rather than leaving the screen.
   const short = { width: 1440, height: 280 };
   assert.deepEqual(placeStep(chip, short, card, bar), placeStep(chip, short, card));
+});
+
+test("round 65 (w1-14): a bar beside the card, at the same height, moves nothing: only a card that would lie over it does", () => {
+  const shortBar = { left: 16, top: 56, width: 180, height: 42 };
+  const onTheRight = { left: 1180, top: 14, width: 110, height: 28 };
+  assert.deepEqual(placeStep(onTheRight, desktop, card, shortBar), placeStep(onTheRight, desktop, card));
+  // The Demo chip as the page has it, beside the brand: its card does lie over the short bar, and goes under it.
+  const demoChip = { left: 174, top: 21, width: 186, height: 36 };
+  const placed = placeStep(demoChip, desktop, card, shortBar);
+  assert.equal(placed.top, shortBar.top + shortBar.height + 12);
 });
