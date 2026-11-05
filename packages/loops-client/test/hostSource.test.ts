@@ -347,7 +347,8 @@ test("heartbeats keep it live; silence past staleMs → stale, and the stream is
     clock.tick(TIMINGS.retryMinMs);
     await settle(() => host.cursors.length === 2, "the stream reopened after stale");
     assert.equal(host.cursors[1], "101", "reopened at the last seq, no snapshot asked again");
-    await settle(() => run.state() === "live", "live again on the new stream");
+    host.push({ type: "heartbeat", seq: 101, ts: "2026-10-07T12:00:00Z" });
+    await settle(() => run.state() === "live", "live again on the new stream's heartbeat");
     assert.equal(host.snapshots, 1, "the cursor was kept: the host replays, no new snapshot");
     assert.ok(run.states.includes("stale"), "the chip said Stale meanwhile");
   } finally {
@@ -381,7 +382,8 @@ test("the page coming back into view while stale heals at once: the hanging read
     page.dispatchEvent(new Event("visibilitychange"));
     // While the ask hangs no back-off can run, so without the heal a third ask never comes: the wait proves it, not its length.
     await run.until(() => host.cursors.length === 3, "a new ask right after the page came into view");
-    await run.until(() => run.state() === "live", "live again");
+    host.push({ type: "heartbeat", seq: 100, ts: "2026-10-07T12:00:00Z" });
+    await run.until(() => run.state() === "live", "live again on the new stream's heartbeat");
     assert.equal(host.cursors[2], "100", "at the cursor");
     run.stop();
     await host.close();

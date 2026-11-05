@@ -1,8 +1,9 @@
 /**
  * HostSource: the live crewhub-loops behind the WorldSource seam, read through the world's own host
  * (`apps/host`, `/world-api`). Snapshot first, then events by `seq` over SSE; a `reset` (or, when asked, a gap in
- * `seq`) means `catching-up` and a fresh snapshot; heartbeats keep it `live`; silence makes it `stale`; the host's `status`
- * messages say when loops is down or the key is refused. `now()` is the wall clock; there is no playback.
+ * `seq`) means `catching-up` and a fresh snapshot; heartbeats keep it `live`; silence makes it `stale`, and only a
+ * heartbeat or an event ends that, never the open of a new stream; the host's `status` messages say when loops is down or
+ * the key is refused. `now()` is the wall clock; there is no playback.
  *
  * This is the one file in the browser that may fetch (scripts/scan-model-calls.ts, NETWORK_ALLOWLIST): it reads
  * its own host and nothing else. Streams with `fetch` and a line reader over `response.body`: no EventSource, so
@@ -158,26 +159,37 @@ export function createHostSource(options: HostSourceOptions = {}, tuning: HostSo
     fetch(url(path), { signal: signal ?? null, headers: { ...extraHeaders, accept: "application/json" } });
   const SNAPSHOT = worldApiPath("/snapshot");
 
-  /** Any message from the host: the stream is alive. Silence past `staleMs` is not: the stream is stale and healed. */
+  /**
+   * Any message from the host: the silence clock starts over. Silence past `staleMs` makes the stream stale and heals it,
+   * again each time while it stays stale: a reopened stream that says nothing more is no better than the one before.
+   */
   function touched(): void {
     // A stopped source arms nothing (a listener may stop it on the very snapshot that would arm the timer).
     if (!running) return;
     if (staleTimer !== null) clearTimeout(staleTimer);
     staleTimer = setTimeout(() => {
       staleTimer = null;
-      if (running && state === "live") {
+      if (running && (state === "live" || state === "stale")) {
         setState("stale");
         heal();
       }
     }, timings.staleMs);
+  }
+
+  /**
+   * A heartbeat or a new event: what ends a stale (w3-6, round 64). The host answers the open of a stream at once from its
+   * own memory (a comment, its status, the threads), whatever loops is doing, so an open alone is no reason to say Live.
+   */
+  function heard(): void {
     if (state === "stale") setState("live");
   }
 
   /**
-   * A stale stream is a dead leg, never a quiet host (the host heartbeats every 15 s, well inside `staleMs`): a socket
-   * left open but dead after a laptop's sleep, a proxy that stopped forwarding. The read is ended, and the run reopens
-   * the stream at its cursor with the normal back-off (the host replays its buffer or sends `reset`); a run already in
-   * its back-off asks now. Called at stale, and when the page comes back into view while stale (a wake is the moment).
+   * A stale stream is a dead leg or a silent loops, never a quiet host (a heartbeat comes every 15 s, well inside
+   * `staleMs`): a socket left open but dead after a laptop's sleep, a proxy that stopped forwarding, a loops that hangs. The
+   * read is ended, and the run reopens the stream at its cursor with the normal back-off (the host replays its buffer or
+   * sends `reset`); a run already in its back-off asks now. Called at stale, and when the page comes back into view while
+   * stale (a wake is the moment).
    */
   function heal(): void {
     if (!running) return;
@@ -369,6 +381,7 @@ export function createHostSource(options: HostSourceOptions = {}, tuning: HostSo
         return "ok";
       }
       case "heartbeat": {
+        heard();
         if (message.seq > cursor) cursor = message.seq;
         send({ type: "heartbeat", seq: message.seq, ts: message.ts });
         return "ok";
@@ -394,6 +407,7 @@ export function createHostSource(options: HostSourceOptions = {}, tuning: HostSo
           setState("catching-up");
           return "resnapshot";
         }
+        heard();
         cursor = envelope.seq;
         send({ type: "event", envelope });
         if (envelope.type === "team.updated") void readTeam();
