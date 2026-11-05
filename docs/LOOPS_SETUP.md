@@ -386,6 +386,9 @@ cookie is a valid pairing (`curl` has none, so `false` with pairing on); `pairin
 One more answer the host may meet from the stream: a **401 or 403 one minute in**: loops re-checks the credential every 60 s and ends the stream silently when the key was revoked; the
 reconnect gets the error and the Key rejected screen stands over the town.
 
+After Stale the chip says Live again at the first heartbeat or event on the reopened stream, not at its open, which the
+host answers by itself: a healed stream can stay Stale for up to 15 s, and a loops that hangs goes from Stale to Loops down.
+
 **The Connection panel** (the chip opens it) has these rows: **Now** (the chip's state and its reason), **crewhub-loops**
 (found through its socket or its port, the Mac app's, or the env's URL or socket; or not found yet), **Key** (its name,
 state and source: env, stored, default; a rejected key adds "checked again in 4 min"), **Stream** (streaming, down, refused, busy), **Cursor**, **Last event**,
