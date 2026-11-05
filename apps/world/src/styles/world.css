@@ -575,6 +575,12 @@
   white-space: nowrap;
   pointer-events: none;
 }
+/* A figure's name pill inside a building takes the click or tap itself and opens the card, as the figure does (round 65,
+   w1-11 / w4-8); every other pill still lets the pointer through to the scene. */
+.name-pill.pickable {
+  pointer-events: auto;
+  cursor: pointer;
+}
 .name-pill.proxy {
   border-style: dashed;
   background: color-mix(in oklab, var(--surface-raised) 80%, transparent);
