@@ -103,6 +103,12 @@ export async function run({ pass, page, check, out }) {
   await p.waitForTimeout(800);
   await p.locator("textarea").first().fill("Hello from the browser regression pass");
   await p.getByRole("button", { name: "Send" }).click().catch((e) => note("send " + e.message.split("\n")[0]));
+  // Round 64 (w5-8): a Send by keyboard (or click) must not drop the focus to the body: once the box is enabled again, the focus is back in it.
+  await p.waitForFunction(() => /browser regression pass/.test(document.querySelector(".bubble-chat")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
+  await p.waitForFunction(() => !document.querySelector(".chat-compose textarea")?.disabled, null, { timeout: 5000 }).catch(() => {});
+  await p.waitForTimeout(300);
+  const sendFocus = await p.evaluate(() => { const a = document.activeElement; return a ? `${a.tagName.toLowerCase()}${a.closest(".chat-compose") ? " in the compose form" : ""}` : "none"; });
+  ok("chat dock (round 64, w5-8): after Send the focus is back in the message box, not on the body", sendFocus === "textarea in the compose form", `focus on ${sendFocus}`);
   await p.waitForTimeout(6000);
   const chat = await p.locator(".bubble-chat").innerText().catch(() => "");
   ok("chat message sent", /browser regression pass/.test(chat));

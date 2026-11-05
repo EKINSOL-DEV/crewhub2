@@ -46,6 +46,7 @@ export function ConnectionPanel({ state, onClose }: ConnectionPanelProps) {
   const [spoken, setSpoken] = useState("");
   const card = useRef<HTMLDivElement>(null);
   const forgetButton = useRef<HTMLButtonElement>(null);
+  const keepButton = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const clock = setInterval(() => setNow(Date.now()), 1000);
@@ -55,11 +56,14 @@ export function ConnectionPanel({ state, onClose }: ConnectionPanelProps) {
   useEffect(() => {
     card.current?.querySelector<HTMLElement>("button")?.focus();
   }, []);
+  // The question takes the focus on its safe choice, Keep, once it is rendered (round 64, w5-24: the button it replaces is
+  // gone, and a focus on nothing says nothing to a screen reader; the group is labelled by the question, so it is read).
   // Keep, or a failed forget, puts the Forget button back; the focus goes to it once it is rendered (a ref at click time
   // would still be null: the confirm stood in its place).
   const confirmed = useRef(false);
   useEffect(() => {
-    if (!confirm && confirmed.current) forgetButton.current?.focus();
+    if (confirm) keepButton.current?.focus();
+    else if (confirmed.current) forgetButton.current?.focus();
     confirmed.current = confirm;
   }, [confirm]);
   useEffect(() => {
@@ -206,7 +210,7 @@ export function ConnectionPanel({ state, onClose }: ConnectionPanelProps) {
                 <Button variant="danger" size="sm" disabled={forgetting} onClick={() => void forget()}>
                   {forgetting ? t("world.connection.panel.forgetBusy") : t("world.connection.panel.forgetYes")}
                 </Button>
-                <Button size="sm" disabled={forgetting} onClick={() => setConfirm(false)}>
+                <Button ref={keepButton} size="sm" disabled={forgetting} onClick={() => setConfirm(false)}>
                   {t("world.connection.panel.forgetNo")}
                 </Button>
               </div>
