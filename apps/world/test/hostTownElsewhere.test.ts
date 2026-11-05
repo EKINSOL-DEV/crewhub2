@@ -80,3 +80,81 @@ test("the words: undone, redone or changed in another browser with the revision;
   assert.equal(elsewhereWords({ rev: 9, op: null }), "Changed in another browser. Revision 9.");
   assert.equal(elsewhereWords({ rev: 10, op: "amend" }), null);
 });
+
+/**
+ * The host broadcasts `town` before it answers the write (host.ts: conn.broadcast, then sendJson), so a browser can hear
+ * its own move while the write is on its way. Found by s1's review of this branch (round 65); the probe's shape is theirs.
+ * `alsoElsewhere`: another browser undoes right after this browser's move, before this browser's answer.
+ */
+function broadcastingHost(document: TownDocument, alsoElsewhere = false) {
+  let history: TownHistory = createHistory(document);
+  let rev = 1;
+  const towns = new Set<(rev: number, op?: HostTownOp) => void>();
+  const connected = new Set<() => void>();
+  const body = () => ({ rev, document: structuredClone(currentDocument(history)), canUndo: canUndo(history), canRedo: canRedo(history) });
+  const tell = (op: HostTownOp) => {
+    rev += 1;
+    for (const l of towns) l(rev, op);
+  };
+  return {
+    transport: {
+      async read(): Promise<HostAnswer> {
+        return { status: 200, body: { installation: "i", updatedAt: "t", ...body() } satisfies TownReadSent };
+      },
+      async write(op: HostTownOp, written: TownDocument | null): Promise<HostAnswer> {
+        history = op === "commit" ? commitHistory(history, written!) : undoHistory(history);
+        tell(op);
+        const answer = { ok: true as const, changed: true, ...body() } satisfies TownWrittenSent;
+        if (alsoElsewhere) {
+          history = undoHistory(history);
+          tell("undo");
+        }
+        await flush();
+        return { status: 200, body: answer };
+      },
+    },
+    onTown: (listener: (rev: number, op?: HostTownOp) => void) => {
+      towns.add(listener);
+      return () => towns.delete(listener);
+    },
+    onConnected: (listener: () => void) => {
+      connected.add(listener);
+      return () => connected.delete(listener);
+    },
+    streamBack: () => {
+      for (const l of connected) l();
+    },
+  };
+}
+
+test("w6-12: this browser's own commit and own undo, heard on the stream before their answers, are never said as another browser's, also after a later read", async () => {
+  const empty = createTownStore({ context: CONTEXT, indexedDB: null }).state.doc;
+  const host = broadcastingHost(plot(empty, "a", 1));
+  const local = createTownStore({ context: CONTEXT, indexedDB: null });
+  const store = createHostTownStore({ local, transport: host.transport, context: CONTEXT, onTown: host.onTown, onConnected: host.onConnected, retryMs: 20 });
+  await store.load();
+  await store.commit(plot(store.state.doc, "b", 2));
+  await flush();
+  assert.equal(store.state.elsewhere, null, "the own commit, once answered");
+  host.streamBack();
+  await flush();
+  assert.equal(store.state.elsewhere, null, "the own commit, after the stream came back and the town was read");
+  await store.undo();
+  await flush();
+  host.streamBack();
+  await flush();
+  assert.equal(store.state.elsewhere, null, "the own undo, after a read");
+  assert.deepEqual(store.state.doc.plots.map((p) => p.slug), ["a"]);
+});
+
+test("w6-12: another browser's undo announced while this browser's write is on its way is still said, once that write is answered", async () => {
+  const empty = createTownStore({ context: CONTEXT, indexedDB: null }).state.doc;
+  const host = broadcastingHost(plot(empty, "a", 1), true);
+  const local = createTownStore({ context: CONTEXT, indexedDB: null });
+  const store = createHostTownStore({ local, transport: host.transport, context: CONTEXT, onTown: host.onTown, onConnected: host.onConnected, retryMs: 20 });
+  await store.load();
+  await store.commit(plot(store.state.doc, "b", 2));
+  await flush();
+  assert.deepEqual(store.state.elsewhere, { rev: 3, op: "undo" });
+  assert.deepEqual(store.state.doc.plots.map((p) => p.slug), ["a"], "the other browser's undo took this browser's commit back");
+});
