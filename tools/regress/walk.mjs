@@ -65,6 +65,12 @@ export async function run({ pass, page, check, out }) {
   const home = await crumbs(p);
   const still = await entered(p);
   ok("Escape chain returns to the town", still === null, `${home} (entered: ${still})`);
+  // The camera keys say one line each, as D does (round 65, w5-6): a screen reader person hears the key did something.
+  await canvas(p).focus();
+  const zoomedIn = await announced(p, "+");
+  const rotated = await announced(p, "[");
+  const homeView = await announced(p, "h");
+  ok("camera keys are said (w5-6)", /Zoomed in\./.test(zoomedIn) && /Rotated left\./.test(rotated) && /Home view\./.test(homeView), `${zoomedIn.slice(-30)} | ${rotated.slice(-30)} | ${homeView.slice(-30)}`);
 
   // 3. Speed control and scrub: stall, attention, release, stale
   await speed(p, "16x").catch((e) => note("16x " + e.message.split("\n")[0]));

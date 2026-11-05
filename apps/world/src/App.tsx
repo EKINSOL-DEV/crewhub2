@@ -12,6 +12,7 @@ import { ConnectionPanel } from "./components/ConnectionPanel";
 import { ChatPanel } from "./components/ChatPanel";
 import { Tour } from "./components/Tour";
 import { nextAnnouncement } from "./state/announce";
+import { cameraWords } from "./state/cameraWords";
 import { escapeLayer, sceneOwnsKey } from "./state/sceneKeys";
 import { INTRODUCTION_URL, readTourDone, tourShouldStart, writeTourDone } from "./state/tour";
 import { chatPlaceLine, recentEmptyWords } from "./state/chatRoad";
@@ -436,6 +437,8 @@ function World() {
     if (cameraAction) {
       e.preventDefault();
       camera(cameraAction);
+      // Said, as D and F are (round 65, w5-6): the toolbar's buttons say their names and stay silent.
+      setAnnouncement(cameraWords(cameraAction));
     }
   });
 
