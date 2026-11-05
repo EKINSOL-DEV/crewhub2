@@ -810,6 +810,15 @@
 .demo-menu .menu-item {
   white-space: nowrap;
 }
+/* A checked row's tick is drawn, not read (round 65, w5-16): the kit draws it as generated content, which a screen
+   reader read as part of the row's name ("Small team 4 projects ✓") while the row is already checked. Empty
+   alternative text keeps the glyph and drops it from the accessibility tree; kit.css stays the verbatim copy. */
+.menu-item[aria-checked="true"]::after {
+  content: "✓" / "";
+}
+.menu-combobox .menu-item[data-checked]::after {
+  content: "✓" / "";
+}
 .world-corner-left:has(.demo-chip[aria-expanded="true"]) {
   z-index: var(--z-menu);
 }
