@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { roleWords, ruleProps, zoningOf, type AgentPlacement, type CivicWords, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomWording, type TextLine, type WorldModel } from "@crewhub/world-model";
 import type { PropModel } from "@crewhub/world-engine";
 import { Bubbles } from "./components/bubbles/Bubbles";
+import { attachSendFocusGuard } from "./state/dockFocus";
 import { TownSettings } from "./components/TownSettings";
 import { SourceSettings } from "./components/SourceSettings";
 import { ConnectionChip, connectionLine, connectionWord } from "./components/ConnectionChip";
@@ -882,6 +883,8 @@ const CameraToolbar = memo(function CameraToolbar({ camera, walking, toggleWalk 
    panel: crewhub-loops' own chat framed in the world (components/ChatPanel; a session cookie never reaches the world,
    the frame carries the person's own). */
 const ChatCorner = memo(function ChatCorner({ narrow, demo, connection, chatOpen, onOpenChat }: { narrow: boolean; demo: boolean; connection: ConnectionState | null; chatOpen: boolean; onOpenChat: () => void }) {
+  // Round 64 (w5-8): the copied dock disables its box and Send while a message goes, which drops the focus to the body; the guard (state/dockFocus) brings it back.
+  useEffect(() => (demo ? attachSendFocusGuard(document) : undefined), [demo]);
   if (!demo)
     return (
       <div className="world-chat" data-chrome="">

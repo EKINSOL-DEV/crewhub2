@@ -147,6 +147,10 @@ export async function run({ pass, page, check, out }) {
       forgets.push(forget);
       await chip(pg).click();
       await pg.getByRole("button", { name: "Forget this key" }).click();
+      // Round 64 (w5-24): the button gives way to the question (Forget / Keep); the focus must land on the safe choice, never on the body.
+      await pg.waitForTimeout(200);
+      const keepFocus = await pg.evaluate(() => { const a = document.activeElement; return !a || a === document.body ? "body" : (a.textContent?.trim() ?? a.tagName); });
+      ok("connect (round 64, w5-24): Forget this key hands the focus to the confirmation's safe choice, Keep", keepFocus === "Keep", `focus on "${keepFocus}"`);
       await pg.getByRole("button", { name: "Forget", exact: true }).click();
       const otherConnect = await screen(other, "connect", 15000);
       const otherRejected = (await other.locator('.connect-page[data-screen="rejected"]').count()) > 0;
