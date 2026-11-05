@@ -169,6 +169,24 @@ const EVENTS_LIMIT_MAX = 500;
 const SESSION_COOKIE = "chl_session";
 
 const notFound = () => new WireError(404, "not_found", "Not found");
+
+/**
+ * The page at `/` (round 65, C): the world's Chat panel frames the loops origin's root (`chatFrameUrl`), and over the fake
+ * that frame showed the JSON 404, which is what LOOPS_SETUP section 0 met. Static, no script, never the key; `/` only:
+ * every other path outside `/api` stays the 404, as loops' web would answer no such page either.
+ */
+const ROOT_PAGE = [
+  "<!doctype html>",
+  '<html lang="en">',
+  '<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>loops-fake</title>',
+  "<style>body{margin:0;padding:1.25rem;font:15px/1.5 system-ui,sans-serif;color:#222;background:#fafafa}h1{font-size:1.05rem;margin:0 0 .5rem}p{margin:0 0 .75rem;max-width:36rem}code{font-size:.92em;white-space:nowrap}</style></head>",
+  "<body>",
+  "<h1>This is the fake crewhub-loops</h1>",
+  "<p>It is <code>npm run loops:fake</code> (<code>packages/loops-fake</code>): an API for the world's host that plays the demo's storyline. It has no web app, so there is nothing to sign in to and no chat to type in here.</p>",
+  "<p>The world reads it through its host: open the world's own page to see the agents. Bubbles and Recent answers over the fake need it started with <code>--viewer-key</code>.</p>",
+  "</body></html>",
+  "",
+].join("\n");
 const invalid = (message: string) => new WireError(400, "validation_error", message);
 
 /** A small JSON body (the sign-in), or null when it is not JSON; more than 8 kB is refused as loops refuses it. */
@@ -489,6 +507,11 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
   // Routes
 
   async function route(req: IncomingMessage, res: ServerResponse, url: URL): Promise<unknown> {
+    if (url.pathname === "/" && (req.method === "GET" || req.method === "HEAD")) {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-length": Buffer.byteLength(ROOT_PAGE), "cache-control": "no-store", "x-content-type-options": "nosniff" });
+      res.end(req.method === "HEAD" ? undefined : ROOT_PAGE);
+      return undefined;
+    }
     const parts = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
     if (parts[0] !== "api") throw notFound();
     const at = (...expected: string[]) =>

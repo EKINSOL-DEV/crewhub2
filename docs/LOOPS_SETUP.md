@@ -77,9 +77,21 @@ Never put the fake on 8091: that port is the app's, and the host's discovery wou
 pairing cookie for development (the host says so loudly at start; production refuses it). The fake prints the two
 env lines for the host and never the key. `npm run loops:fake -- --builder-key` makes the key behave like loops'
 tickets-only keys (the builder key and the CL-313 reader key: tickets, comments, auth/me; everything else 403), so
-the host shows Unauthorized. `--scenario fresh|one|small-team|studio` picks the demo scenario and `--speed 0|1|4|16`
+the host shows Unauthorized. `npm run loops:fake -- --viewer-key` makes the key read the chat, as loops' viewer key does
+(section 3): speech bubbles over the figures and Recent answers in the Chat panel come over the fake too; without it the
+world shows the no-chat road (no bubbles, Recent answers empty), as over a plain external bot's key. The two flags cannot
+be given together. `--scenario fresh|one|small-team|studio` picks the demo scenario and `--speed 0|1|4|16`
 the pace. `--help` prints these options and exits without starting; an unknown flag or a stray word is refused with
 exit 2, and does not start it either. The switch to the app later changes only the key file (section 3).
+
+Two things you will meet over the fake and need not chase: the Chat panel's frame shows the fake's own page at `/`
+(it has no web app, so there is nothing to sign in to and no chat to type in; the world's host reads its API), and,
+without `--viewer-key`, the browser's console prints red lines at every Live start: a CORS refusal, `net::ERR_FAILED` and
+a 401, all on `/api/dm/threads` at the loops origin, three lines in a built world and each of them twice under
+`npm run dev` (and again at each later ask, section 4). They are expected whenever the world's origin is not set on loops
+(`CHL_WORLD_ORIGIN`, section 3) and the key does not read the chat: they are the page's own chat probe finding that out,
+the Connection panel's Chat section says so, and nothing is wrong. The command-line fake never sets that origin, so
+without `--viewer-key` they show at every start; with it the key reads the chat, the page does not ask, and they do not show.
 
 ## 1. What crewhub-loops must have
 
