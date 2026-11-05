@@ -60,6 +60,23 @@ export async function run({ pass, page, check, out }) {
     const name2 = (await bubble2.locator(".bubble-name").innerText().catch(() => "")).trim();
     const pill2 = await pg2.locator('.agent-stack:has(.bubble.said[data-said-agent="g-man"]) .name-pill').count();
     const nameAbove2 = await bubble2.evaluate((el) => { const n = el.querySelector(".bubble-name"); const t = el.querySelector(".bubble-text"); return !!n && !!t && n.getBoundingClientRect().bottom <= t.getBoundingClientRect().top + 1; }).catch(() => false);
+    // The name clear of the bubble's rounded corner (s1's review: the pill corner ran through the "G"), on a bubble of
+    // two lines or more: the name's top-left point lies inside the corner's arc, or past it.
+    const corner2 = await bubble2
+      .evaluate((el) => {
+        const n = el.querySelector(".bubble-name");
+        const t = el.querySelector(".bubble-text");
+        if (!n || !t) return null;
+        const b = el.getBoundingClientRect();
+        const nb = n.getBoundingClientRect();
+        const r = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0;
+        const x = nb.left - b.left;
+        const y = nb.top - b.top;
+        const lineHeight = parseFloat(getComputedStyle(t).lineHeight) || 13;
+        return { r, x: Math.round(x), y: Math.round(y), clear: x >= r || y >= r || (r - x) ** 2 + (r - y) ** 2 <= r * r, lines: Math.round(t.getBoundingClientRect().height / lineHeight) };
+      })
+      .catch(() => null);
+    ok("chat (w3-2): on a bubble of two lines or more the name stands clear of the rounded corner", corner2 !== null && corner2.lines >= 2 && corner2.clear, corner2 ? JSON.stringify(corner2) : "no name");
     ok("chat (w3-2): at the town, with no name pill drawn, the bubble carries the speaker's name above its line", name2 === "G-Man" && pill2 === 0 && nameAbove2 && /^G-Man says: /.test((await bubble2.getAttribute("aria-label").catch(() => "")) ?? ""), `name "${name2}", pills ${pill2}, name above the line ${nameAbove2}`);
     await bubble2.click().catch(() => {});
     await pg2.waitForSelector(".chat-sheet", { timeout: 5000 }).catch(() => {});

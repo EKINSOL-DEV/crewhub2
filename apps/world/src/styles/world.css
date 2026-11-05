@@ -671,6 +671,10 @@
   grid-template-columns: auto 1fr;
   column-gap: 5px;
   row-gap: 2px;
+  /* Two rows or more: the pill's round corner ran through the name's first letter (s1's review); a card's corner and a
+     little more room on the left keep the name clear of it. */
+  border-radius: var(--radius-md);
+  padding-left: var(--space-2);
 }
 .bubble.said .bubble-name {
   grid-column: 1 / -1;
