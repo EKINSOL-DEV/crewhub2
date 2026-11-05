@@ -200,6 +200,11 @@ export function useRecentAnswers(): readonly Answer[] {
   return useSyncExternalStore(chatStores.subscribe, chatStores.recent);
 }
 
+/** The answers the person has not opened the chat for, newest first (round 65, walk findings w3-1 and w3-4). */
+export function useUnreadAnswers(): readonly Answer[] {
+  return useSyncExternalStore(chatStores.subscribe, chatStores.unread.answers);
+}
+
 /** The threads as the host last sent them, or null when it sent none. */
 export function useChatThreads(): ThreadMap | null {
   return useSyncExternalStore(chatStores.subscribe, chatStores.threads.get);
