@@ -503,6 +503,10 @@
 }
 .room-sign.focused {
   border-color: var(--accent-strong);
+}
+/* The zoomed room's sign wears the focus ring only while the scene holds the keyboard's visible focus (round 65, w4-6): a
+   tap or a click that zooms the room marks the sign with its border alone. */
+.world-stage:has(canvas:focus-visible) .room-sign.focused {
   box-shadow: var(--focus-ring);
 }
 .agent-stack {

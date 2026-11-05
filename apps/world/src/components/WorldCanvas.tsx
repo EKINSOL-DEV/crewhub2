@@ -525,7 +525,10 @@ const TownSign = memo(function TownSign(props: {
         aria-label={inside ? `${name} (${projectKey}), inside` : `Enter ${name} (${projectKey})`}
         tabIndex={inside ? -1 : 0}
         onClick={() => !inside && onIntent({ type: "enter", slug })}
-        onFocus={() => onIntent({ type: "hover", index })}
+        // The ring follows the keyboard's focus (Tab onto the sign), not a tap's or a click's: a thumb that tapped the sign
+        // and came back by "← Town" found the plate still expanded and the plot ringed (round 65, w4-6). The pointer's own
+        // hover comes through the scene.
+        onFocus={(e) => e.currentTarget.matches(":focus-visible") && onIntent({ type: "hover", index })}
       >
         <span className="sign-title">
           {archived && <Archive className="icon icon-sm" aria-hidden="true" />}
