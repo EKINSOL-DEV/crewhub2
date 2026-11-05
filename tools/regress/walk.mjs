@@ -247,6 +247,23 @@ export async function run({ pass, page, check, out }) {
     // A building's sign is a quiet name, smaller than a finger: its ::after pad is what is tapped.
     const pads = await p.evaluate(() => [...document.querySelectorAll("button.town-sign")].flatMap((e) => { const s = getComputedStyle(e, "::after"); return s.content === "none" ? [0, 0] : [Math.round(parseFloat(s.width)), Math.round(parseFloat(s.height))]; }));
     ok(`375 ${scheme}: building signs have 40px hit pads`, pads.length > 0 && pads.every((n) => n >= 40), pads.join(","));
+    if (scheme === "light") {
+      // Round 64 (w4-7): a thumb has no T key and never meets the skip link, so a visible control must open the text view:
+      // the "?" (Help) menu's row "Open the text view", tapped, as the tour's step 5 promises. Before, the menu held the
+      // introduction's two rows only and the text view was unreachable on a touch device.
+      await p.getByRole("button", { name: "Help" }).tap();
+      await p.waitForTimeout(300);
+      const row = p.getByRole("menuitem", { name: /^Open the text view/ });
+      const rowShown = await row.isVisible().catch(() => false);
+      await shot(p, "12b-375-help-menu");
+      if (rowShown) await row.tap();
+      const opened = await p.waitForSelector("#text-view", { timeout: 3000 }).then(() => true).catch(() => false);
+      const menuClosed = (await p.getByRole("menuitem").count()) === 0;
+      await shot(p, "12c-375-text-view-from-help");
+      ok("375: the Help menu's row 'Open the text view', tapped, opens the text view and closes the menu (round 64, w4-7)", rowShown && opened && menuClosed, `row ${rowShown ? "shown" : "missing"}, text view ${opened ? "open" : "not open"}, menu ${menuClosed ? "closed" : "still open"}`);
+      await p.keyboard.press("Escape");
+      await p.waitForTimeout(300);
+    }
     await p.context().close();
   }
   p = await open({ theme: "dark" });

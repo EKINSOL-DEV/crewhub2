@@ -121,6 +121,8 @@ export const EN: Record<string, string> = {
   "world.tour.showHint": "Six short steps over the world: the town, a building, a figure's card, the chat, the text view, the connection.",
   "world.tour.read": "Read the introduction",
   "world.tour.readHint": "docs/INTRODUCTION.md on GitHub, in a new tab.",
+  "world.text.open": "Open the text view",
+  "world.text.openHint": "Every fact the scene shows, as sentences: the buildings, the figures, the chat, the connection (T on a keyboard).",
   "world.settings.agentsDemo": "Agent settings live in the crewhub-loops web app; the demo has none.",
   "world.settings.agentsLive": "Agent settings live in the crewhub-loops web app.",
 
