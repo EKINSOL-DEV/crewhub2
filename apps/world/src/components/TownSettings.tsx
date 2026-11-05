@@ -1,6 +1,7 @@
 /* The town document's part of Settings: the style (from the document; one option tonight), the viewer's graphics
    and day-and-night settings, where the town is kept, export and import of the whole town as JSON, and the rules table that switches
    rule props. An invalid import shows its precise error and changes nothing. */
+import { exportFileName, shownRevision } from "../world/revisionWords";
 import { useEffect, useState, type ChangeEvent } from "react";
 import { Download } from "lucide-react";
 import { type TownBackupInfo, readHostTownBackup, readHostTownBackups, readTownBackup, readTownBackups } from "@crewhub/loops-client";
@@ -197,12 +198,12 @@ export function TownSettings({ town }: { town: TownState }) {
           onChange={(e) => setFps(e.currentTarget.checked)}
         />
         <p className="hint">
-          Layout revision {town.doc.revision}.{" "}
+          Layout revision {shownRevision(town)}.{" "}
           {town.storage === "host" ? townKeepingWords("host") : town.storage === "indexeddb" ? (model.mode === "live" ? townKeepingWords("offline") : "Kept in this browser (IndexedDB).") : "Kept in memory only: it is lost on reload."}
           {town.storageNote && ` ${town.storageNote}`}
         </p>
         <div className="town-file">
-          <Button size="sm" icon={<Download className="icon" aria-hidden="true" />} onClick={() => downloadText(`crewhub-town-r${town.doc.revision}.json`, exportTownDocument(town.doc))}>
+          <Button size="sm" icon={<Download className="icon" aria-hidden="true" />} onClick={() => downloadText(exportFileName(town), exportTownDocument(town.doc))}>
             Export the town
           </Button>
           <Field
@@ -229,7 +230,7 @@ export function TownSettings({ town }: { town: TownState }) {
             </Button>
           </div>
         )}
-        {pending && <RestoreDialog preview={pending} onConfirm={confirmRestore} onCancel={() => setPending(null)} onExportCurrent={() => downloadText(`crewhub-town-r${town.doc.revision}.json`, exportTownDocument(town.doc))} />}
+        {pending && <RestoreDialog preview={pending} onConfirm={confirmRestore} onCancel={() => setPending(null)} onExportCurrent={() => downloadText(exportFileName(town), exportTownDocument(town.doc))} />}
       </fieldset>
       <ZoneSettings model={model} town={town} />
       <fieldset className="rule-settings">
