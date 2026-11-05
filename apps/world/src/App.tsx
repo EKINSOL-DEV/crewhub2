@@ -124,7 +124,7 @@ function World() {
   // A page the Demo chip's menu loaded (a scenario chosen) gives the chip the focus back (round 65, w5-18): the note is
   // this tab's and taken once, so a plain reload focuses nothing, as before.
   useEffect(() => {
-    if (takeFocus(globalThis.sessionStorage) === "demo-chip") document.querySelector<HTMLElement>(".demo-chip")?.focus();
+    if (takeFocus(() => globalThis.sessionStorage) === "demo-chip") document.querySelector<HTMLElement>(".demo-chip")?.focus();
   }, []);
   const [announcement, setSpoken] = useState("");
   // The same sentence twice is heard twice (state/announce.ts, round 50 N3); one function for the page's life.
@@ -760,7 +760,7 @@ const Corner = memo(function Corner({
                 // takes the focus once that page is back (round 65, w5-18).
                 onSelect: () => {
                   if (choice.current) return;
-                  rememberFocus(globalThis.sessionStorage, "demo-chip");
+                  rememberFocus(() => globalThis.sessionStorage, "demo-chip");
                   globalThis.location.assign(choice.href);
                 },
               })),
