@@ -1022,15 +1022,6 @@
   .settings-sheet {
     top: 3.75rem;
   }
-  /* The Chat panel's disclosure rows ("About this chat", "Recent answers") are thumb-sized (round 65, w4-21): 40 px
-     rows. Not a pad as the signs have: the rows stand in a stack with tappable rows right under them, and a pad would
-     reach into those. */
-  .chat-about > summary,
-  .chat-recent > summary {
-    display: flex;
-    align-items: center;
-    min-height: var(--control-h-touch);
-  }
 }
 
 /* ── Chat bubbles: the copied loops dock and chat (components/bubbles) ───────
@@ -2393,6 +2384,17 @@ a.agent-ticket-link:focus-visible {
 }
 .chat-about[open] > summary {
   margin-bottom: var(--space-1);
+}
+/* On a phone, upright or sideways, the two disclosure rows are thumb-sized (round 65, w4-21): 40 px rows. Not a pad as the
+   signs have: the rows stand in a stack with tappable rows right under them, and a pad would reach into those. Padding,
+   not flex: a summary stays a list item, and its triangle says it opens. */
+@media (max-width: 600px), (pointer: coarse) {
+  .chat-about > summary,
+  .chat-recent > summary {
+    box-sizing: border-box;
+    min-height: var(--control-h-touch);
+    padding-block: calc((var(--control-h-touch) - 1lh) / 2);
+  }
 }
 .chat-sheet-dock {
   font-size: var(--text-xs);
