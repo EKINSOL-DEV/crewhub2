@@ -517,6 +517,10 @@ function World() {
 
       <CornerTools theme={theme} cycle={cycle} details={details} buildOn={build.state.on} toggleBuild={build.toggle} settingsOpen={settingsOpen} openSettings={openSettings} closeSettings={closeSettings} graphicsFailed={graphicsFailed} openTour={openTour} openText={openText} />
 
+      {/* The live Chat chip stands under Settings and follows it in the Tab order (round 65, w5-17); the demo's dock at the
+          bottom right comes after the scene, as it is seen. */}
+      {!demo && <ChatCorner narrow={narrow} demo={demo} connection={connection} chatOpen={chatOpen} onOpenChat={() => openChat(null)} />}
+
       <main className="world-stage" onKeyDown={sceneKey} aria-label="CrewHub World">
         {graphicsFailed ? null : (
           <SceneBoundary onError={() => setGraphicsFailed(true)}>
@@ -607,7 +611,7 @@ function World() {
 
       {!graphicsFailed && <CameraToolbar camera={camera} walking={walking} toggleWalk={walking ? stopWalk : build.state.on ? null : startWalk} />}
 
-      <ChatCorner narrow={narrow} demo={demo} connection={connection} chatOpen={chatOpen} onOpenChat={() => openChat(null)} />
+      {demo && <ChatCorner narrow={narrow} demo={demo} connection={connection} chatOpen={chatOpen} onOpenChat={() => openChat(null)} />}
 
       {playback && <PlaybackBar playback={playback} />}
 
@@ -900,7 +904,7 @@ const ChatCorner = memo(function ChatCorner({ narrow, demo, connection, chatOpen
   useEffect(() => (demo ? attachSendFocusGuard(document) : undefined), [demo]);
   if (!demo)
     return (
-      <div className="world-chat" data-chrome="">
+      <div className="world-chat world-chat-live" data-chrome="">
         <button type="button" className="chip-button chat-open" title={translate("world.chat.openHint")} aria-label={translate("world.chat.openHint")} aria-expanded={chatOpen} aria-haspopup="dialog" data-connection={connection ?? undefined} onClick={onOpenChat}>
           <Chip className="demo-chat-chip" icon={<MessageCircle className="icon" aria-hidden="true" />}>{translate("world.chat.open")}</Chip>
         </button>

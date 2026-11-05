@@ -1048,6 +1048,13 @@
   align-items: center;
   gap: var(--space-2);
 }
+/* The live chip comes before the scene in the page since round 65 (w5-17: it follows Settings in the Tab order). The frame
+   rate overlay (in the scene, z-index 6, 5rem down at the right edge) overlaps the chip's lower part; a tie went to the
+   chip, later in the page. One step up keeps it over the overlay; the corners (7) do not overlap it and an agent's
+   card (7, later in the page) still covers it. */
+.world-chat.world-chat-live {
+  z-index: 7;
+}
 .world-chat > .menu-wrap {
   background: var(--surface);
   border: 1px solid var(--border);

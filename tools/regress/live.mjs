@@ -62,6 +62,11 @@ export async function run({ pass, page, check, out }) {
     const live1 = await until(pg, "live", 20000);
     ok("live: the chip says Live against the fake", live1 === "live", `${live1}: ${(await chip(pg).innerText().catch(() => "")).trim()}`);
     await shot(pg, "23-live");
+    // The chip follows Settings in the Tab order, where it stands (round 65, w5-17): before, it came last, after the stage and the toolbar.
+    await pg.getByRole("button", { name: "Settings", exact: true }).focus();
+    await pg.keyboard.press("Tab");
+    const afterSettings = await pg.evaluate(() => (document.activeElement?.classList.contains("chat-open") ? "chat chip" : `${document.activeElement?.tagName.toLowerCase()} ${document.activeElement?.getAttribute("aria-label") ?? ""}`.trim()));
+    ok("live: Tab from Settings reaches the Chat chip (w5-17)", afterSettings === "chat chip", afterSettings);
     // The Chat panel (round 12, road A): the chip opens a panel that frames the loops web the host names (the stub page
     // of lib/loopsWebStub.mjs here, which records how it was fetched), says it is loops' own chat and what it needs,
     // keeps the link to the app, and grants the frame no more than the chat needs; the panel takes the focus, Escape
