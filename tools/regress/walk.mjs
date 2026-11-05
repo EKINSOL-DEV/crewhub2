@@ -291,6 +291,55 @@ export async function run({ pass, page, check, out }) {
   ok("theme button cycles and the scene keeps rendering", themes.join(" → ") === "light → dark → system" && drawing, themes.join(" → "));
   await p.context().close();
 
+  // Round 66 (w4-11, s4's review): the end of the camera's tracking after a jump to a figure on a portrait phone. A swipe,
+  // Zoom in or its 6 s each end it: the camera stays while the postman walks on. Each case first holds that the camera is
+  // tracking him, then that it no longer goes where he goes. He walks about 3.4 units a second from 0:27 to about 1:04, so
+  // a jump at 0:30 has him out on a delivery through every window here. Frames can be far apart in a headless page, so
+  // each window compares what the camera did with what he did, and a window he hardly walked in fails.
+  for (const end of ["a swipe", "Zoom in", "its 6 s"]) {
+    const q = await open({ width: 375 });
+    await town(q, 2500);
+    const read = () => q.evaluate(() => { const t = globalThis.__town; const w = t?.walks?.walker?.("postman"); return t && w ? { cx: t.controls.target.x, cz: t.controls.target.z, wx: w.x, wz: w.z, zoom: t.camera.zoom, at: performance.now() } : null; });
+    const windowOf = async (from, ms) => {
+      await q.waitForTimeout(Math.max(0, from - (await q.evaluate(() => performance.now()))));
+      const a = await read();
+      await q.waitForTimeout(ms);
+      const b = await read();
+      return a && b ? { camera: Math.hypot(b.cx - a.cx, b.cz - a.cz), walker: Math.hypot(b.wx - a.wx, b.wz - a.wz) } : { camera: 0, walker: 0 };
+    };
+    const told = (w) => `camera ${w.camera.toFixed(2)}, he ${w.walker.toFixed(2)}`;
+    await seek(q, 25000);
+    for (let i = 0; i < 100 && Number(await q.locator("input.playback-scrub").inputValue().catch(() => "0")) < 30000; i++) await q.waitForTimeout(100);
+    await q.getByRole("button", { name: /Jump to/ }).first().tap();
+    await q.waitForTimeout(400);
+    await q.keyboard.type("post");
+    await q.waitForTimeout(300);
+    await q.getByRole("dialog", { name: "Jump to" }).getByRole("option", { name: /Postman/ }).first().tap();
+    const jumped = await q.evaluate(() => performance.now());
+    const tracked = await windowOf(jumped + 2000, 1500);
+    let stopped, more = "";
+    if (end === "a swipe") {
+      const box = await q.locator("main.world-stage canvas").boundingBox();
+      const cdp = await q.context().newCDPSession(q);
+      const x = box.x + box.width * 0.7, y = box.y + box.height * 0.65;
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+      for (let i = 1; i <= 6; i++) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x - i * 8, y: y - i * 6 }] });
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      await cdp.detach();
+      stopped = await windowOf((await q.evaluate(() => performance.now())) + 500, 2000);
+    } else if (end === "Zoom in") {
+      const before = await read();
+      await q.getByRole("button", { name: "Zoom in" }).first().tap();
+      stopped = await windowOf((await q.evaluate(() => performance.now())) + 500, 2000);
+      const after = await read();
+      more = `; zoom ${before?.zoom.toFixed(2)} to ${after?.zoom.toFixed(2)}`;
+      if (!before || !after || after.zoom < before.zoom * 1.1) stopped = { camera: Infinity, walker: stopped.walker };
+    } else stopped = await windowOf(jumped + 6500, 2000);
+    await shot(q, `12g-375-tracking-ends-${end.replace(/\W+/g, "-")}`);
+    ok(`375 touch: ${end} ends the camera's tracking after a jump to the postman out on a delivery (round 66, w4-11)`, tracked.walker >= 2 && tracked.camera >= tracked.walker * 0.6 && stopped.walker >= 2 && stopped.camera <= stopped.walker * 0.2, `tracking: ${told(tracked)}; after: ${told(stopped)}${more}`);
+    await q.context().close();
+  }
+
   // 11. Phone and dark
   for (const scheme of ["light", "dark"]) {
     p = await open({ width: 375, theme: scheme });
