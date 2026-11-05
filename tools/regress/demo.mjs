@@ -104,9 +104,15 @@ export async function run({ pass, page, check, out }) {
   };
   const first = await pick(null);
   ok("scenario picker opens on the Demo chip", first.items.length >= 3 && first.checked === "Small team", `${first.items.join(", ")}; checked: ${first.checked}`);
+  // The picker says a choice reloads the page, as Settings › Source does (round 65, w5-18); the menu is still open.
+  const pickerText = (await menu.innerText().catch(() => "")).replace(/\s+/g, " ");
+  ok("scenario picker says a choice reloads the page (w5-18)", /changing it reloads the page\./i.test(pickerText), pickerText.slice(-60));
   await shot(p, "16-picker");
   await p.keyboard.press("Escape");
   const one = await pick("One project");
+  // The loaded page gives the Demo chip the focus (round 65, w5-18): before, nothing was focused after the choice.
+  const focusedAfterPick = await p.evaluate(() => (document.activeElement?.classList.contains("demo-chip") ? "demo chip" : `${document.activeElement?.tagName.toLowerCase() ?? "none"} ${document.activeElement?.className ?? ""}`.trim()));
+  ok("scenario picker: the Demo chip has the focus on the loaded page (w5-18)", focusedAfterPick === "demo chip", focusedAfterPick);
   const chipOne = (await demoChip(p).innerText().catch(() => "")).trim();
   const tvOne = await text(p);
   ok("scenario picker: One project loads a different town", /One project/.test(chipOne) && /Pocket Garden \(PG\)/.test(tvOne) && !/crewhub-loops \(CL\)/.test(tvOne), `${chipOne}; ${new URL(p.url()).search}; was ${one.checked}`);
