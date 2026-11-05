@@ -13,6 +13,10 @@ export function zoneLabel(zone: Pick<Zone, "name" | "source">): string {
   return zone.name ?? (zone.source === "default" ? "Old town" : "Unnamed zone");
 }
 
+/** What "Add a zone" and "Remove this zone" say once done (round 65, w6-6), as the layout's moves say what they did. */
+export const zoneAddedWords = (name: string): string => `${name} added. Undo takes it away.`;
+export const zoneRemovedWords = (name: string): string => `${name} removed.`;
+
 export type ZoneReasonWord = "by hand" | "from its group in crewhub-loops" | "no zone";
 
 /** Why a building is in its zone, from the document's manual assignments and the zone's source. */

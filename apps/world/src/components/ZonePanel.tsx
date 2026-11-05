@@ -13,7 +13,7 @@ import { castRegistry } from "../world/cast";
 import { resolveLook } from "../world/look";
 import { styleRegistry } from "../world/style";
 import { buildingLook, lookRegistries, zoneLook, type LookContext } from "../world/worldLook";
-import { ZONE_COLOR_NAMES, ZONE_EMBLEM_NAMES, townKeeping, zoneLabel, zoneReason, zoneSettingsHint, zonesOriginWords } from "../world/zoneText";
+import { ZONE_COLOR_NAMES, ZONE_EMBLEM_NAMES, townKeeping, zoneAddedWords, zoneLabel, zoneReason, zoneRemovedWords, zoneSettingsHint, zonesOriginWords } from "../world/zoneText";
 import { Button, Chip, Field } from "./primitives";
 
 /** A style option as the settings show it; the style's manifest declares them (`options`), or none. */
@@ -51,6 +51,8 @@ function tidyLook(look: ZoneLook): ZoneLook {
 
 function useZoneEdits(town: TownState) {
   const [error, setError] = useState<string | null>(null);
+  // What the last "Add a zone" or "Remove this zone" did, for the sheet and the live region (round 65, w6-6).
+  const [said, setSaid] = useState("");
   const run = (edit: Parameters<ReturnType<typeof townRuntime>["edit"]>[0]) => {
     const result = townRuntime().edit(edit);
     setError(result.ok ? null : result.error);
@@ -58,12 +60,17 @@ function useZoneEdits(town: TownState) {
   };
   return {
     error,
+    said,
     change: (zone: Zone, patch: Partial<TownZone>) => run({ type: "set-zone", zone: { ...entryOf(zone, town), ...patch } }),
     look: (zone: Zone, patch: ZoneLook) => {
       const entry = entryOf(zone, town);
       return run({ type: "set-zone", zone: { ...entry, look: tidyLook({ ...entry.look, ...patch, styleOptions: { ...entry.look?.styleOptions, ...patch.styleOptions } }) } });
     },
-    remove: (zone: Zone) => run({ type: "remove-zone", id: zone.id }),
+    remove: (zone: Zone) => {
+      const ok = run({ type: "remove-zone", id: zone.id });
+      if (ok) setSaid(zoneRemovedWords(zoneLabel(zone)));
+      return ok;
+    },
     add: (zones: readonly Zone[]) => {
       const taken = new Set([...zones.map((z) => z.id), ...(town.doc.zones ?? []).map((z) => z.id)]);
       let n = 1;
@@ -71,7 +78,9 @@ function useZoneEdits(town: TownState) {
       const order = Math.max(-1, ...zones.filter((z) => z.source !== "default").map((z) => z.order)) + 1;
       // A new district reads marked from the start: the next free colour and emblem (nextZoneMark), changeable here.
       const mark = nextZoneMark(zones);
-      return run({ type: "set-zone", zone: { id: `zone-${n}`, name: `Zone ${n}`, order, color: mark.color, emblem: mark.emblem, look: {} } });
+      const ok = run({ type: "set-zone", zone: { id: `zone-${n}`, name: `Zone ${n}`, order, color: mark.color, emblem: mark.emblem, look: {} } });
+      if (ok) setSaid(zoneAddedWords(`Zone ${n}`));
+      return ok;
     },
     assign: (slug: string, zoneId: string | null) => run({ type: "assign", slug, zoneId }),
   };
@@ -223,6 +232,11 @@ export function ZoneSettings({ model, town }: { model: WorldModel; town: TownSta
           Add a zone
         </Button>
       </div>
+      {edits.said && (
+        <p className="hint zone-said" role="status" aria-live="polite">
+          {edits.said}
+        </p>
+      )}
       {edits.error && (
         <p className="hint zone-error" role="alert">
           {edits.error}
@@ -292,6 +306,11 @@ export function BuildZones({ model, town, inside }: { model: WorldModel; town: T
           Add a zone
         </Button>
       </div>
+      {edits.said && (
+        <p className="hint zone-said" role="status" aria-live="polite">
+          {edits.said}
+        </p>
+      )}
       <p className="hint">Names, colours and emblems of zones are in Settings.</p>
       {model.mode === "live" && <p className="hint build-zones-origin">Zones here: {zonesOriginWords({ zones: model.zones, assignments: town.doc.assignments, kept: townKeeping(town.storage, model.mode) })}</p>}
       {edits.error && (
