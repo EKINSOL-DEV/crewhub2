@@ -103,7 +103,7 @@ Prepared branches are ready; an answer `do it` merges that branch, `journey N: a
   1 h ago" and the text view says the snapshot is stale and every status unknown: three signals disagreeing on one
   screen. The Stale state keys on arrivals, not on the events' age. ![Live chip, Last event 1 h ago, a stale text view](../images/walkthrough-r64/w2-3-live-but-stale.png) **Suggestion:** the chip goes Stale when the newest event is older than the stale threshold, whatever still arrives.
 
-  Not prepared: which threshold, and whether a quiet but healthy team then reads Stale, are not decided.
+  Not prepared: a decision, design choice [L3](design-choices.md#l3-the-chip-says-live-while-the-team-snapshot-is-stale-round-66-walkthrough-w2-3) (which threshold, and whether a quiet but healthy team then reads Stale). Answer there: `L3: snapshot` is the recommended one.
 
 - **w2-4 · polish.** The panel's crewhub-loops row breaks "CREWHUB_WORLD_LOOPS_UR / L" mid-word (a long token in a
   narrow column). ![The panel's discovery line with the variable broken in two](../images/walkthrough-r64/w2-4-panel-wrap.png) **Suggestion:** the variable name on its own unbreakable line, the URL under it.
@@ -288,7 +288,13 @@ Prepared branches are ready; an answer `do it` merges that branch, `journey N: a
   reader person hears the check start and never its end. **Suggestion:** the connection said once after the reload
   that follows a connect ("Connected: Live").
 
-  Prepared: `sugg/w5-22`; it depends on timing: it fills the silence the walker met, in other runs it only shortens the sentence.
+  Prepared: `sugg/w5-22`. What it adds over the base is small. In both base runs of its review (a real host and the fake;
+  a fresh browser, and a reload at the Connect screen before the key) the base already said "Connection: Live. Events
+  arrive as they happen." at that moment, and the branch says "Connected: Live." instead, so its browser row's red proves
+  a change of words, not a silence filled. The silent run the walker met was not reproduced and its cause was not found;
+  only the branch's node test (`connectSaid.test.ts`) covers that case, a first value of Live right after a connect. None
+  of those runs reloaded the page after the key either. Read it as a shorter sentence in the runs seen, and a guard for
+  the silence if that race comes back.
 
 - **w5-23 · polish.** At loops' return two polite lines come 21 ms apart ("Catching up…", then "Live…"); a screen
   reader coalesces or reads both. **Suggestion:** none needed; a longer catch-up would make the first one true.

@@ -7,7 +7,8 @@ round 48 (checked against the code at `d150cf4`) and nine from round 50's review
 accessibility (K, X, W13 and W14, checked at `5126318`), two from round 51's review of the host and the tools
 (H3 and P1, checked at `86bfbf6`), X5, the last of round 50's accessibility review, written up in round 52, E2
 from round 53's review of the page's state (checked at `402b618`), P2, W15 and W16 from round 54 (checked at
-`35a3ebf`), and P3 from round 55's look at round 54's mutation runs (checked at `cc23d62`).
+`35a3ebf`), P3 from round 55's look at round 54's mutation runs (checked at `cc23d62`), and L3 from round 64's walk
+w2-3, written up in round 66 (checked at `ab476f3`).
 
 **How to answer:** one line per id, in the same short form as the open questions, for example `T1: as recommended`,
 `W4: keep` or `S1: waits`. A whole block in one line works too: `wording block: as recommended`
@@ -15,11 +16,11 @@ from round 53's review of the page's state (checked at `402b618`), P2, W15 and W
 until you answer:** each choice names what stays if you say nothing, which is always the world as it is today.
 
 **The groups:** [first visit and tour](#first-visit-and-tour-t) (T, 9), [words on screen](#words-on-screen-w) (W, 12),
-[the live road](#the-live-road-l) (L, 2), [the host's behaviour](#the-hosts-behaviour-h) (H, 3),
+[the live road](#the-live-road-l) (L, 3), [the host's behaviour](#the-hosts-behaviour-h) (H, 3),
 [the storyline](#the-storyline-s) (S, 4), [editing the town](#editing-the-town-e) (E, 2), and from round 50
 [the figures](#the-figures-k) (K, 3) and [accessibility](#accessibility-x) (X, 5); words on screen gained W13 and W14;
 from round 51 the host gained H3, and [the tools](#the-tools-p) (P, 3) is new; round 53 added E2, round 54 P2,
-W15 and W16, and round 55 P3. **The cost** of a choice names the files, the tests and the pixel sets that would change. The demo pixel set
+W15 and W16, round 55 P3, and round 66 L3. **The cost** of a choice names the files, the tests and the pixel sets that would change. The demo pixel set
 (`tools/pixcheck.mjs`) pictures the town, the town hall, a building and its rooms at 1440 and 375 px, light and dark,
 with the label layer hidden and the tour off; so plates, labels, sheets and the tour never move it.
 
@@ -361,6 +362,40 @@ run on 127.0.0.1 and the town is live, yet no chat bubbles come until a network 
 **Cost:** `pageChat.ts:148,167`; the offline cases in `apps/world/test/pageChat.test.ts` turn round. No pixel set.
 **If you say nothing:** offline, road 2 asks nothing.
 **Answer:** `L2: ignore / keep`
+
+### L3. The chip says Live while the team snapshot is stale (round 66, walkthrough w2-3)
+
+**Today.** Two clocks. The chip's Stale is 40 s of silence on the stream (`packages/loops-client/src/hostSource.ts`,
+`staleMs`), and the host's heartbeat every 15 s keeps it Live. The team snapshot's stale is 300 s
+(`packages/world-model/src/freshness.ts`, `STALE_AFTER_S`) and goes by the stamp of the team probe's last upload, not by
+the newest event. So the walker's screen could say Live, "Last event 1 h ago" and "every agent's status shows as
+unknown" at once. The fake's clock that made that screen is fixed (round 64); the chip's half stays for a real loops
+whose probe stopped while its stream lives.
+**The walk's suggestion, keyed on the newest event's age:** with 40 s a team quiet for a minute reads Stale, with 300 s
+one quiet for five minutes does, all evening, saying "Nothing has arrived for a while" while host and loops are fine. No
+option below does that.
+**Options.**
+- `snapshot`: the threshold is the snapshot's 300 s, and a quiet but healthy team stays Live, because its probe still
+  uploads about every 30 s. The chip also says Stale when a snapshot with a stamp is older than 300 s, with a hint of its
+  own ("The team snapshot is older than 5 minutes: every agent's status shows as unknown"), and the stream is not
+  reopened for it. A loops with no probe at all (an empty stamp) stays Live: it never had a snapshot, and the text view
+  says so already.
+- `own-word`: Stale stays the stream's. A new word beside Live says the newest event is older than 300 s. Nothing it
+  says is false, but it shows on every quiet stretch and does not say the statuses are unknown.
+- `keep`: the chip says only whether the stream is alive.
+
+**Recommended:** `snapshot`: one signal for the chip, the panel's Now row, the text view and the lane chips, and a quiet
+team is not called Stale. Two limits. That a real loops' stamp moves on an upload with no change comes from
+[the integration plan](../LOOPS_INTEGRATION_PLAN.md) and [the gap analysis](../LOOPS_GAP_ANALYSIS.md), and has not been
+measured; check it first, because if it does not move this option has the suggestion's fault. And a probe's clock more than
+5 minutes off the page's would read Stale, as the lane chips already do (gap L10).
+**Cost:** a day's slice. `snapshot`: one rule in `apps/world/src/App.tsx`, where the connection reaches the chip, the
+panel, the text view and the spoken line; the hint in `apps/world/src/i18n/en.ts` and `components/ConnectionChip.tsx`; a
+way for the fake to stop its team stamp and a regress `live` row; the Stale row of [LOOPS_SETUP](../LOOPS_SETUP.md), whose
+remedy (restart the host) is wrong for a stopped probe. `own-word`: `hostSource.ts` keeps the newest event's stamp; the
+word in `en.ts`, the chip and `world.css`; a regress `live` row. No pixel set: the demo has no connection chip.
+**If you say nothing:** the chip as it is.
+**Answer:** `L3: snapshot / own-word / keep`
 
 ## The host's behaviour (H)
 
