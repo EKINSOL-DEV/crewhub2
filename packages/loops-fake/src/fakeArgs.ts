@@ -5,6 +5,7 @@
  * first, then the port, the scenario and the speed. The tests are `test/fakeArgs.test.ts` and `test/mainArgs.test.ts`;
  * `--viewer-key` (round 65, C: the key reads the chat, as loops' viewer key does) is `test/viewerKeyArgs.test.ts`.
  */
+import path from "node:path";
 import { type ScenarioId, DEFAULT_SCENARIO, SCENARIO_IDS, scenarioIdOf } from "@crewhub/demo";
 import { FAKE_DEFAULT_PORT, FAKE_REFUSED_PORTS, fakePortVerdict } from "./ports.ts";
 
@@ -27,6 +28,18 @@ export type FakeArgs =
   | { kind: "help"; text: string }
   | { kind: "refuse"; text: string }
   | { kind: "start"; port: number; scenario: ScenarioId; speed: (typeof FAKE_SPEEDS)[number]; builderKey: boolean; viewerKey: boolean };
+
+/**
+ * The key file a test may name (`LOOPS_FAKE_KEY_FILE`, round 65, m1's re-check). A start reads the file, chmods it and may
+ * write it, and the plain command has no preload to guard it, so only a path inside the temp folder is taken. `file` is
+ * null when none is named: the default. Judged by the resolved path, so `..` and a relative path cannot leave the folder.
+ */
+export function fakeKeyFileVerdict(text: string | undefined, tempFolder: string): { ok: true; file: string | null } | { ok: false; reason: string } {
+  if (!text) return { ok: true, file: null };
+  const file = path.resolve(text);
+  if (file.startsWith(`${path.resolve(tempFolder)}${path.sep}`)) return { ok: true, file };
+  return { ok: false, reason: `LOOPS_FAKE_KEY_FILE ${text}: that is outside the temp folder; it is for a test's own key file, and a start reads, chmods and may write it` };
+}
 
 function refuse(text: string): FakeArgs {
   return { kind: "refuse", text };
