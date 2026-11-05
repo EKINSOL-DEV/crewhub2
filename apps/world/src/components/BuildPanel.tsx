@@ -89,11 +89,9 @@ export function BuildPanel({ build, town, plan, inside, demo, onClose, onUndo, o
                 : "Choose a prop, or click a placed prop to select it."}
           {state.message && <span className="build-message">{state.message}</span>}
         </p>
-        {elsewhere && (
-          <p className="hint build-elsewhere" role="status" aria-live="polite">
-            {elsewhere}
-          </p>
-        )}
+        <p className="hint build-elsewhere" role="status" aria-live="polite">
+          {elsewhere}
+        </p>
         {chosen && check && (
           <Chip className={check.ok ? "ghost-ok" : "ghost-bad"} aria-hidden="true">
             {check.ok ? "fits" : "does not fit"}
