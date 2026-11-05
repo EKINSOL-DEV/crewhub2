@@ -1223,6 +1223,11 @@
   align-items: center;
   gap: var(--space-2);
 }
+/* The zone parts' line (round 65, w6-6): the live region stands before its text comes, so a screen reader hears it; empty,
+   it is out of the flow and takes no room or gap. Not display: none, which would take it out of the accessibility tree. */
+.zone-said:empty {
+  position: absolute;
+}
 .build-sheet .card-body {
   display: flex;
   flex-direction: column;
