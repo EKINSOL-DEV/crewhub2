@@ -65,6 +65,21 @@ export async function run({ pass, page, check, out }) {
   const home = await crumbs(p);
   const still = await entered(p);
   ok("Escape chain returns to the town", still === null, `${home} (entered: ${still})`);
+  // Round 65 (w1-12): inside the first building with Details on, a rule prop's label says the fact ("Milestone CR-M2
+  // active", "Release 0.3.0: draft", "2 open bugs"), not the build-mode word RULE and the prop's name.
+  {
+    await canvas(p).focus();
+    await p.keyboard.press("Enter");
+    await p.waitForTimeout(1800);
+    await p.keyboard.press("d");
+    await p.waitForTimeout(1200);
+    const ruleTags = (await p.locator(".world-labels .rule-tag").allInnerTexts()).map((t) => t.replace(/\s+/g, " ").trim());
+    await shot(p, "03d-rule-labels");
+    ok("Details on: the rule props' labels say the fact and none leads with the word rule (round 65, w1-12)", ruleTags.length > 0 && ruleTags.every((t) => !/^rule\b/i.test(t) && /^(Milestone \S+ active|Release .+: (draft|published)|\d+ open bugs?|\S+: awaiting-deploy)$/.test(t)), ruleTags.join(" | ") || "no rule labels");
+    await p.keyboard.press("d");
+    await p.keyboard.press("Escape");
+    await p.waitForTimeout(1200);
+  }
 
   // 3. Speed control and scrub: stall, attention, release, stale
   await speed(p, "16x").catch((e) => note("16x " + e.message.split("\n")[0]));

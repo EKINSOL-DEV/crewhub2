@@ -815,7 +815,7 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
           </span>
         </div>
       )}
-      {props.town && <TownLabels building={b} town={props.town} errors={editing || props.details} shows={(r) => editing || shows(r.anchor.kind === "room" ? r.anchor.room : r.anchor.kind === "desk" ? roomOfAgent(r.anchor.agent) : null)} />}
+      {props.town && <TownLabels building={b} town={props.town} errors={editing || props.details} editing={editing} shows={(r) => editing || shows(r.anchor.kind === "room" ? r.anchor.room : r.anchor.kind === "desk" ? roomOfAgent(r.anchor.agent) : null)} />}
       {published.length > 0 && shows("lobby") && (
         <div className="anchor" data-anchor={`banner:${b.slug}`}>
           <span className="signal-tag">
@@ -828,11 +828,10 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
   );
 }
 
-const RULE_WORDS: Record<string, string> = { banner: "milestone banner", crate: "release crate", "sticker.rocket": "rocket", jar: "bug jar", trophy: "release trophy" };
-
 /** Error crates and rule props of the town document, labelled in words: errors in build mode or with Details, a rule chip
-    where its room shows. */
-function TownLabels({ building: b, town, errors, shows }: { building: Building; town: TownLayer; errors: boolean; shows: (rule: RuleProp) => boolean }) {
+    where its room shows. The chip says the fact ("Milestone CR-M2 active", "2 open bugs"; round 65, w1-12); the word
+    "rule" (a prop placed by a rule, not by hand) is build mode's and shows only there. */
+function TownLabels({ building: b, town, errors, editing, shows }: { building: Building; town: TownLayer; errors: boolean; editing: boolean; shows: (rule: RuleProp) => boolean }) {
   const rooms = useBuildingPlan();
   // Resolved once per town document and building (round 25), not on every render of the labels.
   const resolved = useMemo(() => resolveBuildingPlacements(town.doc, b.slug, buildingTemplate(b, rooms), town.definitions), [town.doc, b, rooms, town.definitions]);
@@ -863,9 +862,8 @@ function TownLabels({ building: b, town, errors, shows }: { building: Building; 
         .map((r) => (
           <div key={r.id} className="anchor" data-anchor={`rule:${b.slug}:${r.id}`}>
             <span className="rule-tag" title={r.text}>
-              <span className="rule-word">rule</span>
-              {RULE_WORDS[r.key] ?? r.key}
-              {r.count !== null && `: ${r.count}`}
+              {editing && <span className="rule-word">rule</span>}
+              {r.label}
             </span>
           </div>
         ))}

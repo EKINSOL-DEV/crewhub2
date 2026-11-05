@@ -32,6 +32,8 @@ export interface RuleProp {
   count: number | null;
   /** One sentence for the text view and the tooltip. */
   text: string;
+  /** The fact in a few words for the label over the prop (round 65, w1-12): "Milestone CR-M2 active", "2 open bugs". */
+  label: string;
 }
 
 export const AWAITING_DEPLOY_LABEL = "awaiting-deploy";
@@ -50,6 +52,7 @@ function forBuilding(b: Building): RuleProp[] {
         anchor: room("lobby"),
         count: null,
         text: `Banner in the lobby: milestone ${m.key} "${m.title}" is active.`,
+        label: `Milestone ${m.key} active`,
       });
   for (const r of b.releases) {
     const name = `release ${r.number}${r.version ? ` (${r.version})` : ""}`;
@@ -61,6 +64,7 @@ function forBuilding(b: Building): RuleProp[] {
         anchor: room("dispatch"),
         count: null,
         text: `Release crate at dispatch: ${name} is a draft.`,
+        label: `Release ${r.version ?? r.number}: draft`,
       });
   }
   for (const o of b.objects)
@@ -72,6 +76,7 @@ function forBuilding(b: Building): RuleProp[] {
         anchor: { kind: "ticket", building: b.slug, ticketKey: o.key },
         count: null,
         text: `Rocket sticker on ${o.key}: labelled ${AWAITING_DEPLOY_LABEL}.`,
+        label: `${o.key}: ${AWAITING_DEPLOY_LABEL}`,
       });
   const bugs = b.objects.filter((o) => o.kind === "bug" && o.status !== "done").length;
   if (bugs > 0)
@@ -82,6 +87,7 @@ function forBuilding(b: Building): RuleProp[] {
       anchor: leadDesk,
       count: bugs,
       text: `Bug jar on ${b.lead.displayName}'s desk: ${bugs} open bug ticket${bugs === 1 ? "" : "s"}.`,
+      label: `${bugs} open bug${bugs === 1 ? "" : "s"}`,
     });
   for (const r of b.releases)
     if (r.state === "published")
@@ -92,6 +98,7 @@ function forBuilding(b: Building): RuleProp[] {
         anchor: leadDesk,
         count: null,
         text: `Trophy on ${b.lead.displayName}'s desk: release ${r.number}${r.version ? ` (${r.version})` : ""} is published.`,
+        label: `Release ${r.version ?? r.number}: published`,
       });
   return props;
 }
