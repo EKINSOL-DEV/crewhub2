@@ -5,6 +5,7 @@
    steps, the placement and the flag are state/tour.ts. */
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { boxOf, placeStep, tourAnnouncement, tourSteps, type Placement, type Rect, type TourStep } from "../state/tour";
+import { useTouchInput } from "../state/media";
 import { Button } from "./primitives";
 
 interface TourProps {
@@ -38,7 +39,8 @@ const nameOf = (el: Element | null): string | null => {
 };
 
 export function Tour({ mode, onClose, reducedMotion, returnTo = null, fallback = ".help-menu button" }: TourProps) {
-  const steps = tourSteps(mode);
+  // A touch device hears tap, not click, and no key (round 65, w4-2).
+  const steps = tourSteps(mode, useTouchInput() ? "touch" : "pointer");
   const [index, setIndex] = useState(0);
   // Whether Next or Back has been used: from then on the polite region says each step (round 50, A1).
   const [moved, setMoved] = useState(false);

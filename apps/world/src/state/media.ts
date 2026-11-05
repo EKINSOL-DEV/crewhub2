@@ -36,6 +36,13 @@ export function mediaRead(query: string): () => boolean {
   return read;
 }
 
+/* The input kind (round 65, w4-2): a coarse pointer is a touch device, the first half of the joystick's rule in world.css. */
+export const TOUCH_INPUT = "(pointer: coarse)";
+/** Whether the page's input is touch, kept current. */
+export const useTouchInput = (): boolean => useMedia(TOUCH_INPUT);
+/** The same, read once (a store's announcement, the view reducer's facts); false outside a browser. */
+export const touchInput = (): boolean => typeof window !== "undefined" && typeof window.matchMedia === "function" && mediaList(TOUCH_INPUT).matches;
+
 /** Whether `query` matches now, kept current by its change events. */
 export function useMedia(query: string): boolean {
   return useSyncExternalStore(mediaSubscribe(query), mediaRead(query));

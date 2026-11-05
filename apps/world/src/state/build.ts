@@ -10,6 +10,8 @@ import { useBuildingPlan } from "./buildingPlan";
 import type { Pick } from "../world/buildingView";
 import { cellAt, checkGhost, freeCellIn, placedWords, resolveBuildingPlacements, roomSite, type GhostCheck } from "../world/placements";
 import type { Ghost } from "../world/propLayer";
+import { buildWords } from "./inputWords";
+import { touchInput } from "./media";
 import { townRuntime } from "./runtimes";
 import type { TownState } from "./town";
 
@@ -80,7 +82,7 @@ export function useBuildMode(town: TownState, inside: Building | null, focusedRo
 
   const toggle = useCallback(() => {
     setState((s) => (s.on ? OFF : { ...OFF, on: true }));
-    announce(state.on ? "Build mode off." : "Build mode on. Choose a prop in the palette, then click a floor or use the arrow keys and Enter to place it.");
+    announce(state.on ? "Build mode off." : buildWords(touchInput()).on);
   }, [announce, state.on]);
 
   /** The first cell where a prop fits in the focused room (or the lobby), for keyboard placement. */
@@ -102,7 +104,7 @@ export function useBuildMode(town: TownState, inside: Building | null, focusedRo
   const choose = useCallback(
     (propId: string | null) => {
       setState((s) => ({ ...s, propId, selected: null, drag: null, spot: propId ? startSpot(propId, s.rotation) : null, message: "" }));
-      if (propId) announce(`${nameOf(propId)} chosen. ${inside ? "Move the pointer over a floor or use the arrow keys, R turns it, Enter or a click places it." : "Enter a building to place it."}`);
+      if (propId) announce(`${nameOf(propId)} chosen. ${inside ? buildWords(touchInput()).chosen : "Enter a building to place it."}`);
     },
     [announce, inside, nameOf, startSpot],
   );
@@ -126,7 +128,7 @@ export function useBuildMode(town: TownState, inside: Building | null, focusedRo
       }
       // The new prop is selected: arrow keys, R and Delete adjust it; choose again to place another.
       setState((s) => ({ ...s, propId: null, spot: null, selected: id }));
-      say(`${placedWords(nameOf(state.propId), spot.room, buildingPlan)} It is selected: arrow keys move it, R turns it.`);
+      say(`${placedWords(nameOf(state.propId), spot.room, buildingPlan)} ${buildWords(touchInput()).placed}`);
     },
     [buildingPlan, inside, nameOf, say, state.propId, state.rotation, template, town.definitions, town.doc],
   );
@@ -194,7 +196,7 @@ export function useBuildMode(town: TownState, inside: Building | null, focusedRo
       const id = pick?.kind === "prop" ? pick.id : null;
       setState((s) => ({ ...s, selected: id, drag: null }));
       const p = id ? town.doc.placements.find((x) => x.id === id) : null;
-      if (p) announce(`${nameOf(p.propId)} selected. Arrow keys or a drag move it, R turns it, Delete removes it.`);
+      if (p) announce(`${nameOf(p.propId)} selected. ${buildWords(touchInput()).selected}`);
     },
     [announce, nameOf, placeAt, repose, selectedPlacement, state.drag, state.on, state.propId, state.spot, town.doc.placements],
   );
