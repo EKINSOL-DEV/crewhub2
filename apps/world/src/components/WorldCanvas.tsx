@@ -54,6 +54,8 @@ interface Props {
   onSaidTap: (key: string) => void;
   /** The agents inside a building with a line in flight (round 14, world/saidText): a chat mark over the building from the town. */
   marks: SaidMark[];
+  /** A click on a mark (round 67, walk finding v1-1): the answer's bubble shows again where the mark leads. */
+  onMark: (agentId: string) => void;
   /** Where every building stands (state/plan.ts). */
   plan: TownPlan;
   /** The world view (state/view.ts): the level, the focus ring, the selection, the card, the follow, the walk and the camera commands. */
@@ -333,7 +335,7 @@ export default function WorldCanvas(props: Props) {
             />
           );
         })}
-        {!inside && <Wayfinding districts={props.districts} district={district} marks={props.marks} onIntent={onIntent} />}
+        {!inside && <Wayfinding districts={props.districts} district={district} marks={props.marks} onMark={props.onMark} onIntent={onIntent} />}
         {inside && !inside.archived && <Interior building={inside} model={model} props={props} compact={compact} />}
         {!compact && card && (
           <div className="anchor card-anchor" data-anchor={`card:${inside ? inside.slug : "town"}:${card.key}`}>
@@ -552,7 +554,7 @@ const TownSign = memo(function TownSign(props: {
    as long as the bubble lives (the figure is not drawn from the town); both in one row when both. The scene shows the
    cards from far and the building signs nearer (`data-detail` on the labels host, `labelDetail` in wayfinding.ts);
    every fact here is also a sentence in the text view. */
-function Wayfinding({ districts, district, marks, onIntent }: { districts: DistrictPlace[]; district: string | null; marks: SaidMark[]; onIntent: (intent: ViewIntent) => void }) {
+function Wayfinding({ districts, district, marks, onMark, onIntent }: { districts: DistrictPlace[]; district: string | null; marks: SaidMark[]; onMark: (agentId: string) => void; onIntent: (intent: ViewIntent) => void }) {
   // The model is new many times a second and these labels rarely change: they are worked out as plain values and
   // drawn again only when one of those differs.
   const cards =
@@ -574,6 +576,8 @@ function Wayfinding({ districts, district, marks, onIntent }: { districts: Distr
   const key = JSON.stringify([cards, roofs]);
   const go = useRef(onIntent);
   go.current = onIntent;
+  const mark = useRef(onMark);
+  mark.current = onMark;
   return useMemo(
     () => (
       <>
@@ -614,7 +618,7 @@ function Wayfinding({ districts, district, marks, onIntent }: { districts: Distr
             </button>
           );
           const chat = r.marks.map((m) => (
-            <button key={m.agent} type="button" className={`chat-mark${m.fading ? " fading" : ""}`} aria-label={markLabel(m)} title={`${m.name} says: ${m.text}`} data-said-mark={m.agent} onClick={() => go.current({ type: "enter", slug: r.slug })}>
+            <button key={m.agent} type="button" className={`chat-mark${m.fading ? " fading" : ""}`} aria-label={markLabel(m)} title={`${m.name} says: ${m.text}`} data-said-mark={m.agent} onClick={() => { mark.current(m.agent); go.current({ type: "enter", slug: r.slug }); }}>
               <MessageCircle className="icon icon-sm" aria-hidden="true" />
               <span className="chat-mark-name">{m.name}</span>
             </button>
