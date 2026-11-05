@@ -16,9 +16,9 @@ const INTERFACE = [
   "emptyTownDocument", "estimateTokens", "exportTownDocument", "extractPropRequest", "figureLook", "HALL_LABELS",
   "HALL_PLACES", "hallOf", "hallSummary", "HISTORY_LIMIT", "immovableReason", "importedPropId", "importTownDocument",
   "jsonBlocks", "laneLook", "movedAgents", "nextZoneMark", "noPlanLine", "normalizePresence", "pinnedCard",
-  "placeFor", "planInput", "PRESENCE_LIMITS", "Projection", "propRequestsFromFacts", "quietWords", "RACK_NAMES",
-  "redoHistory", "reduceWorld", "restoreHistory", "richJsonBlocks", "roleNoun", "roleWords", "ROOM_KINDS",
-  "RULE_IDS", "ruleProps", "runWords", "sameSign", "townChanges", "undoHistory", "validateIntents",
+  "placeFor", "placePhrase", "planInput", "PRESENCE_LIMITS", "Projection", "propRequestsFromFacts", "quietWords",
+  "RACK_NAMES", "redoHistory", "reduceWorld", "restoreHistory", "richJsonBlocks", "roleNoun", "roleWords",
+  "ROOM_KINDS", "roomPlaceWords", "RULE_IDS", "ruleProps", "runWords", "sameSign", "townChanges", "undoHistory", "validateIntents",
   "validateTownDocument", "where", "ZONE_COLORS", "ZONE_EMBLEMS", "zoneById", "zoningOf",
 ];
 
