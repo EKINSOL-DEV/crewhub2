@@ -19,6 +19,8 @@ export {
   ROOM_KINDS,
   doneWord,
   hallOf,
+  placePhrase,
+  roomPlaceWords,
   sameSign,
 } from "./halls.ts";
 export type { Hall, RackKind, RoomWording, WordingOptions } from "./halls.ts";

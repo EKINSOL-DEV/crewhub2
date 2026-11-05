@@ -47,6 +47,21 @@ export function townKeepingWords(kept: TownKeeping): string {
   return kept === "host" ? "Kept by the world's host for this crewhub-loops, shared by every paired browser." : kept === "offline" ? "Kept in this browser until the host is back." : "Kept in this browser (IndexedDB).";
 }
 
+/**
+ * Settings > Zones' hint (round 64, w6-9): what a zone is, where the zones are kept (the Town card's own truth per
+ * `townKeeping`: the demo's and a browser-kept town's sentence as it always was; the host's for a live town the host
+ * keeps; the browser's until the host is back), and where to assign buildings.
+ */
+export function zoneSettingsHint(kept: TownKeeping): string {
+  const where =
+    kept === "host"
+      ? "Zones are kept by the world's host for this crewhub-loops and shared by every paired browser, until crewhub-loops has project groups."
+      : kept === "offline"
+        ? "Zones are kept in this browser until the host is back; crewhub-loops has no project groups yet."
+        : "Zones are kept in this browser's town document, so another person sees their own, until crewhub-loops has project groups.";
+  return `A zone is a district of the town: a group of buildings with a name, a mark and a look of its own. ${where} Assign buildings in build mode.`;
+}
+
 /** The text view's zone line of a live town's hand-made zone: `ZONES_BY_HAND` while the browser keeps it, the host's words once the host does. */
 export function zonesByHandWords(kept: TownKeeping): string {
   return kept === "host" ? "made by hand, kept by the world's host for this crewhub-loops and shared by every paired browser; crewhub-loops has no project groups" : ZONES_BY_HAND;
