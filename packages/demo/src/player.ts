@@ -43,6 +43,13 @@ export interface PlayerOptions {
   speed?: PlaybackSpeed;
   /** The speeds `setSpeed` accepts (any other throws); every speed when left out. */
   speeds?: readonly PlaybackSpeed[];
+  /**
+   * Follow the wall clock through a pause (round 64, w2-3): when a tick finds the wall clock further on than the step
+   * it plays (the process slept, a debugger held it), the epoch moves on by the rest, so `now()` and every stamp from
+   * it keep pace with the wall clock; the story still plays only its step, in order. The fake sets it (a real
+   * crewhub-loops stamps real time); the browser demo leaves it off, so a sleeping tab keeps the story's own times.
+   */
+  followWall?: boolean;
 }
 
 export interface Player {
@@ -58,7 +65,8 @@ export interface Player {
 }
 
 export function createPlayer(timeline: Timeline, options: PlayerOptions): Player {
-  const { scheduler, epochMs, speeds } = options;
+  const { scheduler, speeds, followWall = false } = options;
+  let epochMs = options.epochMs;
   const duration = timeline.durationMs;
   /** A position in the loop: whole ms from 0 to the last ms before the loop end; anything not finite is the start. */
   const clamp = (ms: number) => (Number.isFinite(ms) ? Math.min(Math.max(0, Math.round(ms)), duration - 1) : 0);
@@ -103,8 +111,11 @@ export function createPlayer(timeline: Timeline, options: PlayerOptions): Player
 
   function tick(): void {
     const wall = scheduler.now();
-    const step = Math.min(MAX_WALL_STEP_MS, Math.max(0, wall - lastWall));
+    const gap = Math.max(0, wall - lastWall);
+    const step = Math.min(MAX_WALL_STEP_MS, gap);
     lastWall = wall;
+    // A pause: the wall clock went further than the step plays. Following it, the clock moves on by the rest.
+    if (followWall && gap > step) epochMs += gap - step;
     if (speed === 0 || step === 0) return;
     playTo(position + step * speed);
     changed();

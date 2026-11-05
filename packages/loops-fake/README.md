@@ -1,7 +1,9 @@
 # @crewhub/loops-fake
 
 A fake crewhub-loops for tests and for running the world in live mode before the real install. It is an HTTP server
-on `127.0.0.1` that plays the demo's storyline (`@crewhub/demo`) on wall time and serves what it knows exactly as
+on `127.0.0.1` that plays the demo's storyline (`@crewhub/demo`) on wall time (through a pause of the process, the Mac
+asleep or a debugger holding it, its clock follows the wall clock, so what it stamps afterwards is never behind the
+clock: round 64, w2-3; the story plays on in order from where it stopped) and serves what it knows exactly as
 crewhub-loops would: the routes of `docs/integrators/read-model.md` the host reads (the shapes of `053b5f47`), bearer-key
 auth with loops' error bodies, and the event routes as crewhub-loops `4cdcd383` serves them (`docs/LOOPS_REAL_VS_FAKE.md`):
 `GET /api/events` with `from=tail` and a sealed opaque `cursor`, the NDJSON stream `GET /api/events/stream` with
@@ -50,7 +52,9 @@ fake.lastVisibleSeq(); // the newest seq the key may see (what from=tail says)
 await fake.close();
 ```
 
-Options: `port` (default 0), `key` (generated), `keyName` (`crewhub-world`), `scenario`, `speed` (1), `startAt` (the
+Options: `port` (default 0), `key` (generated), `keyName` (`crewhub-world`), `scenario`, `speed` (1), `scheduler` (the
+wall clock and timers the story plays on; default `Date.now()` and the real ones; a test injects one and jumps its
+clock as a sleep does: the stamps follow the wall), `startAt` (the
 storyline position to start at, ms), `heartbeatMs` (15000), `streamMaxMs` (300000: a stream ends after this long, as
 loops' 300 s; tests use 1–2 s), `bufferSize` (2000 envelopes kept for `after=`), `firstSeq` (0), `builderKey`
 (false), `visibility` (`principal`: what a lead agent's key sees, with gaps; `all`: every row), `emptyTeam` (false:

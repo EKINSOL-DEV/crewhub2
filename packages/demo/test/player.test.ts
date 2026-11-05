@@ -259,3 +259,30 @@ test("send and changed reach every listener; a listener that leaves while a mess
   player.changed();
   assert.equal(changes, 1, "unsubscribed");
 });
+
+test("round 64 (w2-3): with followWall, a pause of the wall clock longer than the step moves the clock on with the wall; the story plays only its step", () => {
+  let wall = 0;
+  let tick: () => void = () => assert.fail("no interval");
+  const scheduler = { now: () => wall, setInterval: (fn: () => void) => ((tick = fn), 1), clearInterval: () => {} };
+  const { timeline } = timelineOf([]);
+  const player = createPlayer(timeline, { scheduler, epochMs: EPOCH, speed: 1, followWall: true });
+  player.start(() => {});
+  wall = 100;
+  tick();
+  assert.equal(player.playback.positionMs(), 100);
+  assert.equal(player.now(), EPOCH + 100, "no pause: the clock is the epoch plus the position");
+  // The process slept an hour: the story plays its 5 s step, the clock is where the wall clock is.
+  wall = 100 + 3_600_000;
+  tick();
+  assert.equal(player.playback.positionMs(), 5_100, "a pause plays at most the step");
+  assert.equal(player.now(), EPOCH + 100 + 3_600_000, "the clock followed the wall through the pause");
+  wall += 100;
+  tick();
+  assert.equal(player.now(), EPOCH + 200 + 3_600_000, "and runs on from there");
+  // Without followWall (the browser demo) the clock stays the story's: a sleeping tab does not jump its times.
+  const still = createPlayer(timelineOf([]).timeline, { scheduler: { now: () => wall, setInterval: (fn: () => void) => ((tick = fn), 1), clearInterval: () => {} }, epochMs: EPOCH, speed: 1 });
+  still.start(() => {});
+  wall += 3_600_000;
+  tick();
+  assert.equal(still.now(), EPOCH + 5_000);
+});
