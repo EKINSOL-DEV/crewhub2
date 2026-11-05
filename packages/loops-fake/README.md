@@ -31,7 +31,8 @@ together are refused. `GET /` is a small HTML page saying the fake has no web ap
 frames the loops origin's root; every other path outside `/api` is the JSON 404.
 
 The key is written to `tools/out/loops-fake.key` (mode 0600) on the first run and reused after that, so a restarted
-fake keeps a running host's key valid. The key is never printed. The command prints the two environment lines for
+fake keeps a running host's key valid (`LOOPS_FAKE_KEY_FILE` names another file, for a test that starts the command
+beside others). The key is never printed. The command prints the two environment lines for
 the host:
 
 ```text

@@ -85,11 +85,13 @@ the pace. `--help` prints these options and exits without starting; an unknown f
 exit 2, and does not start it either. The switch to the app later changes only the key file (section 3).
 
 Two things you will meet over the fake and need not chase: the Chat panel's frame shows the fake's own page at `/`
-(it has no web app, so there is nothing to sign in to and no chat to type in; the world's host reads its API), and the
-browser's console prints two red lines at every Live start (a CORS refusal and a 401 on `/api/dm/threads` at the loops
-origin). Those two lines are expected whenever the world's origin is not set on loops (`CHL_WORLD_ORIGIN`, section 3): they
-are the page's own chat probe finding that out, the Connection panel's Chat section says so, and nothing is wrong. The
-command-line fake never sets that origin, so over it they always show.
+(it has no web app, so there is nothing to sign in to and no chat to type in; the world's host reads its API), and,
+without `--viewer-key`, the browser's console prints red lines at every Live start: a CORS refusal, `net::ERR_FAILED` and
+a 401, all on `/api/dm/threads` at the loops origin, three lines in a built world and each of them twice under
+`npm run dev` (and again at each later ask, section 4). They are expected whenever the world's origin is not set on loops
+(`CHL_WORLD_ORIGIN`, section 3) and the key does not read the chat: they are the page's own chat probe finding that out,
+the Connection panel's Chat section says so, and nothing is wrong. The command-line fake never sets that origin, so
+without `--viewer-key` they show at every start; with it the key reads the chat, the page does not ask, and they do not show.
 
 ## 1. What crewhub-loops must have
 

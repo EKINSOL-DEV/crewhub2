@@ -13,7 +13,8 @@ import { fileURLToPath } from "node:url";
 import { createLoopsFake } from "./fake.ts";
 import { parseFakeArgs } from "./fakeArgs.ts";
 
-const KEY_FILE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../tools/out/loops-fake.key");
+// `LOOPS_FAKE_KEY_FILE` is for a test that starts this main beside others: a start writes and chmods its key file.
+const KEY_FILE = process.env["LOOPS_FAKE_KEY_FILE"] || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../tools/out/loops-fake.key");
 
 const args = parseFakeArgs(process.argv.slice(2));
 if (args.kind === "help") {
