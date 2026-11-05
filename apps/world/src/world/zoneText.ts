@@ -4,9 +4,13 @@ import type { TextLine, Zone } from "@crewhub/world-model";
 export const ZONE_COLOR_NAMES: Record<string, string> = { coral: "Coral", tangerine: "Tangerine", circle: "Red", mist: "Mist", ink: "Ink" };
 export const ZONE_EMBLEM_NAMES: Record<string, string> = { home: "House", inbox: "Tray", bot: "Robot", spark: "Spark", users: "People", star: "Star", folder: "Folder" };
 
-/** How a zone is called where a name is needed: its own name, else what it is. */
+/**
+ * How a zone is called where a name is needed: its own name, else what it is. The buildings without a zone are
+ * "Old town", the name the region map's district card gives them (world/wayfinding.ts), so the sheet, Settings and
+ * the text view say the same (round 65, w6-5).
+ */
 export function zoneLabel(zone: Pick<Zone, "name" | "source">): string {
-  return zone.name ?? (zone.source === "default" ? "No zone" : "Unnamed zone");
+  return zone.name ?? (zone.source === "default" ? "Old town" : "Unnamed zone");
 }
 
 export type ZoneReasonWord = "by hand" | "from its group in crewhub-loops" | "no zone";

@@ -31,14 +31,14 @@ test("one line per zone with its buildings, mark, look and origin; one per build
     [
       ["fact", "Studio (a group in crewhub-loops): CrewHub. Mark: colour mist, emblem star."],
       ["cosmetic", "Garden (made in this town): Ops. Look: Sprouts."],
-      ["cosmetic", "No zone (buildings without a zone): Lab."],
-      ["cosmetic", 'Ops belongs to Garden but stands in the district of No zone; "Tidy the town" or a move in build mode rehouses it.'],
+      ["cosmetic", "Old town (buildings without a zone): Lab."],
+      ["cosmetic", 'Ops belongs to Garden but stands in the district of Old town; "Tidy the town" or a move in build mode rehouses it.'],
     ],
   );
 });
 
 test("labels and reasons", () => {
-  assert.equal(zoneLabel(zone("default", "default")), "No zone");
+  assert.equal(zoneLabel(zone("default", "default")), "Old town");
   assert.equal(zoneLabel(zone("z", "town")), "Unnamed zone");
   assert.equal(zoneReason("cr", zone("studio", "group"), {}), "from its group in crewhub-loops");
   assert.equal(zoneReason("cr", zone("studio", "group"), { cr: "studio" }), "by hand");
