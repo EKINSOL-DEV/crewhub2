@@ -133,9 +133,11 @@ export function BuildPanel({ build, town, plan, inside, demo, onClose, onUndo, o
                 pressed={state.propId === entry.id}
                 onClick={() => build.choose(entry.id)}
                 title={`${entry.name}: ${entry.definition.footprint.width} by ${entry.definition.footprint.depth} cells`}
+                // The name is the prop's alone; the footprint and provenance describe it (round 65, w5-15: "Workstation3×2").
+                aria-describedby={`palette-meta-${entry.id}`}
               >
                 <span className="palette-name">{entry.name}</span>
-                <span className="palette-meta">
+                <span className="palette-meta" id={`palette-meta-${entry.id}`} aria-hidden="true">
                   {entry.definition.footprint.width}×{entry.definition.footprint.depth}
                   {entry.provenance && ` · ${entry.provenance.kind === "ticket" ? `from ${entry.provenance.ticketKey}` : "local"}`}
                 </span>
@@ -157,7 +159,10 @@ export function BuildPanel({ build, town, plan, inside, demo, onClose, onUndo, o
               label={
                 <span className="build-request-label">
                   Request a prop
-                  <Chip icon={<FlaskConical className="icon icon-sm" aria-hidden="true" />}>Demo</Chip>
+                  {/* The chip is a visual mark; in the name it read "Request a propDemo" (round 65, w5-15). */}
+                  <Chip icon={<FlaskConical className="icon icon-sm" aria-hidden="true" />} aria-hidden="true">
+                    Demo
+                  </Chip>
                 </span>
               }
               size="sm"
