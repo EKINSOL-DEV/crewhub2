@@ -1,41 +1,28 @@
 /**
- * `npm run loops:fake -- --port 8391 [--scenario small-team] [--speed 1] [--builder-key]`: a fake crewhub-loops on
+ * `npm run loops:fake -- --port 8391 [--scenario small-team] [--speed 1] [--builder-key] [--help]`: a fake crewhub-loops on
  * 127.0.0.1 for running the world in live mode before the install. `--builder-key` makes the key behave like loops'
  * builder key (tickets, comments and `auth/me` only; everything else 403), so the host shows Unauthorized. The key lives in `tools/out/loops-fake.key` (mode 0600; reused
- * when it exists, so a restarted fake keeps the host's key valid) and is never printed.
+ * when it exists, so a restarted fake keeps the host's key valid) and is never printed. `--help` or `-h` prints the usage and
+ * exits 0; an unknown flag, a stray word or a bad value is refused with exit 2 (`fakeArgs.ts`). Neither starts the fake.
  */
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { DEFAULT_SCENARIO, SCENARIO_IDS, scenarioIdOf } from "@crewhub/demo";
 import { createLoopsFake } from "./fake.ts";
-import { fakePortVerdict } from "./ports.ts";
+import { parseFakeArgs } from "./fakeArgs.ts";
 
 const KEY_FILE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../tools/out/loops-fake.key");
-const SPEEDS = [0, 1, 4, 16] as const;
 
-function option(name: string): string | undefined {
-  const index = process.argv.indexOf(`--${name}`);
-  if (index === -1) return undefined;
-  const value = process.argv[index + 1];
-  if (value === undefined || value.startsWith("--")) throw new Error(`--${name} needs a value`);
-  return value;
+const args = parseFakeArgs(process.argv.slice(2));
+if (args.kind === "help") {
+  console.log(args.text);
+  process.exit(0);
 }
-
-const builderKey = process.argv.includes("--builder-key");
-// Never 8091 (the Mac app's port: a host's discovery would take a fake there for the app), its other ports, or 5180 (round 36).
-const portVerdict = fakePortVerdict(option("port"));
-if (!portVerdict.ok) throw new Error(portVerdict.reason);
-const port = portVerdict.port;
-// An unknown id is refused (round 54): a typo must not play the default.
-const scenarioText = option("scenario");
-const scenario = scenarioText === undefined ? DEFAULT_SCENARIO : scenarioIdOf(scenarioText);
-if (scenario === null) {
-  console.error(`--scenario ${scenarioText}: no such demo scenario; one of ${SCENARIO_IDS.join(", ")}`);
+if (args.kind === "refuse") {
+  console.error(args.text);
   process.exit(2);
 }
-const speed = Number(option("speed") ?? "1");
-if (!(SPEEDS as readonly number[]).includes(speed)) throw new Error(`--speed must be one of ${SPEEDS.join(", ")}`);
+const { port, scenario, speed, builderKey } = args;
 
 let key: string | undefined;
 try {
@@ -44,7 +31,7 @@ try {
   key = undefined;
 }
 
-const fake = await createLoopsFake({ port, scenario, speed: speed as 0 | 1 | 4 | 16, builderKey, ...(key === undefined ? {} : { key }) });
+const fake = await createLoopsFake({ port, scenario, speed, builderKey, ...(key === undefined ? {} : { key }) });
 if (key === undefined) {
   await mkdir(path.dirname(KEY_FILE), { recursive: true });
   await writeFile(KEY_FILE, `${fake.key}\n`, { mode: 0o600 });

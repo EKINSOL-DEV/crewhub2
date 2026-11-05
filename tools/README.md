@@ -60,7 +60,7 @@ unless a script says otherwise; a phone is 375 x 812 with touch.
 **Live mode (`perf.mjs --source live`, `memory.mjs live`).** The world against a crewhub-loops behind a host the tool
 starts itself (`lib/live.mjs`): an in-process fake (`packages/loops-fake`, a free port; `--fake-scenario <id>`, default
 `small-team`; `--fake-speed 0|1|4|16`, default 16: the fake's clock is the only playback) or the loops `--loops-url`
-names with `--key-file <file>` (the fake started with `npm run loops:fake -- --port <port>`, or the development loops
+names with `--key-file <file>` (the fake started with `npm run loops:fake -- --port <port>`, whose `--help` lists its options without starting it, or the development loops
 on 8291 with your own key and `--real`, the opt-in a `--loops-url` to 8291-8293 needs since round 57d; loopback only,
 never 8091). In a dev run the host listens on `--host-port` (required: a port
 of your own, never 5180) behind your Vite, so start Vite with `CREWHUB_WORLD_PORT=<host-port>`; with `--preview` the host serves
