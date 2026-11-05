@@ -7,6 +7,7 @@
  */
 import { announced, labels, readTextView as text, textView as sheet } from "../lib/page.mjs";
 import { seek, speed } from "../lib/world.mjs";
+import { decodePng } from "../lib/png.ts";
 
 export async function run({ pass, page, check, out }) {
   const { browser } = pass;
@@ -97,6 +98,54 @@ export async function run({ pass, page, check, out }) {
   ok("walkers seen (max at once)", walking > 0, String(walking));
   info(`drone transit line present at the end: ${/in transit/.test(tv)}`);
   await p.keyboard.press("Escape");
+
+  // 4b. Round 64 (w5-7): the lead's chat from inside its building: the card's activity strip holds a Chip.Link per ticket
+  // the lead is on; kit.css ellipsizes the strip, which left the chips unpainted yet in the Tab order. Every chip whose box
+  // is in the strip must be painted (the pixel at its centre differs from the strip's own background), and the last chip,
+  // focused, must be scrolled into the strip and painted too. The town's own dock (G-Man, no tickets) is step 5's.
+  {
+    await canvas(p).focus();
+    await p.keyboard.press("Enter");
+    await p.waitForTimeout(1500);
+    await p.locator("aside.dock button").first().click().catch((e) => note("lead's dock " + e.message.split("\n")[0]));
+    await p.waitForTimeout(800);
+    const strip = p.locator(".bubble-chat .chat-summary");
+    const chips = strip.locator(".chip-link");
+    // The chips come with the agent's activity summary, a query of the dock's own: a few seconds at most.
+    await chips.first().waitFor({ timeout: 8000 }).catch(() => {});
+    const count = await chips.count();
+    const painted = async () => {
+      const image = decodePng(await strip.screenshot());
+      const box = await strip.boundingBox();
+      const at = (x, y) => { const i = (Math.round(y) * image.width + Math.round(x)) * 4; return [...image.data.subarray(i, i + 3)].join(","); };
+      // The strip's own colour from its top padding (a chip scrolled under the left edge would colour a mid-height sample).
+      const background = at(2, 2);
+      const inView = [];
+      for (let i = 0; i < count; i++) {
+        const r = await chips.nth(i).boundingBox();
+        if (!r || r.x < box.x - 1 || r.x + r.width > box.x + box.width + 1) continue;
+        inView.push({ i, pixel: at(r.x - box.x + r.width / 2, r.y - box.y + r.height / 2) });
+      }
+      return { background, inView, unpainted: inView.filter((c) => c.pixel === background).map((c) => c.i) };
+    };
+    const before = await painted();
+    await chips.last().focus().catch(() => {});
+    await p.waitForTimeout(400);
+    const lastBox = await chips.last().boundingBox().catch(() => null);
+    const stripBox = await strip.boundingBox();
+    const lastInView = !!lastBox && lastBox.x >= stripBox.x - 1 && lastBox.x + lastBox.width <= stripBox.x + stripBox.width + 1;
+    const after = await painted();
+    ok(
+      "dock: the activity strip's ticket chips are painted where they stand, and the last one, focused, is scrolled into the strip and painted",
+      count > 0 && before.inView.length > 0 && before.unpainted.length === 0 && lastInView && after.unpainted.length === 0,
+      `${count} chips, ${before.inView.length} in the strip before the focus (unpainted chips: ${before.unpainted.join(",") || "none"}); the last focused: ${lastInView ? "in view" : "outside"}, unpainted chips then: ${after.unpainted.join(",") || "none"}; the strip's colour ${before.background}`,
+    );
+    await shot(p, "05b-dock-strip");
+    await p.keyboard.press("Escape");
+    await p.waitForTimeout(400);
+    await p.keyboard.press("Escape");
+    await p.waitForTimeout(1200);
+  }
 
   // 5. Chat dock: open, send, scripted reply
   await p.locator("aside.dock button").first().click().catch((e) => note("dock " + e.message.split("\n")[0]));

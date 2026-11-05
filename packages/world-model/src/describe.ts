@@ -21,11 +21,12 @@ import type {
   WorldModel,
 } from "./model.ts";
 
+/** What a work object looks like, with its article ("as a folder", "as an envelope …"; round 64, w5-14). */
 const LOOK_WORDS: Record<WorkObject["look"], string> = {
-  folder: "folder",
-  box: "cardboard box",
-  "bug-crate": "crate with a bug stamp",
-  envelope: "envelope with a question mark",
+  folder: "a folder",
+  box: "a cardboard box",
+  "bug-crate": "a crate with a bug stamp",
+  envelope: "an envelope with a question mark",
 };
 
 
@@ -279,7 +280,7 @@ function describeHalls(building: Building, add: Add): void {
 function describeObject(section: string, object: WorkObject, building: Building, add: Add, rooms: RoomWording): void {
   // A status newer than this build is said as loops sent it, as a newer kind or outcome is (round 48).
   const status = object.newStatus === null ? statusWords(object.status) : `status "${object.newStatus}" (new to this world, kept with the backlog)`;
-  const parts = [`${object.key} "${object.title}": ${object.kind} as a ${LOOK_WORDS[object.look]}, ${status}`];
+  const parts = [`${object.key} "${object.title}": ${object.kind} as ${LOOK_WORDS[object.look]}, ${status}`];
   if (object.rejected) {
     const reason = object.rejected.reason ? `: "${object.rejected.reason}"` : "";
     parts.push(`turned down (closed as won't do${reason}), set aside askew, struck through with a dark band`);
