@@ -3,11 +3,12 @@
    build mode is on. Kit Cards, Buttons, Fields and Chips only. On a phone (world.css, under 600 px, where the sheet lies
    over the lower part of the screen) two buttons show the palette alone or the rest, so the sheet stands shorter over
    the floor a prop goes on (round 65, walk finding w4-18); wider, the buttons are not drawn and everything shows. */
-import { useState, type FormEvent } from "react";
+import { useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { FlaskConical, Hammer, Pencil, Plus, Redo2, RotateCw, Trash2, Undo2, X } from "lucide-react";
 import type { Building, CatalogueGroupId } from "@crewhub/world-model";
 import type { BuildMode } from "../state/build";
 import type { TownState } from "../state/town";
+import { mediaList } from "../state/media";
 import { pageConfig } from "../state/page";
 import { useWorld } from "../state/runtimes";
 import { Button, Card, Chip, Field } from "./primitives";
@@ -30,6 +31,8 @@ interface Props {
 }
 
 const ROTATION_WORDS = ["facing the camera", "turned a quarter", "turned half", "turned three quarters"] as const;
+/** Where the sheet lies along the bottom of the screen (world.css). */
+const PHONE_SHEET = "(max-width: 600px)";
 
 export function BuildPanel({ build, town, plan, inside, demo, onClose, onUndo, onRedo, onEdit, onRequest }: Props) {
   const { model } = useWorld();
@@ -42,6 +45,12 @@ export function BuildPanel({ build, town, plan, inside, demo, onClose, onUndo, o
   const { state, check, selectedPlacement } = build;
   const chosen = state.propId ? town.catalogue.get(state.propId) : null;
   const selected = selectedPlacement ? town.catalogue.get(selectedPlacement.propId) : null;
+  // On a phone the short body is scrolled to its top when a prop is chosen or selected, or the part changes: Turn, Place and
+  // Done go in above a palette scrolled away, and More would open at the palette's scroll (m1's review of w4-18).
+  const body = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (body.current && mediaList(PHONE_SHEET).matches) body.current.scrollTop = 0;
+  }, [state.propId, state.selected, part]);
 
   const request = (e: FormEvent) => {
     e.preventDefault();
@@ -75,7 +84,7 @@ export function BuildPanel({ build, town, plan, inside, demo, onClose, onUndo, o
           </div>
         }
       />
-      <Card.Body>
+      <Card.Body ref={body}>
         <div className="build-toolbar" role="toolbar" aria-label="Build actions">
           <Button size="sm" icon={<Undo2 className="icon" aria-hidden="true" />} disabled={!town.canUndo} onClick={onUndo} title="Undo (Ctrl/Cmd+Z)">
             Undo

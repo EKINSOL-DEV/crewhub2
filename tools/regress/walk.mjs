@@ -384,6 +384,45 @@ export async function run({ pass, page, check, out }) {
       await p.waitForTimeout(300);
       const backOnProps = await seen();
       const words = (o) => Object.entries(o).filter(([, shown]) => shown).map(([name]) => name).join("+") || "nothing";
+      // m1's review: a palette scrolled until a row stands whole at the bottom, the row tapped with no tool scroll: Turn,
+      // Place and Done go in above it, and must stand whole in the body, under the sentence. Then More opens at its top, New
+      // prop whole. A short phone (664), where the body is shortest. Each read waits for the state; the ceiling only ends a failure.
+      const fullSize = p.viewportSize();
+      await p.setViewportSize({ width: fullSize.width, height: 664 });
+      const scrolledFrom = await p.evaluate(async () => {
+        const sheetEl = document.querySelector(".build-sheet");
+        const body = sheetEl.querySelector(".card-body");
+        for (const group of sheetEl.querySelectorAll(".build-groups .btn")) {
+          group.click();
+          await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          if (sheetEl.querySelectorAll(".palette-item").length > 1) break;
+        }
+        const row = [...sheetEl.querySelectorAll(".palette-item")].at(-1);
+        body.scrollTop = 0;
+        body.scrollTop = Math.max(0, row.getBoundingClientRect().bottom - body.getBoundingClientRect().bottom + 1);
+        const from = Math.round(body.scrollTop);
+        row.click();
+        return from;
+      });
+      const actionsWhole = await p.waitForFunction(() => {
+        const sheetEl = document.querySelector(".build-sheet");
+        const box = sheetEl.querySelector(".card-body").getBoundingClientRect();
+        const status = sheetEl.querySelector(".build-status").getBoundingClientRect();
+        const buttons = [...sheetEl.querySelectorAll(".card-body > .build-actions .btn")].map((b) => b.getBoundingClientRect());
+        return buttons.length === 3 && buttons.every((r) => r.top >= status.bottom - 1 && r.bottom <= box.bottom + 1);
+      }, null, { timeout: 8000, polling: 200 }).then(() => true).catch(() => false);
+      const actionWords = await p.evaluate(() => { const sheetEl = document.querySelector(".build-sheet"); const box = sheetEl.querySelector(".card-body").getBoundingClientRect(); return `body to ${Math.round(box.bottom)}, ` + [...sheetEl.querySelectorAll(".card-body > .build-actions .btn")].map((b) => { const r = b.getBoundingClientRect(); return `${b.textContent.trim()} ${Math.round(r.top)}..${Math.round(r.bottom)}`; }).join(", "); });
+      await shot(p, "12f-664-build-sheet-chosen");
+      await p.evaluate(() => { const b = document.querySelector(".build-sheet .card-body"); b.scrollTop = b.scrollHeight; [...document.querySelectorAll(".build-parts .btn")].find((x) => x.textContent.trim() === "More").click(); });
+      const moreWhole = await p.waitForFunction(() => {
+        const sheetEl = document.querySelector(".build-sheet");
+        const box = sheetEl.querySelector(".card-body").getBoundingClientRect();
+        const bar = sheetEl.querySelector(".build-toolbar").getBoundingClientRect();
+        const status = sheetEl.querySelector(".build-status").getBoundingClientRect();
+        return sheetEl.dataset.part === "more" && sheetEl.querySelector(".card-body").scrollTop === 0 && bar.top >= box.top - 1 && bar.bottom <= status.top + 1;
+      }, null, { timeout: 8000, polling: 200 }).then(() => true).catch(() => false);
+      ok("375 x 664: a prop chosen from a scrolled palette shows Turn, Place and Done whole, and More opens at its top with New prop whole (round 65, w4-18, m1's review)", scrolledFrom > 0 && actionsWhole && moreWhole, `palette scrolled ${scrolledFrom}; ${actionWords}; More at its top, New prop whole: ${moreWhole}`);
+      await p.setViewportSize(fullSize);
       ok("375: inside a building the build sheet is the palette under two fifths of the screen, and More holds the rest (round 65, w4-18)", onProps.palette && onProps.status && !onProps.layout && !onProps.undo && sheetBox !== null && sheetBox.height <= vh * 0.4 && onMore.layout && onMore.undo && onMore.status && !onMore.palette && backOnProps.palette && !backOnProps.layout && held !== null && held.scrolled > 0 && held.parts && held.status, `scrolled ${held ? held.scrolled : "?"}: buttons ${held?.parts}, sentence ${held?.status}; Props shows ${words(onProps)}, More shows ${words(onMore)}, back shows ${words(backOnProps)}; sheet ${sheetBox ? Math.round(sheetBox.height) : "?"} of ${vh}`);
       await p.keyboard.press("Escape");
       await p.waitForTimeout(300);
