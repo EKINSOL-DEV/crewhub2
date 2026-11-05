@@ -40,6 +40,21 @@ export function chatSettings(opts, fail = (message) => { throw new Error(message
   return { pairedTab, chatPanel, dmEvery, burst, burstAt, active: chatPanel || dmEvery !== null || burst > 0 };
 }
 
+/** How many of the reads answered with another status than 200 the tally names one by one (round 63). */
+export const FIRST_BAD = 5;
+
+/** A tally's other statuses, `404 ×1, 503 ×2`, or "" when there are none. */
+export function formatBadStatuses(tally) {
+  return Object.entries(tally.badStatuses ?? {})
+    .map(([status, count]) => `${status} ×${count}`)
+    .join(", ");
+}
+
+/** A tally's first reads with another status, `minute 15.2 404 m-1, …`, or "" when there are none. */
+export function formatFirstBad(tally) {
+  return (tally.firstBad ?? []).map((r) => `${r.minute === null ? "" : `minute ${r.minute} `}${r.status} ${r.id}`).join(", ");
+}
+
 /**
  * Counts every read of an agent message the host makes toward loops (`GET /api/dm/messages/<id>`), by id: the
  * status, when, how long, and how many were in flight at once (the gate's number). `wrap(fetch)` answers the
@@ -75,18 +90,33 @@ export function createDmReadCounter() {
         }
       };
     },
-    tally() {
+    tally(startedAt = null) {
       // ok, bad and errors are disjoint (round 47, the review's F11): a read that threw has no status and counts in
-      // `errors` only, so ok + bad + errors = total.
+      // `errors` only, so ok + bad + errors = total. The bad ones are named (round 63: one read of 772 answered
+      // another status and the tally could not say which): a count per status, and the first `FIRST_BAD` by time with
+      // their id and the run's minute (from `startedAt`, null without it).
       let total = 0, once = 0, twice = 0, more = 0, ok = 0, bad = 0;
-      for (const list of reads.values()) {
+      const badStatuses = {};
+      const badReads = [];
+      for (const [id, list] of reads) {
         total += list.length;
         if (list.length === 1) once += 1;
         else if (list.length === 2) twice += 1;
         else more += 1;
-        for (const r of list) if (r.status === 200) ok += 1; else if (r.status !== null) bad += 1;
+        for (const r of list) {
+          if (r.status === 200) ok += 1;
+          else if (r.status !== null) {
+            bad += 1;
+            badStatuses[r.status] = (badStatuses[r.status] ?? 0) + 1;
+            badReads.push({ id, status: r.status, at: r.at });
+          }
+        }
       }
-      return { ids: reads.size, total, once, twice, more, ok, bad, inFlight, maxInFlight, errors };
+      const firstBad = badReads
+        .sort((a, b) => a.at - b.at)
+        .slice(0, FIRST_BAD)
+        .map((r) => ({ id: r.id, status: r.status, minute: startedAt === null ? null : Math.round((r.at - startedAt) / 6000) / 10 }));
+      return { ids: reads.size, total, once, twice, more, ok, bad, badStatuses, firstBad, inFlight, maxInFlight, errors };
     },
     inWindow(from, ms) {
       const statuses = {};
@@ -171,5 +201,5 @@ export function lostIn(line) {
 /** One line of the chat counts, as the tool prints it on every sample. */
 export function formatChat(chat) {
   const r = chat.reads;
-  return `chat sent ${chat.sent}${chat.burstSent ? ` (burst ${chat.burstSent})` : ""} reads ${r.ids} ids/${r.total} total (twice ${r.twice}, bad ${r.bad}, errors ${r.errors}, in flight ${r.inFlight}, max ${r.maxInFlight}) rows ${chat.rows}${chat.lost ? ` lost ${chat.lost}` : ""}`;
+  return `chat sent ${chat.sent}${chat.burstSent ? ` (burst ${chat.burstSent})` : ""} reads ${r.ids} ids/${r.total} total (twice ${r.twice}, bad ${r.bad}${r.bad > 0 && r.badStatuses ? ` [${formatBadStatuses(r)}]` : ""}, errors ${r.errors}, in flight ${r.inFlight}, max ${r.maxInFlight}) rows ${chat.rows}${chat.lost ? ` lost ${chat.lost}` : ""}`;
 }

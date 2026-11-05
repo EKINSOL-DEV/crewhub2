@@ -110,6 +110,29 @@ export function snapshotDiff(first, last, top = 8) {
 }
 
 /**
+ * Round 63: the snapshot minutes that do not fall on the same moment of the fake's loop as minute 0. The loop is the
+ * scenario's story played at the run's speed (`loopMinutes`: 16 for small-team at speed 1, 4 at speed 4). A snapshot
+ * at another moment reads another state of the town (round 62's chat soak, 30 minutes apart: 479 to 689 meshes; round
+ * 63 at multiples of 16: 560 four times), so the counts and the fit compare like with like only at multiples. Empty
+ * when every minute is a multiple, and when there is no loop to keep to (speed 0, or no length known).
+ */
+export function offLoopMinutes(snapshotMinutes, loopMinutes) {
+  if (!(loopMinutes > 0)) return [];
+  return snapshotMinutes.filter((m) => {
+    const turns = m / loopMinutes;
+    return Math.abs(turns - Math.round(turns)) > 1e-9;
+  });
+}
+
+/** The tool's warning for `offLoopMinutes` (`loop`: `{ minutes, scenario, speed }`), or null when there is none. */
+export function loopWarning(snapshotMinutes, loop) {
+  const off = offLoopMinutes(snapshotMinutes, loop?.minutes);
+  if (off.length === 0) return null;
+  const one = off.length === 1;
+  return `warning: --snapshots ${off.join(", ")} ${one ? "is not a multiple" : "are not multiples"} of the fake's loop (${loop.minutes} minutes: ${loop.scenario} at speed ${loop.speed}), so ${one ? "it reads" : "they read"} another moment of it than minute 0; the counts and the fit compare like with like only at multiples (docs/COST_POLICY.md, "What to soak and how", item 3)`;
+}
+
+/**
  * The verdict. `minutes` is the run's length; `snapshots` are { minute, bytes, code, rows } (the snapshot's total and its
  * `(code)` row, bytes, and its sums by name as `snapshotDiff` takes them; numbers kept without `rows` leave nothing out
  * and run no record-size rule); `diff` is `snapshotDiff` from the first snapshot read to the last (null when the tool could not

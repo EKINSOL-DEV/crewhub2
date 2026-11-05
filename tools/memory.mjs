@@ -83,12 +83,12 @@
    points, the growth and the snapshot totals (a bare file name lands in --out). */
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { CHAT_FLAGS, CHAT_OPTIONS, CHAT_USAGE, READ_PAGE_CHAT, chatAgents, chatSettings, createDmReadCounter, formatChat, nextDm, pageChatCounter } from "./lib/chatSoak.mjs";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { CHAT_FLAGS, CHAT_OPTIONS, CHAT_USAGE, READ_PAGE_CHAT, chatAgents, chatSettings, createDmReadCounter, formatBadStatuses, formatChat, formatFirstBad, nextDm, pageChatCounter } from "./lib/chatSoak.mjs";
 import { capDomDiff, describeDetached, domDiff, domInventory, formatDomDiff } from "./lib/domdiff.ts";
 import { formatRows, formatShapes, growth as heapGrowth, heapTotals, mb as heapMb, resolveThreeNames, topBySize } from "./lib/heap.mjs";
 import { LIVE_FLAGS, LIVE_OPTIONS, LIVE_USAGE, startLive } from "./lib/live.mjs";
-import { formatVerdict, judge, snapshotDiff } from "./lib/verdict.mjs";
+import { formatVerdict, judge, loopWarning, offLoopMinutes, snapshotDiff } from "./lib/verdict.mjs";
 import { castChoice, cli, launch, speed, worldUrl } from "./lib/world.mjs";
 import { openPage } from "./lib/page.mjs";
 
@@ -119,6 +119,17 @@ const dmReads = createDmReadCounter();
 if (chat.active) globalThis.fetch = dmReads.wrap(globalThis.fetch);
 const live = scenario === "live" ? await startLive(opts, { preview: opts.preview, keyReadsChat: chat.active }) : null;
 const base = live ? live.base : opts.base;
+// The in-process fake's loop (round 63): its scenario's story at the run's speed. Snapshots off its multiples read
+// another moment of it, so the tool says so before the run (null with --loops-url or at speed 0: no loop known).
+const loop = await fakeLoop();
+async function fakeLoop() {
+  const speed = Number(opts["fake-speed"]);
+  if (!live || opts["loops-url"] !== "" || !(speed > 0)) return null;
+  const { demoScenario } = await import(pathToFileURL(path.join(REPO, "packages", "demo", "src", "scenarios.ts")).href);
+  return { minutes: demoScenario(opts["fake-scenario"]).story.durationMs / 60000 / speed, scenario: opts["fake-scenario"], speed };
+}
+const offLoop = loopWarning(snapshotMinutes, loop);
+if (offLoop) console.log(`  ${offLoop}`);
 // What the built chunk calls three's classes (a retainer walk goes by name; the counts below do not): with --preview.
 const threeNames = opts.preview ? resolveFromDist() : null;
 function resolveFromDist() {
@@ -195,7 +206,7 @@ const readPageChat = async () => (chat.chatPanel ? await page.evaluate(READ_PAGE
 const chatPoint = async () => {
   if (!chat.active) return null;
   const onPage = await readPageChat();
-  return { sent, burstSent, reads: dmReads.tally(), rows: onPage?.rows ?? -1, lost: live.lost() };
+  return { sent, burstSent, reads: dmReads.tally(started), rows: onPage?.rows ?? -1, lost: live.lost() };
 };
 
 const mb = (b) => (b / 1048576).toFixed(1);
@@ -415,13 +426,13 @@ let chatEnd = null;
 if (live && chat.active) {
   // The last replies and their reads land in the seconds after the last send.
   await page.waitForTimeout(15000);
-  const tally = dmReads.tally();
+  const tally = dmReads.tally(started);
   const onPage = await readPageChat();
   const burst = burstAt ? dmReads.inWindow(burstAt.getTime(), 60000) : null;
   const lost = live.lost();
   chatEnd = { sent, burstSent, burstAt: burstAt?.toISOString() ?? null, tally, rows: onPage?.rows ?? -1, lastLabels: onPage?.labels ?? [], burstMinute: burst, lost };
   console.log(
-    `chat tally: sent ${sent}${burstAt ? ` (burst ${burstSent} at ${burstAt.toTimeString().slice(0, 8)})` : ""}; the host read ${tally.total} times over ${tally.ids} ids (${tally.once} once, ${tally.twice} twice, ${tally.more} more; ${tally.ok} with 200, ${tally.bad} with another status, ${tally.errors} with no answer), at most ${tally.maxInFlight} in flight at once${burst ? `; the burst's minute: ${burst.count} reads, ${JSON.stringify(burst.statuses)}, mean ${burst.meanMs} ms, slowest ${burst.slowestMs} ms` : ""}; the page added ${chatEnd.rows} Recent answers rows; the host's log: ${lost} agent message${lost === 1 ? "" : "s"} lost`,
+    `chat tally: sent ${sent}${burstAt ? ` (burst ${burstSent} at ${burstAt.toTimeString().slice(0, 8)})` : ""}; the host read ${tally.total} times over ${tally.ids} ids (${tally.once} once, ${tally.twice} twice, ${tally.more} more; ${tally.ok} with 200, ${tally.bad} with another status${tally.bad > 0 ? ` (${formatBadStatuses(tally)}; the first: ${formatFirstBad(tally)})` : ""}, ${tally.errors} with no answer), at most ${tally.maxInFlight} in flight at once${burst ? `; the burst's minute: ${burst.count} reads, ${JSON.stringify(burst.statuses)}, mean ${burst.meanMs} ms, slowest ${burst.slowestMs} ms` : ""}; the page added ${chatEnd.rows} Recent answers rows; the host's log: ${lost} agent message${lost === 1 ? "" : "s"} lost`,
   );
   const chatLines = live.lines.filter((l) => /lost|retr|dm|chat/i.test(l));
   if (chatLines.length > 0) {
@@ -458,6 +469,7 @@ if (jsonOut)
         ...(live ? { loops: opts["loops-url"] || `fake:${opts["fake-scenario"]}@${opts["fake-speed"]}x` } : {}),
         ...(paired ? { pairedTab: true } : {}),
         ...(chat.active ? { chat: { agents, dmEvery: chat.dmEvery, burst: chat.burst, burstAt: chat.burstAt, end: chatEnd } } : {}),
+        ...(loop ? { loop: { ...loop, offMoment: offLoopMinutes(snapshotMinutes, loop.minutes) } } : {}),
         ...(threeNames ? { threeNames } : {}),
         points,
         growth,
