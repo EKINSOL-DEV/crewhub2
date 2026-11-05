@@ -38,3 +38,8 @@ test("round 65 (w1-12): each rule prop carries the fact in a few words, never th
   assert.deepEqual(labels({ releases: [release("published", null)], bugs: 1 }), ["banner: Milestone CR-M1 active", "sticker.rocket: CR-1: awaiting-deploy", "jar: 1 open bug", "trophy: Release 3: published"]);
   for (const label of labels({ releases: [release("draft", "0.3.0")], bugs: 2 })) assert.doesNotMatch(label, /\brule\b/i);
 });
+
+test("round 65 (w1-12): an empty version reads as no version, as the sentence beside it treats it: the release's number", () => {
+  assert.deepEqual(labels({ releases: [release("draft", "")], bugs: 0 }).filter((l) => l.startsWith("crate")), ["crate: Release 3: draft"]);
+  assert.deepEqual(labels({ releases: [release("published", "")], bugs: 0 }).filter((l) => l.startsWith("trophy")), ["trophy: Release 3: published"]);
+});

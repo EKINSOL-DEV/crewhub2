@@ -64,7 +64,7 @@ function forBuilding(b: Building): RuleProp[] {
         anchor: room("dispatch"),
         count: null,
         text: `Release crate at dispatch: ${name} is a draft.`,
-        label: `Release ${r.version ?? r.number}: draft`,
+        label: `Release ${r.version || r.number}: draft`,
       });
   }
   for (const o of b.objects)
@@ -98,7 +98,7 @@ function forBuilding(b: Building): RuleProp[] {
         anchor: leadDesk,
         count: null,
         text: `Trophy on ${b.lead.displayName}'s desk: release ${r.number}${r.version ? ` (${r.version})` : ""} is published.`,
-        label: `Release ${r.version ?? r.number}: published`,
+        label: `Release ${r.version || r.number}: published`,
       });
   return props;
 }
