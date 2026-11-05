@@ -345,6 +345,41 @@ export async function run({ pass, page, check, out }) {
     }
     await p.context().close();
   }
+  // Round 66 (w4-2, s4's review): the App hands the page's input kind to the view's steps. Walk mode's, the jump's and the
+  // follow's sentences are chosen there, and with the App's `touch` left out the whole test folder stayed green. On a touch
+  // device they name the joystick, a tap and a drag; a window as narrow with a mouse keeps the keys' words, so the choice
+  // is by the pointer and not by the width.
+  for (const touch of [true, false]) {
+    const kind = touch ? "touch" : "a mouse";
+    const q = await open({ width: 375, touch });
+    await town(q, 2500);
+    const coarse = await q.evaluate(() => matchMedia("(pointer: coarse)").matches);
+    const said = async (words) => {
+      const status = () => q.locator("[aria-live=polite]").allInnerTexts().then((all) => all.join(" ").replace(/\s+/g, " ").trim());
+      for (let i = 0; i < 30 && !(await status()).includes(words); i++) await q.waitForTimeout(100);
+      return status();
+    };
+    await q.getByRole("button", { name: /^Walk \(W\)/ }).click();
+    const walking = await said("Walking.");
+    ok(`375 ${kind}: walk mode's sentence (round 66, w4-2)`, coarse === touch && (touch ? /The joystick at the bottom left moves you/.test(walking) && /The Walk button stops/.test(walking) && !/W A S D|Escape stops/.test(walking) : /W A S D or the arrow keys move you/.test(walking) && /Escape stops/.test(walking) && !/joystick/.test(walking)), `coarse ${coarse}: "${walking.slice(0, 130)}"`);
+    await q.getByRole("button", { name: /^Stop walking/ }).click();
+    await q.waitForTimeout(800);
+    await q.getByRole("button", { name: /Jump to/ }).first().click();
+    await q.waitForTimeout(400);
+    await q.keyboard.type("post");
+    await q.waitForTimeout(300);
+    await q.getByRole("dialog", { name: "Jump to" }).getByRole("option", { name: /Postman/ }).first().click();
+    const landed = await said("opens its card.");
+    ok(`375 ${kind}: a jump to a figure says what opens its card (round 66, w4-2)`, touch ? /A tap on it opens its card\./.test(landed) && !/Enter opens/.test(landed) : /Enter opens its card\./.test(landed) && !/A tap on it/.test(landed), landed.slice(-90));
+    await q.waitForTimeout(1500);
+    await canvas(q).focus();
+    await q.keyboard.press("Enter");
+    await q.locator(".agent-card").first().waitFor({ timeout: 3000 }).catch(() => {});
+    await q.locator(".agent-card").getByRole("button", { name: /^Follow/ }).first().click().catch(() => {});
+    const following = await said("Following");
+    ok(`375 ${kind}: a follow says what stops it (round 66, w4-2)`, touch ? /A drag stops following\./.test(following) && !/Escape, Shift\+F/.test(following) : /Escape, Shift\+F or a drag stops following\./.test(following), following.slice(-90));
+    await q.context().close();
+  }
   p = await open({ theme: "dark" });
   await town(p, 2500);
   await shot(p, "13-dark-town");
