@@ -508,7 +508,7 @@ function World() {
           r50-a11y A9); they still paint over the scene's top overlays by their z-index (world.css `.world-corner`). */}
       <Corner demo={demo} connection={connection} connectionOpen={connectionOpen} onOpenConnection={openConnection} graphicsFailed={graphicsFailed} trail={trail} onGo={go} onJump={openJump} jumpOpen={jumpOpen} following={following ? agentName(following) : null} onStopFollow={() => follow(null)} />
 
-      <CornerTools theme={theme} cycle={cycle} details={details} buildOn={build.state.on} toggleBuild={build.toggle} settingsOpen={settingsOpen} openSettings={openSettings} closeSettings={closeSettings} graphicsFailed={graphicsFailed} openTour={openTour} />
+      <CornerTools theme={theme} cycle={cycle} details={details} buildOn={build.state.on} toggleBuild={build.toggle} settingsOpen={settingsOpen} openSettings={openSettings} closeSettings={closeSettings} graphicsFailed={graphicsFailed} openTour={openTour} openText={openText} />
 
       <main className="world-stage" onKeyDown={sceneKey} aria-label="CrewHub World">
         {graphicsFailed ? null : (
@@ -812,8 +812,10 @@ const CornerTools = memo(function CornerTools(props: {
   closeSettings: () => void;
   graphicsFailed: boolean;
   openTour: () => void;
+  /** The text view from the "?" menu (round 64, w4-7): a touch device has no T key and never meets the skip link. */
+  openText: () => void;
 }) {
-  const { theme, cycle, details, buildOn, toggleBuild, settingsOpen, openSettings, closeSettings, graphicsFailed, openTour } = props;
+  const { theme, cycle, details, buildOn, toggleBuild, settingsOpen, openSettings, closeSettings, graphicsFailed, openTour, openText } = props;
   const ThemeIcon = THEME_ICON[theme];
   return (
     <div className="world-corner world-corner-right" data-chrome="">
@@ -849,6 +851,10 @@ const CornerTools = memo(function CornerTools(props: {
         items={[
           { label: translate("world.tour.show"), hint: translate("world.tour.showHint"), onSelect: openTour },
           { label: translate("world.tour.read"), hint: translate("world.tour.readHint"), onSelect: () => void window.open(INTRODUCTION_URL, "_blank", "noopener,noreferrer") },
+          // The open waits a frame (w2's review of w4-7): the menu runs a row's onSelect before it closes and refocuses
+          // Help, and the text view takes the focused element as its return slot; opened at once, that slot would be
+          // the row, unmounted a tick later, and Escape from the view would drop the focus to the body.
+          { label: translate("world.text.open"), hint: translate("world.text.openHint"), onSelect: () => requestAnimationFrame(openText) },
         ]}
       />
       <Button variant="ghost" iconOnly aria-label="Settings" title="Settings" expanded={settingsOpen} icon={<Settings className="icon" aria-hidden="true" />} onClick={settingsOpen ? closeSettings : openSettings} />

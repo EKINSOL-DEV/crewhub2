@@ -302,10 +302,48 @@ export async function run({ pass, page, check, out }) {
     // A building's sign is a quiet name, smaller than a finger: its ::after pad is what is tapped.
     const pads = await p.evaluate(() => [...document.querySelectorAll("button.town-sign")].flatMap((e) => { const s = getComputedStyle(e, "::after"); return s.content === "none" ? [0, 0] : [Math.round(parseFloat(s.width)), Math.round(parseFloat(s.height))]; }));
     ok(`375 ${scheme}: building signs have 40px hit pads`, pads.length > 0 && pads.every((n) => n >= 40), pads.join(","));
+    if (scheme === "light") {
+      // Round 64 (w4-7): a thumb has no T key and never meets the skip link, so a visible control must open the text view:
+      // the "?" (Help) menu's row "Open the text view", tapped, as the tour's step 5 promises. Before, the menu held the
+      // introduction's two rows only and the text view was unreachable on a touch device.
+      await p.getByRole("button", { name: "Help" }).tap();
+      await p.waitForTimeout(300);
+      const row = p.getByRole("menuitem", { name: /^Open the text view/ });
+      const rowShown = await row.isVisible().catch(() => false);
+      await shot(p, "12b-375-help-menu");
+      if (rowShown) await row.tap();
+      const opened = await p.waitForSelector("#text-view", { timeout: 3000 }).then(() => true).catch(() => false);
+      const menuClosed = (await p.getByRole("menuitem").count()) === 0;
+      await shot(p, "12c-375-text-view-from-help");
+      ok("375: the Help menu's row 'Open the text view', tapped, opens the text view and closes the menu (round 64, w4-7)", rowShown && opened && menuClosed, `row ${rowShown ? "shown" : "missing"}, text view ${opened ? "open" : "not open"}, menu ${menuClosed ? "closed" : "still open"}`);
+      await p.keyboard.press("Escape");
+      await p.waitForTimeout(300);
+    }
     await p.context().close();
   }
   p = await open({ theme: "dark" });
   await town(p, 2500);
   await shot(p, "13-dark-town");
+  // Round 64 (w4-7, w2's review): the same row by keyboard. Help, Enter, the arrows to "Open the text view", Enter: the
+  // text view has the focus; Escape closes it and the focus is back on Help, as after T or after the menu's first row.
+  // Before, the row ran its open before the menu closed, so the view's return slot was the row itself, unmounted a tick
+  // later, and Escape dropped the focus to the body.
+  const activeIs = () => p.evaluate(() => { const el = document.activeElement; return el ? `${el.tagName.toLowerCase()} ${el.getAttribute("aria-label") || el.id || (el.textContent ?? "").trim().slice(0, 30)}` : "none"; });
+  await p.getByRole("button", { name: "Help" }).focus();
+  await p.keyboard.press("Enter");
+  await p.waitForTimeout(200);
+  await p.keyboard.press("ArrowDown");
+  await p.keyboard.press("ArrowDown");
+  await p.waitForTimeout(100);
+  const onRow = await activeIs();
+  await p.keyboard.press("Enter");
+  const openedByKey = await p.waitForSelector("#text-view", { timeout: 3000 }).then(() => true).catch(() => false);
+  await p.waitForTimeout(300);
+  const onView = await activeIs();
+  await p.keyboard.press("Escape");
+  await p.waitForSelector("#text-view", { state: "detached", timeout: 3000 }).catch(() => {});
+  await p.waitForTimeout(200);
+  const afterEscape = await activeIs();
+  ok("keyboard: the Help menu's row 'Open the text view' opens the text view with the focus on it, and Escape gives the focus back to Help (round 64, w4-7, w2's review)", /Open the text view/.test(onRow) && openedByKey && /text-view/.test(onView) && afterEscape === "button Help", `row "${onRow}", opened ${openedByKey}, focus on "${onView}", after Escape "${afterEscape}"`);
   await p.context().close();
 }

@@ -419,7 +419,8 @@ rooms, a figure's card, the chat, the text view, the connection (the Demo chip i
 skips; the focus moves into the card and back; the ringed element is named to a screen reader; the card never covers what
 it describes, on a phone either; nothing moves the camera. After Skip or Done it stays away in that browser (a private
 window shows it again); Settings › Show the introduction and the "?" in the toolbar bring it back, and the "?" also opens
-this document on GitHub. A browser driven by a tool never gets it unless asked (`?tour=on`).
+this document on GitHub and the text view (the way in on a touch device, which has no T key). A browser driven by a tool
+never gets it unless asked (`?tour=on`).
 
 ![The tour's first step in the demo: the card "Step 1 of 6, The town" at the bottom with its one sentence and the Skip, Back and Next buttons, over the town of the Small team scenario.](images/tour.jpg)
 
