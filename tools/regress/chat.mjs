@@ -182,6 +182,20 @@ export async function run({ pass, page, check, out }) {
       await ph2.waitForSelector('.connection-chip[data-connection="live"]', { timeout: 20000 }).catch(() => {});
       const phoneMark = await answered(ph2, "phone");
       await shot(ph2, "62-chat-mark-phone-dark");
+      // Round 66 (w3-4): beside a pin on a touch screen the mark answers a tap of its own while it stands unfaded, as it
+      // does for as long as it stands live, and over its whole 40 px tap height; the pin keeps its own. Before, the static
+      // pin's tap area took the whole row, and only a fading mark's opacity lifted it out from under that.
+      const targets = await ph2.evaluate(() => {
+        const m = document.querySelector('.roof-row .chat-mark[data-said-mark="cr-lead"]');
+        const p = m?.parentElement.querySelector(".need-pin") ?? null;
+        if (m === null || p === null) return null;
+        const r = m.getBoundingClientRect();
+        const q = p.getBoundingClientRect();
+        const cx = r.left + r.width / 2;
+        const atMark = (x, y) => document.elementFromPoint(x, y)?.closest(".chat-mark") === m;
+        return { fading: m.classList.contains("fading"), centre: atMark(cx, r.top + r.height / 2), above: atMark(cx, r.top - 8), below: atMark(cx, r.bottom + 8), pin: document.elementFromPoint(q.left + q.width / 2, q.top + q.height / 2)?.closest(".need-pin") === p };
+      });
+      ok("chat (w3-4): on a phone a mark beside a pin takes its own tap, unfaded, at its centre and over its tap height, and the pin keeps its own", targets !== null && !targets.fading && targets.centre && targets.above && targets.below && targets.pin, JSON.stringify(targets));
       await phoneMark.click().catch(() => {});
       await ph2.waitForFunction(() => /CrewHub World/.test(document.querySelector("nav.world-breadcrumb .crumb-current")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
       const phoneBubble = ph2.locator('.bubble.said[data-said-agent="cr-lead"]');
