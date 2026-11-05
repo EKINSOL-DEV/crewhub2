@@ -103,7 +103,7 @@ Prepared branches are ready; an answer `do it` merges that branch, `journey N: a
   1 h ago" and the text view says the snapshot is stale and every status unknown: three signals disagreeing on one
   screen. The Stale state keys on arrivals, not on the events' age. ![Live chip, Last event 1 h ago, a stale text view](../images/walkthrough-r64/w2-3-live-but-stale.png) **Suggestion:** the chip goes Stale when the newest event is older than the stale threshold, whatever still arrives.
 
-  Not prepared: which threshold, and whether a quiet but healthy team then reads Stale, are not decided.
+  Not prepared: a decision, design choice [L3](design-choices.md#l3-the-chip-says-live-while-the-team-snapshot-is-stale-round-66-walkthrough-w2-3) (which threshold, and whether a quiet but healthy team then reads Stale). Answer there: `L3: snapshot` is the recommended one.
 
 - **w2-4 · polish.** The panel's crewhub-loops row breaks "CREWHUB_WORLD_LOOPS_UR / L" mid-word (a long token in a
   narrow column). ![The panel's discovery line with the variable broken in two](../images/walkthrough-r64/w2-4-panel-wrap.png) **Suggestion:** the variable name on its own unbreakable line, the URL under it.
@@ -155,7 +155,11 @@ Prepared branches are ready; an answer `do it` merges that branch, `journey N: a
   reads the says-line in the text view first finds the bubble and its mark gone on return. **Suggestion:** the mark
   outlives the bubble (until the answer is read or the next one comes), or the bubble's clock starts on screen.
 
-  Built but not approved: sugg/w3-4 turns round 14's phone row red (the chat mark's tap meets a pin); not to take as it stands (round 65).
+  Prepared: `sugg/w3-4`: live, the mark stands until the chat is opened or the agent's next answer replaces it. One small
+  change beyond the suggestion comes with it. Where a pin and a mark share a row, the pin's breathing ring and its touch
+  area now stay on the pin: the ring is about 37 px wide at 375 px where it was 117, and about 191 at 1440 where it was
+  271, so the warm ring no longer runs round a mark that now stands longer. A tap on the row still enters the same building, except
+  in the 2 px between the two on a phone, where it now does nothing.
 
 - **w3-5 · polish, wording.** "About this chat" says "Open an agent's chat head in loops' dock (the Agent chats menu at
   this width)": a newcomer does not know "chat head", "dock", or which width is meant (the frame's). **Suggestion:** "In the frame, open an agent's chat (the Agent chats menu on a narrow frame)".
@@ -288,7 +292,13 @@ Prepared branches are ready; an answer `do it` merges that branch, `journey N: a
   reader person hears the check start and never its end. **Suggestion:** the connection said once after the reload
   that follows a connect ("Connected: Live").
 
-  Prepared: `sugg/w5-22`; it depends on timing: it fills the silence the walker met, in other runs it only shortens the sentence.
+  Prepared: `sugg/w5-22`. What it adds over the base is small. In both base runs of its review (a real host and the fake;
+  a fresh browser, and a reload at the Connect screen before the key) the base already said "Connection: Live. Events
+  arrive as they happen." at that moment, and the branch says "Connected: Live." instead, so its browser row's red proves
+  a change of words, not a silence filled. The silent run the walker met was not reproduced and its cause was not found;
+  only the branch's node test (`connectSaid.test.ts`) covers that case, a first value of Live right after a connect. None
+  of those runs reloaded the page after the key either. Read it as a shorter sentence in the runs seen, and a guard if
+  that silence comes back.
 
 - **w5-23 · polish.** At loops' return two polite lines come 21 ms apart ("Catching up…", then "Live…"); a screen
   reader coalesces or reads both. **Suggestion:** none needed; a longer catch-up would make the first one true.
@@ -355,7 +365,13 @@ Prepared branches are ready; an answer `do it` merges that branch, `journey N: a
   district card and the labels on the left are drawn under the sheet and cut by it ("…ting on a person"), in the small
   town too. ![The Region's build sheet, the cards under it](../images/walkthrough-r64/w6-13-region-build-sheet.png) **Suggestion:** a building picker for the zone (as Layout has), and the scene framed beside the open sheet.
 
-  Prepared: `sugg/w6-13`.
+  Prepared: `sugg/w6-13`: the building picker, and the scene framed beside the open sheet, again after a resize. From
+  601 px wide every plot stays clear of the sheet, and the town is smaller for it: zoom 0.35 at 601 wide, 0.5 at 768, and
+  in the small team at 1280 x 720, 0.91 where it was 0.98. **What stays cut:** below 900 px wide Studio's Brand and Lab
+  cards still reach under the sheet (up to 84 px at 601 x 700), and at every size measured there but 768 x 1024 Apps
+  and Lab overlap and cover much of the town (at 640 x 800 Apps is nearly hidden). Below 800 px wide the small
+  team's Launch & Marketing sign reaches under the sheet (up to 48 px). Measured in Studio and the small team only;
+  inside a building, one look at 640 x 800.
 
 - **w6-14 · polish.** "Show free plots" in the Region draws 56 badges in a tight pile over each district's centre,
   covering the district cards and each other; in the small town the sixteen read fine. ![The Region's free-plot badges](../images/walkthrough-r64/w6-14-free-plot-badges.png) **Suggestion:** at the Region level only the next free plot per district, the rest on entering the district.
