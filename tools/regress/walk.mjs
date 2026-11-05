@@ -319,9 +319,16 @@ export async function run({ pass, page, check, out }) {
     const tracked = await windowOf(jumped + 2000, 1500);
     let stopped, more = "";
     if (end === "a swipe") {
-      const box = await q.locator("main.world-stage canvas").boundingBox();
+      // The thumb lands on bare canvas: a pin or a sign moves with the camera, and a swipe that starts on one is no pan.
+      const thumb = await q.evaluate(() => {
+        const canvas = document.querySelector("main.world-stage canvas");
+        const bare = (x, y) => [[0, 0], [-20, 0], [20, 0], [0, -20], [0, 20]].every(([dx, dy]) => document.elementFromPoint(x + dx, y + dy) === canvas);
+        for (const fy of [0.65, 0.55, 0.75, 0.45]) for (const fx of [0.7, 0.55, 0.4]) if (bare(innerWidth * fx, innerHeight * fy)) return { x: innerWidth * fx, y: innerHeight * fy };
+        return null;
+      });
       const cdp = await q.context().newCDPSession(q);
-      const x = box.x + box.width * 0.7, y = box.y + box.height * 0.65;
+      const { x, y } = thumb ?? { x: 0, y: 0 };
+      more = thumb ? `; thumb on bare canvas at ${Math.round(x)},${Math.round(y)}` : "; no bare canvas for the thumb";
       await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
       for (let i = 1; i <= 6; i++) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x - i * 8, y: y - i * 6 }] });
       await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
@@ -336,7 +343,7 @@ export async function run({ pass, page, check, out }) {
       if (!before || !after || after.zoom < before.zoom * 1.1) stopped = { camera: Infinity, walker: stopped.walker };
     } else stopped = await windowOf(jumped + 6500, 2000);
     await shot(q, `12g-375-tracking-ends-${end.replace(/\W+/g, "-")}`);
-    ok(`375 touch: ${end} ends the camera's tracking after a jump to the postman out on a delivery (round 66, w4-11)`, tracked.walker >= 2 && tracked.camera >= tracked.walker * 0.6 && stopped.walker >= 2 && stopped.camera <= stopped.walker * 0.2, `tracking: ${told(tracked)}; after: ${told(stopped)}${more}`);
+    ok(`375 touch: ${end} ends the camera's tracking after a jump to the postman out on a delivery (round 66, w4-11)`, !more.includes("no bare canvas") && tracked.walker >= 2 && tracked.camera >= tracked.walker * 0.6 && stopped.walker >= 2 && stopped.camera <= stopped.walker * 0.2, `tracking: ${told(tracked)}; after: ${told(stopped)}${more}`);
     await q.context().close();
   }
 
