@@ -4,7 +4,7 @@ import { propCells, validateLayout, type Rotation } from "@crewhub/world-engine"
 import { createCatalogue, emptyTownDocument, type Building, type PlacedProp, type RoomKind, type TownDocument } from "@crewhub/world-model";
 import { buildingTemplate } from "../src/world/buildingTemplate.ts";
 import { definitions as builtins } from "../src/world/definitions.ts";
-import { cellAt, checkGhost, footprintPose, freeCellIn, freeSpots, placementDefinitions, resolveBuildingPlacements, roomSite } from "../src/world/placements.ts";
+import { cellAt, checkGhost, footprintPose, freeCellIn, freeSpots, placedWords, placementDefinitions, resolveBuildingPlacements, roomNoun, roomSite } from "../src/world/placements.ts";
 
 function building(): Building {
   const kinds: RoomKind[] = ["lobby", "lead-office", "storage", "planning", "review", "dispatch"];
@@ -91,7 +91,24 @@ test("a placement in a room the building does not have now is an error, with the
   const result = resolveBuildingPlacements(withPlacements(place("builtin:plant", "design", 1, 1)), "cr", template, defs);
   assert.equal(result.errors.length, 1);
   assert.equal(result.errors[0]!.room, null);
-  assert.match(result.errors[0]!.reason, /design is not in this building now/);
+  // The room in the plan's own words (round 64, w6-1), never its id: "the design room", not "design".
+  assert.equal(result.errors[0]!.reason, "the design room is not in this building now");
+  const ghost = checkGhost(doc0, "cr", template, defs, { id: "probe", propId: "builtin:lamp", room: "design", cell: { x: 1, z: 1 }, rotation: 0 });
+  assert.deepEqual(ghost, { ok: false, reason: "the design room is not in this building now" });
+});
+
+test("round 64 (w6-1): a placement's room is named as the plan's sign says it, never by its id", () => {
+  // Three rooms: the model room's hall. Classic: the room's own label.
+  assert.equal(placedWords("Oak bench", "workers", "three-rooms"), "Placed Oak bench on the floor.");
+  assert.equal(placedWords("Workstation", "lobby", "three-rooms"), "Placed Workstation in Administration.");
+  assert.equal(placedWords("Lamp", "lead-office", "three-rooms"), "Placed Lamp in the lead's office.");
+  assert.equal(placedWords("Oak bench", "workers", "classic"), "Placed Oak bench in the workers room.");
+  assert.equal(placedWords("Lamp", "lead-office", "classic"), "Placed Lamp in the lead's office.");
+  // The room as a noun, for "… had no free cell" and "… is not in this building now".
+  assert.equal(roomNoun("workers", "three-rooms"), "the floor");
+  assert.equal(roomNoun("storage", "three-rooms"), "Administration");
+  assert.equal(roomNoun("lead-office", "classic"), "the lead's office");
+  assert.equal(roomNoun("design", "classic"), "the design room");
 });
 
 test("props riding on a ticket or sitting on an agent's desk take no cells", () => {

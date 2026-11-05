@@ -10,6 +10,7 @@ import {
   extractPropRequest,
   importedPropId,
   placeFor,
+  roomPlaceWords,
   type InvalidPropRequest,
   type PlacedProp,
   type PropTicket,
@@ -19,7 +20,7 @@ import {
   type WorldModel,
 } from "@crewhub/world-model";
 import { buildingTemplate, hallOf, type BuildingPlan } from "./buildingTemplate.ts";
-import { freeCellIn, placementDefinitions, resolveBuildingPlacements } from "./placements.ts";
+import { freeCellIn, placementDefinitions, resolveBuildingPlacements, roomNoun } from "./placements.ts";
 
 /** A failed request with the room its error object stands in. */
 export interface InvalidRequest extends InvalidPropRequest {
@@ -78,7 +79,7 @@ export function importPropRequest(input: PropImportInput): PropImport {
         const cell = room ? freeCellIn(room, definitions, prop.id) : null;
         if (!cell) continue;
         chosen = placement({ building: building.slug, room: kind }, cell);
-        if (kind !== place.at.room) note = `the ${place.at.room.replace("-", " ")} had no free cell; it stands in the ${kind.replace("-", " ")}`;
+        if (kind !== place.at.room) note = `${roomNoun(place.at.room, template.plan)} had no free cell; it stands ${roomPlaceWords(kind, template.plan)}`;
         break;
       }
       if (!chosen) note = "no room had a free cell; it waits in the catalogue under Mine";

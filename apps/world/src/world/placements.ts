@@ -11,8 +11,9 @@
    agent's desk, and are listed apart from the grid. */
 import { cellKey, placementRules, propCells, type PlacementRules } from "@crewhub/world-engine";
 import type { Cell, Definitions, PropDefinition, Rotation, WorldLayout, WorldProp } from "@crewhub/world-engine";
+import { placePhrase, roomPlaceWords } from "@crewhub/world-model";
 import type { PlacedProp, RoomKind, TownDocument } from "@crewhub/world-model";
-import { hallOf, interiorDefinitions, roomOf, type BuildingTemplate } from "./buildingTemplate.ts";
+import { hallOf, interiorDefinitions, roomOf, type BuildingPlan, type BuildingTemplate } from "./buildingTemplate.ts";
 import { DRESS_PREFIX } from "./roomDressing.ts";
 
 /** The template's own furniture, namespaced so it never meets a catalogue id. */
@@ -105,7 +106,14 @@ export function placementWords(reason: string): string {
   return reason;
 }
 
-const roomWords = (room: RoomKind) => room.replace("-", " ");
+/**
+ * A model room as a noun in the plan's own words, never its id (round 64, w6-1): three rooms says the hall ("the
+ * floor", "Administration", "the lead's office"), classic the room's label ("the design room", "the lobby").
+ */
+export const roomNoun = (room: RoomKind, plan: BuildingPlan): string => placePhrase(room, plan).place;
+
+/** The sentence build mode says once a prop stands: "Placed Oak bench on the floor." / "… in Administration." */
+export const placedWords = (propName: string, room: RoomKind, plan: BuildingPlan): string => `Placed ${propName} ${roomPlaceWords(room, plan)}.`;
 
 /**
  * The building's rooms with the document's grid placements applied in document order, keyed by the template's own
@@ -124,7 +132,7 @@ export function resolveBuildingPlacements(doc: TownDocument, slug: string, templ
     const hall = hallOf(template, p.at.room);
     const room = hall ? rooms.get(hall) : undefined;
     if (!room) {
-      errors.push({ placement: p, room: null, reason: `the ${roomWords(p.at.room)} is not in this building now` });
+      errors.push({ placement: p, room: null, reason: `${roomNoun(p.at.room, template.plan)} is not in this building now` });
       continue;
     }
     if (!definitions[p.propId]) {
@@ -200,7 +208,7 @@ export function checkGhost(doc: TownDocument, slug: string, template: BuildingTe
   const others = { ...doc, placements: doc.placements.filter((p) => p.id !== probe.id) };
   const hall = hallOf(template, probe.room);
   const room = hall ? resolveBuildingPlacements(others, slug, template, definitions).rooms.get(hall) : undefined;
-  if (!room) return { ok: false, reason: `the ${roomWords(probe.room)} is not in this building now` };
+  if (!room) return { ok: false, reason: `${roomNoun(probe.room, template.plan)} is not in this building now` };
   const prop = { id: probe.id, definitionId: probe.propId, cell: probe.cell, rotation: probe.rotation };
   let result = check(room.layout, definitions, prop);
   if (!result.ok) result = yieldDressing(room, definitions, prop) ?? result;

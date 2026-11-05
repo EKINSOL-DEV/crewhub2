@@ -13,7 +13,7 @@ import { castRegistry } from "../world/cast";
 import { resolveLook } from "../world/look";
 import { styleRegistry } from "../world/style";
 import { buildingLook, lookRegistries, zoneLook, type LookContext } from "../world/worldLook";
-import { ZONE_COLOR_NAMES, ZONE_EMBLEM_NAMES, townKeeping, zoneLabel, zoneReason, zonesOriginWords } from "../world/zoneText";
+import { ZONE_COLOR_NAMES, ZONE_EMBLEM_NAMES, townKeeping, zoneLabel, zoneReason, zoneSettingsHint, zonesOriginWords } from "../world/zoneText";
 import { Button, Chip, Field } from "./primitives";
 
 /** A style option as the settings show it; the style's manifest declares them (`options`), or none. */
@@ -174,9 +174,7 @@ export function ZoneSettings({ model, town }: { model: WorldModel; town: TownSta
   return (
     <fieldset className="zone-settings">
       <legend className="label">Zones</legend>
-      <p className="hint">
-        A zone is a district of the town: a group of buildings with a name, a mark and a look of its own. Zones are kept in this browser's town document, so another person sees their own, until crewhub-loops has project groups. Assign buildings in build mode.
-      </p>
+      <p className="hint">{zoneSettingsHint(townKeeping(town.storage, model.mode))}</p>
       <ul className="zone-list">
         {model.zones.map((zone) => {
           const inside = model.buildings.filter((b) => b.zoneId === zone.id);

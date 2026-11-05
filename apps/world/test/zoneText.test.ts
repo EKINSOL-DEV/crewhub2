@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Zone } from "@crewhub/world-model";
-import { ZONES_BY_HAND, describeZones, zoneLabel, zoneReason, zonesOriginWords } from "../src/world/zoneText.ts";
+import { ZONES_BY_HAND, describeZones, zoneLabel, zoneReason, zoneSettingsHint, zonesOriginWords } from "../src/world/zoneText.ts";
 
 const zone = (id: string, source: Zone["source"], extra: Partial<Zone> = {}): Zone => ({ id, name: null, order: 0, color: null, emblem: null, look: {}, source, ...extra });
 
@@ -64,4 +64,22 @@ test("the Connection panel's Zones line: none yet, or how many were made by hand
   assert.equal(zonesOriginWords({ zones: [zone("east", "town")], assignments: { a: "east", b: "east" } }), `1 zone ${ZONES_BY_HAND} (2 buildings assigned).`);
   // A group zone (the demo's future field) is not hand-made; it never counts here.
   assert.ok(zonesOriginWords({ zones: [zone("studio", "group"), zone("default", "default")], assignments: undefined }).startsWith("none yet"));
+});
+
+test("round 64 (w6-9): Settings > Zones says where the zones are kept, as the Town card does: the host's in live mode", () => {
+  // The demo's sentence stays as it was.
+  assert.equal(
+    zoneSettingsHint("browser"),
+    "A zone is a district of the town: a group of buildings with a name, a mark and a look of its own. Zones are kept in this browser's town document, so another person sees their own, until crewhub-loops has project groups. Assign buildings in build mode.",
+  );
+  // A live town the host keeps: never "this browser".
+  const host = zoneSettingsHint("host");
+  assert.match(host, /kept by the world's host for this crewhub-loops and shared by every paired browser/);
+  assert.doesNotMatch(host, /this browser/);
+  assert.match(host, /until crewhub-loops has project groups/);
+  assert.match(host, /Assign buildings in build mode\.$/);
+  // A live town the browser holds until the host is back.
+  const offline = zoneSettingsHint("offline");
+  assert.match(offline, /kept in this browser until the host is back/);
+  assert.match(offline, /Assign buildings in build mode\.$/);
 });

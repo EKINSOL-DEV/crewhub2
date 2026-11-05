@@ -8,7 +8,7 @@ import type { Building, PlacedProp, RoomKind } from "@crewhub/world-model";
 import { buildingTemplate } from "../world/buildingTemplate";
 import { useBuildingPlan } from "./buildingPlan";
 import type { Pick } from "../world/buildingView";
-import { cellAt, checkGhost, freeCellIn, resolveBuildingPlacements, roomSite, type GhostCheck } from "../world/placements";
+import { cellAt, checkGhost, freeCellIn, placedWords, resolveBuildingPlacements, roomSite, type GhostCheck } from "../world/placements";
 import type { Ghost } from "../world/propLayer";
 import { townRuntime } from "./runtimes";
 import type { TownState } from "./town";
@@ -126,9 +126,9 @@ export function useBuildMode(town: TownState, inside: Building | null, focusedRo
       }
       // The new prop is selected: arrow keys, R and Delete adjust it; choose again to place another.
       setState((s) => ({ ...s, propId: null, spot: null, selected: id }));
-      say(`Placed ${nameOf(state.propId)} in the ${spot.room.replace("-", " ")}. It is selected: arrow keys move it, R turns it.`);
+      say(`${placedWords(nameOf(state.propId), spot.room, buildingPlan)} It is selected: arrow keys move it, R turns it.`);
     },
-    [inside, nameOf, say, state.propId, state.rotation, template, town.definitions, town.doc],
+    [buildingPlan, inside, nameOf, say, state.propId, state.rotation, template, town.definitions, town.doc],
   );
   const place = useCallback(() => placeAt(state.spot), [placeAt, state.spot]);
 
