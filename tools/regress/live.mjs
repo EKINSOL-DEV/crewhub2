@@ -192,6 +192,22 @@ export async function run({ pass, page, check, out }) {
     // made yet the text view says nothing about zones at all.
     await chip(pg).click().catch(() => {});
     await pg.waitForSelector(".connection-sheet", { timeout: 5000 }).catch(() => {});
+    // Walk finding w2-4 (round 65): the crewhub-loops row's variable name stands on a line of its own, never broken
+    // mid-word, with the URL under it (the host found the fake through CREWHUB_WORLD_LOOPS_URL, as `npm run world` would).
+    const varLine = await pg
+      .evaluate(() => {
+        const el = document.querySelector(".connection-facts .connection-var");
+        if (!el) return null;
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const dd = el.parentElement?.getBoundingClientRect();
+        const box = el.getBoundingClientRect();
+        const target = el.nextElementSibling instanceof HTMLElement && el.nextElementSibling.classList.contains("connection-target") ? el.nextElementSibling.getBoundingClientRect() : null;
+        return { text: el.textContent?.trim() ?? "", lines: range.getClientRects().length, ownLine: !!dd && Math.abs(box.left - dd.left) < 1, targetUnder: !!target && target.top >= box.bottom - 1 };
+      })
+      .catch(() => null);
+    await shot(pg, "23f-connection-panel-loops-row");
+    ok("live (w2-4): the panel's crewhub-loops row names CREWHUB_WORLD_LOOPS_URL whole on a line of its own, the URL under it", varLine !== null && varLine.text === "CREWHUB_WORLD_LOOPS_URL" && varLine.lines === 1 && varLine.ownLine && varLine.targetUnder, varLine ? JSON.stringify(varLine) : "no .connection-var in the row");
     const zonesRow = (await pg.locator(".connection-zones").innerText().catch(() => "")).replace(/\s+/g, " ").trim();
     await pg.keyboard.press("Escape");
     await pg.waitForTimeout(300);
