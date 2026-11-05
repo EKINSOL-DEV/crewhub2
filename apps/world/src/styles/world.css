@@ -819,6 +819,13 @@
 .menu-combobox .menu-item[data-checked]::after {
   content: "✓" / "";
 }
+/* The picker's last line is a sentence, "Changing it reloads the page." as Settings › Source says it, not a group's name
+   (round 65, w5-18): the kit's group label without its capitals. */
+.demo-menu .menu-sep + .menu-label {
+  font-weight: var(--weight-regular);
+  letter-spacing: normal;
+  text-transform: none;
+}
 .world-corner-left:has(.demo-chip[aria-expanded="true"]) {
   z-index: var(--z-menu);
 }
