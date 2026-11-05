@@ -75,6 +75,23 @@ export async function run({ pass, page, check, out }) {
     await p.keyboard.press("Escape");
     await p.keyboard.press("Escape");
     await p.waitForTimeout(400);
+    // Build mode picks no figure, and a pill must not start to: there the click stays the scene's.
+    const pillOnScreen = () => p.evaluate(() => { for (const el of document.querySelectorAll(".world-labels .agent-anchor .name-pill:not(.person):not(.you-pill)")) { const r = el.getBoundingClientRect(); if (el.closest(".anchor").style.visibility !== "hidden" && r.left > 400 && r.right < innerWidth - 80 && r.top > 80 && r.bottom < innerHeight - 90) return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; } return null; });
+    await canvas(p).focus();
+    await p.keyboard.press("b");
+    await p.waitForTimeout(800);
+    const inBuild = await pillOnScreen();
+    if (inBuild) await p.mouse.click(inBuild.x, inBuild.y);
+    await p.waitForTimeout(500);
+    const cardsInBuild = await p.locator(".agent-card").count();
+    ok("in build mode a click on a name pill opens no card (round 65, w1-11)", !!inBuild && cardsInBuild === 0, `pill ${inBuild ? "clicked" : "none on screen"}, ${cardsInBuild} card(s)`);
+    if (cardsInBuild) {
+      await p.keyboard.press("Escape");
+      await p.keyboard.press("Escape");
+      await p.waitForTimeout(300);
+    }
+    await p.keyboard.press("b");
+    await p.waitForTimeout(500);
   }
   for (let i = 0; i < 3; i++) await p.keyboard.press("Escape");
   await p.waitForTimeout(1200);

@@ -735,7 +735,7 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
           pill={!compact || shows(a.room) || picked({ kind: "agent", key: a.key })}
           said={a.presence === "real" ? saidBy(a.name, model.now, props.said) : null}
           onTap={() => props.onSaidTap(a.key)}
-          onPick={() => props.onIntent({ type: "pick", target: { kind: "agent", key: a.key }, hover: false })}
+          {...(editing || props.view.walk ? {} : { onPick: () => props.onIntent({ type: "pick", target: { kind: "agent", key: a.key }, hover: false }) })}
         />
       ))}
       {b.visits.map((v) => (
@@ -899,7 +899,8 @@ function AgentLabel({
   said?: (Said & { fading: boolean }) | null;
   /** A tap on that bubble: the agent is picked (its card; the Chat panel once it lands). */
   onTap?: () => void;
-  /** A click or tap on the name pill: the agent is picked, as a click on its figure (round 65, w1-11 / w4-8). */
+  /** A click or tap on the name pill: the agent is picked, as a click on its figure (round 65, w1-11 / w4-8). Left out in
+      build mode and in walk mode, where the scene picks no figure either and the click stays the scene's. */
   onPick?: () => void;
   plate: boolean;
   /** The agent's room is revealed, the agent is picked, or Details is on: its update card and every tag show. */
@@ -918,7 +919,7 @@ function AgentLabel({
   // The pill takes the click itself (round 65, w1-11 / w4-8): before, it let the click through to the room under it,
   // which zoomed instead of opening the card the tour promises for "a click on one".
   const pill = showPill && !plate && (
-    <span className={`name-pill pickable${agent.presence === "proxy" ? " proxy" : ""}`} title={`${agent.displayName}: ${words}`} onClick={onPick}>
+    <span className={`name-pill${onPick ? " pickable" : ""}${agent.presence === "proxy" ? " proxy" : ""}`} title={`${agent.displayName}: ${words}`} onClick={onPick}>
       <span className="pill-dot" data-tone={look.tone} aria-hidden="true" />
       {agent.displayName}
       <span className="sr-only">: {words}</span>
