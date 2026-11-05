@@ -2727,6 +2727,11 @@ a.agent-ticket-link:focus-visible {
 .connection-facts .connection-var {
   white-space: nowrap;
 }
+/* The row that names a variable spans both columns, the "crewhub-loops" term alone above it (s1's review): the name is
+   as wide as a narrow sheet's second column, and the sheet does not scroll sideways. */
+.connection-facts dd.connection-wide {
+  grid-column: 1 / -1;
+}
 .connection-note {
   margin: var(--space-3) 0 0;
 }
