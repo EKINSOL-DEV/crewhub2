@@ -567,7 +567,7 @@ function World() {
 
       {connectionOpen && connection && <ConnectionPanel state={connection} onClose={closeConnection} />}
 
-      {chatOpen && <ChatPanel agent={chatAgent} health={hostHealth} road={chatRoad} full={narrow} answers={answers} recentEmpty={recentEmptyWords("live", chatRoad)} targetOf={talk.answerTarget} onAnswer={openAnswer} onClose={closeChat} />}
+      {chatOpen && <ChatPanel agent={chatAgent} health={hostHealth} connection={connection ?? "connecting"} road={chatRoad} full={narrow} answers={answers} recentEmpty={recentEmptyWords("live", chatRoad)} targetOf={talk.answerTarget} onAnswer={openAnswer} onClose={closeChat} />}
 
       {jumpOpen && <JumpList entries={jumps} onJump={jump} onClose={closeJump} onActive={jumpActive} />}
 
