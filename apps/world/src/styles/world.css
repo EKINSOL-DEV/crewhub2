@@ -1041,6 +1041,14 @@
   background: var(--surface);
   box-shadow: var(--shadow-sm);
 }
+/* The chat card's activity strip (kit.css .chat-summary: one line, ellipsized) holds a Chip.Link per ticket the agent is on.
+   Past the ellipsis they were not painted but took the Tab focus and were read (round 64, w5-7). Here the strip scrolls
+   sideways instead, so every chip can be seen and a focused one is scrolled into view; the kit and bubbles copies stay. */
+.bubble-chat > .chat-summary {
+  overflow-x: auto;
+  text-overflow: clip;
+  scrollbar-width: thin;
+}
 .world-shell[data-dock] .demo-chat-chip {
   position: fixed;
   right: var(--space-3);
