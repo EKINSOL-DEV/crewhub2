@@ -25,6 +25,7 @@ function holdingHost(document: TownDocument) {
   let gate: Promise<void> | null = null;
   let open: (() => void) | null = null;
   let down = false;
+  let conflictNext = false;
   const body = () => ({ rev, document: structuredClone(currentDocument(history)), canUndo: canUndo(history), canRedo: canRedo(history) });
   return {
     get rev() {
@@ -37,6 +38,10 @@ function holdingHost(document: TownDocument) {
         return { status: 200, body: { installation: "i", updatedAt: "t", ...body() } satisfies TownReadSent };
       },
       async write(op: HostTownOp, written: TownDocument | null, baseRev: number): Promise<HostAnswer> {
+        if (conflictNext) {
+          conflictNext = false;
+          return { status: 409, body: { error: "town_conflict", rev, document: { format: "not-a-town" } } };
+        }
         assert.equal(baseRev, rev);
         history = op === "commit" ? commitHistory(history, written!) : op === "undo" ? undoHistory(history) : history;
         rev += 1;
@@ -50,6 +55,10 @@ function holdingHost(document: TownDocument) {
     },
     hold() {
       gate = new Promise<void>((resolve) => (open = resolve));
+    },
+    /** The next write is refused as a conflict whose document does not validate (the host's town unreadable). */
+    conflictUnreadable() {
+      conflictNext = true;
     },
     /** The host stops answering reads (503), or answers again. */
     away(is: boolean) {
@@ -139,4 +148,18 @@ test("w6-12: the line stands while the host is away (a read refused), and after 
   assert.deepEqual(store.state.elsewhere, { rev: 2, op: "commit" }, "still said after the host is back: the reread brought nothing new");
   await store.commit(plot(store.state.doc, "c", 3));
   assert.equal(store.state.elsewhere, null, "this browser's own move is the last word");
+});
+
+test("w6-12: a write refused with an unreadable town (the host away for a moment) announces no move: the read that follows says nothing of another browser", async () => {
+  const { host, store } = setUp();
+  await store.load();
+  assert.equal(store.state.elsewhere, null);
+  host.conflictUnreadable();
+  await store.commit(plot(store.state.doc, "b", 2));
+  await flush();
+  await flush();
+  await flush();
+  assert.equal(store.state.storage, "host", "the host answered the read after the refusal");
+  assert.equal(store.state.elsewhere, null, "no other browser moved: nothing to say (round 68, mx1: hostTown.ts:451)");
+  assert.deepEqual(store.state.doc.plots.map((p) => p.slug), ["a"], "the host's town stands");
 });
