@@ -1202,6 +1202,13 @@ export class TownScene {
       hall = civicCenter("town-hall");
     this.#anchors.set("c:post-office", new THREE.Vector3(post.x, 0.2, post.z + CIVIC_LAWN / 2));
     this.#anchors.set("c:town-hall", new THREE.Vector3(hall.x, 0.2, hall.z + CIVIC_LAWN / 2));
+    // The clearing's staked plot carries a sign in words (`c:staked`, round 65, w1-19), in front of its lot as a
+    // building's sign stands in front of its plot.
+    const staked = this.view.plan.staked;
+    if (staked) {
+      const c = lotCentre(staked);
+      this.#anchors.set("c:staked", new THREE.Vector3(c.x, 0.2, c.z + PLOT_SIZE / 2));
+    } else this.#anchors.delete("c:staked");
     if (signature !== this.#civicSignature) {
       this.#civicSignature = signature;
       this.#shadowDirty = true;
