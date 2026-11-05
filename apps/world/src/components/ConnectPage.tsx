@@ -4,8 +4,8 @@
    host checks all move the screen by themselves; the gate (main.tsx) swaps in the world when the screen is gone. The key field holds a pasted key in component
    state only, masked, until the request is sent and not a moment longer; the page never shows more than its last four
    characters. Copy from the i18n file; the kit's Card, Button and Field; the Pair screen's content comes from PairPage.tsx.
-   One live region (sr-only, always mounted) says each screen once as it arrives (its title and one line) and the answer to
-   a pasted key; the words that tick ("last asked 3 s ago") are not live, so a screen reader is never read a clock. */
+   One live region (sr-only, always mounted) says each screen once as it arrives (its title and one line), the answer to
+   a pasted key and why a malformed one was not sent; the words that tick ("last asked 3 s ago") are not live, so a screen reader is never read a clock. */
 import { ExternalLink, KeyRound, RefreshCw, ShieldAlert, Search, Unplug } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { connectHost, forgetHostKey } from "@crewhub/loops-client";
@@ -132,6 +132,13 @@ export function ConnectPage({ screen }: ConnectPageProps) {
   useEffect(() => {
     if (forgetting !== null && forgetting !== "busy") setSpoken(forgetting === "done" ? t("world.connect.rejected.forgotten") : t("world.connection.panel.forgetFailed", { reason: forgetting }));
   }, [forgetting, t]);
+  // A malformed key's reason (w5-25): no request goes out, so no answer says it. Said when it appears, and taken back with
+  // it, so that the same words after the next try are a change the reader notices.
+  const [malformed, setMalformed] = useState(false);
+  useEffect(() => {
+    const invalid = t("world.connect.key.invalid");
+    setSpoken((said) => (malformed ? invalid : said === invalid ? "" : said));
+  }, [malformed, t]);
 
   return (
     <main className="pair-page connect-page" data-screen={screen} aria-labelledby="connect-title">
@@ -230,7 +237,7 @@ export function ConnectPage({ screen }: ConnectPageProps) {
                   <span className="sr-only"> ({t("world.newTab")})</span>
                 </Button>
               </div>
-              <KeyForm busy={busy || screen === "checking"} words={words} rejected={outcome !== "sent" && outcome?.kind === "rejected"} lead={screen === "rejected" ? t("world.connect.rejected.paste") : t("world.connect.connect.paste")} onSubmit={(key) => void submit(key)} />
+              <KeyForm busy={busy || screen === "checking"} words={words} rejected={outcome !== "sent" && outcome?.kind === "rejected"} lead={screen === "rejected" ? t("world.connect.rejected.paste") : t("world.connect.connect.paste")} onSubmit={(key) => void submit(key)} onMalformed={setMalformed} />
             </Card.Body>
             <Card.Footer>
               <Button onClick={switchToDemo}>{t("world.connect.demo")}</Button>
@@ -264,7 +271,7 @@ function outcomeWords(outcome: ConnectOutcome | "sent" | null, t: (key: string, 
           : null;
 }
 
-function KeyForm({ busy, words, rejected, lead, onSubmit }: { busy: boolean; words: string | null; rejected: boolean; lead: string; onSubmit: (key: string) => void }) {
+function KeyForm({ busy, words, rejected, lead, onSubmit, onMalformed }: { busy: boolean; words: string | null; rejected: boolean; lead: string; onSubmit: (key: string) => void; onMalformed: (malformed: boolean) => void }) {
   const { t } = useT();
   const [raw, setRaw] = useState("");
   const [touched, setTouched] = useState(false);
@@ -278,6 +285,8 @@ function KeyForm({ busy, words, rejected, lead, onSubmit }: { busy: boolean; wor
   }, [busy]);
   const key = normaliseKey(raw);
   const valid = looksLikeKey(key);
+  const malformed = raw !== "" && !valid && (touched || key.length >= 47);
+  useEffect(() => onMalformed(malformed), [malformed, onMalformed]);
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (busy) return;
@@ -313,7 +322,7 @@ function KeyForm({ busy, words, rejected, lead, onSubmit }: { busy: boolean; wor
             setTouched(false);
           }}
           hint={raw === "" ? t("world.connect.key.hint") : valid ? t("world.connect.key.pasted", { tail: keyTail(key), length: key.length }) : undefined}
-          error={raw !== "" && !valid && (touched || key.length >= 47) ? t("world.connect.key.invalid") : undefined}
+          error={malformed ? t("world.connect.key.invalid") : undefined}
         />
         <Button type="submit" variant="primary" disabled={busy || raw === ""} icon={<KeyRound className="icon icon-sm" aria-hidden="true" />}>
           {busy ? t("world.connect.key.busy") : t("world.connect.key.submit")}
