@@ -502,6 +502,8 @@ export async function run({ pass, page, check, out }) {
       await p.waitForTimeout(300);
       await p.locator("nav.world-breadcrumb").getByRole("button").first().tap().catch(() => {});
       await p.waitForTimeout(1200);
+      // w4-2's row leaves its building and sheet behind it: a fresh load, so w4-10's rows start from the plain town.
+      await town(p, 1500);
       // Round 65 (w4-10): on a phone the four speed buttons are one menu button and the slider takes the rest of the bar
       // (before: four buttons took it and the slider was 88 px, 11 s of story a pixel). The menu, tapped, lists the
       // speeds; "4x" chosen, the button says 4x and the playback runs at 4x.
