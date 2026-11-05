@@ -1,6 +1,7 @@
 /* The text view's content, as one module: which lines it says, in which order, and where each section lands (the town
    first, every building's sections under its district, then the rest). `TextView` in App.tsx renders the structure.
    Pure: the facts in, lines and sections out; the registry and the clock are passed in. */
+import { shownRevision } from "./revisionWords.ts";
 import { CIVIC_WORDS, describeTownDocument, describeWorld, type Building, type CivicWords, type RuleProp, type TextLine, type WorldModel } from "@crewhub/world-model";
 import type { RoomWording } from "./roomWords.ts";
 import type { SaidMap } from "../state/said.ts";
@@ -22,7 +23,7 @@ export interface TextViewFacts {
   viewerCast: string | null;
   styleCast: string | null | undefined;
   casts: Pick<CastRegistry, "resolve" | "listCasts">;
-  town: Pick<TownState, "doc" | "catalogue" | "invalid" | "storage" | "storageNote">;
+  town: Pick<TownState, "doc" | "catalogue" | "invalid" | "storage" | "storageNote"> & Partial<Pick<TownState, "hostRev">>;
   rules: readonly RuleProp[];
   plan: TownPlan;
   said: SaidMap;
@@ -55,7 +56,7 @@ export function textViewLines(facts: TextViewFacts): TextLine[] {
       lookOf: (zone) => [...Object.values(zone.look.styleOptions ?? {}), ...(zone.look.castId ? [casts.listCasts().find((m) => m.id === zone.look.castId)?.name ?? zone.look.castId] : [])].join(", "),
     }),
     ...describePlan(facts.plan, (slug) => model.buildings.find((b) => b.slug === slug)?.name ?? slug),
-    ...describeTownDocument(town.doc, town.catalogue, { ruleProps: facts.rules, invalidRequests: town.invalid, rooms }),
+    ...describeTownDocument(town.doc, town.catalogue, { ruleProps: facts.rules, invalidRequests: town.invalid, rooms, revision: shownRevision({ hostRev: town.hostRev ?? null, doc: town.doc }) }),
     ...(model.mode === "live" ? [{ section: "Town document", text: `The town document is ${keeping.charAt(0).toLowerCase()}${keeping.slice(1)}`, kind: "fact" as const }] : []),
     ...(town.storageNote ? [{ section: "Town document", text: town.storageNote, kind: "fact" as const }] : []),
   ];
