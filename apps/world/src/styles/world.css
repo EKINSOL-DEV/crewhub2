@@ -223,15 +223,17 @@
   background: var(--surface-sunken);
   color: var(--text-muted);
 }
+/* A sign under the pointer lifts a little with a deeper shadow, as it reacts on focus (round 65, w1-15): before, only
+   the pointer's shape said the sign takes a click. Before the focus rule, so a hovered sign keeps its focus ring; only where a pointer can hover, so a tap leaves no sign lifted. */
+@media (hover: hover) {
+  .town-sign:hover {
+    transform: translate(-50%, calc(var(--space-2) - 2px));
+    box-shadow: var(--shadow-md);
+  }
+}
 .town-sign:focus-visible {
   outline: 0;
   box-shadow: var(--focus-ring);
-}
-/* A sign under the pointer lifts a little with a deeper shadow, as it reacts on focus (round 65, w1-15): before, only
-   the pointer's shape said the sign takes a click. */
-.town-sign:hover {
-  transform: translate(-50%, calc(var(--space-2) - 2px));
-  box-shadow: var(--shadow-md);
 }
 .agent-plate {
   transform: translate(-50%, -100%);

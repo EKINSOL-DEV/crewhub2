@@ -23,3 +23,13 @@ test("round 65 (w1-15): .town-sign:hover lifts the sign and deepens its shadow, 
   assert.match(hover, /box-shadow:\s*var\(--shadow-md\)/, "a deeper shadow on hover");
   assert.match(block(".town-sign:focus-visible"), /box-shadow/, "the focus rule still marks the sign");
 });
+
+test("round 65 (w1-15): the hover rule stands before the focus rule, so a focused sign under the pointer keeps its focus ring", () => {
+  assert.ok(css.indexOf(".town-sign:hover {") < css.indexOf(".town-sign:focus-visible {"), "same specificity: the later rule's box-shadow wins");
+});
+
+test("round 65 (w1-15): the lift is for a pointer that can hover, so a thumb's tap leaves no sign lifted", () => {
+  const at = css.indexOf(".town-sign:hover {");
+  assert.notEqual(css.lastIndexOf("@media (hover: hover)", at), -1, "a hover media block before the rule");
+  assert.ok(at - css.lastIndexOf("@media (hover: hover)", at) < 40, "directly inside it");
+});
