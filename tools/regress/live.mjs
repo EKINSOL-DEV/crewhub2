@@ -197,6 +197,44 @@ export async function run({ pass, page, check, out }) {
     // made yet the text view says nothing about zones at all.
     await chip(pg).click().catch(() => {});
     await pg.waitForSelector(".connection-sheet", { timeout: 5000 }).catch(() => {});
+    // Walk finding w2-4 (round 65): the crewhub-loops row's variable name stands on a line of its own, never broken
+    // mid-word, with the URL under it (the host found the fake through CREWHUB_WORLD_LOOPS_URL, as `npm run world` would).
+    const varLine = await pg
+      .evaluate(() => {
+        const el = document.querySelector(".connection-facts .connection-var");
+        if (!el) return null;
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const dd = el.parentElement?.getBoundingClientRect();
+        const box = el.getBoundingClientRect();
+        const target = el.nextElementSibling instanceof HTMLElement && el.nextElementSibling.classList.contains("connection-target") ? el.nextElementSibling.getBoundingClientRect() : null;
+        return { text: el.textContent?.trim() ?? "", lines: range.getClientRects().length, ownLine: !!dd && Math.abs(box.left - dd.left) < 1, targetUnder: !!target && target.top >= box.bottom - 1 };
+      })
+      .catch(() => null);
+    await shot(pg, "23f-connection-panel-loops-row");
+    ok("live (w2-4): the panel's crewhub-loops row names CREWHUB_WORLD_LOOPS_URL whole on a line of its own, the URL under it", varLine !== null && varLine.text === "CREWHUB_WORLD_LOOPS_URL" && varLine.lines === 1 && varLine.ownLine && varLine.targetUnder, varLine ? JSON.stringify(varLine) : "no .connection-var in the row");
+    // Both names must have room on a narrow phone too (s1's review of the first commit: the nowrap name was cut at the
+    // sheet's edge at 375 and 320, and the sheet does not scroll sideways): at 320 the row spans the sheet; the URL
+    // name is measured as drawn, the SOCKET name by its width in the row's font against the row's width.
+    await pg.setViewportSize({ width: 320, height: 900 });
+    await pg.waitForTimeout(500);
+    const narrow = await pg
+      .evaluate(() => {
+        const el = document.querySelector(".connection-facts .connection-var");
+        const sheet = document.querySelector(".connection-sheet");
+        if (!(el instanceof HTMLElement) || !sheet || !el.parentElement) return null;
+        const box = el.getBoundingClientRect();
+        const s = sheet.getBoundingClientRect();
+        const ctx = document.createElement("canvas").getContext("2d");
+        ctx.font = getComputedStyle(el).font;
+        const width = (t) => Math.ceil(ctx.measureText(t).width);
+        return { text: el.textContent?.trim() ?? "", cut: el.scrollWidth > el.clientWidth + 1 || box.right > s.right + 1, room: el.parentElement.clientWidth, url: width("CREWHUB_WORLD_LOOPS_URL"), socket: width("CREWHUB_WORLD_LOOPS_SOCKET"), sheet: Math.round(s.width) };
+      })
+      .catch(() => null);
+    await shot(pg, "23g-connection-panel-loops-row-320");
+    ok("live (w2-4): at 320 px the row has room for both names, CREWHUB_WORLD_LOOPS_URL as drawn and CREWHUB_WORLD_LOOPS_SOCKET by its width", narrow !== null && narrow.text === "CREWHUB_WORLD_LOOPS_URL" && !narrow.cut && narrow.url <= narrow.room && narrow.socket <= narrow.room, narrow ? JSON.stringify(narrow) : "no .connection-var in the row");
+    await pg.setViewportSize({ width: 1440, height: 900 });
+    await pg.waitForTimeout(500);
     const zonesRow = (await pg.locator(".connection-zones").innerText().catch(() => "")).replace(/\s+/g, " ").trim();
     await pg.keyboard.press("Escape");
     await pg.waitForTimeout(300);

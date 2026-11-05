@@ -2755,6 +2755,20 @@ a.agent-ticket-link:focus-visible {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+/* The crewhub-loops row (walk finding w2-4): the variable's name on a line of its own, never broken mid-word; the URL or
+   socket it holds on the line under it. */
+.connection-facts .connection-var,
+.connection-facts .connection-target {
+  display: block;
+}
+.connection-facts .connection-var {
+  white-space: nowrap;
+}
+/* The row that names a variable spans both columns, the "crewhub-loops" term alone above it (s1's review): the name is
+   as wide as a narrow sheet's second column, and the sheet does not scroll sideways. */
+.connection-facts dd.connection-wide {
+  grid-column: 1 / -1;
+}
 .connection-note {
   margin: var(--space-3) 0 0;
 }

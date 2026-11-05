@@ -18,6 +18,7 @@ import { useChatRoad } from "../state/runtimes";
 import { archivedSourceKey, connectOutcome, loopsVersion, relativeTime, untilTime } from "../state/connect";
 import { useHealthNeed, useHealthView } from "../state/health";
 import { useTown, useWorld } from "../state/runtimes";
+import { splitVariable } from "../state/discoveryLine";
 import { townKeeping, townKeepingWords, zonesOriginWords } from "../world/zoneText";
 import { connectionWord } from "./ConnectionChip";
 import { Button, Card } from "./primitives";
@@ -92,7 +93,22 @@ export function ConnectionPanel({ state, onClose }: ConnectionPanelProps) {
   const paired = health?.paired !== false;
   const found = connection?.discovery.state === "found";
   const via = connection?.discovery.via;
-  const where = `${via ? ` ${t(`world.connection.panel.via.${via}`)}` : ""}${connection?.discovery.target ? t("world.connection.panel.target", { target: connection.discovery.target }) : ""}`;
+  const viaWords = via ? t(`world.connection.panel.via.${via}`) : null;
+  const targetWords = connection?.discovery.target ? t("world.connection.panel.target", { target: connection.discovery.target }) : "";
+  const where = `${viaWords ? ` ${viaWords}` : ""}${targetWords}`;
+  // A road named by a variable (walk finding w2-4): the name on a line of its own that never breaks mid-word, the URL or
+  // socket under it; the Mac app's roads keep their sentence in one piece.
+  const parts = viaWords ? splitVariable(viaWords) : null;
+  const foundWords = parts ? (
+    <>
+      {t("world.connection.panel.found", { where: ` ${parts.before}` })}{" "}
+      <span className="connection-var">{parts.name}</span>
+      {parts.after ? ` ${parts.after}` : ""}
+      {targetWords && <span className="connection-target">{targetWords.trim()}</span>}
+    </>
+  ) : (
+    t("world.connection.panel.found", { where })
+  );
   const keyState = connection ? t(`world.connection.panel.key.${connection.key.state}`) : null;
   const keyBase = connection
     ? connection.key.name && connection.key.source
@@ -138,7 +154,7 @@ export function ConnectionPanel({ state, onClose }: ConnectionPanelProps) {
           {connection && (
             <>
               <dt>{t("world.connection.panel.loops")}</dt>
-              <dd>{found ? t("world.connection.panel.found", { where }) : t("world.connection.panel.searching")}</dd>
+              <dd className={found && parts ? "connection-wide" : undefined}>{found ? foundWords : t("world.connection.panel.searching")}</dd>
               <dt>{t("world.connection.panel.key")}</dt>
               <dd>{keyWords}</dd>
               <dt>{t("world.connection.panel.stream")}</dt>
