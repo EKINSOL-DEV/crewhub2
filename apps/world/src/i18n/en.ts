@@ -89,7 +89,7 @@ export const EN: Record<string, string> = {
   "world.chat.panel.what": "crewhub-loops' own chat, framed here.",
   "world.chat.panel.whatWith": "crewhub-loops' own chat, framed here, on {name}'s chat.",
   "world.chat.panel.about": "About this chat",
-  "world.chat.panel.lead": "Open an agent's chat head in loops' dock (the Agent chats menu at this width).",
+  "world.chat.panel.lead": "In the frame, open an agent's chat (the Agent chats menu on a narrow frame).",
   "world.chat.panel.leadWith": "The frame opens {name}'s chat (one of loops' chat heads). If your crewhub-loops is older, open {name}'s chat head in its dock (the Agent chats menu at this width).",
   "world.chat.panel.frame": "crewhub-loops",
   "world.chat.panel.fallback": "If the frame stays empty:",
