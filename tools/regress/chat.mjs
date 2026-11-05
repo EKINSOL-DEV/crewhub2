@@ -53,6 +53,11 @@ export async function run({ pass, page, check, out }) {
     const bubble2 = pg2.locator('.bubble.said[data-said-agent="g-man"]');
     await bubble2.waitFor({ timeout: 90000 }).catch(() => {});
     const said2 = (await bubble2.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+    // Walk finding w3-1 (round 65): the Chat chip counts the answers not opened yet, whatever the camera shows, and its
+    // accessible name says so; opening the panel reads them and the count goes (checked after the panel below).
+    const count2 = (await pg2.locator(".chat-open .chat-count").innerText().catch(() => "")).trim();
+    const chipName2 = (await pg2.locator(".chat-open").getAttribute("aria-label").catch(() => "")) ?? "";
+    ok("chat (w3-1): the Chat chip counts the one answer not opened yet and says it in its name", count2 === "1" && /1 new answer\.$/.test(chipName2), `count "${count2}"; name "${chipName2.slice(-40)}"`);
     ok("chat (key road): an agent's answer comes over the key's own stream and shows as a bubble, with no session anywhere", /Busy and calm/.test(said2) && fake2.sessionsOpen() === 0, said2.slice(0, 100) || `no bubble; host: ${lines2.slice(-4).join(" | ").slice(0, 200)}`);
     await shot(pg2, "58-chat-key-bubble");
     // Walk finding w3-2 (round 65): at the town the figure's name pill is not drawn, so the bubble carries the speaker's
@@ -84,6 +89,9 @@ export async function run({ pass, page, check, out }) {
     ok("chat (key road): a tap on the bubble opens the Chat panel on that agent", agent2 !== null && /g-man/.test(agent2), `data-agent ${agent2}`);
     await pg2.keyboard.press("Escape");
     await pg2.waitForSelector(".chat-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
+    const countAfter2 = await pg2.locator(".chat-open .chat-count").count();
+    const chipNameAfter2 = (await pg2.locator(".chat-open").getAttribute("aria-label").catch(() => "")) ?? "";
+    ok("chat (w3-1): the panel opened and closed, the count is gone and the chip's name is its plain hint again", countAfter2 === 0 && !/new answer/.test(chipNameAfter2), `counts ${countAfter2}; name "${chipNameAfter2.slice(-40)}"`);
     // Round 14: an agent inside a building answers (the fake's sendDm: the person writes to cr-lead, in the lead's office
     // of CrewHub World, and its scripted reply comes 8 s later). From the town the figure inside is not drawn, so a chat
     // mark stands over the building (in one row with the pin when the building has one), the text view carries the
@@ -117,6 +125,9 @@ export async function run({ pass, page, check, out }) {
     const answered = async (p, label) => {
       fake2.sendDm("cr-lead", `Is the reading nook done? (${label})`);
       const mark = p.locator('.chat-mark[data-said-mark="cr-lead"]');
+      // Walk finding w3-1: an answer from inside a building counts on the chip too (the camera may show no mark at all).
+      await p.waitForSelector(".chat-open .chat-count", { timeout: 20000 }).catch(() => {});
+      ok(`chat (w3-1, ${label}): the Chat chip counts the answer from inside the building`, (await p.locator(".chat-open .chat-count").innerText().catch(() => "")).trim() === "1", (await p.locator(".chat-open").getAttribute("aria-label").catch(() => "")) ?? "");
       await mark.waitFor({ timeout: 30000 }).catch(() => {});
       return mark;
     };

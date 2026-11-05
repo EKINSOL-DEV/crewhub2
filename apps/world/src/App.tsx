@@ -47,7 +47,7 @@ import { toggleFps } from "./state/fps";
 import { readRoleOverrides, writeRoleOverrides } from "./state/roleOverrides";
 import { useBuildMode } from "./state/build";
 import { useDark, useTheme } from "./state/theme";
-import { townRuntime, useChat, useChatRoad, useConnection, useConnectionKey, useDirectorFeed, useRecentAnswers, useSaid, useTown, useWorld, worldRuntime } from "./state/runtimes";
+import { chatStores, townRuntime, useChat, useChatRoad, useConnection, useConnectionKey, useDirectorFeed, useRecentAnswers, useSaid, useTown, useUnreadAnswers, useWorld, worldRuntime } from "./state/runtimes";
 import type { TownLayer } from "./world/propLayer";
 import { pageConfig } from "./state/page";
 import { translate } from "./i18n";
@@ -188,6 +188,9 @@ function World() {
   }, [town.hostRev]);
   // The civic places go by what stands there at this size: the lodge, the mailbox, the mail hut.
   const civic = useMemo(() => civicWords(plan.civic), [plan.civic.hall, plan.civic.post]);
+  // The answers not opened yet (round 65, w3-1 and w3-4): opening the chat (the panel, or the card in the demo) reads
+  // every answer known, and an answer that comes while the panel is open is read as it lands.
+  const unread = useUnreadAnswers();
   // What the agents just said to the person (round 12, state/said.ts): bubbles over the figures, and (round 14) the text
   // view's "says" lines and the chat marks over the buildings from the town.
   const said = useSaid();
@@ -293,6 +296,7 @@ function World() {
   // page's chat (state/chat.ts) says: the agent's card in the demo, whose chat is its scripted dock, or the Chat panel,
   // whose Escape and close button return the focus to the opener.
   const openChat = useStable((key: string | null) => {
+    chatStores.unread.read();
     const opening = talk.open(key);
     if ("card" in opening) {
       if (opening.card !== null) pick({ kind: "agent", key: opening.card }, false);
@@ -303,6 +307,9 @@ function World() {
     setAnnouncement(translate("world.chat.panel.announce"));
   });
   const closeChat = useCallback(() => overlays.close("chat"), []);
+  useEffect(() => {
+    if (chatOpen) chatStores.unread.read();
+  }, [chatOpen, answers]);
   const openAnswer = useStable((_a: Answer, target: AnswerTarget) => openChat(target.agent?.key ?? null));
 
   const openText = useCallback(() => overlays.open("text"), []);
@@ -530,7 +537,7 @@ function World() {
 
       {/* The live Chat chip stands under Settings and follows it in the Tab order (round 65, w5-17); the demo's dock at the
           bottom right comes after the scene, as it is seen. */}
-      {!demo && <ChatCorner narrow={narrow} demo={demo} connection={connection} chatOpen={chatOpen} onOpenChat={() => openChat(null)} />}
+      {!demo && <ChatCorner narrow={narrow} demo={demo} connection={connection} chatOpen={chatOpen} unread={unread.length} onOpenChat={() => openChat(null)} />}
 
       <main className="world-stage" onKeyDown={sceneKey} aria-label="CrewHub World">
         {graphicsFailed ? null : (
@@ -622,7 +629,7 @@ function World() {
 
       {!graphicsFailed && <CameraToolbar camera={camera} walking={walking} toggleWalk={walking ? stopWalk : build.state.on ? null : startWalk} />}
 
-      {demo && <ChatCorner narrow={narrow} demo={demo} connection={connection} chatOpen={chatOpen} onOpenChat={() => openChat(null)} />}
+      {demo && <ChatCorner narrow={narrow} demo={demo} connection={connection} chatOpen={chatOpen} unread={unread.length} onOpenChat={() => openChat(null)} />}
 
       {playback && <PlaybackBar playback={playback} />}
 
@@ -921,17 +928,27 @@ const CameraToolbar = memo(function CameraToolbar({ camera, walking, toggleWalk 
 /* In demo mode the copied dock and its "replies are scripted" note; in live mode the Chat chip, which opens the Chat
    panel: crewhub-loops' own chat framed in the world (components/ChatPanel; a session cookie never reaches the world,
    the frame carries the person's own). */
-const ChatCorner = memo(function ChatCorner({ narrow, demo, connection, chatOpen, onOpenChat }: { narrow: boolean; demo: boolean; connection: ConnectionState | null; chatOpen: boolean; onOpenChat: () => void }) {
+const ChatCorner = memo(function ChatCorner({ narrow, demo, connection, chatOpen, unread, onOpenChat }: { narrow: boolean; demo: boolean; connection: ConnectionState | null; chatOpen: boolean; /** The answers not opened yet (round 65, w3-1): a count on the chip, whatever the camera shows. */ unread: number; onOpenChat: () => void }) {
   // Round 64 (w5-8): the copied dock disables its box and Send while a message goes, which drops the focus to the body; the guard (state/dockFocus) brings it back.
   useEffect(() => (demo ? attachSendFocusGuard(document) : undefined), [demo]);
-  if (!demo)
+  if (!demo) {
+    const hint = translate("world.chat.openHint");
+    const name = unread === 0 ? hint : `${hint} ${unread === 1 ? translate("world.chat.unread.one") : translate("world.chat.unread.many", { count: String(unread) })}`;
     return (
       <div className="world-chat world-chat-live" data-chrome="">
-        <button type="button" className="chip-button chat-open" title={translate("world.chat.openHint")} aria-label={translate("world.chat.openHint")} aria-expanded={chatOpen} aria-haspopup="dialog" data-connection={connection ?? undefined} onClick={onOpenChat}>
-          <Chip className="demo-chat-chip" icon={<MessageCircle className="icon" aria-hidden="true" />}>{translate("world.chat.open")}</Chip>
+        <button type="button" className="chip-button chat-open" title={name} aria-label={name} aria-expanded={chatOpen} aria-haspopup="dialog" data-connection={connection ?? undefined} onClick={onOpenChat}>
+          <Chip className="demo-chat-chip" icon={<MessageCircle className="icon" aria-hidden="true" />}>
+            {translate("world.chat.open")}
+            {unread > 0 && (
+              <span className="chat-count" aria-hidden="true">
+                {unread}
+              </span>
+            )}
+          </Chip>
         </button>
       </div>
     );
+  }
   return (
     <div className="world-chat" data-chrome="">
       <Bubbles narrow={narrow} />

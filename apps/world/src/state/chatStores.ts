@@ -32,6 +32,13 @@ export interface ChatStores {
   };
   /** The Recent answers list: the last RECENT_ANSWERS lines the page saw, newest first; the same array until one arrives. */
   recent(): readonly Answer[];
+  /** The answers the person has not opened the chat for (round 65, walk findings w3-1 and w3-4). */
+  unread: {
+    /** The unread ones of the Recent answers, newest first; the same array until one arrives or the chat opens. */
+    answers(): readonly Answer[];
+    /** The chat opened (the Chat panel lists every recent answer; the demo's card is its chat): everything known is read. */
+    read(): void;
+  };
   threads: {
     /** The host's list, whole: replaces what was known. */
     remember(threads: readonly ChatThreadFact[]): void;
@@ -61,6 +68,13 @@ export function createChatStores({ now, schedule }: ChatStoresConfig): ChatStore
   const lines = new Map<string, Said>();
   let snapshot: SaidMap = new Map();
   let recent: readonly Answer[] = [];
+  // The unread answers: the recent ones whose message the chat has not been opened for since (by message id, so a
+  // replayed line stays read); recomputed when one arrives and when the chat opens, the same array between.
+  let readIds: ReadonlySet<string> = new Set();
+  let unread: readonly Answer[] = [];
+  const refreshUnread = () => {
+    unread = recent.filter((a) => !readIds.has(a.messageId));
+  };
   let cancelSweep: (() => void) | null = null;
   const publishLines = () => {
     snapshot = new Map(lines);
@@ -95,6 +109,7 @@ export function createChatStores({ now, schedule }: ChatStoresConfig): ChatStore
         const said: Said = { text: line.text, agentName: line.agentName ?? null, messageId: line.messageId, threadId: line.threadId, shownAt: nowMs, until: nowMs + SAID_MS };
         lines.set(line.agentId, said);
         recent = [{ ...said, agentId: line.agentId, at: line.at }, ...recent].slice(0, RECENT_ANSWERS);
+        refreshUnread();
         sweep(nowMs);
         publishLines();
       },
@@ -102,6 +117,15 @@ export function createChatStores({ now, schedule }: ChatStoresConfig): ChatStore
       count: () => lines.size,
     },
     recent: () => recent,
+    unread: {
+      answers: () => unread,
+      read() {
+        if (unread.length === 0) return;
+        readIds = new Set(recent.map((a) => a.messageId));
+        refreshUnread();
+        tell();
+      },
+    },
     threads: {
       remember(next) {
         threads = new Map(next.map((t) => [t.agentId, t]));

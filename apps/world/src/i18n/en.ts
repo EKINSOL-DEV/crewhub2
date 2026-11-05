@@ -79,6 +79,9 @@ export const EN: Record<string, string> = {
   // The Chat panel (spec addendum "chat with the agents", road A): crewhub-loops' own chat, framed in the world.
   "world.chat.open": "Chat",
   "world.chat.openHint": "Chat with the agents: crewhub-loops' own chat, framed in a panel here.",
+  // Round 65 (walk finding w3-1): the chip's count of answers not opened yet, after the hint in its accessible name.
+  "world.chat.unread.one": "1 new answer.",
+  "world.chat.unread.many": "{count} new answers.",
   "world.chat.card": "Chat with {name}",
   "world.chat.cardHint": "Opens the Chat panel: crewhub-loops' own chat, where you open {name}'s chat head.",
   // Round 13: loops' dock lists enabled agents of loops role lead only; a card without a chat head says why

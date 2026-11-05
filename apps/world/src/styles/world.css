@@ -1124,6 +1124,24 @@
   background: var(--surface);
   box-shadow: var(--shadow-sm);
 }
+/* The Chat chip's count of answers not opened yet (walk finding w3-1): a small pill after the word, whatever the camera
+   shows; the chip's accessible name says the count in words. */
+.chat-open .chat-count {
+  display: inline-block;
+  min-width: 1.4em;
+  margin-left: var(--space-1);
+  padding: 0 0.4em;
+  border-radius: var(--radius-pill);
+  /* Small accent text on the soft accent, with the strong accent's edge: 4.5:1 or better in both themes (s1's review:
+     the surface on the strong accent was 3.99:1 in the light theme); apps/world/test/chatCountContrast.test.ts holds it. */
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border: 1px solid var(--accent-strong);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  line-height: 1.5;
+  text-align: center;
+}
 /* The chat card's activity strip (kit.css .chat-summary: one line, ellipsized) holds a Chip.Link per ticket the agent is on.
    Past the ellipsis they were not painted but took the Tab focus and were read (round 64, w5-7). Here the strip scrolls
    sideways instead, so every chip can be seen and a focused one is scrolled into view; the kit and bubbles copies stay. */
