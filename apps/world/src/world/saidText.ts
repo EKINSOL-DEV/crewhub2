@@ -2,7 +2,7 @@
    while a bubble is live, and the chat marks over the buildings whose figure is not drawn from the town. Pure: the model,
    the said map and the clock in, lines and marks out. */
 import type { AgentPlacement, TextLine, WorldModel } from "@crewhub/world-model";
-import type { Said, SaidMap } from "../state/said.ts";
+import type { Answer, Said, SaidMap } from "../state/said.ts";
 import { saidBy, saidWords } from "../state/said.ts";
 import { roomName, type RoomWording } from "./roomWords.ts";
 
@@ -29,6 +29,23 @@ export function saidMarks(model: Model, said: SaidMap, nowMs: number): SaidMark[
       const line = saidBy(a.name, nowMs, said);
       if (line === null) continue;
       marks.push({ slug: b.slug, building: b.name, agent: a.name, key: a.key, name: a.displayName, text: line.text, fading: line.fading });
+    }
+  return marks;
+}
+
+/**
+ * The marks as the page shows them since round 65 (walk finding w3-4): one per real agent inside a building with an
+ * answer the person has not opened the chat for (state/chatStores `unread`), its newest, in building order. A mark
+ * outlives its bubble: it goes when the chat opens, or the agent's next answer replaces it; it never fades.
+ */
+export function answerMarks(model: Model, unread: readonly Answer[]): SaidMark[] {
+  const marks: SaidMark[] = [];
+  for (const b of model.buildings)
+    for (const a of b.agents) {
+      if (a.presence !== "real") continue;
+      const answer = unread.find((u) => u.agentId === a.name);
+      if (answer === undefined) continue;
+      marks.push({ slug: b.slug, building: b.name, agent: a.name, key: a.key, name: a.displayName, text: answer.text, fading: false });
     }
   return marks;
 }

@@ -56,7 +56,7 @@ export function ChatPanel({ agent, health, connection, road, full, answers, rece
   const app = loopsWebUrl(health);
   const stateLine = chatStateLine(connection);
   return (
-    <Card className={`world-sheet chat-sheet${full ? " chat-sheet-full" : ""}`} role="dialog" aria-modal="false" aria-labelledby={`${id}-title`} aria-describedby={`${id}-lead`} data-agent={agent?.key}>
+    <Card className={`world-sheet chat-sheet${full ? " chat-sheet-full" : ""}`} role="dialog" aria-modal="false" aria-labelledby={`${id}-title`} aria-describedby={stateLine ? `${id}-state ${id}-lead` : `${id}-lead`} data-agent={agent?.key}>
       <Card.Header
         title={agent ? t("world.chat.panel.titleWith", { name: agent.name }) : t("world.chat.panel.title")}
         titleId={`${id}-title`}
@@ -64,7 +64,7 @@ export function ChatPanel({ agent, health, connection, road, full, answers, rece
       />
       <Card.Body className="chat-sheet-body">
         {stateLine && (
-          <p className="chat-sheet-state" role="status" data-connection={connection}>
+          <p className="chat-sheet-state" id={`${id}-state`} role="status" data-connection={connection}>
             {stateLine}
           </p>
         )}

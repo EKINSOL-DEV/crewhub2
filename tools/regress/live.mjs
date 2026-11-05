@@ -321,9 +321,35 @@ export async function run({ pass, page, check, out }) {
     const down = await until(pg, "loops-down", 20000);
     ok("live: Loops down after the fake closes", down === "loops-down", `${down}: ${(await chip(pg).innerText().catch(() => "")).trim()}`);
     await shot(pg, "24-loops-down");
+    // Round 66 (w4-22, s4's review): the Chat panel opened while loops is down. What it draws, and what the browser's own
+    // accessibility tree gives the dialog as its description: the words a screen reader says when the focus enters the
+    // panel. A status region that is there from the start is not spoken, so the line has to be in that description.
+    const panelTold = async () => {
+      const cdp = await pg.context().newCDPSession(pg);
+      const { result } = await cdp.send("Runtime.evaluate", { expression: 'document.querySelector(".chat-sheet")' });
+      const ax = result.objectId ? await cdp.send("Accessibility.getPartialAXTree", { objectId: result.objectId, fetchRelatives: false }) : null;
+      await cdp.detach();
+      const facts = await pg.evaluate(() => {
+        const sheet = document.querySelector(".chat-sheet");
+        const line = sheet?.querySelector(".chat-sheet-state");
+        const box = line?.getBoundingClientRect();
+        return { line: line?.textContent ?? null, drawn: !!box && box.width > 0 && box.height > 0, aboveLead: !!box && box.bottom <= (sheet?.querySelector(".chat-sheet-lead")?.getBoundingClientRect().top ?? 0), focusInside: !!sheet?.contains(document.activeElement) };
+      });
+      return { ...facts, role: ax?.nodes[0]?.role?.value ?? null, description: ax?.nodes[0]?.description?.value ?? "" };
+    };
+    await pg.locator(".chat-open").click().catch(() => {});
+    await pg.waitForSelector(".chat-sheet", { timeout: 5000 }).catch(() => {});
+    const whileDown = await panelTold();
+    const stillDown = await until(pg, "loops-down", 1000);
+    ok("live (round 66, w4-22): the Chat panel opened while loops is down draws the line above its lead", stillDown === "loops-down" && whileDown.line === "crewhub-loops is not answering." && whileDown.drawn && whileDown.aboveLead, `${stillDown}; "${whileDown.line}", drawn ${whileDown.drawn}, above the lead ${whileDown.aboveLead}`);
+    ok("live (round 66, w4-22): a screen reader opening the panel while loops is down is told: the dialog takes the focus and its description starts with the line", stillDown === "loops-down" && whileDown.role === "dialog" && whileDown.focusInside && whileDown.description.startsWith("crewhub-loops is not answering."), `${whileDown.role}, focus inside ${whileDown.focusInside}; "${whileDown.description.slice(0, 100)}"`);
+    await shot(pg, "24b-chat-panel-loops-down");
     fake = await rig.loopsAgain({ ...fakeOptions, port, key, keyName, firstSeq: lastSeq });
     const again = await until(pg, "live", 30000);
     ok("live: Live again after a new fake on the same port", again === "live", `${again}: ${(await chip(pg).innerText().catch(() => "")).trim()}`);
+    const whileLive = await panelTold();
+    ok("live (round 66, w4-22): Live again with the panel open, the line is gone from the panel and from the dialog's description, which is the lead again", again === "live" && whileLive.role === "dialog" && whileLive.line === null && whileLive.description.startsWith("crewhub-loops' own chat") && !/not answering/.test(whileLive.description), `${whileLive.role}; line ${whileLive.line}; "${whileLive.description.slice(0, 100)}"`);
+    await pg.getByRole("button", { name: "Close the chat panel" }).click().catch(() => {});
     await shot(pg, "25-live-again");
     await pg.context().close();
   } finally {

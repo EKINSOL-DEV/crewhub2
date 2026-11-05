@@ -2040,8 +2040,8 @@
   display: none;
   font-weight: var(--weight-regular, 400);
 }
-/* The chat mark over a building (round 14): an agent inside answered and its bubble lives; it goes when the bubble does.
-   Placed as the pin (the same anchor); with a pin over the same roof the two stand in one row. */
+/* The chat mark over a building (round 14): an agent inside answered. Live it stands until the chat is opened or the
+   agent's next answer replaces it; in the demo it goes when the bubble does (round 65, w3-4). Placed as the pin (the same anchor); with a pin over the same roof the two stand in one row. */
 .chat-mark {
   display: inline-flex;
   align-items: center;
@@ -2079,9 +2079,11 @@
   align-items: center;
   gap: var(--space-1);
 }
+/* Relative, not static: each button is the box its own ::before and tap area measure against. A static pin's reached over
+   the whole row, on top of the mark beside it (round 66, w3-4). */
 .roof-row > .need-pin,
 .roof-row > .chat-mark {
-  position: static;
+  position: relative;
   transform: none;
 }
 /* What shows at which distance (`labelDetail`): from far a region is its district cards and pins; nearer the building
@@ -2144,6 +2146,7 @@
     min-height: var(--control-h-touch);
   }
   .need-pin::after,
+  .chat-mark::after,
   .district-card::after {
     content: "";
     position: absolute;
