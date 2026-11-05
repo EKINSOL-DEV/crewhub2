@@ -37,7 +37,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, readlinkSync, rmSync,
 import { connect } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { cli, dressed, launch, seek } from "./lib/world.mjs";
+import { cli, dressed, launch, pause, seek } from "./lib/world.mjs";
 import { describeDiff, diffPngFiles } from "./lib/pixdiff.ts";
 import { ownPort } from "./lib/toolGuard.ts";
 
@@ -202,7 +202,7 @@ async function demoSet(origin, dir) {
       await p.goto(`${origin}/?source=demo`);
       await dressed(p);
       if (!(await seek(p, Number(opts.seek)))) say(`  ${theme} ${width}: no timeline slider to seek`);
-      await p.getByRole("button", { name: "Pause", exact: true }).click({ timeout: 3000 }).catch(() => say(`  ${theme} ${width}: no Pause button`));
+      await pause(p).catch(() => say(`  ${theme} ${width}: no Pause button or menu row`));
       await p.waitForTimeout(1500);
       await shot("town");
       await p.locator("canvas").first().focus();

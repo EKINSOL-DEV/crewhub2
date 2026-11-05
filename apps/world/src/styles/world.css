@@ -1034,11 +1034,20 @@
     gap: var(--space-2);
     padding-right: var(--space-2);
   }
-  .playback-speeds .btn {
-    min-width: 2.25rem;
+  /* The speeds in one menu button (round 65, w4-10): the slider takes the rest; the list opens upward, above the bar. */
+  .playback-speed-menu {
+    flex: none;
+  }
+  .playback-speed-menu .btn {
+    min-width: 3rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .playback-speed-menu .menu {
+    top: auto;
+    bottom: calc(100% + var(--space-1));
   }
   .playback-scrub {
-    min-width: 2.5rem;
+    min-width: 8rem;
   }
   .playback-loop,
   .playback-duration {

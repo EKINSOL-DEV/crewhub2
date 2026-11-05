@@ -116,8 +116,26 @@ export const seek = (page, ms) =>
     return true;
   }, ms);
 
-/** Presses a playback speed button. They are named "Play at 4x" (aria-label); the text alone does not match. */
-export const speed = (page, label) => page.getByRole("button", { name: `Play at ${label}`, exact: true }).click({ timeout: 5000 });
+/* Below 600 px the speeds are one menu button (round 65, w4-10): its row, by its word; a closed menu's rows are hidden. The
+   checked row's name carries its tick, so the current choice has no row of that exact name: nothing to do then (s4's review). */
+const chooseSpeed = async (page, word) => {
+  const trigger = page.locator('.playback-bar button[aria-haspopup="menu"]');
+  if ((await trigger.getAttribute("aria-label", { timeout: 5000 })) === `Playback speed: ${word}`) return;
+  await trigger.click({ timeout: 5000 });
+  await page.getByRole("menuitemradio", { name: word, exact: true }).click({ timeout: 5000 });
+};
+/** Sets a playback speed: its button, named "Play at 4x" (aria-label; the text alone does not match), or on a phone the menu's row. */
+export const speed = async (page, label) => {
+  const button = page.getByRole("button", { name: `Play at ${label}`, exact: true });
+  if ((await button.count()) > 0) await button.click({ timeout: 5000 });
+  else await chooseSpeed(page, label);
+};
+/** Pauses the playback: the button named "Pause", or on a phone the menu's row. */
+export const pause = async (page) => {
+  const button = page.getByRole("button", { name: "Pause", exact: true });
+  if ((await button.count()) > 0) await button.click({ timeout: 5000 });
+  else await chooseSpeed(page, "Pause");
+};
 
 /**
  * The world's page address: `?stress=<n>` for a stress fixture (dev builds only: 1 or 20), `?scenario=<id>` for a demo

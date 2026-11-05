@@ -7,7 +7,7 @@
  */
 import { devices } from "playwright-core";
 import { announced, labels, readTextView as text, textView as sheet } from "../lib/page.mjs";
-import { dressed, seek, speed, watch } from "../lib/world.mjs";
+import { dressed, pause, seek, speed, watch } from "../lib/world.mjs";
 import { decodePng } from "../lib/png.ts";
 
 export async function run({ pass, page, check, out }) {
@@ -481,6 +481,33 @@ export async function run({ pass, page, check, out }) {
       ok("375: Settings › Town's paired selects stand in one column, their chosen words fitting (round 65, w4-12)", pairs.length > 0 && pairs.every((x) => x.stacked && x.fits.every((f) => f.fits)), pairs.map((x) => `${x.option}: ${x.stacked ? "stacked" : "side by side"}, ${x.fits.map((f) => `"${f.text}" ${f.textWidth} in ${f.boxWidth}${f.fits ? "" : " (cut)"}`).join("; ")}`).join(" | "));
       await p.keyboard.press("Escape");
       await p.waitForTimeout(300);
+      // Round 65 (w4-10): on a phone the four speed buttons are one menu button and the slider takes the rest of the bar
+      // (before: four buttons took it and the slider was 88 px, 11 s of story a pixel). The menu, tapped, lists the
+      // speeds; "4x" chosen, the button says 4x and the playback runs at 4x.
+      const barBefore = await p.evaluate(() => { const bar = document.querySelector(".playback-bar"); const scrub = bar?.querySelector(".playback-scrub"); const menu = bar?.querySelector('button[aria-haspopup="menu"]'); const plain = bar ? [...bar.querySelectorAll("button")].filter((b) => /^Play at |^Pause$/.test(b.getAttribute("aria-label") ?? "")).length : -1; return { bar: bar ? Math.round(bar.getBoundingClientRect().width) : null, scrub: scrub ? Math.round(scrub.getBoundingClientRect().width) : null, menu: menu ? (menu.getAttribute("aria-label") ?? menu.textContent ?? "").trim() : null, plainSpeedButtons: plain }; });
+      const speedMenu = p.locator('.playback-bar button[aria-haspopup="menu"]').first();
+      let chosen = null;
+      if (await speedMenu.count()) {
+        await speedMenu.tap();
+        await p.waitForTimeout(300);
+        await shot(p, "12h-375-speed-menu");
+        const row = p.getByRole("menuitemradio", { name: /^4x$/ }).or(p.getByRole("menuitem", { name: /^4x$/ })).first();
+        if (await row.count()) await row.tap();
+        await p.waitForTimeout(400);
+        chosen = await p.evaluate(() => { const menu = document.querySelector('.playback-bar button[aria-haspopup="menu"]'); return { label: (menu?.getAttribute("aria-label") ?? menu?.textContent ?? "").trim(), open: (() => { const m = document.querySelector('.playback-bar [role="menu"]'); return !!m && !m.hidden; })(), speed: globalThis.__town?.playback?.speed?.() ?? null }; });
+      }
+      ok("375: the playback speeds are one menu button and the slider takes the rest; 4x chosen from the menu (round 65, w4-10)", barBefore.menu !== null && barBefore.plainSpeedButtons === 0 && barBefore.scrub !== null && barBefore.bar !== null && barBefore.scrub >= barBefore.bar * 0.45 && chosen !== null && /4x/.test(chosen.label) && !chosen.open, `${JSON.stringify(barBefore)}; chosen ${JSON.stringify(chosen)}`);
+      await pause(p).catch((e) => note("pause " + e.message.split("\n")[0]));
+      const paused = await p.locator('.playback-bar button[aria-haspopup="menu"]').getAttribute("aria-label").catch(() => "");
+      ok("375: the tools' pause reaches the phone's speed menu (round 65, w4-10)", paused === "Playback speed: Pause", String(paused));
+      // Asked for the speed it already has (perf's phone stress run does this): nothing to do, no throw, the menu not left
+      // open. Before, the checked row's name was "4x ✓", so the exact name found nothing and the click timed out.
+      const twice = await speed(p, "4x").then(() => speed(p, "4x")).then(() => pause(p)).then(() => pause(p)).then(() => "ok").catch((e) => e.message.split("\n")[0]);
+      const leftOpen = await p.evaluate(() => { const m = document.querySelector('.playback-bar [role="menu"]'); return !!m && !m.hidden; });
+      ok("375: the tools' speed and pause, asked for the current choice, do nothing and leave the menu closed (round 65, w4-10, s4's review)", twice === "ok" && !leftOpen, `${twice}; menu ${leftOpen ? "left open" : "closed"}`);
+      if (leftOpen) await p.keyboard.press("Escape");
+      // w4-10's rows leave the playback paused: a fresh load, so the rows below start from the plain town.
+      await town(p, 1500);
       // Round 65 (w4-6): a tap is not the keyboard. A sign tapped and "← Town" tapped leave no expanded plate and no ring
       // on the plot (before, the sign's focus fired the hover intent as the keyboard's Tab does, and the ring lingered);
       // a tap that zooms a room marks its sign with the accent border alone, no focus ring (before, the class drew it).
