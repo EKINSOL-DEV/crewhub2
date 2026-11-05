@@ -14,6 +14,7 @@ import { Tour } from "./components/Tour";
 import { rememberFocus, takeFocus } from "./state/afterReload";
 import { nextAnnouncement } from "./state/announce";
 import { cameraWords } from "./state/cameraWords";
+import { connectionSentence, takeConnected } from "./state/connectSaid";
 import { escapeLayer, sceneOwnsKey } from "./state/sceneKeys";
 import { INTRODUCTION_URL, readTourDone, tourShouldStart, writeTourDone } from "./state/tour";
 import { chatPlaceLine, recentEmptyWords } from "./state/chatRoad";
@@ -461,11 +462,14 @@ function World() {
   const demo = model.mode === "demo";
   const connection = useConnection();
   // A change of the connection's state (Live, Loops down, Catching up, Stream busy, back to Live) is said once in the live
-  // region: the chip changes its word, and a screen reader would otherwise hear nothing. Not the first value on load.
+  // region: the chip changes its word, and a screen reader would otherwise hear nothing. Not the first value on load,
+  // except right after a connect (round 65, w5-22): the Connect screen said the check started, the town says its end.
   const spokenConnection = useRef<ConnectionState | null>(null);
   useEffect(() => {
-    if (spokenConnection.current !== null && connection !== null && spokenConnection.current !== connection)
-      setAnnouncement(translate("world.connection.changed", { state: connectionWord(connection), hint: translate(`world.connection.hint.${connection}`) }));
+    const justConnected = connection === "live" && takeConnected();
+    const sentence = connectionSentence(justConnected, spokenConnection.current, connection);
+    if (sentence === "connected" && connection !== null) setAnnouncement(translate("world.connection.connected", { state: connectionWord(connection) }));
+    else if (sentence === "changed" && connection !== null) setAnnouncement(translate("world.connection.changed", { state: connectionWord(connection), hint: translate(`world.connection.hint.${connection}`) }));
     spokenConnection.current = connection;
   }, [connection]);
   // The text view's Chat line and the Chat panel's small print say the chat session's state (round 14): one health read

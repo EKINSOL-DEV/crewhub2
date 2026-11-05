@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { connectHost, forgetHostKey } from "@crewhub/loops-client";
 import { useT } from "../i18n";
 import { connectOutcome, keyTail, looksLikeKey, normaliseKey, relativeTime, untilTime, type ConnectOutcome, type ConnectScreen } from "../state/connect";
+import { markConnected } from "../state/connectSaid";
 import { askHealth, BLANK_HEALTH, useHealthNeed, useHealthView } from "../state/health";
 import { loopsWebUrl } from "../state/source";
 import { PairContent, switchToDemo } from "./PairPage";
@@ -71,6 +72,8 @@ export function ConnectPage({ screen }: ConnectPageProps) {
       if (!live.current) return;
       setBusy(false);
       const result = connectOutcome(answer.status, answer.body);
+      // The town that follows an accepted key says it is live, once (round 65, w5-22): the screen said the check started.
+      if (result.kind === "ok") markConnected();
       setOutcome(result);
       ask();
     },
