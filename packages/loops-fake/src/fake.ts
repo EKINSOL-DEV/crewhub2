@@ -15,7 +15,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
-import { type DemoSource, type ScenarioId, DEMO_PERSON, createDemoApi, createDemoSource } from "@crewhub/demo";
+import { type DemoSource, type ScenarioId, type Scheduler, DEMO_PERSON, createDemoApi, createDemoSource } from "@crewhub/demo";
 import type { CommentOut, Envelope, LoopsSnapshot, PlaybackSpeed, PrincipalRef, TicketStatus } from "@crewhub/loops-client";
 import { ADMIN_EVENT_TYPES, LOOPS_EVENT_TYPES, PAGE_CHAT_EVENTS_LIMIT, PAGE_CHAT_EVENT_TYPES, TICKET_STATUSES, isAgentName, isMessageId } from "@crewhub/loops-client";
 import { withKeyBot } from "./lanes.ts";
@@ -87,6 +87,11 @@ export interface LoopsFakeOptions {
    * fake ignores `Origin`, as before. `setWorldOrigin` changes it on a running fake (the page's port is known late).
    */
   worldOrigin?: string | null;
+  /**
+   * The wall clock the story plays on and stamps its events from (round 64, w2-3). Default: `Date.now()` and the real
+   * timers. A test injects one and jumps its clock without a tick, as a sleep does; the fake's stamps follow the wall.
+   */
+  scheduler?: Scheduler;
 }
 
 /** The four routes loops opens to the world's origin (`api/security.py` `WORLD_ROUTES`), exact paths; their segments are the page's own shapes. */
@@ -270,13 +275,19 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
 
   /** Messages the tools sent through `sendDm`, for their client ids. */
   let sentDms = 0;
+  // The story plays on the wall clock and stamps its events from it (`epochMs` is the wall's time at start, speed 1
+  // keeps pace); through a pause (the Mac asleep, a debugger) the clock follows the wall rather than leaving every
+  // later stamp behind (round 64, w2-3: an hour's sleep made an hour-old snapshot under a Live chip), as a real
+  // crewhub-loops stamps real time. Tests inject the scheduler and jump its clock.
+  const scheduler: Scheduler = options.scheduler ?? {
+    now: () => Date.now(),
+    setInterval: (fn, ms) => setInterval(fn, ms),
+    clearInterval: (id) => clearInterval(id as ReturnType<typeof setInterval>),
+  };
   const source: DemoSource = createDemoSource({
-    scheduler: {
-      now: () => Date.now(),
-      setInterval: (fn, ms) => setInterval(fn, ms),
-      clearInterval: (id) => clearInterval(id as ReturnType<typeof setInterval>),
-    },
-    epochMs: Date.now(),
+    scheduler,
+    epochMs: scheduler.now(),
+    followWall: true,
     ...(options.scenario === undefined ? {} : { scenario: options.scenario }),
     ...(options.speed === undefined ? {} : { speed: options.speed }),
     ...(options.startAt === undefined ? {} : { startAt: options.startAt }),

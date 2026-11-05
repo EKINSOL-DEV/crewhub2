@@ -30,7 +30,9 @@ await api.handle("GET", "/api/dm/threads"); // { status: 200, body: { threads: [
   They also enforce loops' rules; for example, agents never move a ticket to Done.
 - `src/script.ts`: Small team's 16-minute storyline with seeded jitter, and `buildStory` for any scenario.
 - `src/player.ts`: `createPlayer(timeline, options)`, playback on the injected scheduler: position, speed, the
-  demo clock, the wall tick, seek, the loop end, the listeners. Two adapters give it a `Timeline`: the storyline
+  demo clock, the wall tick (a pause of the wall clock plays at most 5 s at once; with `followWall` the clock moves on
+  with the wall through the pause, as the fake wants, while the browser demo keeps the story's own times), seek, the
+  loop end, the listeners. Two adapters give it a `Timeline`: the storyline
   (`source.ts`) and the stress stream (`stress.ts`).
 - `src/stress.ts`: the synthetic stress fixtures (12 buildings, or 20 in four groups).
 - `src/source.ts`: `createDemoSource`, the storyline on the player, with heartbeats,

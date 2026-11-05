@@ -55,6 +55,8 @@ export interface DemoSourceOptions {
    * the world passes the minute the page opened, so relative times ("2 min ago") read naturally.
    */
   epochMs?: number;
+  /** The player's `followWall` (round 64, w2-3): the clock keeps pace with the wall clock through a pause. Default false. */
+  followWall?: boolean;
 }
 
 export interface DemoSource extends WorldSource {
@@ -179,6 +181,7 @@ export function createDemoSource(options: DemoSourceOptions): DemoSource {
     startAt: options.startAt ?? 0,
     speed: options.speed ?? 1,
     speeds: [0, 1, 4, 16],
+    ...(options.followWall === undefined ? {} : { followWall: options.followWall }),
   });
   const position = () => player.playback.positionMs();
   const current = (): DemoReads => {
