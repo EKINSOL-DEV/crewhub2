@@ -36,7 +36,7 @@ import { countsLine } from "../world/townLayout";
 import { agentLook, type AgentBubble } from "@crewhub/world-model";
 import { civicLabel, civicWords } from "../world/settlementDressing";
 import { namesLine } from "../world/namesLine";
-import { freeLots, type TownPlan } from "../world/townPlan";
+import { freeLots, lotsShown, type TownPlan } from "../world/townPlan";
 import { lotKey } from "../world/settlement";
 import { setMovingBuilding, useMovingBuilding } from "../state/layoutMove";
 import { moveBuilding, plotLabel } from "./LayoutPanel";
@@ -44,7 +44,7 @@ import type { LaneStatus, RoomKind, RuleProp } from "@crewhub/world-model";
 import { type Said, type SaidMap, saidBy, saidLabel } from "../state/said";
 import { markLabel, type SaidMark } from "../world/saidText";
 import { Chip } from "./primitives";
-import { needsOf, needsPinWords, needsTotal, needsWords, summarise, summaryWords, activeWords, type DistrictPlace } from "../world/wayfinding";
+import { needsOf, needsPinWords, needsTotal, needsWords, summarise, summaryWords, activeWords, type DistrictPlace, isRegion } from "../world/wayfinding";
 
 interface Props {
   model: WorldModel;
@@ -184,10 +184,12 @@ export default function WorldCanvas(props: Props) {
   const moving = useMovingBuilding();
   const movingBuilding = !props.view.entered && moving ? (props.model.buildings.find((b) => b.slug === moving) ?? null) : null;
   const plots = props.town?.doc.plots;
-  const free = useMemo(() => (movingBuilding && plots ? freeLots(props.plan, plots) : []), [movingBuilding, props.plan, plots]);
-  const lotAnchors = useMemo(() => free.map((l) => l.cell), [free]);
   // The district the view is in: the one it names, while it is still in use.
   const district = hereOf(props.view, props.districts)?.id ?? null;
+  // At the Region level only each district's next free plot is marked (round 65, w6-14); in a district every one.
+  const regionLevel = district === null && isRegion(props.districts);
+  const free = useMemo(() => (movingBuilding && plots ? lotsShown(freeLots(props.plan, plots), regionLevel) : []), [movingBuilding, props.plan, plots, regionLevel]);
+  const lotAnchors = useMemo(() => free.map((l) => l.cell), [free]);
   const view = {
     model: props.model,
     plan: props.plan,
