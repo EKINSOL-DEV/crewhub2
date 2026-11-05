@@ -240,6 +240,94 @@ test("the verdict on round 46's three potlings hours: levels off, by the numbers
   assert.ok(lines.some((l) => /^ {2}\(code\), minute 10 to 180: \+1\.46 MB, 0\.51 MB an hour \(at most 1\.5: pass\)/.test(l)));
 });
 
+/* Round 62: the fit leaves out the inspector's records, by name, and the verdict says their growth on its own line. The
+   row is the two-hour soak of 5 November at 9cd4713f: 0.461 MB an hour before, of which 0.441 was this one class. */
+const RECORDS = "native blink::NetworkResourcesData::ResourceData";
+const r62 = JSON.parse(readFileSync(new URL("./fixtures/soak/r62-fake-2h.json", import.meta.url), "utf8")) as { minutes: number; snapshots: (VerdictSnapshot & { records: [number, number] })[]; first: [string, number, number][]; last: [string, number, number][] };
+const withRows = (rows: (m: number) => [string, number, number][]) => (s: VerdictSnapshot) => ({ ...s, rows: sums(rows(s.minute)) });
+/** Round 62's run with its seven rows of the class, or `records` in their place: [count, size] at a minute. */
+const r62Run = (records?: (m: number, seen: [number, number]) => [number, number]) =>
+  r62.snapshots.map((s) => {
+    const row = records ? records(s.minute, s.records) : s.records;
+    return { minute: s.minute, bytes: s.bytes + row[1] - s.records[1], code: s.code, rows: sums([[RECORDS, row[0], row[1]]]) };
+  });
+const r62Diff = snapshotDiff(sums(r62.first), sums(r62.last));
+
+test("the verdict on round 62's two-hour soak: the fit passes without the inspector's records, and their line says the rest", () => {
+  const v = judge({ minutes: r62.minutes, snapshots: r62Run(), diff: r62Diff });
+  assert.deepEqual(v.fit?.minutes, [40, 60, 80, 100, 120]);
+  assert.equal(v.fit?.mbPerHour?.toFixed(3), "0.020", "was 0.461 with the class in the fit");
+  assert.equal(v.fit?.pass, true);
+  assert.deepEqual(v.failed, []);
+  assert.equal(v.levelsOff, true);
+  const lines = formatVerdict(v);
+  const line = lines.find((l) => l.includes(RECORDS));
+  assert.ok(line, "the class has a line of its own");
+  assert.match(line, /346 to 3239 records/);
+  assert.match(line, /0\.441 MB an hour/);
+  assert.match(line, /288 bytes a record/);
+  assert.match(line, /at most 1024: pass/);
+  assert.ok(lines.some((l) => /minute 120: total 48\.48 MB, \(code\) 13\.39 MB, without code 35\.09 MB, less the inspector's records 34\.20 MB {2}\(in the window\)/.test(l)), "each snapshot shows what the fit reads");
+  assert.equal(lines.at(-1), "verdict: levels off (item 3: the fit, the JS objects, the (code) ceiling, the levelling test and the inspector's record size pass)");
+});
+
+test("the verdict: a page leak under the inspector's class name fails the record size, though the fit no longer sees it", () => {
+  // Bodies held on the records from minute 100: 2 KB per new record, the class's average still under 1 KB at the end.
+  const late = judge({ minutes: r62.minutes, snapshots: r62Run((m, [count, size]) => (m <= 100 ? [count, size] : [count, 778752 + (count - 2704) * 2048])), diff: r62Diff });
+  assert.equal(late.fit?.mbPerHour?.toFixed(3), "0.020", "the fit is blind to the class by design");
+  assert.deepEqual(late.failed, ["inspector-records"]);
+  assert.equal(late.levelsOff, false);
+  assert.equal(late.inspector?.worstBytesPerRecord, 2048);
+  assert.equal(Math.round(late.inspector!.bytesPerRecord!), 579, "the average at the last snapshot, which alone would not see it");
+  const lines = formatVerdict(late);
+  assert.match(lines.find((l) => l.includes(RECORDS))!, /579 bytes a record, 2048 at worst \(at most 1024: FAIL\)/);
+  assert.equal(lines.at(-1), "verdict: does not level off: the inspector's record size failed");
+  // Above the limit at the first snapshot read, with the records then diluting it: the snapshots are read too.
+  const early = judge({ minutes: r62.minutes, snapshots: r62Run((_m, [count, size]) => [count, size + 346 * 1000]), diff: r62Diff });
+  assert.deepEqual(early.failed, ["inspector-records"]);
+  // Bytes with no new record count against one record: the stretch can't divide by nothing.
+  const swelling = judge({ minutes: r62.minutes, snapshots: r62Run((m) => [1632, m <= 100 ? 470016 : 470016 + 4096]), diff: r62Diff });
+  assert.deepEqual(swelling.failed, ["inspector-records"]);
+  // A snapshot in the warm-up is not read, as for the other rules.
+  const warmup = judge({ minutes: r62.minutes, snapshots: [{ minute: 5, bytes: 48000000, code: 12000000, rows: sums([[RECORDS, 10, 20480]]) }, ...r62Run()], diff: r62Diff });
+  assert.deepEqual(warmup.failed, []);
+  assert.equal(warmup.inspector?.from, 12);
+  // The limit itself passes: "above 1 KB" fails.
+  const atLimit = judge({ minutes: r62.minutes, snapshots: r62Run((_m, [count]) => [count, count * 1024]), diff: r62Diff });
+  assert.equal(atLimit.inspector?.pass, true);
+  const over = judge({ minutes: r62.minutes, snapshots: r62Run((_m, [count]) => [count, count * 1025]), diff: r62Diff });
+  assert.deepEqual(over.failed, ["inspector-records"]);
+});
+
+test("the verdict leaves out that one class by its exact name: its neighbours stay in the fit", () => {
+  // 0.6 MB an hour under each neighbour, over a flat class: the fit must see it, whichever neighbour it is.
+  for (const name of ["native blink::NetworkResourcesData", "native blink::NetworkResourcesData::ResourceData2", "native blink::NetworkResourcesData::ResourceDataX", "Native blink::NetworkResourcesData::ResourceData", "InspectorNetworkResourcesData", "native blink::protocol::Network::Request", "native blink::ComputedStyle"]) {
+    const grown = (m: number) => (0.6 * m * MiB) / 60;
+    const snapshots = run([10, 20, 30, 40, 50, 60], (m) => 36 + grown(m) / MiB, () => 14).map(withRows((m) => [[RECORDS, 500, 144000], [name, 100, Math.round(grown(m))]]));
+    const v = judge({ minutes: 60, snapshots, diff: flatDiff });
+    assert.equal(v.fit?.mbPerHour?.toFixed(2), "0.60", name);
+    assert.deepEqual(v.failed, ["fit"], name);
+    assert.equal(v.inspector?.mbPerHour?.toFixed(2), "0.00", name);
+  }
+});
+
+test("the verdict with no inspector's records: nothing is left out, and it says which of the two that is", () => {
+  const flat = run([10, 20, 30, 40, 50, 60], (m) => 36 + (0.1 * m) / 60, () => 14);
+  // The tool hands in the rows and the class is not among them: no records, a pass, the same fit.
+  const none = judge({ minutes: 60, snapshots: flat.map(withRows(() => [["Object", 100, 1000]])), diff: flatDiff });
+  assert.equal(none.fit?.mbPerHour?.toFixed(2), "0.10");
+  assert.equal(none.inspector?.pass, true);
+  assert.equal(none.inspector?.bytesPerRecord, null);
+  assert.deepEqual(none.failed, []);
+  assert.match(formatVerdict(none).find((l) => l.includes(RECORDS))!, /none in the snapshots/);
+  assert.match(none.line, /and the inspector's record size pass\)$/);
+  // Numbers kept from before round 62 name no rows: the guard did not run, and the line does not claim it.
+  const older = judge({ minutes: 60, snapshots: flat, diff: flatDiff });
+  assert.equal(older.inspector, null);
+  assert.equal(older.line, "verdict: levels off (item 3: the fit, the JS objects and the (code) ceiling pass)");
+  assert.ok(!formatVerdict(older).some((l) => l.includes(RECORDS)));
+});
+
 test("the verdict: a code leak fails the (code) ceiling", () => {
   // An eval on every chat message: 2 MB of code an hour from the start, the JS objects flat.
   const v = judge({ minutes: 60, snapshots: run([10, 20, 30, 40, 50, 60], () => 36, (m) => 14 + (2 * m) / 60), diff: flatDiff });

@@ -49,9 +49,10 @@
    a few seconds, so its sample is not a frame measurement; a heap past about 290 MB no longer fits one string and
    the snapshot throws, so a run that may grow that far takes its snapshots early.
    At the run's end (round 47) the tool judges the snapshots by docs/COST_POLICY.md "What to soak and how", item 3
-   (lib/verdict.mjs): the total without (code) at each snapshot and its fit over the window, the JS objects from the
-   first snapshot to the last by kind, the (code) rate against its ceiling, the levelling test for a run over an hour,
-   and one verdict line: levels off, does not (and which rule failed), or cannot judge (and why: a run too short for
+   (lib/verdict.mjs): the total without (code) at each snapshot and its fit over the window, less the inspector's
+   records (round 62: that one class's growth and bytes a record on a line of its own, with a ceiling), the JS objects
+   from the first snapshot to the last by kind, the (code) rate against its ceiling, the levelling test for a run over
+   an hour, and one verdict line: levels off, does not (and which rule failed), or cannot judge (and why: a run too short for
    the window, too few snapshots in it). The JSON keeps it as `verdict`.
    Every sample also carries the frame time over the overlay's window (mean and p95, the work per frame) and the faded
    copies alive (`faded`, round 47, from `window.__worldStores` in every mode); a live run
@@ -204,6 +205,8 @@ const started = Date.now();
 let lastTotals = null;
 // The first snapshot from minute 10 on (the warm-up's end), kept whole: the verdict's diff runs from it to the last.
 let firstRead = null;
+// Each snapshot's sums by name, by minute: the verdict reads the inspector's records from them, in or out of the top 40.
+const rowsAt = new Map();
 // The page's probe (state/soak.ts): the stores in a live run, the faded copies in every run; null where it is missing.
 const readStores = () => page.evaluate(() => (typeof window.__worldStores === "function" ? window.__worldStores() : null)).catch(() => null);
 async function snapshotAt(minute) {
@@ -227,6 +230,7 @@ async function snapshotAt(minute) {
   );
   const code = totals.byName.get("(code)")?.size ?? 0;
   const record = { minute, bytes: totals.bytes, code, nodes: totals.nodes, shapes: totals.shapes, faded, ...(fadedAfter !== faded ? { fadedAfter } : {}), ...(countNames.length > 0 ? { counts } : {}), top: topBySize(totals, 40) };
+  rowsAt.set(minute, totals.byName);
   if (firstRead === null && minute >= 10) firstRead = { minute, totals };
   if (lastTotals) {
     const rows = heapGrowth(lastTotals.totals, totals, 40);
@@ -438,7 +442,7 @@ if (snapshots.length > 1) {
   console.log(`${scenario} counts, minute ${snapshots[0].minute} to ${snapshots[snapshots.length - 1].minute}: batches ${first.instancedMeshes} -> ${end.instancedMeshes}, MeshStandardMaterial ${first.materials} -> ${end.materials}${fadedLine}, Mesh ${first.meshes} -> ${end.meshes}`);
 }
 // The verdict (round 47, lib/verdict.mjs): item 3 of "What to soak and how" on the snapshots, said in one line at the end.
-const verdict = judge({ minutes, snapshots: snapshots.map((s) => ({ minute: s.minute, bytes: s.bytes, code: s.code })), diff: firstRead && lastTotals && lastTotals.minute > firstRead.minute ? snapshotDiff(firstRead.totals.byName, lastTotals.totals.byName) : null });
+const verdict = judge({ minutes, snapshots: snapshots.map((s) => ({ minute: s.minute, bytes: s.bytes, code: s.code, rows: rowsAt.get(s.minute) })), diff: firstRead && lastTotals && lastTotals.minute > firstRead.minute ? snapshotDiff(firstRead.totals.byName, lastTotals.totals.byName) : null });
 for (const line of formatVerdict(verdict)) console.log(line);
 if (jsonOut)
   writeFileSync(

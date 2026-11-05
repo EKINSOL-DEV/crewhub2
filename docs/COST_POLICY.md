@@ -470,19 +470,23 @@ read:
 **3. The verdict, set before looking** (round 41's rule, the fit moved to the snapshots in round 46; write it in the
 report before the run):
 
-- **The fit: the snapshot total without `(code)`**, fitted by least squares over the window (the last 80 minutes of
-  a run of two hours or more; minutes 10 to 60 of an hour), rises under **0.2 MB an hour**; and
+- **The fit: the snapshot total without `(code)` and without the inspector's records** (the one class
+  `native blink::NetworkResourcesData::ResourceData`, by that exact name, nothing broader; round 62), fitted by least
+  squares over the window (the last 80 minutes of a run of two hours or more; minutes 10 to 60 of an hour), rises under
+  **0.2 MB an hour**; and
 - the JS-object part of the snapshot diff from the first snapshot to the last (arrays, strings, external string data,
   objects, closures, numbers, named constructors; not `(code)`, not the inspector's `NetworkResourcesData`, not V8's
   `native system /` bookkeeping) is at most **0.5 MB**.
 - **The numbers come from the tool's snapshots:** each snapshot's total (`snapshots[].bytes`, the `<n> MB in <k>
   nodes` line) minus its `(code)` row (`snapshots[].top`, always among the 40 largest kinds; the `(code)` line of
-  the snapshot table). A fit needs points: ask `--snapshots` for at least three minutes inside the window, one every
+  the snapshot table) and minus that class's row (the tool reads it from the whole sums, in or out of the 40). A fit
+  needs points: ask `--snapshots` for at least three minutes inside the window, one every
   10 to 30 minutes (an hour: `10,20,30,40,50,60`; three hours: `10,30,60,90,120,150,180`, which puts 120, 150 and 180
   in the window); every snapshot pauses the page about a second per 50 MB of heap, so its own sample is not a frame
   measurement.
 - **The tool prints the verdict** at the run's end (round 47, `tools/lib/verdict.mjs`), and the JSON keeps it as
-  `verdict`: the total, `(code)` and the total without code at each snapshot, the window marked; the fit; the JS
+  `verdict`: the total, `(code)`, the total without code and what the fit reads at each snapshot, the window marked;
+  the fit; the inspector's records on a line of their own (records, MB an hour over the window, bytes a record); the JS
   objects from the first snapshot to the last by kind (the kinds left out printed beside them) with the rows that moved
   most; the `(code)` rate in MB an hour against the ceiling, with each stretch between snapshots; the levelling test
   for a run over an hour; and one line, `verdict: levels off (…)`, `verdict: does not level off: <the rules> failed`,
@@ -491,7 +495,14 @@ report before the run):
   levelling test run from the first snapshot at or after minute 10 to the last, the halves split at the snapshot
   nearest the middle (round 46: 10 to 180, split at 90); a run of one to two hours takes minutes 10 to 60 as its
   window. Round 46's three potlings hours read through it: the fit 0.154 MB an hour, the JS objects 0.15 MB, `(code)`
-  0.51 MB an hour, the halves 0.94 and 0.13: levels off.
+  0.51 MB an hour, the halves 0.94 and 0.13: levels off (with its total without code: the numbers kept from that run
+  name no rows of the class, so nothing is left out and the next rule does not run on them).
+- **A ceiling on the inspector's record of its own: at most 1 KB (1024 bytes) a record**, so a page leak cannot hide
+  under that name. It reads the class's bytes a record at every snapshot from minute 10 on, and what each stretch
+  between two snapshots added per new record (at least one), so a leak that starts late is not diluted by the records
+  before it. Round 62's run read 288 in all seven snapshots and all six stretches. It bounds a record's size and not how
+  many there are: a host refetching far more often stays under it and shows only as a higher count and rate on the
+  class's line, so read that line.
 - **A ceiling on `(code)` of its own: at most 1.5 MB an hour** over the window, and, **for a run of more than an
   hour, a levelling test: the `(code)` rate over the second half of the window is at most the rate over the first
   half.** Where the ceiling sits: round 45's six demo hours (the four casts, then the potlings and the classic bots
@@ -514,6 +525,12 @@ report before the run):
 - History: until round 45 the first rule fitted the heap after GC (`Runtime.getHeapUsage`) under 0.2 MB an hour;
   round 45's pair 3 read 0.96 and 1.12 MB an hour on two casts with the JS objects flat and all of the rise in
   `(code)`, which is why the fit moved.
+- History, round 62: until then the fit kept the inspector's records. The two-hour soak of 5 November at `9cd4713f`
+  (ended 01:46; the fake, `small-team`, speed 4) read 0.461 MB an hour and failed, with the other rules passing: 0.441
+  of it was that class, about 107 records per loop of 288 bytes each. Without it the same five snapshots read 0.020,
+  so crewy took the class out of the fit by name and added the record ceiling above. That run logged no requests and had
+  no control without the inspector: the attribution rests on the rows' names and counts, and on this class having read
+  as one record per refetch since round 27.
 
 **4. How to name the holder.** In this order; stop when the holder is named.
 

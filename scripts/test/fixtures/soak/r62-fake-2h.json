@@ -1,0 +1,473 @@
+{
+ "about": "Round 62 two-hour soak at 9cd4713f (soak, 5 November 2026, end 01:45:56 by date; the in-process fake, small-team, speed 4): each snapshot total and (code) row, each snapshot's row of the inspector's records as [count, size], and the rows the first and last snapshots top-40 tables share as [name, count, size]. Derived from soak.json for the verdict tests; not a raw snapshot.",
+ "minutes": 120,
+ "snapshots": [
+  {
+   "minute": 12,
+   "bytes": 48423337,
+   "code": 12729888,
+   "records": [
+    346,
+    99648
+   ]
+  },
+  {
+   "minute": 20,
+   "bytes": 48819865,
+   "code": 12948096,
+   "records": [
+    562,
+    161856
+   ]
+  },
+  {
+   "minute": 40,
+   "bytes": 49716214,
+   "code": 13557556,
+   "records": [
+    1097,
+    315936
+   ]
+  },
+  {
+   "minute": 60,
+   "bytes": 50046690,
+   "code": 13754296,
+   "records": [
+    1632,
+    470016
+   ]
+  },
+  {
+   "minute": 80,
+   "bytes": 50419882,
+   "code": 13957268,
+   "records": [
+    2167,
+    624096
+   ]
+  },
+  {
+   "minute": 100,
+   "bytes": 50653727,
+   "code": 14021784,
+   "records": [
+    2704,
+    778752
+   ]
+  },
+  {
+   "minute": 120,
+   "bytes": 50838099,
+   "code": 14043244,
+   "records": [
+    3239,
+    932832
+   ]
+  }
+ ],
+ "first": [
+  [
+   "native system / JSArrayBufferData",
+   5216,
+   18678457
+  ],
+  [
+   "(code)",
+   98775,
+   12729888
+  ],
+  [
+   "native system / ExternalStringData",
+   442,
+   3361020
+  ],
+  [
+   "(string)",
+   112597,
+   1861992
+  ],
+  [
+   "array (object elements)",
+   24546,
+   1574404
+  ],
+  [
+   "Object",
+   50693,
+   1442960
+  ],
+  [
+   "(object shape)",
+   16987,
+   920732
+  ],
+  [
+   "array (object properties)",
+   448,
+   781748
+  ],
+  [
+   "(number)",
+   82845,
+   723840
+  ],
+  [
+   "Array",
+   33422,
+   534752
+  ],
+  [
+   "e",
+   15846,
+   407568
+  ],
+  [
+   "native system / FunctionTemplateInfo",
+   5163,
+   330304
+  ],
+  [
+   "array ",
+   1477,
+   329436
+  ],
+  [
+   "native system / WeakArrayList",
+   3165,
+   307208
+  ],
+  [
+   "ArrayBuffer",
+   5064,
+   263256
+  ],
+  [
+   "native blink::HeapHashTableBacking<blink::HashTable<std::pair<blink::String, blink::TextDirection>, blink::KeyValuePair<std::pair<blink::String, blink::TextDirection>, blink::FrameShapeCache::ShapeEntry>, blink::KeyValuePairExtractor, blink::HashMapValueTraits<blink::HashTraits<std::pair<blink::String, blink::TextDirection>>, blink::HashTraits<blink::FrameShapeCache::ShapeEntry>>, blink::HashTraits<std::pair<blink::String, blink::TextDirection>>, blink::HeapAllocator>>",
+   12,
+   245856
+  ],
+  [
+   "Float32Array",
+   3300,
+   198000
+  ],
+  [
+   "Z",
+   3111,
+   174216
+  ],
+  [
+   "native system / PropertyArray",
+   4932,
+   140868
+  ],
+  [
+   "native system / ArrayList",
+   210,
+   105348
+  ],
+  [
+   "native blink::StyleRule",
+   1448,
+   103616
+  ],
+  [
+   "native blink::NetworkResourcesData::ResourceData",
+   346,
+   99648
+  ],
+  [
+   "(concatenated string)",
+   4217,
+   84340
+  ],
+  [
+   "fo",
+   266,
+   79624
+  ],
+  [
+   "native blink::HeapHashTableBacking<blink::HashTable<std::pair<blink::String, blink::TextDirection>, blink::KeyValuePair<std::pair<blink::String, blink::TextDirection>, blink::FrameShapeCache::NodeEntry>, blink::KeyValuePairExtractor, blink::HashMapValueTraits<blink::HashTraits<std::pair<blink::String, blink::TextDirection>>, blink::HashTraits<blink::FrameShapeCache::NodeEntry>>, blink::HashTraits<std::pair<blink::String, blink::TextDirection>>, blink::HeapAllocator>>",
+   12,
+   73824
+  ],
+  [
+   "native blink::ImmutableCSSPropertyValueSet",
+   560,
+   64176
+  ],
+  [
+   "Jr",
+   392,
+   62572
+  ],
+  [
+   "native ArrayBuffer",
+   539,
+   62524
+  ],
+  [
+   "native WebGLBuffer",
+   780,
+   62400
+  ],
+  [
+   "Uint16Array",
+   953,
+   57180
+  ],
+  [
+   "dr",
+   998,
+   55888
+  ],
+  [
+   "X",
+   1905,
+   53372
+  ],
+  [
+   "native system / PropertyCell",
+   2568,
+   51360
+  ],
+  [
+   "native system / DoubleStringCache",
+   1,
+   49160
+  ],
+  [
+   "Float64Array",
+   747,
+   44820
+  ],
+  [
+   "closure ",
+   1542,
+   44564
+  ],
+  [
+   "native Float32Array",
+   372,
+   43152
+  ],
+  [
+   "native system / AccessorPair",
+   3508,
+   42096
+  ],
+  [
+   "native WebGLUniformLocation",
+   672,
+   37632
+  ],
+  [
+   "native blink::CSSVariableData",
+   597,
+   36720
+  ]
+ ],
+ "last": [
+  [
+   "native system / JSArrayBufferData",
+   5216,
+   18678459
+  ],
+  [
+   "(code)",
+   101854,
+   14043244
+  ],
+  [
+   "native system / ExternalStringData",
+   444,
+   3361072
+  ],
+  [
+   "(string)",
+   113438,
+   1872592
+  ],
+  [
+   "array (object elements)",
+   24655,
+   1577324
+  ],
+  [
+   "Object",
+   51304,
+   1463672
+  ],
+  [
+   "native blink::NetworkResourcesData::ResourceData",
+   3239,
+   932832
+  ],
+  [
+   "(object shape)",
+   17044,
+   923072
+  ],
+  [
+   "array (object properties)",
+   448,
+   787604
+  ],
+  [
+   "(number)",
+   83441,
+   728316
+  ],
+  [
+   "Array",
+   33566,
+   537056
+  ],
+  [
+   "e",
+   15918,
+   408872
+  ],
+  [
+   "native system / WeakArrayList",
+   3604,
+   403756
+  ],
+  [
+   "array ",
+   1478,
+   330352
+  ],
+  [
+   "native system / FunctionTemplateInfo",
+   5163,
+   330304
+  ],
+  [
+   "native blink::HeapHashTableBacking<blink::HashTable<std::pair<blink::String, blink::TextDirection>, blink::KeyValuePair<std::pair<blink::String, blink::TextDirection>, blink::FrameShapeCache::ShapeEntry>, blink::KeyValuePairExtractor, blink::HashMapValueTraits<blink::HashTraits<std::pair<blink::String, blink::TextDirection>>, blink::HashTraits<blink::FrameShapeCache::ShapeEntry>>, blink::HashTraits<std::pair<blink::String, blink::TextDirection>>, blink::HeapAllocator>>",
+   16,
+   327808
+  ],
+  [
+   "ArrayBuffer",
+   5064,
+   263256
+  ],
+  [
+   "Float32Array",
+   3300,
+   198000
+  ],
+  [
+   "Z",
+   3111,
+   174216
+  ],
+  [
+   "native system / PropertyArray",
+   4995,
+   141984
+  ],
+  [
+   "(concatenated string)",
+   5381,
+   107620
+  ],
+  [
+   "native system / ArrayList",
+   210,
+   105860
+  ],
+  [
+   "native blink::StyleRule",
+   1448,
+   103616
+  ],
+  [
+   "native blink::HeapHashTableBacking<blink::HashTable<std::pair<blink::String, blink::TextDirection>, blink::KeyValuePair<std::pair<blink::String, blink::TextDirection>, blink::FrameShapeCache::NodeEntry>, blink::KeyValuePairExtractor, blink::HashMapValueTraits<blink::HashTraits<std::pair<blink::String, blink::TextDirection>>, blink::HashTraits<blink::FrameShapeCache::NodeEntry>>, blink::HashTraits<std::pair<blink::String, blink::TextDirection>>, blink::HeapAllocator>>",
+   16,
+   98432
+  ],
+  [
+   "fo",
+   268,
+   80312
+  ],
+  [
+   "native blink::ImmutableCSSPropertyValueSet",
+   560,
+   64176
+  ],
+  [
+   "Jr",
+   392,
+   62572
+  ],
+  [
+   "native ArrayBuffer",
+   539,
+   62524
+  ],
+  [
+   "native WebGLBuffer",
+   780,
+   62400
+  ],
+  [
+   "Uint16Array",
+   953,
+   57180
+  ],
+  [
+   "dr",
+   998,
+   55888
+  ],
+  [
+   "X",
+   1923,
+   53876
+  ],
+  [
+   "native system / PropertyCell",
+   2568,
+   51360
+  ],
+  [
+   "native system / DoubleStringCache",
+   1,
+   49160
+  ],
+  [
+   "Float64Array",
+   747,
+   44820
+  ],
+  [
+   "closure ",
+   1533,
+   44312
+  ],
+  [
+   "native Float32Array",
+   372,
+   43152
+  ],
+  [
+   "native system / AccessorPair",
+   3508,
+   42096
+  ],
+  [
+   "native WebGLUniformLocation",
+   672,
+   37632
+  ],
+  [
+   "native blink::CSSVariableData",
+   597,
+   36720
+  ]
+ ]
+}
