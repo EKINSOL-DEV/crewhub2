@@ -397,7 +397,7 @@ export function createHostSource(options: HostSourceOptions = {}, tuning: HostSo
         send({ type: "threads", threads: message.threads });
         return "ok";
       case "town":
-        options.onTown?.(message.rev);
+        options.onTown?.(message.rev, message.op);
         return "ok";
       case "event": {
         const envelope = message.envelope;

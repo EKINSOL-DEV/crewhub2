@@ -4,9 +4,35 @@ import type { TextLine, Zone } from "@crewhub/world-model";
 export const ZONE_COLOR_NAMES: Record<string, string> = { coral: "Coral", tangerine: "Tangerine", circle: "Red", mist: "Mist", ink: "Ink" };
 export const ZONE_EMBLEM_NAMES: Record<string, string> = { home: "House", inbox: "Tray", bot: "Robot", spark: "Spark", users: "People", star: "Star", folder: "Folder" };
 
-/** How a zone is called where a name is needed: its own name, else what it is. */
+/**
+ * How a zone is called where a name is needed: its own name, else what it is. The buildings without a zone are
+ * "Old town", the name the region map's district card gives them (world/wayfinding.ts), so the sheet, Settings and
+ * the text view say the same (round 65, w6-5).
+ */
 export function zoneLabel(zone: Pick<Zone, "name" | "source">): string {
-  return zone.name ?? (zone.source === "default" ? "No zone" : "Unnamed zone");
+  return zone.name ?? (zone.source === "default" ? "Old town" : "Unnamed zone");
+}
+
+/** What "Add a zone" and "Remove this zone" say once done (round 65, w6-6), as the layout's moves say what they did. */
+export const zoneAddedWords = (name: string): string => `${name} added. Undo takes it away.`;
+export const zoneRemovedWords = (name: string): string => `${name} removed.`;
+
+/** What a zone part last said, and what must hold for it to stand: the zone there (added) or gone (removed). */
+export interface ZoneSaid {
+  text: string;
+  zoneId: string;
+  added: boolean;
+}
+export const zoneAddedSaid = (zoneId: string, name: string): ZoneSaid => ({ text: zoneAddedWords(name), zoneId, added: true });
+/** A hand-made zone removed; a group's zone only forgets its look and stays, which is no "removed": null. */
+export const zoneRemovedSaid = (zone: Pick<Zone, "id" | "name" | "source">): ZoneSaid | null => (zone.source === "town" ? { text: zoneRemovedWords(zoneLabel(zone)), zoneId: zone.id, added: false } : null);
+/**
+ * The line while what it describes holds, else "" (s1's review of w6-6): after Add and Undo it said "Zone 1 added…" with
+ * Zone 1 gone, and a second Add left the region unchanged, so a screen reader heard nothing. An undo here or in another
+ * browser clears it; the words coming back are a change in the region.
+ */
+export function zoneSaidShown(said: ZoneSaid | null, zoneIds: readonly string[]): string {
+  return said !== null && zoneIds.includes(said.zoneId) === said.added ? said.text : "";
 }
 
 export type ZoneReasonWord = "by hand" | "from its group in crewhub-loops" | "no zone";

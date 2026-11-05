@@ -4,6 +4,7 @@
    frame clock and the outlets that keep what is said beside the model. It reads no page, no environment and no store
    of its own, so a node test builds one over `createDemoSource` with a manual scheduler and a fake clock. */
 import { createHostSource, type ChatLine, type ChatThreadFact, type ConnectionStatus, type HostSourceOptions, type WorldSource } from "@crewhub/loops-client";
+import type { TownOpKind } from "@crewhub/loops-client";
 import { createDemoSource, createStressSource, type DemoSource, type Scheduler, type ScenarioId, type StressSize } from "@crewhub/demo";
 import {
   describeWorld,
@@ -101,7 +102,7 @@ type DemoLike = WorldSource & { readonly mode: "demo"; readonly playback: Playba
  * host's town revisions), the stress fixture (its chat dock a separate scripted demo), or the scenario's demo, which
  * is also the dock's.
  */
-export function worldSources(page: SourcePage, options: { scheduler: Scheduler; epochMs: number; firstSnapshot?: HostSourceOptions["firstSnapshot"]; onTown?: (rev: number) => void }): { source: WorldSource; chat: DemoSource | null } {
+export function worldSources(page: SourcePage, options: { scheduler: Scheduler; epochMs: number; firstSnapshot?: HostSourceOptions["firstSnapshot"]; onTown?: (rev: number, op?: TownOpKind) => void }): { source: WorldSource; chat: DemoSource | null } {
   if (page.live) {
     const { firstSnapshot, onTown } = options;
     return { source: createHostSource({ ...(firstSnapshot ? { firstSnapshot } : {}), ...(onTown ? { onTown } : {}) }), chat: null };

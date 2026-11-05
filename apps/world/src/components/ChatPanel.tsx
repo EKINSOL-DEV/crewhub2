@@ -14,9 +14,9 @@
    disclosure, a details element the keyboard and a screen reader reach; the list itself starts with its rows. */
 import { ExternalLink, X } from "lucide-react";
 import { useEffect, useId, useRef } from "react";
-import type { HostHealth } from "@crewhub/loops-client";
+import type { ConnectionState, HostHealth } from "@crewhub/loops-client";
 import { useT } from "../i18n";
-import { CHAT_FRAME_ALLOW, CHAT_FRAME_SANDBOX, chatFrameUrl } from "../state/chatPanel";
+import { CHAT_FRAME_ALLOW, CHAT_FRAME_SANDBOX, chatFrameUrl, chatStateLine } from "../state/chatPanel";
 import { chatGlance, chatWordsLine, type ChatRoadView } from "../state/chatRoad";
 import { RECENT_NOTE, type AnswerTarget } from "../state/recentAnswers";
 import type { Answer } from "../state/said";
@@ -29,6 +29,8 @@ interface Props {
   agent: { key: string; name: string } | null;
   /** The host's health, which names the loops web app (`loopsWebUrl`) the frame points at. */
   health: HostHealth | null;
+  /** The chip's state (round 65, w4-22): one line at the top of the panel while loops is down. */
+  connection: ConnectionState;
   /** The chat road (round 28): which road the bubbles come by, for the glance and "About this chat". */
   road: ChatRoadView;
   /** The whole screen (a phone) instead of a sheet at the right. */
@@ -41,7 +43,7 @@ interface Props {
   onClose: () => void;
 }
 
-export function ChatPanel({ agent, health, road, full, answers, recentEmpty, targetOf, onAnswer, onClose }: Props) {
+export function ChatPanel({ agent, health, connection, road, full, answers, recentEmpty, targetOf, onAnswer, onClose }: Props) {
   const { t } = useT();
   const id = useId();
   const close = useRef<HTMLButtonElement>(null);
@@ -52,6 +54,7 @@ export function ChatPanel({ agent, health, road, full, answers, recentEmpty, tar
   }, []);
   const src = chatFrameUrl(health, agent?.key ?? null);
   const app = loopsWebUrl(health);
+  const stateLine = chatStateLine(connection);
   return (
     <Card className={`world-sheet chat-sheet${full ? " chat-sheet-full" : ""}`} role="dialog" aria-modal="false" aria-labelledby={`${id}-title`} aria-describedby={`${id}-lead`} data-agent={agent?.key}>
       <Card.Header
@@ -60,6 +63,11 @@ export function ChatPanel({ agent, health, road, full, answers, recentEmpty, tar
         action={<Button ref={close} variant="ghost" size="sm" iconOnly aria-label={t("world.chat.panel.close")} title={t("world.chat.panel.closeHint")} icon={<X className="icon" aria-hidden="true" />} onClick={onClose} />}
       />
       <Card.Body className="chat-sheet-body">
+        {stateLine && (
+          <p className="chat-sheet-state" role="status" data-connection={connection}>
+            {stateLine}
+          </p>
+        )}
         <p className="chat-sheet-lead" id={`${id}-lead`}>
           <span className="chat-sheet-what">{agent ? t("world.chat.panel.whatWith", { name: agent.name }) : t("world.chat.panel.what")}</span>
           <span className="chat-sheet-todo">{chatGlance(road)}</span>

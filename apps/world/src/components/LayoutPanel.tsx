@@ -111,7 +111,7 @@ export function BuildLayout({ model, town, plan, inside }: { model: WorldModel; 
             <option value="">Choose a zone…</option>
             {zones.map((zone) => (
               <option key={zone.id} value={zone.id}>
-                {zone.id === DEFAULT_ZONE_ID && !zone.name ? "No zone (the town's own district)" : zoneLabel(zone)}
+                {zone.id === DEFAULT_ZONE_ID && !zone.name ? `${zoneLabel(zone)} (the town's own district)` : zoneLabel(zone)}
               </option>
             ))}
           </Field>

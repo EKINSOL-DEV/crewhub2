@@ -53,14 +53,45 @@ export async function run({ pass, page, check, out }) {
     const bubble2 = pg2.locator('.bubble.said[data-said-agent="g-man"]');
     await bubble2.waitFor({ timeout: 90000 }).catch(() => {});
     const said2 = (await bubble2.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+    // Walk finding w3-1 (round 65): the Chat chip counts the answers not opened yet, whatever the camera shows, and its
+    // accessible name says so; opening the panel reads them and the count goes (checked after the panel below).
+    const count2 = (await pg2.locator(".chat-open .chat-count").innerText().catch(() => "")).trim();
+    const chipName2 = (await pg2.locator(".chat-open").getAttribute("aria-label").catch(() => "")) ?? "";
+    ok("chat (w3-1): the Chat chip counts the one answer not opened yet and says it in its name", count2 === "1" && /1 new answer\.$/.test(chipName2), `count "${count2}"; name "${chipName2.slice(-40)}"`);
     ok("chat (key road): an agent's answer comes over the key's own stream and shows as a bubble, with no session anywhere", /Busy and calm/.test(said2) && fake2.sessionsOpen() === 0, said2.slice(0, 100) || `no bubble; host: ${lines2.slice(-4).join(" | ").slice(0, 200)}`);
     await shot(pg2, "58-chat-key-bubble");
+    // Walk finding w3-2 (round 65): at the town the figure's name pill is not drawn, so the bubble carries the speaker's
+    // name above its line; the title and the accessible name say it as before.
+    const name2 = (await bubble2.locator(".bubble-name").innerText().catch(() => "")).trim();
+    const pill2 = await pg2.locator('.agent-stack:has(.bubble.said[data-said-agent="g-man"]) .name-pill').count();
+    const nameAbove2 = await bubble2.evaluate((el) => { const n = el.querySelector(".bubble-name"); const t = el.querySelector(".bubble-text"); return !!n && !!t && n.getBoundingClientRect().bottom <= t.getBoundingClientRect().top + 1; }).catch(() => false);
+    // The name clear of the bubble's rounded corner (s1's review: the pill corner ran through the "G"), on a bubble of
+    // two lines or more: the name's top-left point lies inside the corner's arc, or past it.
+    const corner2 = await bubble2
+      .evaluate((el) => {
+        const n = el.querySelector(".bubble-name");
+        const t = el.querySelector(".bubble-text");
+        if (!n || !t) return null;
+        const b = el.getBoundingClientRect();
+        const nb = n.getBoundingClientRect();
+        const r = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0;
+        const x = nb.left - b.left;
+        const y = nb.top - b.top;
+        const lineHeight = parseFloat(getComputedStyle(t).lineHeight) || 13;
+        return { r, x: Math.round(x), y: Math.round(y), clear: x >= r || y >= r || (r - x) ** 2 + (r - y) ** 2 <= r * r, lines: Math.round(t.getBoundingClientRect().height / lineHeight) };
+      })
+      .catch(() => null);
+    ok("chat (w3-2): on a bubble of two lines or more the name stands clear of the rounded corner", corner2 !== null && corner2.lines >= 2 && corner2.clear, corner2 ? JSON.stringify(corner2) : "no name");
+    ok("chat (w3-2): at the town, with no name pill drawn, the bubble carries the speaker's name above its line", name2 === "G-Man" && pill2 === 0 && nameAbove2 && /^G-Man says: /.test((await bubble2.getAttribute("aria-label").catch(() => "")) ?? ""), `name "${name2}", pills ${pill2}, name above the line ${nameAbove2}`);
     await bubble2.click().catch(() => {});
     await pg2.waitForSelector(".chat-sheet", { timeout: 5000 }).catch(() => {});
     const agent2 = await pg2.locator(".chat-sheet").getAttribute("data-agent").catch(() => null);
     ok("chat (key road): a tap on the bubble opens the Chat panel on that agent", agent2 !== null && /g-man/.test(agent2), `data-agent ${agent2}`);
     await pg2.keyboard.press("Escape");
     await pg2.waitForSelector(".chat-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
+    const countAfter2 = await pg2.locator(".chat-open .chat-count").count();
+    const chipNameAfter2 = (await pg2.locator(".chat-open").getAttribute("aria-label").catch(() => "")) ?? "";
+    ok("chat (w3-1): the panel opened and closed, the count is gone and the chip's name is its plain hint again", countAfter2 === 0 && !/new answer/.test(chipNameAfter2), `counts ${countAfter2}; name "${chipNameAfter2.slice(-40)}"`);
     // Round 14: an agent inside a building answers (the fake's sendDm: the person writes to cr-lead, in the lead's office
     // of CrewHub World, and its scripted reply comes 8 s later). From the town the figure inside is not drawn, so a chat
     // mark stands over the building (in one row with the pin when the building has one), the text view carries the
@@ -94,6 +125,9 @@ export async function run({ pass, page, check, out }) {
     const answered = async (p, label) => {
       fake2.sendDm("cr-lead", `Is the reading nook done? (${label})`);
       const mark = p.locator('.chat-mark[data-said-mark="cr-lead"]');
+      // Walk finding w3-1: an answer from inside a building counts on the chip too (the camera may show no mark at all).
+      await p.waitForSelector(".chat-open .chat-count", { timeout: 20000 }).catch(() => {});
+      ok(`chat (w3-1, ${label}): the Chat chip counts the answer from inside the building`, (await p.locator(".chat-open .chat-count").innerText().catch(() => "")).trim() === "1", (await p.locator(".chat-open").getAttribute("aria-label").catch(() => "")) ?? "");
       await mark.waitFor({ timeout: 30000 }).catch(() => {});
       return mark;
     };
@@ -119,6 +153,7 @@ export async function run({ pass, page, check, out }) {
     const facts = await bubbleFacts(bubble3);
     await shot(pg2, "61-chat-bubble-wrapped");
     ok("chat (key road, round 14): the mark enters the building; the bubble there wraps to two or three lines (clamped at three, nothing cut off) and stands clear above the name label", (await level(pg2)) === "CrewHub World" && facts !== null && facts.whiteSpace === "normal" && facts.clamp === "3" && facts.lines >= 2 && facts.lines <= 3 && !facts.clipped && facts.label !== null && noOverlap(facts.bubble, facts.label) && facts.bubble.bottom <= facts.label.top, facts ? `${facts.lines} line(s), clamp ${facts.clamp}, clipped ${facts.clipped}, bubble bottom ${Math.round(facts.bubble.bottom)} vs label top ${facts.label ? Math.round(facts.label.top) : "none"}` : `no bubble inside; level ${await level(pg2)}`);
+    ok("chat (w3-2): inside, with the name pill drawn under the bubble, the bubble carries no name of its own", facts !== null && facts.label !== null && /CR Lead/.test(facts.label.text ?? "") && (await bubble3.locator(".bubble-name").count()) === 0, facts?.label ? `pill "${(facts.label.text ?? "").trim().slice(0, 30)}", names on the bubble ${await bubble3.locator(".bubble-name").count()}` : "no pill under the bubble");
     ok("chat (key road, round 14): the bubble's accessible name joins the line and the action without a double full stop", facts !== null && /^CR Lead says: \(demo reply\) .*\. Open CR Lead$/.test(facts.aria ?? "") && !/\.\./.test(facts.aria ?? "") && facts.title === (facts.aria ?? "").replace(/ Open CR Lead$/, ""), facts?.aria ?? "no bubble");
     await pg2.keyboard.press("Escape");
     await pg2.waitForFunction(() => !/CrewHub World/.test(document.querySelector("nav.world-breadcrumb .crumb-current")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});

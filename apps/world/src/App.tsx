@@ -1,4 +1,5 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type Ref } from "react";
+import { touchInput } from "./state/media";
 import { ArrowLeft, BookOpen, ChevronRight, CircleHelp, Eye, FlaskConical, Hammer, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Footprints, Scan, Search, Settings, Sun, Tags, X } from "lucide-react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { roleWords, ruleProps, zoningOf, type AgentPlacement, type CivicWords, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomWording, type TextLine, type WorldModel } from "@crewhub/world-model";
@@ -11,8 +12,11 @@ import { ConnectionChip, connectionLine, connectionWord } from "./components/Con
 import { ConnectionPanel } from "./components/ConnectionPanel";
 import { ChatPanel } from "./components/ChatPanel";
 import { Tour } from "./components/Tour";
+import { rememberFocus, takeFocus } from "./state/afterReload";
 import { nextAnnouncement } from "./state/announce";
-import { sceneOwnsKey } from "./state/sceneKeys";
+import { cameraWords } from "./state/cameraWords";
+import { connectionSentence, takeConnected } from "./state/connectSaid";
+import { escapeLayer, sceneOwnsKey } from "./state/sceneKeys";
 import { INTRODUCTION_URL, readTourDone, tourShouldStart, writeTourDone } from "./state/tour";
 import { chatPlaceLine, recentEmptyWords } from "./state/chatRoad";
 import { FirstSnapshot } from "./components/FirstSnapshot";
@@ -44,7 +48,7 @@ import { toggleFps } from "./state/fps";
 import { readRoleOverrides, writeRoleOverrides } from "./state/roleOverrides";
 import { useBuildMode } from "./state/build";
 import { useDark, useTheme } from "./state/theme";
-import { townRuntime, useChat, useChatRoad, useConnection, useConnectionKey, useDirectorFeed, useRecentAnswers, useSaid, useTown, useWorld, worldRuntime } from "./state/runtimes";
+import { chatStores, townRuntime, useChat, useChatRoad, useConnection, useConnectionKey, useDirectorFeed, useRecentAnswers, useSaid, useTown, useUnreadAnswers, useWorld, worldRuntime } from "./state/runtimes";
 import type { TownLayer } from "./world/propLayer";
 import { pageConfig } from "./state/page";
 import { translate } from "./i18n";
@@ -52,7 +56,7 @@ import type { ConnectionState } from "@crewhub/loops-client";
 import type { Pick } from "./world/buildingView";
 import { roomName } from "./world/roomWords";
 import { useBuildingPlan } from "./state/buildingPlan";
-import { dialogIsOpen, useOverlays } from "./state/overlays";
+import { dialogIsOpen, tourTakesEscape, useOverlays } from "./state/overlays";
 import { DirectorLog } from "./components/DirectorLog";
 import { PresenceSettings } from "./components/PresenceSettings";
 import { WhereForm } from "./components/WhereForm";
@@ -120,6 +124,11 @@ function World() {
   const { text: textOpen, settings: settingsOpen, connection: connectionOpen, tour: tourOpen, jump: jumpOpen, chat: chatOpen, editor: editorOpen } = overlayState.open;
   // The introduction inside the world (round 20): open by itself once per browser, or from Settings and the "?" menu.
   const tourAsked = useRef(false);
+  // A page the Demo chip's menu loaded (a scenario chosen) gives the chip the focus back (round 65, w5-18): the note is
+  // this tab's and taken once, so a plain reload focuses nothing, as before.
+  useEffect(() => {
+    if (takeFocus(() => globalThis.sessionStorage) === "demo-chip") document.querySelector<HTMLElement>(".demo-chip")?.focus();
+  }, []);
   const [announcement, setSpoken] = useState("");
   // The same sentence twice is heard twice (state/announce.ts, round 50 N3); one function for the page's life.
   const setAnnouncement = useCallback((text: string) => setSpoken((before) => nextAnnouncement(before, text)), []);
@@ -180,6 +189,9 @@ function World() {
   }, [town.hostRev]);
   // The civic places go by what stands there at this size: the lodge, the mailbox, the mail hut.
   const civic = useMemo(() => civicWords(plan.civic), [plan.civic.hall, plan.civic.post]);
+  // The answers not opened yet (round 65, w3-1 and w3-4): opening the chat (the panel, or the card in the demo) reads
+  // every answer known, and an answer that comes while the panel is open is read as it lands.
+  const unread = useUnreadAnswers();
   // What the agents just said to the person (round 12, state/said.ts): bubbles over the figures, and (round 14) the text
   // view's "says" lines and the chat marks over the buildings from the town.
   const said = useSaid();
@@ -235,7 +247,7 @@ function World() {
   // keeps the ref and the state, says the sentence, and closes the page's overlay the view asks closed.
   const dispatch = useStable((intent: ViewIntent): ViewStep => {
     const before = viewRef.current;
-    const step = stepView(before, intent, { model, districts, plan, rooms });
+    const step = stepView(before, intent, { model, districts, plan, rooms, touch: touchInput() });
     if (step.view !== before) {
       viewRef.current = step.view;
       setView(step.view);
@@ -285,6 +297,7 @@ function World() {
   // page's chat (state/chat.ts) says: the agent's card in the demo, whose chat is its scripted dock, or the Chat panel,
   // whose Escape and close button return the focus to the opener.
   const openChat = useStable((key: string | null) => {
+    chatStores.unread.read();
     const opening = talk.open(key);
     if ("card" in opening) {
       if (opening.card !== null) pick({ kind: "agent", key: opening.card }, false);
@@ -295,6 +308,9 @@ function World() {
     setAnnouncement(translate("world.chat.panel.announce"));
   });
   const closeChat = useCallback(() => overlays.close("chat"), []);
+  useEffect(() => {
+    if (chatOpen) chatStores.unread.read();
+  }, [chatOpen, answers]);
   const openAnswer = useStable((_a: Answer, target: AnswerTarget) => openChat(target.agent?.key ?? null));
 
   const openText = useCallback(() => overlays.open("text"), []);
@@ -337,8 +353,9 @@ function World() {
   // Keys that work anywhere outside a text field: T, Escape and Backspace, and the camera keys. The handler is this
   // render's; the window listener is added once and calls the latest one (state/windowKeys.ts, round 32).
   useWindowKeydown((e: KeyboardEvent) => {
-    // The introduction: Escape skips it wherever the focus is (the card handles it itself while the focus is inside).
-    if (tourOpen && e.key === "Escape" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    // The introduction: Escape skips it wherever the focus is (the card handles it itself while the focus is inside),
+    // unless a dialog stands over it: that one holds the focus and takes Escape first (state/overlays.ts, w2-1).
+    if (tourTakesEscape(overlayState) && e.key === "Escape" && !e.ctrlKey && !e.metaKey && !e.altKey) {
       e.preventDefault();
       closeTour();
       return;
@@ -384,14 +401,18 @@ function World() {
       openJump();
       return;
     }
-    if (build.key(e)) {
+    // Round 65 (w6-7): Escape closes the layer that holds the focus. With the focus in the text view, the text view
+    // closes before build mode's drag, selection or chosen prop, and before build mode itself (state/view.ts `focus`).
+    const focusLayer = e.key === "Escape" ? escapeLayer(e.target instanceof Element ? e.target : null) : null;
+    if (!(focusLayer === "text" && textOpen) && build.key(e)) {
       e.preventDefault();
       return;
     }
     if (e.key === "Escape") {
-      // The view's Escape chain (state/view.ts), innermost first: the walk, build mode, the text view, the follow, the
-      // card, the selection, the zoomed room, the building, the district. Nothing left: the key is nobody's.
-      if (dispatch({ type: "escape", open: { text: textOpen, build: build.state.on } }).handled) e.preventDefault();
+      // The view's Escape chain (state/view.ts), innermost first: the walk, the text view when the focus is in it,
+      // build mode, the text view, the follow, the card, the selection, the zoomed room, the building, the district.
+      // Nothing left: the key is nobody's.
+      if (dispatch({ type: "escape", open: { text: textOpen, build: build.state.on }, focus: focusLayer }).handled) e.preventDefault();
       return;
     }
     if (e.key.toLowerCase() === "w" && !graphicsFailed && !build.state.on && !textOpen && !settingsOpen && !selection.selected) {
@@ -432,6 +453,8 @@ function World() {
     if (cameraAction) {
       e.preventDefault();
       camera(cameraAction);
+      // Said, as D and F are (round 65, w5-6): the toolbar's buttons say their names and stay silent.
+      setAnnouncement(cameraWords(cameraAction));
     }
   });
 
@@ -448,11 +471,14 @@ function World() {
   const demo = model.mode === "demo";
   const connection = useConnection();
   // A change of the connection's state (Live, Loops down, Catching up, Stream busy, back to Live) is said once in the live
-  // region: the chip changes its word, and a screen reader would otherwise hear nothing. Not the first value on load.
+  // region: the chip changes its word, and a screen reader would otherwise hear nothing. Not the first value on load,
+  // except right after a connect (round 65, w5-22): the Connect screen said the check started, the town says its end.
   const spokenConnection = useRef<ConnectionState | null>(null);
   useEffect(() => {
-    if (spokenConnection.current !== null && connection !== null && spokenConnection.current !== connection)
-      setAnnouncement(translate("world.connection.changed", { state: connectionWord(connection), hint: translate(`world.connection.hint.${connection}`) }));
+    const justConnected = connection === "live" && takeConnected();
+    const sentence = connectionSentence(justConnected, spokenConnection.current, connection);
+    if (sentence === "connected" && connection !== null) setAnnouncement(translate("world.connection.connected", { state: connectionWord(connection) }));
+    else if (sentence === "changed" && connection !== null) setAnnouncement(translate("world.connection.changed", { state: connectionWord(connection), hint: translate(`world.connection.hint.${connection}`) }));
     spokenConnection.current = connection;
   }, [connection]);
   // The text view's Chat line and the Chat panel's small print say the chat session's state (round 14): one health read
@@ -510,6 +536,10 @@ function World() {
 
       <CornerTools theme={theme} cycle={cycle} details={details} buildOn={build.state.on} toggleBuild={build.toggle} settingsOpen={settingsOpen} openSettings={openSettings} closeSettings={closeSettings} graphicsFailed={graphicsFailed} openTour={openTour} openText={openText} />
 
+      {/* The live Chat chip stands under Settings and follows it in the Tab order (round 65, w5-17); the demo's dock at the
+          bottom right comes after the scene, as it is seen. */}
+      {!demo && <ChatCorner narrow={narrow} demo={demo} connection={connection} chatOpen={chatOpen} unread={unread.length} onOpenChat={() => openChat(null)} />}
+
       <main className="world-stage" onKeyDown={sceneKey} aria-label="CrewHub World">
         {graphicsFailed ? null : (
           <SceneBoundary onError={() => setGraphicsFailed(true)}>
@@ -538,7 +568,7 @@ function World() {
 
       {connectionOpen && connection && <ConnectionPanel state={connection} onClose={closeConnection} />}
 
-      {chatOpen && <ChatPanel agent={chatAgent} health={hostHealth} road={chatRoad} full={narrow} answers={answers} recentEmpty={recentEmptyWords("live", chatRoad)} targetOf={talk.answerTarget} onAnswer={openAnswer} onClose={closeChat} />}
+      {chatOpen && <ChatPanel agent={chatAgent} health={hostHealth} connection={connection ?? "connecting"} road={chatRoad} full={narrow} answers={answers} recentEmpty={recentEmptyWords("live", chatRoad)} targetOf={talk.answerTarget} onAnswer={openAnswer} onClose={closeChat} />}
 
       {jumpOpen && <JumpList entries={jumps} onJump={jump} onClose={closeJump} onActive={jumpActive} />}
 
@@ -600,7 +630,7 @@ function World() {
 
       {!graphicsFailed && <CameraToolbar camera={camera} walking={walking} toggleWalk={walking ? stopWalk : build.state.on ? null : startWalk} />}
 
-      <ChatCorner narrow={narrow} demo={demo} connection={connection} chatOpen={chatOpen} onOpenChat={() => openChat(null)} />
+      {demo && <ChatCorner narrow={narrow} demo={demo} connection={connection} chatOpen={chatOpen} unread={unread.length} onOpenChat={() => openChat(null)} />}
 
       {playback && <PlaybackBar playback={playback} />}
 
@@ -690,6 +720,8 @@ const SPEEDS: readonly { speed: PlaybackSpeed; label: string }[] = [
 /* The chrome around the scene, memoised: the world model changes many times a second under load, and none of these show
    it, so they render only when their own props change. */
 const SCENARIO_CHOICES = pageConfig().scenarioChoices;
+/** What the picker says of a choice, as Settings › Source does (i18n `world.source.hint.fixed`'s second sentence). */
+const SCENARIO_RELOADS = "Changing it reloads the page.";
 
 const Corner = memo(function Corner({
   demo,
@@ -738,7 +770,8 @@ const Corner = memo(function Corner({
               className: "demo-chip",
               icon: <FlaskConical className="icon" aria-hidden="true" />,
               label: <span className="demo-word">Demo: {scenario}</span>,
-              ariaLabel: `Demo: scripted data. Scenario: ${scenario}. Choose a scenario`,
+              // Said with the chip, as Settings › Source's hint is with its select (round 65, w5-18).
+              ariaLabel: `Demo: scripted data. Scenario: ${scenario}. Choose a scenario; ${SCENARIO_RELOADS.toLowerCase()}`,
             }}
             items={[
               { group: "Demo scenario" },
@@ -747,9 +780,17 @@ const Corner = memo(function Corner({
                 value: choice.id,
                 hint: choice.summary,
                 checked: choice.current,
-                // Each scenario is its own page (its own source and town document): choosing one loads it.
-                onSelect: () => !choice.current && globalThis.location.assign(choice.href),
+                // Each scenario is its own page (its own source and town document): choosing one loads it, and the chip
+                // takes the focus once that page is back (round 65, w5-18).
+                onSelect: () => {
+                  if (choice.current) return;
+                  rememberFocus(() => globalThis.sessionStorage, "demo-chip");
+                  globalThis.location.assign(choice.href);
+                },
               })),
+              { separator: true },
+              // The same sentence Settings › Source shows under its select (round 65, w5-18).
+              { group: SCENARIO_RELOADS },
             ]}
           />
         )}
@@ -888,17 +929,27 @@ const CameraToolbar = memo(function CameraToolbar({ camera, walking, toggleWalk 
 /* In demo mode the copied dock and its "replies are scripted" note; in live mode the Chat chip, which opens the Chat
    panel: crewhub-loops' own chat framed in the world (components/ChatPanel; a session cookie never reaches the world,
    the frame carries the person's own). */
-const ChatCorner = memo(function ChatCorner({ narrow, demo, connection, chatOpen, onOpenChat }: { narrow: boolean; demo: boolean; connection: ConnectionState | null; chatOpen: boolean; onOpenChat: () => void }) {
+const ChatCorner = memo(function ChatCorner({ narrow, demo, connection, chatOpen, unread, onOpenChat }: { narrow: boolean; demo: boolean; connection: ConnectionState | null; chatOpen: boolean; /** The answers not opened yet (round 65, w3-1): a count on the chip, whatever the camera shows. */ unread: number; onOpenChat: () => void }) {
   // Round 64 (w5-8): the copied dock disables its box and Send while a message goes, which drops the focus to the body; the guard (state/dockFocus) brings it back.
   useEffect(() => (demo ? attachSendFocusGuard(document) : undefined), [demo]);
-  if (!demo)
+  if (!demo) {
+    const hint = translate("world.chat.openHint");
+    const name = unread === 0 ? hint : `${hint} ${unread === 1 ? translate("world.chat.unread.one") : translate("world.chat.unread.many", { count: String(unread) })}`;
     return (
-      <div className="world-chat" data-chrome="">
-        <button type="button" className="chip-button chat-open" title={translate("world.chat.openHint")} aria-label={translate("world.chat.openHint")} aria-expanded={chatOpen} aria-haspopup="dialog" data-connection={connection ?? undefined} onClick={onOpenChat}>
-          <Chip className="demo-chat-chip" icon={<MessageCircle className="icon" aria-hidden="true" />}>{translate("world.chat.open")}</Chip>
+      <div className="world-chat world-chat-live" data-chrome="">
+        <button type="button" className="chip-button chat-open" title={name} aria-label={name} aria-expanded={chatOpen} aria-haspopup="dialog" data-connection={connection ?? undefined} onClick={onOpenChat}>
+          <Chip className="demo-chat-chip" icon={<MessageCircle className="icon" aria-hidden="true" />}>
+            {translate("world.chat.open")}
+            {unread > 0 && (
+              <span className="chat-count" aria-hidden="true">
+                {unread}
+              </span>
+            )}
+          </Chip>
         </button>
       </div>
     );
+  }
   return (
     <div className="world-chat" data-chrome="">
       <Bubbles narrow={narrow} />
@@ -916,17 +967,33 @@ function usePlaybackValue<T extends string | number>(playback: PlaybackControls,
 
 /* The speed buttons change rarely; the position ticks every second of script time (16 a second at 16x). They subscribe
    apart, so the ticking time does not re-render the buttons. */
+/* Below this width the speeds are one menu button (round 65, w4-10): four buttons took a phone's bar and left the slider
+   88 px, 11 s of story a pixel. */
+const COMPACT_BAR = "(max-width: 599px)";
+
 const PlaybackBar = memo(function PlaybackBar({ playback }: { playback: PlaybackControls }) {
   const speed = usePlaybackValue(playback, () => playback.speed()) as PlaybackSpeed;
+  const compact = useMedia(COMPACT_BAR);
+  const current = SPEEDS.find((s) => s.speed === speed) ?? SPEEDS[1]!;
   return (
     <section className="playback-bar" aria-label="Demo playback" data-chrome="">
-      <div className="segmented playback-speeds" role="group" aria-label="Playback speed">
-        {SPEEDS.map((s) => (
-          <Button key={s.speed} size="sm" className="btn-segmented" pressed={speed === s.speed} aria-label={s.speed ? `Play at ${s.label}` : "Pause"} onClick={() => playback.setSpeed(s.speed)}>
-            {s.speed ? s.label : <Pause className="icon" aria-hidden="true" />}
-          </Button>
-        ))}
-      </div>
+      {compact ? (
+        <Menu
+          name="Playback speed"
+          className="playback-speed-menu"
+          initialFocus="checked"
+          trigger={{ variant: "ghost", size: "sm", ariaLabel: `Playback speed: ${current.label}`, label: current.speed ? current.label : <Pause className="icon" aria-hidden="true" /> }}
+          items={SPEEDS.map((s) => ({ label: s.label, checked: speed === s.speed, onSelect: () => playback.setSpeed(s.speed) }))}
+        />
+      ) : (
+        <div className="segmented playback-speeds" role="group" aria-label="Playback speed">
+          {SPEEDS.map((s) => (
+            <Button key={s.speed} size="sm" className="btn-segmented" pressed={speed === s.speed} aria-label={s.speed ? `Play at ${s.label}` : "Pause"} onClick={() => playback.setSpeed(s.speed)}>
+              {s.speed ? s.label : <Pause className="icon" aria-hidden="true" />}
+            </Button>
+          ))}
+        </div>
+      )}
       <PlaybackPosition playback={playback} />
     </section>
   );
@@ -954,9 +1021,12 @@ function PlaybackPosition({ playback }: { playback: PlaybackControls }) {
         {position}
         <span className="playback-duration"> / {duration}</span>
       </span>
-      <span className="playback-loop" title="How many times the script has looped">
-        loop {loop}
-      </span>
+      {/* "loop 0" read as a code on first start (round 65, w1-18): the count shows once the script has looped. */}
+      {loop > 0 && (
+        <span className="playback-loop" title="How many times the script has looped">
+          loop {loop}
+        </span>
+      )}
     </>
   );
 }

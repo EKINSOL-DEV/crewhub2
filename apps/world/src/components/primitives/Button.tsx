@@ -12,7 +12,7 @@ interface ButtonOwn {
   size?: "md" | "sm";
   /** Leading icon element, e.g. `<Icon name="plus" size="sm" />`. */
   icon?: ReactNode;
-  /** Keyboard hint after the label (`.btn-kbd`). */
+  /** Keyboard hint after the label (`.btn-kbd`); visual only, never part of the name (the keys are in the stage's guide). */
   kbd?: string;
   className?: string;
   children?: ReactNode;
@@ -46,7 +46,11 @@ export function Button(props: ButtonProps) {
     <>
       {icon}
       {iconOnly ? null : children}
-      {kbd ? <span className="btn-kbd">{kbd}</span> : null}
+      {kbd ? (
+        <span className="btn-kbd" aria-hidden="true">
+          {kbd}
+        </span>
+      ) : null}
     </>
   );
   if (rest.href !== undefined)

@@ -281,6 +281,14 @@ export interface FreeLot {
   /** The district's next free lot: where its zone's next project would go. */
   next: boolean;
 }
+/**
+ * The free lots drawn as markers while a building is picked up (round 65, w6-14): at the Region level only each
+ * district's next free lot (fourteen a district piled over the district cards); inside a district every one.
+ */
+export function lotsShown<T extends { next: boolean }>(lots: readonly T[], regionLevel: boolean): T[] {
+  return regionLevel ? lots.filter((lot) => lot.next) : [...lots];
+}
+
 /** Every free lot of the districts in use, district by district in growth order. */
 export function freeLots(plan: TownPlan, plots: readonly { cell: GridCell }[]): FreeLot[] {
   const taken = new Set(plots.map((p) => lotKey(p.cell)));

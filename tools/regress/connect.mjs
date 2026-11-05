@@ -88,6 +88,15 @@ export async function run({ pass, page, check, out }) {
       await shot(pg, "34-connect-no-loops");
       await stub.setState("pair");
       const pair = await screen(pg, "pair");
+      // Walk finding w2-7 (round 65): "I opened the link" pressed before any link was opened says so under the button
+      // once the host has answered again (the stub still says pair), in a polite live region; before the press it is silent.
+      const stillBefore = (await pg.locator(".pair-still").innerText().catch(() => "")).trim();
+      await pg.getByRole("button", { name: "I opened the link" }).click().catch(() => {});
+      await pg.waitForFunction(() => (document.querySelector(".pair-still")?.textContent ?? "").trim().length > 0, null, { timeout: 5000 }).catch(() => {});
+      const stillAfter = (await pg.locator(".pair-still").innerText().catch(() => "")).trim();
+      const stillLive = await pg.locator('.pair-still[role="status"]').count();
+      await shot(pg, "34b-connect-pair-still-unpaired");
+      ok("connect (w2-7): I opened the link, pressed with no link opened, says the browser is still not paired under the button, said politely", stillBefore === "" && stillAfter === "This browser is still not paired: open the link npm run world printed first." && stillLive === 1, `before "${stillBefore}"; after "${stillAfter}"; live regions ${stillLive}`);
       const pairBody = (await pg.locator(".connect-page").innerText().catch(() => "")).replace(/\s+/g, " ");
       ok("connect: Pair this browser names npm run world and never a link", pair && /Pair this browser/.test(pairBody) && /npm run world/.test(pairBody) && !/\/pair\//.test(pairBody), pairBody.slice(0, 120));
       await stub.setState("connect");
@@ -121,6 +130,10 @@ export async function run({ pass, page, check, out }) {
       const live = await until(pg, "live", 30000);
       const marker = await marked(pg);
       ok("connect: the town appears with the Live chip, without a reload", live === "live" && marker === "set", `${live}, marker ${marker}`);
+      // The town that follows the accepted key says it is live, once (round 65, w5-22): before, only "Opening CrewHub…" after "Key sent to the host…".
+      await pg.waitForTimeout(800);
+      const saidLive = (await pg.locator("[aria-live=polite]").allInnerTexts()).join(" ").replace(/\s+/g, " ").trim();
+      ok("connect: the connection is said once the town is live (w5-22)", /Connected: Live\./.test(saidLive), saidLive.slice(-80));
       await dressed(pg, 30000).catch(() => {});
       await shot(pg, "38-connect-town");
       ok("connect: the key is in no DOM, storage or URL", !(await leaked(pg, GOOD_KEY)));

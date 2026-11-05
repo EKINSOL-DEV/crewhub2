@@ -55,6 +55,8 @@ export interface TownView {
   entered: string | null;
   /** Where every building stands and how large the settlement is (townPlan.ts). */
   plan: TownPlan;
+  /** The build sheet is open: framing keeps its subject beside it (w6-15). */
+  sheetOpen?: boolean | undefined;
   /** Free lots to anchor a label on (`lot:x,z`): the plots a picked-up building can move to (build mode). */
   lotAnchors?: readonly { x: number; z: number }[] | undefined;
   /** Index (in `model.buildings`) of the building with the keyboard focus ring. */
@@ -204,6 +206,8 @@ const CIVIC_LAWN = CIVIC_LOT;
    side of the town behind the near plane, where they were cut into shards. Zoom does the framing; this stays fixed. */
 const CAMERA_DISTANCE = 220;
 const HOME_OFFSET = new THREE.Vector3(1, 1.04, 1).normalize().multiplyScalar(CAMERA_DISTANCE);
+/* After a jump to a figure on a portrait phone the camera keeps it where it landed for this long (round 65, w4-11). */
+const JUMP_TRACK_MS = 6000;
 const UP = new THREE.Vector3(0, 1, 0);
 /* Framing heights: a building is seen up to its tall back walls, a room up to its people and desks. */
 /** Built interiors kept for a quick enter: the entered building's and the two most recently used others. */
@@ -290,6 +294,10 @@ interface Insets {
 const NO_INSETS: Insets = { top: 0, bottom: 0, left: 0, right: 0 };
 const CHROME: Insets = { top: 104, bottom: 84, left: 24, right: 76 };
 const PHONE_CHROME: Insets = { top: 156, bottom: 76, left: 12, right: 60 };
+/* The build sheet's right edge and a gap (world.css `.build-sheet`: 1rem from the left, 20rem wide). Up to 600 px it lies
+   along the bottom instead and frames nothing. Round 65, w6-15. */
+const SHEET_RIGHT = 348;
+const SHEET_BESIDE_MIN_WIDTH = 600;
 
 export class TownScene {
   readonly renderer: THREE.WebGLRenderer;
@@ -438,6 +446,8 @@ export class TownScene {
   #fitKey = "";
   /** True while the camera shows the home frame: a visitor who moved it is left alone when the town grows. */
   #atHome = true;
+  /** The camera stands where a person or a jump put it, not on a frame: the sheet's opening does not pull it away. */
+  #placed = false;
   /** Buildings holding a built interior, most recently used last (buildingView.ts prepareInterior). */
   #interiors: string[] = [];
   #cancelPrepare: (() => void) | null = null;
@@ -464,6 +474,8 @@ export class TownScene {
   #dragging = false;
   /** The agent the camera follows (TownScene.follow), the level last asked of the app, and the zoom it settles on. */
   #following: string | null = null;
+  /** A jump's landing on a figure (`flyToAnchor`): its label anchor, where it last stood, and until when. */
+  #landing: { id: string; last: THREE.Vector3; until: number } | null = null;
   #followAsked: string | null | undefined = undefined;
   #followZoom: number | null = null;
   #portraitCamera: THREE.OrthographicCamera | null = null;
@@ -1202,6 +1214,13 @@ export class TownScene {
       hall = civicCenter("town-hall");
     this.#anchors.set("c:post-office", new THREE.Vector3(post.x, 0.2, post.z + CIVIC_LAWN / 2));
     this.#anchors.set("c:town-hall", new THREE.Vector3(hall.x, 0.2, hall.z + CIVIC_LAWN / 2));
+    // The clearing's staked plot carries a sign in words (`c:staked`, round 65, w1-19), in front of its lot as a
+    // building's sign stands in front of its plot.
+    const staked = this.view.plan.staked;
+    if (staked) {
+      const c = lotCentre(staked);
+      this.#anchors.set("c:staked", new THREE.Vector3(c.x, 0.2, c.z + PLOT_SIZE / 2));
+    } else this.#anchors.delete("c:staked");
     if (signature !== this.#civicSignature) {
       this.#civicSignature = signature;
       this.#shadowDirty = true;
@@ -1395,6 +1414,10 @@ export class TownScene {
       // A room focus or a district change under a follow does not pull the camera away either.
     } else if (view.entered && previous.zoomed !== view.zoomed) this.frameBuilding(view.entered, view.zoomed);
     else if (!view.entered && (previous.district ?? null) !== (view.district ?? null)) this.#frameOutside();
+    else if (!previous.sheetOpen !== !view.sheetOpen && !this.#placed) {
+      if (view.entered) this.frameBuilding(view.entered, view.zoomed);
+      else this.#frameOutside();
+    }
     if (previous.walk && !walking) this.#endWalk(previous.walk);
     this.#life.configure({ ambient: view.ambient, reducedMotion: view.reducedMotion, quality: view.quality });
     if (previous.theme !== view.theme || previous.quality !== view.quality || previous.reducedMotion !== view.reducedMotion || previous.dayNight !== view.dayNight) this.#drift();
@@ -1427,8 +1450,8 @@ export class TownScene {
     return this.frameRects([bounds], height, this.#v.copy(this.camera.position).sub(this.controls.target)).span;
   }
 
-  /** The chrome over the canvas at its current size. */
-  insets(): Insets {
+  /** The chrome over the canvas at its current size; with `sheet`, the open build sheet too. */
+  insets(sheet = true): Insets {
     const canvas = this.renderer.domElement;
     const width = canvas.clientWidth,
       height = canvas.clientHeight;
@@ -1438,7 +1461,8 @@ export class TownScene {
     const fit = (a: number, b: number, size: number) => Math.min(1, size / 3 / Math.max(1, a + b));
     const fy = fit(chrome.top, chrome.bottom, height),
       fx = fit(chrome.left, chrome.right, width);
-    return { top: chrome.top * fy, bottom: chrome.bottom * fy, left: chrome.left * fx, right: chrome.right * fx };
+    const left = chrome.left * fx;
+    return { top: chrome.top * fy, bottom: chrome.bottom * fy, left: sheet && this.view.sheetOpen && width > SHEET_BESIDE_MIN_WIDTH ? Math.max(left, SHEET_RIGHT) : left, right: chrome.right * fx };
   }
 
   /**
@@ -1487,10 +1511,10 @@ export class TownScene {
    * The home frame. On a portrait phone it frames tight (`homeRects` compact) and lets the town run under the side
    * controls, so the town fills the tall screen instead of floating small in its middle.
    */
-  #homeFrame() {
+  #homeFrame(sheet = true) {
     const canvas = this.renderer.domElement;
     const portrait = canvas.clientWidth < canvas.clientHeight * 0.8;
-    let insets = this.insets();
+    let insets = this.insets(sheet);
     // A region's districts carry a card above their far corner: the frame keeps headroom for the topmost one.
     if ((this.view.districts?.length ?? 0) > 1) insets = { ...insets, top: insets.top + (canvas.clientWidth < NARROW_CANVAS ? DISTRICT_CARD.phone : DISTRICT_CARD.desktop) };
     const rects = FIXED_FRAME ? [FIXED_FRAME] : homeRects(this.view.plan, portrait ? 0 : 1.5, portrait);
@@ -1503,9 +1527,11 @@ export class TownScene {
   }
 
   home(immediate: boolean) {
-    const { target } = this.#homeFrame();
+    const { target, span } = this.#homeFrame();
     this.#atHome = true;
-    this.moveTo(target, target.clone().add(HOME_OFFSET), 1, immediate);
+    // Zoom 1 is the home frame without the sheet (`resize`); beside an open sheet the town fits a smaller free area.
+    this.moveTo(target, target.clone().add(HOME_OFFSET), this.view.sheetOpen ? THREE.MathUtils.clamp(this.#span / span, this.controls.minZoom, 1) : 1, immediate);
+    this.#placed = false;
   }
 
   /** One pickable box per building, on its lot; `userData.plot` is the building's index in the model. */
@@ -1585,6 +1611,7 @@ export class TownScene {
       : this.frameRects([bounds], room ? ROOM_FRAME_HEIGHT : BUILDING_FRAME_HEIGHT, direction, insets, room ? 1.06 : 1.02);
     const offset = direction.multiplyScalar(HOME_OFFSET.length());
     this.moveTo(target, target.clone().add(offset), THREE.MathUtils.clamp(this.#span / span, 0.6, this.controls.maxZoom), false);
+    this.#placed = false;
   }
 
   /** The view outside a building: the district the view is in, else the home frame. */
@@ -1602,15 +1629,53 @@ export class TownScene {
     const insets = this.insets();
     const { span, target } = this.frameRects([bounds], height, direction, portrait ? { ...insets, left: 0, right: 0 } : insets, portrait ? 0.96 : 1.04);
     this.moveTo(target, target.clone().add(direction.multiplyScalar(HOME_OFFSET.length())), THREE.MathUtils.clamp(this.#span / span, this.controls.minZoom, this.controls.maxZoom), false);
+    this.#placed = false;
   }
 
-  /** Flies to the ground around a label's anchor (the jump list's town hall and post office). */
+  /**
+   * Flies to the ground around a label's anchor (the jump list's town hall and post office, and a town figure). The ground
+   * box reaches further away from the camera than towards it, so a building behind its anchor is in the frame. On a
+   * portrait phone a figure's box is centred on it instead, and the camera goes where the figure goes for a few seconds
+   * (round 65, w4-11): the postman out on a delivery had walked out of the narrow frame by the time the camera landed.
+   */
   flyToAnchor(id: string, reach = 13) {
     const anchor = this.#anchors.get(id);
-    if (anchor) this.frameGround({ minX: anchor.x - reach, maxX: anchor.x + reach, minZ: anchor.z - reach * 1.4, maxZ: anchor.z + reach * 0.6 }, 5);
+    if (!anchor) return;
+    const canvas = this.renderer.domElement;
+    const centred = id.startsWith("a:") && canvas.clientWidth < canvas.clientHeight * 0.8;
+    this.frameGround(centred ? { minX: anchor.x - reach, maxX: anchor.x + reach, minZ: anchor.z - reach, maxZ: anchor.z + reach } : { minX: anchor.x - reach, maxX: anchor.x + reach, minZ: anchor.z - reach * 1.4, maxZ: anchor.z + reach * 0.6 }, 5);
+    // After frameGround: its moveTo ends any landing before.
+    this.#landing = centred ? { id, last: anchor.clone(), until: performance.now() + JUMP_TRACK_MS } : null;
+    // frameGround takes it for a frame; a jump put the camera here, so the sheet's opening does not pull it away (w6-13).
+    this.#placed = true;
+  }
+
+  /**
+   * Every frame of a landing: the camera and where it is heading move as far as the figure did, on the ground. It adds no
+   * frames of its own (a figure that does not walk needs none). A drag, any other camera move, a walk, a follow or going
+   * inside ends it, and so does its time: it is no follow, and says nothing.
+   */
+  #landingTick() {
+    const landing = this.#landing;
+    if (!landing) return;
+    const anchor = this.#anchors.get(landing.id);
+    if (!anchor || this.#walk || this.#following || this.view.entered || performance.now() > landing.until) {
+      this.#landing = null;
+      return;
+    }
+    const delta = this.#v.copy(anchor).sub(landing.last).setY(0);
+    landing.last.copy(anchor);
+    this.controls.target.add(delta);
+    this.camera.position.add(delta);
+    if (this.#tween) {
+      this.#tween.target.add(delta);
+      this.#tween.position.add(delta);
+    }
   }
 
   moveTo(target: THREE.Vector3, position: THREE.Vector3, zoom: number, immediate: boolean) {
+    this.#landing = null;
+    this.#placed = true;
     if (immediate || this.view.reducedMotion) {
       this.controls.target.copy(target);
       this.camera.position.copy(position);
@@ -1666,6 +1731,7 @@ export class TownScene {
 
   cancelTween = () => {
     this.#tween = null;
+    this.#landing = null;
   };
 
   /* ── Following a figure ─────────────────────────────────────────────────── */
@@ -1804,6 +1870,7 @@ export class TownScene {
   }
   #leftHome = () => {
     this.#atHome = false;
+    this.#placed = true;
   };
 
   #setPointer(event: PointerEvent) {
@@ -1965,7 +2032,7 @@ export class TownScene {
       position = this.camera.position.clone();
     this.controls.target.set(0, 0, 0);
     this.camera.position.copy(HOME_OFFSET);
-    this.#span = this.#homeFrame().span;
+    this.#span = this.#homeFrame(false).span;
     // Zoom is relative to the home frame: however large the town, the closest view is about one desk.
     this.controls.maxZoom = Math.max(4, this.#span / DESK_SPAN);
     this.controls.target.copy(target);
@@ -2024,6 +2091,7 @@ export class TownScene {
     this.#followPostman(dt);
     const strolling = this.#walkStep(dt);
     this.#followTick(dt);
+    this.#landingTick();
     if (this.#tween) {
       const alpha = this.view.reducedMotion ? 1 : 1 - Math.exp(-dt * 6);
       this.camera.position.lerp(this.#tween.position, alpha);
@@ -2072,6 +2140,10 @@ export class TownScene {
     this.camera.position.add(this.#v);
     t.add(this.#v);
     this.#refitShadow();
+    // The labels project through the camera of this frame, not the last drawn one (round 65, w1-17): the renderer
+    // refreshes the camera's world matrix only when it draws, so while the walk camera eased through a front door the
+    // "You" tag was projected a frame behind, off the screen, and hidden exactly when the visitor stepped inside.
+    this.camera.updateMatrixWorld();
     this.placeLabels();
     // The town view's shadow casters rarely change (robots seen from the town cast none, the postman neither), so its
     // shadow map is drawn only when something changed; inside a building it follows every frame.

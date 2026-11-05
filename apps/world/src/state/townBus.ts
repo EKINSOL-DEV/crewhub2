@@ -1,6 +1,9 @@
 /* The host's word that the town changed (`{type: "town", rev}` on the stream, round 20), handed from the world's source
    (state/runtimes.ts wires it as the host source's `onTown`) to the town store (state/hostTown.ts) without the two importing each other. */
-export type TownListener = (rev: number) => void;
+import type { TownOpKind } from "@crewhub/loops-client";
+
+/** The host's revision and, from a host that says it (round 65, w6-12), the move that changed the town. */
+export type TownListener = (rev: number, op?: TownOpKind) => void;
 
 const listeners = new Set<TownListener>();
 
@@ -13,8 +16,8 @@ export function onHostTown(listener: TownListener): () => void {
 }
 
 /** The source's call: a revision the host announced. */
-export function hostTownChanged(rev: number): void {
-  for (const listener of [...listeners]) listener(rev);
+export function hostTownChanged(rev: number, op?: TownOpKind): void {
+  for (const listener of [...listeners]) listener(rev, op);
 }
 
 const connected = new Set<() => void>();

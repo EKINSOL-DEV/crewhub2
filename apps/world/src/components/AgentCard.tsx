@@ -8,6 +8,8 @@ import { roleWords, type AgentCardFacts, type Freshness } from "@crewhub/world-m
 import { LaneChip } from "../world/lane";
 import type { CardChip, CardRow, RenderedSection } from "../world/agentCard/types";
 import { chatCardNote, chatTargetOf } from "../state/chatPanel";
+import { followWords } from "../state/inputWords";
+import { useTouchInput } from "../state/media";
 import { Button, Card, Chip } from "./primitives";
 
 const STATUS_KIT = { backlog: "backlog", planned: "planned", in_progress: "progress", review: "review", done: "done" } as const;
@@ -38,6 +40,8 @@ interface Props {
 }
 
 export function AgentCard({ facts, sections, freshness, demo, following, sheet, onFollow, onChat, onClose, portrait }: Props) {
+  // The Follow button's titles by input kind (round 65, w4-2); world.css hides its key hint on a touch device.
+  const follow = followWords(useTouchInput());
   const { t } = useT();
   const id = useId();
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -110,7 +114,7 @@ export function AgentCard({ facts, sections, freshness, demo, following, sheet, 
         )}
       </Card.Body>
       <Card.Footer className="agent-card-foot">
-        <Button size="sm" pressed={following} icon={<Eye className="icon" aria-hidden="true" />} onClick={onFollow} kbd="⇧F" title={following ? "Stop following (Shift+F or Escape)" : "The camera follows this figure wherever it walks (Shift+F)"}>
+        <Button size="sm" pressed={following} icon={<Eye className="icon" aria-hidden="true" />} onClick={onFollow} kbd="⇧F" title={following ? follow.stop : follow.follow}>
           {following ? "Following" : "Follow"}
         </Button>
         {onChat && facts.chat.self && (

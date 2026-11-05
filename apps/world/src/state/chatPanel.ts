@@ -4,9 +4,18 @@
    127.0.0.1:<world> and 127.0.0.1:<loops> are one site), or loops' own sign-in shows inside it. The frame is not a read
    by the world: what the bubbles need is the chat road (state/chatRoad, round 28: the viewer key on the host, or the
    page's own read, or neither), and its words live there. */
-import type { HostHealth } from "@crewhub/loops-client";
+import type { ConnectionState, HostHealth } from "@crewhub/loops-client";
 import type { AgentCardFacts } from "@crewhub/world-model";
+import { EN } from "../i18n/en.ts";
 import { loopsWebUrl } from "./source.ts";
+
+/**
+ * The panel's one line from the chip's state (round 65, w4-22): while loops is down, what the frame below cannot show; no
+ * line in any other state. English from the table, without the React side of i18n, so a node test holds it.
+ */
+export function chatStateLine(state: ConnectionState): string | null {
+  return state === "loops-down" ? (EN["world.chat.panel.loopsDown"] ?? null) : null;
+}
 
 /**
  * The page the panel frames: the root of the loops web app the host names (`health.loopsWebUrl`), which is the app

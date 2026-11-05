@@ -8,8 +8,11 @@ import type { Building, PlacedProp, RoomKind } from "@crewhub/world-model";
 import { buildingTemplate } from "../world/buildingTemplate";
 import { useBuildingPlan } from "./buildingPlan";
 import type { Pick } from "../world/buildingView";
-import { cellAt, checkGhost, freeCellIn, placedWords, resolveBuildingPlacements, roomSite, type GhostCheck } from "../world/placements";
+import { cellAt, checkGhost, freeCellIn, placedWords, refusedWords, resolveBuildingPlacements, roomSite, type GhostCheck } from "../world/placements";
 import type { Ghost } from "../world/propLayer";
+import { messageShown } from "./buildMessage";
+import { buildWords } from "./inputWords";
+import { touchInput } from "./media";
 import { townRuntime } from "./runtimes";
 import type { TownState } from "./town";
 
@@ -29,11 +32,13 @@ export interface BuildState {
   selected: string | null;
   /** While the selected prop is dragged: where it would land. */
   drag: Spot | null;
-  /** The last thing build mode said: a refusal, a confirmation. */
+  /** The last thing build mode said: a refusal, a confirmation (as the sheet shows it: cleared once the selection it was about has ended, round 65 w6-3). */
   message: string;
+  /** The placement the message is about (`messageShown`), or null. */
+  about: string | null;
 }
 
-const OFF: BuildState = { on: false, propId: null, rotation: 0, spot: null, selected: null, drag: null, message: "" };
+const OFF: BuildState = { on: false, propId: null, rotation: 0, spot: null, selected: null, drag: null, message: "", about: null };
 const ARROWS: Record<string, Cell> = { ArrowLeft: { x: -1, z: 0 }, ArrowRight: { x: 1, z: 0 }, ArrowUp: { x: 0, z: -1 }, ArrowDown: { x: 0, z: 1 } };
 
 export interface BuildMode {
@@ -57,9 +62,10 @@ export function useBuildMode(town: TownState, inside: Building | null, focusedRo
   const buildingPlan = useBuildingPlan();
   const template = useMemo(() => (inside ? buildingTemplate(inside, buildingPlan) : null), [buildingPlan, inside]);
   const selectedPlacement = state.selected ? (town.doc.placements.find((p) => p.id === state.selected) ?? null) : null;
+  // `about`: the placement the message describes; the sheet shows such a message only while that prop is selected.
   const say = useCallback(
-    (message: string) => {
-      setState((s) => ({ ...s, message }));
+    (message: string, about: string | null = null) => {
+      setState((s) => ({ ...s, message, about }));
       announce(message);
     },
     [announce],
@@ -80,7 +86,7 @@ export function useBuildMode(town: TownState, inside: Building | null, focusedRo
 
   const toggle = useCallback(() => {
     setState((s) => (s.on ? OFF : { ...OFF, on: true }));
-    announce(state.on ? "Build mode off." : "Build mode on. Choose a prop in the palette, then click a floor or use the arrow keys and Enter to place it.");
+    announce(state.on ? "Build mode off." : buildWords(touchInput()).on);
   }, [announce, state.on]);
 
   /** The first cell where a prop fits in the focused room (or the lobby), for keyboard placement. */
@@ -101,8 +107,8 @@ export function useBuildMode(town: TownState, inside: Building | null, focusedRo
 
   const choose = useCallback(
     (propId: string | null) => {
-      setState((s) => ({ ...s, propId, selected: null, drag: null, spot: propId ? startSpot(propId, s.rotation) : null, message: "" }));
-      if (propId) announce(`${nameOf(propId)} chosen. ${inside ? "Move the pointer over a floor or use the arrow keys, R turns it, Enter or a click places it." : "Enter a building to place it."}`);
+      setState((s) => ({ ...s, propId, selected: null, drag: null, spot: propId ? startSpot(propId, s.rotation) : null, message: "", about: null }));
+      if (propId) announce(`${nameOf(propId)} chosen. ${inside ? buildWords(touchInput()).chosen : "Enter a building to place it."}`);
     },
     [announce, inside, nameOf, startSpot],
   );
@@ -126,7 +132,7 @@ export function useBuildMode(town: TownState, inside: Building | null, focusedRo
       }
       // The new prop is selected: arrow keys, R and Delete adjust it; choose again to place another.
       setState((s) => ({ ...s, propId: null, spot: null, selected: id }));
-      say(`${placedWords(nameOf(state.propId), spot.room, buildingPlan)} It is selected: arrow keys move it, R turns it.`);
+      say(`${placedWords(nameOf(state.propId), spot.room, buildingPlan)} ${buildWords(touchInput()).placed}`, id);
     },
     [buildingPlan, inside, nameOf, say, state.propId, state.rotation, template, town.definitions, town.doc],
   );
@@ -138,7 +144,8 @@ export function useBuildMode(town: TownState, inside: Building | null, focusedRo
       if (!inside || !template || "town" in p.at) return;
       const verdict = checkGhost(town.doc, inside.slug, template, town.definitions, { id: p.id, propId: p.propId, room, cell, rotation });
       if (!verdict.ok) {
-        say(`Can't: ${verdict.reason}`);
+        // Both w6-3 (the message is about this prop) and w6-4 (the refusal names the prop and the verb).
+        say(refusedWords(rotation !== p.rotation ? "turn" : "move", nameOf(p.propId), verdict.reason), p.id);
         return;
       }
       const edits =
@@ -146,9 +153,9 @@ export function useBuildMode(town: TownState, inside: Building | null, focusedRo
           ? [{ type: "rotate" as const, id: p.id, rotation }]
           : [{ type: "move" as const, id: p.id, cell, ...(room !== p.at.room ? { at: { building: inside.slug, room } } : {}) }];
       const result = townRuntime().editAll(edits);
-      say(result.ok ? done : result.error);
+      say(result.ok ? done : result.error, p.id);
     },
-    [inside, say, template, town.definitions, town.doc],
+    [inside, nameOf, say, template, town.definitions, town.doc],
   );
 
   const rotate = useCallback(() => {
@@ -194,7 +201,7 @@ export function useBuildMode(town: TownState, inside: Building | null, focusedRo
       const id = pick?.kind === "prop" ? pick.id : null;
       setState((s) => ({ ...s, selected: id, drag: null }));
       const p = id ? town.doc.placements.find((x) => x.id === id) : null;
-      if (p) announce(`${nameOf(p.propId)} selected. Arrow keys or a drag move it, R turns it, Delete removes it.`);
+      if (p) announce(`${nameOf(p.propId)} selected. ${buildWords(touchInput()).selected}`);
     },
     [announce, nameOf, placeAt, repose, selectedPlacement, state.drag, state.on, state.propId, state.spot, town.doc.placements],
   );
@@ -247,5 +254,7 @@ export function useBuildMode(town: TownState, inside: Building | null, focusedRo
     [inside, nameOf, place, remove, repose, rotate, selectedPlacement, startSpot, state.drag, state.on, state.propId, state.rotation, state.selected, state.spot, template],
   );
 
-  return { state, ghost, check, selectedPlacement, toggle, choose, pointer, key, rotate, remove, place };
+  // The sheet's message: the last one said, unless it was about a selection that has since ended (w6-3).
+  const shown = messageShown(state, selectedPlacement?.id ?? null);
+  return { state: shown === state.message ? state : { ...state, message: shown }, ghost, check, selectedPlacement, toggle, choose, pointer, key, rotate, remove, place };
 }

@@ -34,9 +34,9 @@ import { keysDirection } from "../world/visitor";
 import { LaneChip } from "../world/lane";
 import { countsLine } from "../world/townLayout";
 import { agentLook, type AgentBubble } from "@crewhub/world-model";
-import { civicLabel, civicWords } from "../world/settlementDressing";
+import { civicLabel, civicWords, STAKED_SIGN } from "../world/settlementDressing";
 import { namesLine } from "../world/namesLine";
-import { freeLots, type TownPlan } from "../world/townPlan";
+import { freeLots, lotsShown, type TownPlan } from "../world/townPlan";
 import { lotKey } from "../world/settlement";
 import { setMovingBuilding, useMovingBuilding } from "../state/layoutMove";
 import { moveBuilding, plotLabel } from "./LayoutPanel";
@@ -44,7 +44,7 @@ import type { LaneStatus, RoomKind, RuleProp } from "@crewhub/world-model";
 import { type Said, type SaidMap, saidBy, saidLabel } from "../state/said";
 import { markLabel, type SaidMark } from "../world/saidText";
 import { Chip } from "./primitives";
-import { needsOf, needsPinWords, needsTotal, needsWords, summarise, summaryWords, activeWords, type DistrictPlace } from "../world/wayfinding";
+import { needsOf, needsPinWords, needsTotal, needsWords, summarise, summaryWords, activeWords, type DistrictPlace, isRegion } from "../world/wayfinding";
 
 interface Props {
   model: WorldModel;
@@ -184,13 +184,16 @@ export default function WorldCanvas(props: Props) {
   const moving = useMovingBuilding();
   const movingBuilding = !props.view.entered && moving ? (props.model.buildings.find((b) => b.slug === moving) ?? null) : null;
   const plots = props.town?.doc.plots;
-  const free = useMemo(() => (movingBuilding && plots ? freeLots(props.plan, plots) : []), [movingBuilding, props.plan, plots]);
-  const lotAnchors = useMemo(() => free.map((l) => l.cell), [free]);
   // The district the view is in: the one it names, while it is still in use.
   const district = hereOf(props.view, props.districts)?.id ?? null;
+  // At the Region level only each district's next free plot is marked (round 65, w6-14); in a district every one.
+  const regionLevel = district === null && isRegion(props.districts);
+  const free = useMemo(() => (movingBuilding && plots ? lotsShown(freeLots(props.plan, plots), regionLevel) : []), [movingBuilding, props.plan, plots, regionLevel]);
+  const lotAnchors = useMemo(() => free.map((l) => l.cell), [free]);
   const view = {
     model: props.model,
     plan: props.plan,
+    sheetOpen: !!props.town?.build,
     lotAnchors,
     entered: props.view.entered,
     focused: props.view.focused,
@@ -359,6 +362,16 @@ export default function WorldCanvas(props: Props) {
                 {props.details && <span className="sign-counts civic-names">{model.postOffice.length ? namesLine(model.postOffice.map((a) => a.displayName)) : "the postman is out"}</span>}
               </span>
             </div>
+            {props.plan.staked && (
+              /* The clearing's staked plot says in words what the board on it paints a few pixels high (round 65, w1-19). */
+              <div className="anchor" data-anchor="c:staked">
+                <span className="town-sign civic">
+                  <span className="sign-title">
+                    <strong>{STAKED_SIGN.replace("\n", " ")}</strong>
+                  </span>
+                </span>
+              </div>
+            )}
           </>
         )}
         </OverlayBoundary>
@@ -460,7 +473,8 @@ function useDeskProgress(ticketKey: string | null): FetchedProgress | undefined 
 }
 
 /** The town's own figures (the postman, the town hall's agents) carry a name pill while hovered or selected; with the
-    card open the pill of the selected one yields to it. The pill hangs from the figure's anchor (`a:town:<key>`). */
+    card open the pill of the selected one yields to it. The pill hangs from the figure's anchor (`a:town:<key>`).
+    A bubble over a figure whose pill is not drawn carries the speaker's name itself (round 65, walk finding w3-2). */
 function TownFigures({ model, selection, card, said, onSaidTap }: { model: WorldModel; selection: Selection; card: boolean; said: SaidMap; onSaidTap: (key: string) => void }) {
   const shown = selection.hover?.kind === "agent" ? selection.hover.key : !card && selection.selected?.kind === "agent" ? selection.selected.key : null;
   const figures = [...model.postOffice, ...model.townHall];
@@ -476,7 +490,8 @@ function TownFigures({ model, selection, card, said, onSaidTap }: { model: World
           <div key={agent.key} className={`anchor agent-anchor${agent.key === shown ? " picked" : ""}`} data-anchor={`a:town:${agent.key}`}>
             <span className="agent-stack">
               {line && (
-                <button type="button" className={`bubble said${line.fading ? " fading" : ""}`} title={`${agent.displayName} says: ${line.text}`} aria-label={saidLabel(agent.displayName, line.text, `Open ${agent.displayName}`)} data-said-agent={agent.name} onClick={() => onSaidTap(agent.key)}>
+                <button type="button" className={`bubble said${line.fading ? " fading" : ""}${agent.key === shown ? "" : " named"}`} title={`${agent.displayName} says: ${line.text}`} aria-label={saidLabel(agent.displayName, line.text, `Open ${agent.displayName}`)} data-said-agent={agent.name} onClick={() => onSaidTap(agent.key)}>
+                  {agent.key !== shown && <span className="bubble-name">{agent.displayName}</span>}
                   <MessageCircle className="icon icon-sm" aria-hidden="true" />
                   <span className="bubble-text">{line.text}</span>
                 </button>
@@ -525,7 +540,10 @@ const TownSign = memo(function TownSign(props: {
         aria-label={inside ? `${name} (${projectKey}), inside` : `Enter ${name} (${projectKey})`}
         tabIndex={inside ? -1 : 0}
         onClick={() => !inside && onIntent({ type: "enter", slug })}
-        onFocus={() => onIntent({ type: "hover", index })}
+        // The ring follows the keyboard's focus (Tab onto the sign), not a tap's or a click's: a thumb that tapped the sign
+        // and came back by "← Town" found the plate still expanded and the plot ringed (round 65, w4-6). The pointer's own
+        // hover comes through the scene.
+        onFocus={(e) => e.currentTarget.matches(":focus-visible") && onIntent({ type: "hover", index })}
       >
         <span className="sign-title">
           {archived && <Archive className="icon icon-sm" aria-hidden="true" />}
@@ -735,6 +753,7 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
           pill={!compact || shows(a.room) || picked({ kind: "agent", key: a.key })}
           said={a.presence === "real" ? saidBy(a.name, model.now, props.said) : null}
           onTap={() => props.onSaidTap(a.key)}
+          {...(editing || props.view.walk ? {} : { onPick: () => props.onIntent({ type: "pick", target: { kind: "agent", key: a.key }, hover: false }) })}
         />
       ))}
       {b.visits.map((v) => (
@@ -815,7 +834,7 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
           </span>
         </div>
       )}
-      {props.town && <TownLabels building={b} town={props.town} errors={editing || props.details} shows={(r) => editing || shows(r.anchor.kind === "room" ? r.anchor.room : r.anchor.kind === "desk" ? roomOfAgent(r.anchor.agent) : null)} />}
+      {props.town && <TownLabels building={b} town={props.town} errors={editing || props.details} editing={editing} shows={(r) => editing || shows(r.anchor.kind === "room" ? r.anchor.room : r.anchor.kind === "desk" ? roomOfAgent(r.anchor.agent) : null)} />}
       {published.length > 0 && shows("lobby") && (
         <div className="anchor" data-anchor={`banner:${b.slug}`}>
           <span className="signal-tag">
@@ -828,11 +847,10 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
   );
 }
 
-const RULE_WORDS: Record<string, string> = { banner: "milestone banner", crate: "release crate", "sticker.rocket": "rocket", jar: "bug jar", trophy: "release trophy" };
-
 /** Error crates and rule props of the town document, labelled in words: errors in build mode or with Details, a rule chip
-    where its room shows. */
-function TownLabels({ building: b, town, errors, shows }: { building: Building; town: TownLayer; errors: boolean; shows: (rule: RuleProp) => boolean }) {
+    where its room shows. The chip says the fact ("Milestone CR-M2 active", "2 open bugs"; round 65, w1-12); the word
+    "rule" (a prop placed by a rule, not by hand) is build mode's and shows only there. */
+function TownLabels({ building: b, town, errors, editing, shows }: { building: Building; town: TownLayer; errors: boolean; editing: boolean; shows: (rule: RuleProp) => boolean }) {
   const rooms = useBuildingPlan();
   // Resolved once per town document and building (round 25), not on every render of the labels.
   const resolved = useMemo(() => resolveBuildingPlacements(town.doc, b.slug, buildingTemplate(b, rooms), town.definitions), [town.doc, b, rooms, town.definitions]);
@@ -863,9 +881,8 @@ function TownLabels({ building: b, town, errors, shows }: { building: Building; 
         .map((r) => (
           <div key={r.id} className="anchor" data-anchor={`rule:${b.slug}:${r.id}`}>
             <span className="rule-tag" title={r.text}>
-              <span className="rule-word">rule</span>
-              {RULE_WORDS[r.key] ?? r.key}
-              {r.count !== null && `: ${r.count}`}
+              {editing && <span className="rule-word">rule</span>}
+              {r.label}
             </span>
           </div>
         ))}
@@ -888,6 +905,7 @@ function AgentLabel({
   pill: showPill,
   said,
   onTap,
+  onPick,
 }: {
   slug: string;
   agent: AgentPlacement;
@@ -897,6 +915,9 @@ function AgentLabel({
   said?: (Said & { fading: boolean }) | null;
   /** A tap on that bubble: the agent is picked (its card; the Chat panel once it lands). */
   onTap?: () => void;
+  /** A click or tap on the name pill: the agent is picked, as a click on its figure (round 65, w1-11 / w4-8). Left out in
+      build mode and in walk mode, where the scene picks no figure either and the click stays the scene's. */
+  onPick?: () => void;
   plate: boolean;
   /** The agent's room is revealed, the agent is picked, or Details is on: its update card and every tag show. */
   full: boolean;
@@ -911,8 +932,10 @@ function AgentLabel({
   const alerts = full ? agent.alerts : [];
   const bubble = full || !look.bubble ? null : { ...look.bubble, icon: BUBBLE_ICON[look.bubble.kind] };
   const words = look.words;
+  // The pill takes the click itself (round 65, w1-11 / w4-8): before, it let the click through to the room under it,
+  // which zoomed instead of opening the card the tour promises for "a click on one".
   const pill = showPill && !plate && (
-    <span className={`name-pill${agent.presence === "proxy" ? " proxy" : ""}`} title={`${agent.displayName}: ${words}`}>
+    <span className={`name-pill${onPick ? " pickable" : ""}${agent.presence === "proxy" ? " proxy" : ""}`} title={`${agent.displayName}: ${words}`} onClick={onPick}>
       <span className="pill-dot" data-tone={look.tone} aria-hidden="true" />
       {agent.displayName}
       <span className="sr-only">: {words}</span>
@@ -923,7 +946,8 @@ function AgentLabel({
     <div className={`anchor agent-anchor${plate ? " picked" : ""}`} data-anchor={`a:${slug}:${agent.key}`}>
       <span className="agent-stack">
         {said && (
-          <button type="button" className={`bubble said${said.fading ? " fading" : ""}`} title={`${agent.displayName} says: ${said.text}`} aria-label={saidLabel(agent.displayName, said.text, `Open ${agent.displayName}`)} data-said-agent={agent.name} onClick={onTap}>
+          <button type="button" className={`bubble said${said.fading ? " fading" : ""}${pill || plate ? "" : " named"}`} title={`${agent.displayName} says: ${said.text}`} aria-label={saidLabel(agent.displayName, said.text, `Open ${agent.displayName}`)} data-said-agent={agent.name} onClick={onTap}>
+            {!pill && !plate && <span className="bubble-name">{agent.displayName}</span>}
             <MessageCircle className="icon icon-sm" aria-hidden="true" />
             <span className="bubble-text">{said.text}</span>
           </button>

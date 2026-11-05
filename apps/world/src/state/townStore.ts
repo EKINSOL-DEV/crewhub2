@@ -28,6 +28,12 @@ export const TOWN_DB_VERSION = 1;
 export const TOWN_STORE_NAME = "town";
 const HEAD_KEY = "head";
 
+/** A revision another browser's move brought (round 65, w6-12): the host's revision and the move, when the host said it. */
+export interface TownElsewhere {
+  rev: number;
+  op: "commit" | "amend" | "undo" | "redo" | null;
+}
+
 export interface TownStoreState {
   doc: TownDocument;
   canUndo: boolean;
@@ -40,6 +46,8 @@ export interface TownStoreState {
   /** Why storage fell back to memory, or why stored revisions were skipped; null when all is well. */
   storageNote: string | null;
   loaded: boolean;
+  /** The last revision another browser's move brought, until this browser's next move (the host-kept town only). */
+  elsewhere?: TownElsewhere | null;
 }
 
 export interface TownStore {

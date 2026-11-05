@@ -62,6 +62,11 @@ export async function run({ pass, page, check, out }) {
     const live1 = await until(pg, "live", 20000);
     ok("live: the chip says Live against the fake", live1 === "live", `${live1}: ${(await chip(pg).innerText().catch(() => "")).trim()}`);
     await shot(pg, "23-live");
+    // The chip follows Settings in the Tab order, where it stands (round 65, w5-17): before, it came last, after the stage and the toolbar.
+    await pg.getByRole("button", { name: "Settings", exact: true }).focus();
+    await pg.keyboard.press("Tab");
+    const afterSettings = await pg.evaluate(() => (document.activeElement?.classList.contains("chat-open") ? "chat chip" : `${document.activeElement?.tagName.toLowerCase()} ${document.activeElement?.getAttribute("aria-label") ?? ""}`.trim()));
+    ok("live: Tab from Settings reaches the Chat chip (w5-17)", afterSettings === "chat chip", afterSettings);
     // The Chat panel (round 12, road A): the chip opens a panel that frames the loops web the host names (the stub page
     // of lib/loopsWebStub.mjs here, which records how it was fetched), says it is loops' own chat and what it needs,
     // keeps the link to the app, and grants the frame no more than the chat needs; the panel takes the focus, Escape
@@ -89,7 +94,7 @@ export async function run({ pass, page, check, out }) {
     const panelText = (await pg.locator(".chat-sheet").innerText().catch(() => "")).replace(/\s+/g, " ");
     const aboutOpen = await pg.locator(".chat-about").evaluate((el) => el.open).catch(() => null);
     const appHref = await pg.locator(".chat-sheet .chat-open-app").getAttribute("href").catch(() => null);
-    ok("live (round 17): the panel reads in one glance: crewhub-loops' own chat and the one thing to do on this road (no viewer key, and the page's probe of road 2 finds the world's origin not set on this loops: no bubbles here), two short lines above Recent answers; the whole story (what typing needs, no password, and since round 18 what the Recent answers list is) behind About this chat, which Enter on its summary opens; the link to the app", g !== null && /^crewhub-loops' own chat, framed here\.$/.test(g.what) && /^Sign in to crewhub-loops below to type; no bubbles: the world's origin is not set on crewhub-loops \(see About\)\.$/.test(g.todo) && g.whatLines === 1 && g.todoLines <= 2 && g.aboutOpen === false && !/signed in to crewhub-loops as a person/.test(closedText) && !/The last 10 answers this page saw/.test(closedText) && aboutOpen === true && /signed in to crewhub-loops as a person/.test(panelText) && /no password/.test(panelText) && /chat head in loops' dock/.test(panelText) && /The last 10 answers this page saw, newest first/.test(panelText) && appHref === web.url, g ? `"${g.what}" / "${g.todo}" (${g.whatLines}+${g.todoLines} lines, the list ${g.aboveList} px below); about open before ${g.aboutOpen}, after Enter ${aboutOpen}; ${appHref}` : "no lead");
+    ok("live (round 17): the panel reads in one glance: crewhub-loops' own chat and the one thing to do on this road (no viewer key, and the page's probe of road 2 finds the world's origin not set on this loops: no bubbles here), two short lines above Recent answers; the whole story (what typing needs, no password, and since round 18 what the Recent answers list is) behind About this chat, which Enter on its summary opens; the link to the app", g !== null && /^crewhub-loops' own chat, framed here\.$/.test(g.what) && /^Sign in to crewhub-loops below to type; no bubbles: the world's origin is not set on crewhub-loops \(see About\)\.$/.test(g.todo) && g.whatLines === 1 && g.todoLines <= 2 && g.aboutOpen === false && !/signed in to crewhub-loops as a person/.test(closedText) && !/The last 10 answers this page saw/.test(closedText) && aboutOpen === true && /signed in to crewhub-loops as a person/.test(panelText) && /no password/.test(panelText) && /In the frame, open an agent's chat \(the Agent chats menu on a narrow frame\)\./.test(panelText) && /The last 10 answers this page saw, newest first/.test(panelText) && appHref === web.url, g ? `"${g.what}" / "${g.todo}" (${g.whatLines}+${g.todoLines} lines, the list ${g.aboveList} px below); about open before ${g.aboutOpen}, after Enter ${aboutOpen}; ${appHref}` : "no lead");
     const sandbox = await frame.getAttribute("sandbox").catch(() => null);
     const allow = await frame.getAttribute("allow").catch(() => null);
     ok("live: the frame's sandbox is no wider than the chat needs", sandbox === "allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads" && allow === "clipboard-write", `sandbox "${sandbox}", allow "${allow}"`);
@@ -192,6 +197,44 @@ export async function run({ pass, page, check, out }) {
     // made yet the text view says nothing about zones at all.
     await chip(pg).click().catch(() => {});
     await pg.waitForSelector(".connection-sheet", { timeout: 5000 }).catch(() => {});
+    // Walk finding w2-4 (round 65): the crewhub-loops row's variable name stands on a line of its own, never broken
+    // mid-word, with the URL under it (the host found the fake through CREWHUB_WORLD_LOOPS_URL, as `npm run world` would).
+    const varLine = await pg
+      .evaluate(() => {
+        const el = document.querySelector(".connection-facts .connection-var");
+        if (!el) return null;
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const dd = el.parentElement?.getBoundingClientRect();
+        const box = el.getBoundingClientRect();
+        const target = el.nextElementSibling instanceof HTMLElement && el.nextElementSibling.classList.contains("connection-target") ? el.nextElementSibling.getBoundingClientRect() : null;
+        return { text: el.textContent?.trim() ?? "", lines: range.getClientRects().length, ownLine: !!dd && Math.abs(box.left - dd.left) < 1, targetUnder: !!target && target.top >= box.bottom - 1 };
+      })
+      .catch(() => null);
+    await shot(pg, "23f-connection-panel-loops-row");
+    ok("live (w2-4): the panel's crewhub-loops row names CREWHUB_WORLD_LOOPS_URL whole on a line of its own, the URL under it", varLine !== null && varLine.text === "CREWHUB_WORLD_LOOPS_URL" && varLine.lines === 1 && varLine.ownLine && varLine.targetUnder, varLine ? JSON.stringify(varLine) : "no .connection-var in the row");
+    // Both names must have room on a narrow phone too (s1's review of the first commit: the nowrap name was cut at the
+    // sheet's edge at 375 and 320, and the sheet does not scroll sideways): at 320 the row spans the sheet; the URL
+    // name is measured as drawn, the SOCKET name by its width in the row's font against the row's width.
+    await pg.setViewportSize({ width: 320, height: 900 });
+    await pg.waitForTimeout(500);
+    const narrow = await pg
+      .evaluate(() => {
+        const el = document.querySelector(".connection-facts .connection-var");
+        const sheet = document.querySelector(".connection-sheet");
+        if (!(el instanceof HTMLElement) || !sheet || !el.parentElement) return null;
+        const box = el.getBoundingClientRect();
+        const s = sheet.getBoundingClientRect();
+        const ctx = document.createElement("canvas").getContext("2d");
+        ctx.font = getComputedStyle(el).font;
+        const width = (t) => Math.ceil(ctx.measureText(t).width);
+        return { text: el.textContent?.trim() ?? "", cut: el.scrollWidth > el.clientWidth + 1 || box.right > s.right + 1, room: el.parentElement.clientWidth, url: width("CREWHUB_WORLD_LOOPS_URL"), socket: width("CREWHUB_WORLD_LOOPS_SOCKET"), sheet: Math.round(s.width) };
+      })
+      .catch(() => null);
+    await shot(pg, "23g-connection-panel-loops-row-320");
+    ok("live (w2-4): at 320 px the row has room for both names, CREWHUB_WORLD_LOOPS_URL as drawn and CREWHUB_WORLD_LOOPS_SOCKET by its width", narrow !== null && narrow.text === "CREWHUB_WORLD_LOOPS_URL" && !narrow.cut && narrow.url <= narrow.room && narrow.socket <= narrow.room, narrow ? JSON.stringify(narrow) : "no .connection-var in the row");
+    await pg.setViewportSize({ width: 1440, height: 900 });
+    await pg.waitForTimeout(500);
     const zonesRow = (await pg.locator(".connection-zones").innerText().catch(() => "")).replace(/\s+/g, " ").trim();
     await pg.keyboard.press("Escape");
     await pg.waitForTimeout(300);

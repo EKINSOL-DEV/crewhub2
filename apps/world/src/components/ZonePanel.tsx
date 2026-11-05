@@ -2,7 +2,7 @@
    mode's zone part (which zone a building belongs to, and that zone's look). Every write is a town document edit
    (`set-zone`, `remove-zone`, `assign`), so it is one undo step and travels with an export. A zone that comes from a
    crewhub-loops group keeps the group's name; its look, and a colour or emblem the group lacks, are kept here. */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { DEFAULT_ZONE_ID, ZONE_COLORS, ZONE_EMBLEMS, nextZoneMark, zoneById, type Building, type TownZone, type WorldModel, type Zone, type ZoneLook } from "@crewhub/world-model";
 import { useCast } from "../state/cast";
@@ -13,7 +13,7 @@ import { castRegistry } from "../world/cast";
 import { resolveLook } from "../world/look";
 import { styleRegistry } from "../world/style";
 import { buildingLook, lookRegistries, zoneLook, type LookContext } from "../world/worldLook";
-import { ZONE_COLOR_NAMES, ZONE_EMBLEM_NAMES, townKeeping, zoneLabel, zoneReason, zoneSettingsHint, zonesOriginWords } from "../world/zoneText";
+import { ZONE_COLOR_NAMES, ZONE_EMBLEM_NAMES, townKeeping, zoneAddedSaid, zoneLabel, zoneReason, zoneRemovedSaid, zoneSaidShown, zoneSettingsHint, zonesOriginWords, type ZoneSaid } from "../world/zoneText";
 import { Button, Chip, Field } from "./primitives";
 
 /** A style option as the settings show it; the style's manifest declares them (`options`), or none. */
@@ -51,6 +51,8 @@ function tidyLook(look: ZoneLook): ZoneLook {
 
 function useZoneEdits(town: TownState) {
   const [error, setError] = useState<string | null>(null);
+  // What the last "Add a zone" or "Remove this zone" did, for the sheet and the live region (round 65, w6-6).
+  const [said, setSaid] = useState<ZoneSaid | null>(null);
   const run = (edit: Parameters<ReturnType<typeof townRuntime>["edit"]>[0]) => {
     const result = townRuntime().edit(edit);
     setError(result.ok ? null : result.error);
@@ -58,12 +60,18 @@ function useZoneEdits(town: TownState) {
   };
   return {
     error,
+    // Shown while what it describes holds (zoneSaidShown): an undo clears it, and the same words again are a change.
+    said: zoneSaidShown(said, (town.doc.zones ?? []).map((z) => z.id)),
     change: (zone: Zone, patch: Partial<TownZone>) => run({ type: "set-zone", zone: { ...entryOf(zone, town), ...patch } }),
     look: (zone: Zone, patch: ZoneLook) => {
       const entry = entryOf(zone, town);
       return run({ type: "set-zone", zone: { ...entry, look: tidyLook({ ...entry.look, ...patch, styleOptions: { ...entry.look?.styleOptions, ...patch.styleOptions } }) } });
     },
-    remove: (zone: Zone) => run({ type: "remove-zone", id: zone.id }),
+    remove: (zone: Zone) => {
+      const ok = run({ type: "remove-zone", id: zone.id });
+      if (ok) setSaid(zoneRemovedSaid(zone));
+      return ok;
+    },
     add: (zones: readonly Zone[]) => {
       const taken = new Set([...zones.map((z) => z.id), ...(town.doc.zones ?? []).map((z) => z.id)]);
       let n = 1;
@@ -71,7 +79,9 @@ function useZoneEdits(town: TownState) {
       const order = Math.max(-1, ...zones.filter((z) => z.source !== "default").map((z) => z.order)) + 1;
       // A new district reads marked from the start: the next free colour and emblem (nextZoneMark), changeable here.
       const mark = nextZoneMark(zones);
-      return run({ type: "set-zone", zone: { id: `zone-${n}`, name: `Zone ${n}`, order, color: mark.color, emblem: mark.emblem, look: {} } });
+      const ok = run({ type: "set-zone", zone: { id: `zone-${n}`, name: `Zone ${n}`, order, color: mark.color, emblem: mark.emblem, look: {} } });
+      if (ok) setSaid(zoneAddedSaid(`zone-${n}`, `Zone ${n}`));
+      return ok;
     },
     assign: (slug: string, zoneId: string | null) => run({ type: "assign", slug, zoneId }),
   };
@@ -145,7 +155,7 @@ function ZoneName({ zone, onCommit }: { zone: Zone; onCommit: (name: string | nu
       label="Name"
       value={draft ?? zone.name ?? ""}
       maxLength={60}
-      placeholder={zone.source === "default" ? "No zone" : "Unnamed zone"}
+      placeholder={zoneLabel({ name: null, source: zone.source })}
       disabled={group}
       {...(group ? { hint: "The name of the group in crewhub-loops." } : {})}
       onChange={(e) => setDraft(e.currentTarget.value)}
@@ -223,6 +233,9 @@ export function ZoneSettings({ model, town }: { model: WorldModel; town: TownSta
           Add a zone
         </Button>
       </div>
+      <p className="hint zone-said" role="status" aria-live="polite">
+        {edits.said}
+      </p>
       {edits.error && (
         <p className="hint zone-error" role="alert">
           {edits.error}
@@ -232,11 +245,19 @@ export function ZoneSettings({ model, town }: { model: WorldModel; town: TownSta
   );
 }
 
-/** Build mode: the zone of each building (the entered one alone when inside), and the look of that zone. */
+/**
+ * Build mode: the zone of one building, and the look of that zone when inside. Inside it is the entered building; in the
+ * town a picker as Layout has (round 65, w6-13: a Region's twenty selects made the sheet a 3,500 px scroll).
+ */
 export function BuildZones({ model, town, inside }: { model: WorldModel; town: TownState; inside: Building | null }) {
   const context = useLookContext(model, town);
   const edits = useZoneEdits(town);
-  const buildings = inside ? [inside] : model.buildings;
+  const [picked, setPicked] = useState<string>(inside?.slug ?? model.buildings[0]?.slug ?? "");
+  useEffect(() => {
+    if (inside) setPicked(inside.slug);
+  }, [inside]);
+  const shownBuilding = inside ?? model.buildings.find((b) => b.slug === picked) ?? model.buildings[0];
+  const buildings = shownBuilding ? [shownBuilding] : [];
   // Zones a building can be put in by hand: every one that exists, and "no zone".
   const choices = model.zones.some((z) => z.id === DEFAULT_ZONE_ID) ? model.zones : [...model.zones, zoneById([], DEFAULT_ZONE_ID)];
   const zone = inside ? zoneById(model.zones, inside.zoneId) : null;
@@ -245,6 +266,16 @@ export function BuildZones({ model, town, inside }: { model: WorldModel; town: T
       <h3 className="label" id="build-zones-title">
         Zones
       </h3>
+      {!inside && model.buildings.length > 1 && shownBuilding && (
+        <Field control="select" size="sm" label="Building" value={shownBuilding.slug} onChange={(e) => setPicked(e.currentTarget.value)}>
+          {model.buildings.map((b) => (
+            <option key={b.slug} value={b.slug}>
+              {b.name}
+              {b.archived ? " (archived)" : ""}
+            </option>
+          ))}
+        </Field>
+      )}
       <ul className="zone-assign">
         {buildings.map((building) => {
           const current = zoneById(model.zones, building.zoneId);
@@ -292,6 +323,9 @@ export function BuildZones({ model, town, inside }: { model: WorldModel; town: T
           Add a zone
         </Button>
       </div>
+      <p className="hint zone-said" role="status" aria-live="polite">
+        {edits.said}
+      </p>
       <p className="hint">Names, colours and emblems of zones are in Settings.</p>
       {model.mode === "live" && <p className="hint build-zones-origin">Zones here: {zonesOriginWords({ zones: model.zones, assignments: town.doc.assignments, kept: townKeeping(town.storage, model.mode) })}</p>}
       {edits.error && (

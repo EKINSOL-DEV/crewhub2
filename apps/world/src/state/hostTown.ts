@@ -11,7 +11,7 @@
    it with a fake. */
 import { validateTownDocument, type TownContext, type TownDocument } from "@crewhub/world-model";
 import { type HostAnswer, type HostTownOp, readTownConflict, readTownRead, readTownWritten } from "@crewhub/loops-client";
-import type { TownStore, TownStoreState } from "./townStore.ts";
+import type { TownElsewhere, TownStore, TownStoreState } from "./townStore.ts";
 
 export interface HostTownTransport {
   /** `GET /world-api/town`. */
@@ -34,7 +34,7 @@ export interface HostTownOptions {
   transport: HostTownTransport;
   context: TownContext;
   /** The host's word that the town changed (townBus.ts); returns the way to stop listening. */
-  onTown?: (listener: (rev: number) => void) => () => void;
+  onTown?: (listener: (rev: number, op?: HostTownOp) => void) => () => void;
   /** The stream coming (back) up (townBus.ts): a `town` message sent meanwhile was lost, so the town is read again. */
   onConnected?: (listener: () => void) => () => void;
   /** How long an offline browser waits before it asks the host again. Default 30 s. */
@@ -85,6 +85,10 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
   let writing = 0;
   /** The newest revision the host announced while a write was on its way; looked at when the write is answered. */
   let announced: number | null = null;
+  /** What the host last said moved its town (round 65, w6-12): kept until the read that takes that revision. */
+  let announcedOp: TownElsewhere | null = null;
+  /** The last revision another browser's move brought, said in build mode until this browser's next move. */
+  let elsewhere: TownElsewhere | null = null;
   /** The host's word on its history: whether it has a step back or forward from the current revision. */
   let hostCan: { undo: boolean; redo: boolean } = { undo: false, redo: false };
   /** One read of the host at a time: a second ask while one is on its way runs once more when it is done, never beside it. */
@@ -227,6 +231,11 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
           publish();
           return;
         }
+        // The revision the host announced is here: another browser's move, said with its kind (w6-12).
+        if (announcedOp !== null && body.rev >= announcedOp.rev) {
+          elsewhere = { rev: body.rev, op: announcedOp.op };
+          announcedOp = null;
+        }
         // Edits made while the host was away meet a town another browser changed: the host's town wins, and it is said.
         // The imported note stays until the person's next edit; a refetch is no edit.
         note = lost ? CONFLICT_NOTE : note === IMPORTED_NOTE ? note : null;
@@ -314,6 +323,8 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
    */
   function push(move: Move, op: HostTownOp = "commit", byPerson = false): Promise<void> {
     const run = async () => {
+      // This browser's own move: what another browser did before is no longer the last word.
+      elsewhere = null;
       if (syncing) await syncing;
       let doc: TownDocument | null = null;
       if (move !== null && "offer" in move) {
@@ -416,8 +427,9 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
   }
 
   /** The host's word that the town changed: refetched unless it is a revision this browser already has or is writing. */
-  const heard = (hostRev: number) => {
+  const heard = (hostRev: number, op?: HostTownOp) => {
     if (rev !== null && hostRev <= rev) return;
+    announcedOp = { rev: hostRev, op: op ?? (announcedOp?.rev === hostRev ? announcedOp.op : null) };
     if (writing > 0) {
       announced = Math.max(announced ?? 0, hostRev);
       return;
@@ -431,9 +443,12 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
   });
   /** After a write: a revision announced meanwhile that is newer than ours is fetched now. */
   const settle = () => {
+    // The host tells the streams before it answers, so a browser hears its own move while the write is on its way: a
+    // revision this browser now has was not another browser's to say (round 65, w6-12, s1's review).
+    if (announcedOp !== null && rev !== null && announcedOp.rev <= rev) announcedOp = null;
     const seen = announced;
     announced = null;
-    if (seen !== null && writing === 0) heard(seen);
+    if (seen !== null && writing === 0) heard(seen, announcedOp?.rev === seen ? (announcedOp.op ?? undefined) : undefined);
   };
 
   const store = {
@@ -442,10 +457,10 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
     },
     get state(): TownStoreState {
       const s = local.state;
-      if (rev === null) return { ...s, storageNote: note ?? s.storageNote };
+      if (rev === null) return { ...s, storageNote: note ?? s.storageNote, elsewhere };
       // While the host keeps the town, the undo steps are the host's, and the browser store's own notes (memory only, a
       // skipped revision) are about the fallback and stay quiet.
-      return { ...s, storage: "host", canUndo: hostCan.undo, canRedo: hostCan.redo, storageNote: note };
+      return { ...s, storage: "host", canUndo: hostCan.undo, canRedo: hostCan.redo, storageNote: note, elsewhere };
     },
     load() {
       loading ??= (async () => {

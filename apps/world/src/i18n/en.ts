@@ -79,6 +79,9 @@ export const EN: Record<string, string> = {
   // The Chat panel (spec addendum "chat with the agents", road A): crewhub-loops' own chat, framed in the world.
   "world.chat.open": "Chat",
   "world.chat.openHint": "Chat with the agents: crewhub-loops' own chat, framed in a panel here.",
+  // Round 65 (walk finding w3-1): the chip's count of answers not opened yet, after the hint in its accessible name.
+  "world.chat.unread.one": "1 new answer.",
+  "world.chat.unread.many": "{count} new answers.",
   "world.chat.card": "Chat with {name}",
   "world.chat.cardHint": "Opens the Chat panel: crewhub-loops' own chat, where you open {name}'s chat head.",
   // Round 13: loops' dock lists enabled agents of loops role lead only; a card without a chat head says why
@@ -89,7 +92,8 @@ export const EN: Record<string, string> = {
   "world.chat.panel.what": "crewhub-loops' own chat, framed here.",
   "world.chat.panel.whatWith": "crewhub-loops' own chat, framed here, on {name}'s chat.",
   "world.chat.panel.about": "About this chat",
-  "world.chat.panel.lead": "Open an agent's chat head in loops' dock (the Agent chats menu at this width).",
+  "world.chat.panel.loopsDown": "crewhub-loops is not answering.",
+  "world.chat.panel.lead": "In the frame, open an agent's chat (the Agent chats menu on a narrow frame).",
   "world.chat.panel.leadWith": "The frame opens {name}'s chat (one of loops' chat heads). If your crewhub-loops is older, open {name}'s chat head in its dock (the Agent chats menu at this width).",
   "world.chat.panel.frame": "crewhub-loops",
   "world.chat.panel.fallback": "If the frame stays empty:",
@@ -113,6 +117,7 @@ export const EN: Record<string, string> = {
   "world.pair.note": "The link works once, for 10 minutes. For another browser, npm run world -- --no-open prints the link. A paired browser stays paired across host restarts.",
   "world.pair.demo": "Use the demo",
   "world.pair.retry": "I opened the link",
+  "world.pair.still": "This browser is still not paired: open the link npm run world printed first.",
   "world.pair.label": "Pairing with the world's host",
   "world.pair.copyFailed": "Select the command and copy it",
   "world.chat.signInHint": "The agents' chats are in the crewhub-loops web app; this opens it in a new tab. For the agents' answers as speech bubbles over their figures, sign in to crewhub-loops as yourself in the Connection panel (the chip).",
@@ -244,6 +249,7 @@ export const EN: Record<string, string> = {
   "world.connection.panel.session": "Chat",
   "world.connection.panel.answering": "The host answers again.",
   "world.connection.changed": "Connection: {state}. {hint}",
+  "world.connection.connected": "Connected: {state}.",
   "world.newTab": "Opens in a new tab.",
   "world.connect.spoken": "{title}. {lead}",
 };

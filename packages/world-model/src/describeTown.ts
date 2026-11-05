@@ -39,13 +39,13 @@ function attached(p: PlacedProp): string {
 export function describeTownDocument(
   doc: TownDocument,
   catalogue: Catalogue,
-  extra: { ruleProps?: readonly RuleProp[]; invalidRequests?: readonly InvalidPropRequest[]; rooms?: RoomWording } = {},
+  extra: { ruleProps?: readonly RuleProp[]; invalidRequests?: readonly InvalidPropRequest[]; rooms?: RoomWording; /** The revision to say (round 65, w6-10: the host's record while the host keeps the town); the document's own when left out. */ revision?: number } = {},
 ): TextLine[] {
   const rooms: RoomWording = extra.rooms ?? "classic";
   const lines: TextLine[] = [];
   const line = (section: string, text: string, kind: TextLine["kind"]) => lines.push({ section, text, kind });
 
-  line("Build", `Town layout revision ${doc.revision}, style ${doc.styleId}${doc.castId ? `, cast ${doc.castId}` : ""}, ${doc.placements.length} placed prop${doc.placements.length === 1 ? "" : "s"}.`, "cosmetic");
+  line("Build", `Town layout revision ${extra.revision ?? doc.revision}, style ${doc.styleId}${doc.castId ? `, cast ${doc.castId}` : ""}, ${doc.placements.length} placed prop${doc.placements.length === 1 ? "" : "s"}.`, "cosmetic");
   for (const plot of doc.plots)
     line("Build", `Plot of ${plot.slug} at ${plot.cell.x},${plot.cell.z}${plot.styleId ? `, style ${plot.styleId}` : ""}${plot.castId ? `, cast ${plot.castId}` : ""}.`, "cosmetic");
   for (const p of doc.placements) {

@@ -3,6 +3,7 @@
    so it runs under `node --test`; the scene, the breadcrumb, the jump list and the text view all read it. See
    "Finding your way at scale" in the demo-mode spec. */
 import { agentWords, roleNoun, type AgentPlacement, type Building, type RoomKind, type TicketStatus, type WorldModel, type Zone } from "@crewhub/world-model";
+import { zoneLabel } from "./zoneText.ts";
 
 /* ── Districts ────────────────────────────────────────────────────────── */
 
@@ -36,7 +37,8 @@ export function districtsOf(model: Pick<WorldModel, "zones" | "buildings">, dist
     return index < 0 ? zones.length : index;
   };
   const places = [...byId.values()].sort((a, b) => rank(a.id) - rank(b.id));
-  places.forEach((place, index) => (place.name = place.zone?.name ?? (places.length === 1 ? "The town" : place.zone?.source === "default" ? "Old town" : `District ${index + 1}`)));
+  // The buildings without a zone are "Old town" here and wherever the zone is named (world/zoneText.ts zoneLabel, round 65 w6-5).
+  places.forEach((place, index) => (place.name = place.zone?.name ?? (places.length === 1 ? "The town" : place.zone?.source === "default" ? zoneLabel(place.zone) : `District ${index + 1}`)));
   return places;
 }
 

@@ -4,6 +4,7 @@
    per-browser flag that keeps it from coming back after Skip or Done. The component is components/Tour.tsx. */
 
 import { storedValue } from "./setting.ts";
+import type { InputKind } from "./inputWords.ts";
 
 export const TOUR_KEY = "crewhub-world.tour";
 /** The full document, on GitHub: the host and Vite serve the world, not the repository's docs folder, and a page cannot
@@ -21,27 +22,31 @@ export interface TourStep {
   targetName: string;
 }
 
-/** The steps in the order the person meets them, by mode: the chat and the chip differ between the demo and live. */
-export function tourSteps(mode: "demo" | "live"): TourStep[] {
+/**
+ * The steps in the order the person meets them, by mode: the chat and the chip differ between the demo and live. By input
+ * kind (round 65, w4-2): on a touch device a tap enters and opens, and no key is named.
+ */
+export function tourSteps(mode: "demo" | "live", input: InputKind = "pointer"): TourStep[] {
+  const touch = input === "touch";
   return [
     {
       id: "town",
       title: "The town",
-      text: "One building per project, on a town plan that grows with the project count; a click on a building enters it.",
+      text: `One building per project, on a town plan that grows with the project count; a ${touch ? "tap" : "click"} on a building enters it.`,
       target: "main.world-stage",
       targetName: "the town",
     },
     {
       id: "building",
       title: "A building and its three rooms",
-      text: "Inside, Administration by the front door carries the racks of packages (the tickets), the floor holds the workers' desks, and the lead sits in the office at the back; the jump list (/) names every building.",
+      text: `Inside, Administration by the front door carries the racks of packages (the tickets), the floor holds the workers' desks, and the lead sits in the office at the back; the jump list${touch ? "" : " (/)"} names every building.`,
       target: ".jump-button",
       targetName: "the jump list button",
     },
     {
       id: "card",
       title: "A figure's card",
-      text: "Agents are figures in rooms by role; a click on one opens its card: where it is, when loops last saw it, its work ticket and its latest progress line.",
+      text: `Agents are figures in rooms by role; a ${touch ? "tap" : "click"} on one opens its card: where it is, when loops last saw it, its work ticket and its latest progress line.`,
       target: "main.world-stage",
       targetName: "the town, where the figures stand",
     },
@@ -63,9 +68,9 @@ export function tourSteps(mode: "demo" | "live"): TourStep[] {
     {
       id: "text",
       title: "The text view",
-      text: "Every fact the scene shows is also a sentence: the text view (T) describes the whole world as text, and Where is …? answers for one agent in zone labels.",
+      text: `Every fact the scene shows is also a sentence: the text view ${touch ? "(in the ? menu)" : "(T)"} describes the whole world as text, and Where is …? answers for one agent in zone labels.`,
       target: null,
-      targetName: "the text view, opened with T",
+      targetName: touch ? "the text view, in the ? menu" : "the text view, opened with T",
     },
     mode === "demo"
       ? {
@@ -151,9 +156,11 @@ const GAP = 12;
 /**
  * Where the card goes so that it never covers the element it describes: below the target when there is room, else
  * above, else beside it; a step without a target is centred. On a phone (under 600 px) the card spans the width and
- * sits at the bottom, or at the top when the target is in the lower half of the screen.
+ * sits at the bottom, or at the top when the target is in the lower half of the screen. A card below its target also
+ * keeps clear of `avoid` (the breadcrumb bar under the header; round 65, w1-14): it goes under that bar when the
+ * screen has the room.
  */
-export function placeStep(target: Rect | null, viewport: { width: number; height: number }, card: { width: number; height: number }): Placement {
+export function placeStep(target: Rect | null, viewport: { width: number; height: number }, card: { width: number; height: number }, avoid: Rect | null = null): Placement {
   const phone = viewport.width < 600;
   if (target === null) {
     return { left: Math.max(GUTTER, (viewport.width - card.width) / 2), top: phone ? viewport.height - card.height - GUTTER : Math.max(GUTTER, (viewport.height - card.height) / 2), side: "centre" };
@@ -165,7 +172,9 @@ export function placeStep(target: Rect | null, viewport: { width: number; height
   }
   const clampLeft = (x: number) => Math.min(Math.max(GUTTER, x), Math.max(GUTTER, viewport.width - card.width - GUTTER));
   const centred = clampLeft(target.left + target.width / 2 - card.width / 2);
-  const below = target.top + target.height + GAP;
+  let below = target.top + target.height + GAP;
+  // The bar to keep clear of, when the card below the target would lie over it and there is room under the bar.
+  if (avoid && centred < avoid.left + avoid.width && centred + card.width > avoid.left && below < avoid.top + avoid.height && below + card.height > avoid.top && avoid.top + avoid.height + GAP + card.height + GUTTER <= viewport.height) below = avoid.top + avoid.height + GAP;
   if (below + card.height + GUTTER <= viewport.height) return { left: centred, top: below, side: "below" };
   const above = target.top - GAP - card.height;
   if (above >= GUTTER) return { left: centred, top: above, side: "above" };
