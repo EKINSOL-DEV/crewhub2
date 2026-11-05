@@ -1,5 +1,6 @@
 /** Types for `verdict.mjs` (a plain-Node module, so the TypeScript test can import it). */
-export const RULES: { fitMBPerHour: number; jsObjectsMB: number; codeMBPerHour: number; minFitPoints: number; warmupMinute: number };
+export const RULES: { fitMBPerHour: number; jsObjectsMB: number; codeMBPerHour: number; minFitPoints: number; warmupMinute: number; inspectorRecordBytes: number };
+export const INSPECTOR_RECORDS: string;
 export function fitWindow(minutes: number): { from: number; to: number } | null;
 export function slopePerHour(minutes: number[], ys: number[]): number | null;
 
@@ -28,17 +29,20 @@ export interface VerdictSnapshot {
   bytes: number;
   /** Its `(code)` row, bytes. */
   code: number;
+  /** Its sums by name, as `snapshotDiff` takes them. Left out: nothing leaves the fit and no record-size rule runs. */
+  rows?: Sums;
 }
 export interface Verdict {
   rules: typeof RULES;
   minutes: number;
   window: { from: number; to: number } | null;
-  points: { minute: number; totalMB: number; codeMB: number; withoutCodeMB: number; inWindow: boolean }[];
+  points: { minute: number; totalMB: number; codeMB: number; withoutCodeMB: number; recordsCount: number; recordsMB: number; fittedMB: number; inWindow: boolean }[];
   fit: { from: number; to: number; minutes: number[]; mbPerHour: number | null; pass: boolean } | null;
   jsObjects: { from: number; to: number; mb: number; byKindMB: Record<RowKind, number>; rows: DiffRow[]; pass: boolean } | null;
   code: { from: number; to: number; riseMB: number; mbPerHour: number; stretches: { from: number; to: number; mbPerHour: number }[]; pass: boolean } | null;
   levelling: { from: number; mid: number; to: number; firstMBPerHour: number; secondMBPerHour: number; pass: boolean } | null;
-  failed: ("fit" | "js-objects" | "code-ceiling" | "levelling")[];
+  inspector: { name: string; from: number; to: number; firstCount: number; lastCount: number; mbPerHour: number | null; bytesPerRecord: number | null; worstBytesPerRecord: number; pass: boolean } | null;
+  failed: ("fit" | "js-objects" | "code-ceiling" | "levelling" | "inspector-records")[];
   levelsOff: boolean | null;
   cannot: string[];
   line: string;
