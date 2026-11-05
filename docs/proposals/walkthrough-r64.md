@@ -155,7 +155,7 @@ Prepared branches are ready; an answer `do it` merges that branch, `journey N: a
   reads the says-line in the text view first finds the bubble and its mark gone on return. **Suggestion:** the mark
   outlives the bubble (until the answer is read or the next one comes), or the bubble's clock starts on screen.
 
-  Prepared: `sugg/w3-4`.
+  Built but not approved: sugg/w3-4 turns round 14's phone row red (the chat mark's tap meets a pin); not to take as it stands (round 65).
 
 - **w3-5 · polish, wording.** "About this chat" says "Open an agent's chat head in loops' dock (the Agent chats menu at
   this width)": a newcomer does not know "chat head", "dock", or which width is meant (the frame's). **Suggestion:** "In the frame, open an agent's chat (the Agent chats menu on a narrow frame)".
