@@ -76,6 +76,35 @@ export async function run({ pass, page, check, out }) {
   ok("tour: the ? menu reopens it", (await card.count()) === 1);
   await pg.keyboard.press("Escape");
   await pg.context().close();
+  // Round 73 (wa-1, design choice T2): the tour ended by the mouse puts the focus on the stage without a visible ring
+  // (the card re-focused Next by script after each click, so Chromium would keep a keyboard-style focus and ring the
+  // whole screen); ended by the keyboard, the stage keeps its ring. One fresh browser each, five Nexts and Done.
+  const stageFocus = (page) => page.evaluate(() => { const a = document.activeElement; return { stage: a?.matches("main.world-stage canvas") === true, ring: a?.matches(":focus-visible") === true }; }).catch(() => ({ stage: false, ring: null }));
+  const mouse = await person();
+  await mouse.goto(BASE);
+  await dressed(mouse, 60000).catch(() => {});
+  await mouse.locator(".tour-card").waitFor({ timeout: 10000 }).catch(() => {});
+  for (let i = 0; i < 5; i++) {
+    await mouse.getByRole("button", { name: "Next" }).click();
+    await mouse.waitForTimeout(250);
+  }
+  await mouse.getByRole("button", { name: "Done" }).click();
+  await mouse.waitForTimeout(300);
+  const byMouse = await stageFocus(mouse);
+  ok("tour: Done by the mouse puts the focus on the stage with no visible ring (round 73, wa-1)", byMouse.stage && byMouse.ring === false, `stage ${byMouse.stage}, :focus-visible ${byMouse.ring}`);
+  await shot(mouse, "44-tour-done-by-mouse");
+  await mouse.context().close();
+  const keys = await person();
+  await keys.goto(BASE);
+  await dressed(keys, 60000).catch(() => {});
+  await keys.locator(".tour-card").waitFor({ timeout: 10000 }).catch(() => {});
+  for (let i = 0; i < 6; i++) {
+    await keys.keyboard.press("Enter");
+    await keys.waitForTimeout(250);
+  }
+  const byKeys = await stageFocus(keys);
+  ok("tour: Done by the keyboard puts the focus on the stage with its ring (round 73, wa-1)", byKeys.stage && byKeys.ring === true, `stage ${byKeys.stage}, :focus-visible ${byKeys.ring}`);
+  await keys.context().close();
   // A phone: the card spans the width at the far edge from what it describes, inside the screen, no horizontal scroll.
   const phone = await person({ width: 375, theme: "dark" });
   await phone.goto(BASE);
