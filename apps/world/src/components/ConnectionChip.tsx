@@ -2,28 +2,26 @@
    its host and the host with crewhub-loops (`ConnectionState`): Connecting, Live, Catching up, Stale, Loops down,
    Unauthorized, Stream busy (loops' 429: another host or tab uses the key), Pair again (the host answered 401 not_paired;
    the App shows the Pair screen then). Stale and Stream busy are the watchdog's muted chip; Loops down, Unauthorized and
-   Pair again the attention chip; the rest a plain chip. With `onOpen` the chip is a button that opens the Connection panel (ConnectionPanel.tsx). Copy from the i18n file. */
+   Pair again the attention chip; the rest a plain chip. With `onOpen` the chip is a button that opens the Connection panel (ConnectionPanel.tsx). Copy from the i18n file.
+   The words and the tone are components/connectionWords.ts (Vite-free, held by a node test); App and the panel import the words from here as before. */
 import { Radio } from "lucide-react";
 import type { ConnectionState } from "@crewhub/loops-client";
 import { translate } from "../i18n";
+import { chipTone, connectionHint, connectionLine, connectionWord } from "./connectionWords";
 import { Chip } from "./primitives";
 
-/** The chip's word for a state. */
-export const connectionWord = (state: ConnectionState) => translate(`world.connection.${state}`);
-/** The chip's hint: the state's sentence, with the host's own words where it has them (host-failed, design choice L1). */
-export const connectionHint = (state: ConnectionState, reason: string | null = null) => translate(`world.connection.hint.${state}`, { reason: reason ?? translate("world.connection.hint.host-failed.none") });
-/** The text view's one line. */
-export const connectionLine = (state: ConnectionState) => translate("world.connection.text", { state: connectionWord(state) });
+export { connectionHint, connectionLine, connectionWord };
 
 export function ConnectionChip({ state, reason = null, onOpen, open, ref }: { state: ConnectionState; /** The host's own words on a host-tabs or host-failed state. */ reason?: string | null; onOpen?: () => void; open?: boolean; ref?: React.Ref<HTMLButtonElement> }) {
   const word = connectionWord(state);
   const hint = connectionHint(state, reason);
   const label = translate("world.connection.label", { state: word });
+  const tone = chipTone(state);
   // Inside the button the title sits on the button itself, so the chip carries none.
   const chip =
-    state === "stale" || state === "stream-busy" ? (
+    tone === "stalled" ? (
       onOpen ? <Chip.Stalled>{word}</Chip.Stalled> : <Chip.Stalled title={hint}>{word}</Chip.Stalled>
-    ) : state === "loops-down" || state === "unauthorized" || state === "unpaired" || state === "host-tabs" || state === "host-failed" ? (
+    ) : tone === "attention" ? (
       onOpen ? <Chip.Attention>{word}</Chip.Attention> : <Chip.Attention title={hint}>{word}</Chip.Attention>
     ) : (
       <Chip title={onOpen ? undefined : hint} icon={<Radio className="icon icon-sm" aria-hidden="true" />}>
