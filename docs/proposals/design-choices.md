@@ -841,7 +841,8 @@ X2 (`inert`, the text view), X5 (`short`), S1 (`waits`), S2 (`drop`), S3 (`idle`
 **Half:** T2 (`stage`): the focus does go to the stage on every road, but after Done by the mouse the stage's focus ring
 (T7 `keep`) frames the whole screen, so the picture T2 meant to take off the "?" button now stands round the screen's
 edge (wa-1, confusing, new). Fixed on `dc/T2@ab19869d` by wb (a tour ended by a pointer focuses the stage without a
-visible ring, by the keyboard with it; two tour rows, red then green), under wc's review.
+visible ring, by the keyboard with it; two tour rows, red then green), approved by wc (the iPhone tap covered, three
+mutants red, the tour group 17/17).
 
 **Miss:** W12, found in journey 5 (below) and met in journey 1 too (the text view's Where form at 1440 px: the status region empty after two choices, over 24 s).
 
@@ -891,7 +892,7 @@ N1's options).
 bar's left part, since the bar is wider than the margins there; upright the phone rule stands and nothing is covered.
 T2 (`stage`): the focus goes to the canvas, but after a tapped Done the canvas wears its 2 px ring round the whole
 screen and a tap on the ground keeps it (wc-1, confusing, new; the same mechanism as wa-1, fixed on `dc/T2@ab19869d`,
-which covers the tap road: a tap's click has `detail` 1; under wc's review).
+which covers the tap road: a tap's click has `detail` 1; approved by wc).
 
 **Not seen as a person:** S4 (a seek back shows no empty room on either build; its model test holds it).
 
@@ -930,7 +931,8 @@ through every choice (sampled every 25 ms for 3 s, by the mouse and by typing on
 candidate says the answer at once on the same choice (and keeps talking, which is W12's complaint). The cause is in the
 effect: it queues the status text from a ref and moves the ref on its next line, and React runs the queued updater
 after the ref moved, so the comparison always says "same name". The pure test cannot see it; a component test that picks
-a name and reads the status region can. Fixed on `dc/W12@270ef5f3` by wa (a walk row, red 44/45 then green 45/45), under wc's review.
+a name and reads the status region can. Fixed on `dc/W12@270ef5f3` by wa (a walk row, red 44/45 then green 45/45), approved by wc (three mutants red on the
+row, the walk group 45/45).
 
 ### Journey 6: the town editor (wc; a desktop at 1440 x 900, the iPhone by touch; demo, then live)
 
@@ -943,3 +945,10 @@ the text view end at y 782, the dock's button starts at 799). Nothing half, noth
 **Not seen as a person:** K1 (casts register from code only, so no road brings a newer cast into the page; its two
 tests hold it), K2 (the label windows caught the figures settling at their desks, not the engine's walk; the speed test
 holds it).
+
+**From the mutation runs (mu):** one survivor needed code, not a test. K1 `lenient` warned about a newer-world figure but
+never about a newer-world person: `validatePerson` ran the figure check first and then answered with a fresh report of
+its own checks, so what the figure check ignored was dropped on the way (mu-1). Fixed on `dc/K1@2b2538b8` (the person's
+report carries the figure check's warnings when both checks pass, so the registry warns once about the cast), red
+first; the branch's tip after its tests is `0dc20610`, approved by wb. The other kills are tests only (dc/H1, L1, H3,
+W4, K2, W1), ten survivors argued equivalent; mu's report has the table.
