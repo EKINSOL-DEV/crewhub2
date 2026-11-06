@@ -104,7 +104,7 @@ export function TownSettings({ town }: { town: TownState }) {
       <fieldset className="town-settings">
         <legend className="label">Town</legend>
         <p className="settings-style">Style: {style.name}</p>
-        <p className="hint">The only style tonight; buildings follow the town style unless their plot names another.</p>
+        <p className="hint">The only style for now; buildings follow the town style unless their plot names another.</p>
         <Field
           control="select"
           size="sm"
