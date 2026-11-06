@@ -867,8 +867,12 @@ summary is focusable where the paragraph was not. The main road would come first
 
 ### Journey 3: chat (wa)
 
-Pending at the time of this commit: wa's journey 3 was still running. The Lead's report carries its verdicts until this
-section is completed.
+**Seen to work:** X2 (`inert`, the Chat panel: the right corner, the camera toolbar and the chat corner carry `inert`
+while the panel is open; 30 Tabs from its close button never reach a corner button; Escape puts the focus back on the
+Chat chip), W1 (`clock`, live: "Team snapshot from 12:30:52, 30 s old."), T8 (`answered`, live: "Now: Live. The host
+answered. Host: … Key: crewhub-world."), W16 (`say-the-frame`, read in `docs/INTRODUCTION.md`), W15 (`viewer-first`, the
+rejected screen's "The host says:" on a builder key), H3 (`stored-only`: the env key file and the default file say where
+the key came from with no Forget; a stored key gets Forget). Nothing half, nothing new.
 
 ### Journey 4: a phone (wc)
 
