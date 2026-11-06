@@ -146,6 +146,14 @@ export interface Placement {
 }
 
 const GUTTER = 16;
+
+/**
+ * Where the focus goes when the tour closes and nothing is left to return to (a first visit opened it with nothing
+ * focused): the stage, the town's canvas (the selector App's focusScene uses), design choice T2 (round 72, `stage`). A
+ * mouse visitor then sees no ring on a button they never touched; the next Tab still reaches the header. A tour opened
+ * from Settings keeps its own returnTo.
+ */
+export const TOUR_FOCUS_FALLBACK = "main.world-stage canvas";
 const GAP = 12;
 
 /**

@@ -4,7 +4,7 @@
    dimmed and the camera never moves (reduced motion or not). Tab cycles among the card's buttons (Escape leaves). The
    steps, the placement and the flag are state/tour.ts. */
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
-import { boxOf, placeStep, tourAnnouncement, tourSteps, type Placement, type Rect, type TourStep } from "../state/tour";
+import { boxOf, placeStep, tourAnnouncement, tourSteps, TOUR_FOCUS_FALLBACK, type Placement, type Rect, type TourStep } from "../state/tour";
 import { Button } from "./primitives";
 
 interface TourProps {
@@ -15,7 +15,7 @@ interface TourProps {
   /** Where the focus goes back to when the card closes, when the opener knows better than the focused element at mount
       (Settings closes as the tour opens, so its button is gone); else the element focused at mount, else `fallback`. */
   returnTo?: HTMLElement | null;
-  /** A selector for the element to focus when nothing else is left (the "?" menu's button). */
+  /** A selector for the element to focus when nothing else is left (the stage, design choice T2). */
   fallback?: string;
 }
 
@@ -37,7 +37,7 @@ const nameOf = (el: Element | null): string | null => {
   return text.length > 0 ? text.slice(0, 80) : null;
 };
 
-export function Tour({ mode, onClose, reducedMotion, returnTo = null, fallback = ".help-menu button" }: TourProps) {
+export function Tour({ mode, onClose, reducedMotion, returnTo = null, fallback = TOUR_FOCUS_FALLBACK }: TourProps) {
   const steps = tourSteps(mode);
   const [index, setIndex] = useState(0);
   // Whether Next or Back has been used: from then on the polite region says each step (round 50, A1).
@@ -53,7 +53,7 @@ export function Tour({ mode, onClose, reducedMotion, returnTo = null, fallback =
   const step: TourStep = steps[Math.min(index, steps.length - 1)]!;
   const last = index === steps.length - 1;
 
-  // The focus: into the card when it opens, back where it was when it closes (or to the opener's choice, or the "?").
+  // The focus: into the card when it opens, back where it was when it closes (or to the opener's choice, or the stage).
   const back = useRef<HTMLElement | null>(returnTo);
   useEffect(() => {
     const captured = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
