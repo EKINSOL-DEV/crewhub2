@@ -1,5 +1,7 @@
 # Walkthroughs for Nicky (round 64, 2026-11-05)
 
+**One page for every decision, one row each:** [answer-sheet.md](answer-sheet.md) (round 69).
+
 Six fresh walkers met the world as a person does, each on the production build of `d2a9ead2` in a headless Chromium
 with the fake crewhub-loops behind a host of their own: **1** first start (w1), **2** connecting (w2), **3** chat (w3),
 **4** a phone (w4: an iPhone 13 and a Pixel 5 profile, thumbs only), **5** keyboard and screen reader (w5),

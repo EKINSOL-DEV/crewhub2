@@ -1,5 +1,7 @@
 # Design choices for Nicky (rounds 41 to 69, 2026-11-06)
 
+**One page for every decision, one row each:** [answer-sheet.md](answer-sheet.md) (round 69).
+
 **How this relates to [open-questions.md](open-questions.md):** those are the fifteen merge decisions (pairing, health,
 the answer branches); these are smaller product choices the reviews of rounds 41 to 51 wrote down and left alone:
 words on screen, where a card sits, what the host does in an odd case. Rounds 41 to 47 left none; thirty come from

@@ -1,5 +1,7 @@
 # Open questions for Nicky (rounds 30 to 35, 2026-10-24)
 
+**One page for every decision, one row each:** [answer-sheet.md](answer-sheet.md) (round 69).
+
 **The smaller product choices** (words on screen, the tour, the host's odd cases, the figures, accessibility, the tools; forty-eight from rounds 48, 50, 51, 53, 54, 55 and 66) are on their own page: [design-choices.md](design-choices.md).
 
 **How to answer:** one line per number, in the form shown after each question (for example `3: less`), to crewy or in
