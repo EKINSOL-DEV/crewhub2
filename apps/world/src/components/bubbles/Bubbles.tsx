@@ -9,7 +9,8 @@ import { useSession } from "../../state/session";
 import { timeAgo } from "../board/format";
 import { Avatar } from "../Avatar";
 import { Icon } from "../Icon";
-import { Button, Card, Chip, Field, Menu } from "../primitives";
+import { Button, Card, Chip, Field, isSendChord, Menu } from "../primitives";
+import { currentPlatform } from "../settings/testNotification";
 import { useBubblesData, useBubblesFeature, useChat, usePins } from "./queries";
 import { useMessageViewport } from "./useMessageViewport";
 import "./bubbles.css";
@@ -135,8 +136,8 @@ function Chat({ agent, narrow, dockHeight, pinned, onClose, onPin }: { agent: Ag
       </ol>
     </Card.Body>
     <form className="chat-compose" onSubmit={(e) => { e.preventDefault(); submit(); }}>
-      <Field control="textarea" autoGrow echo rows={1} label={t("agents.bubbles.message")} hideLabel placeholder={t("agents.bubbles.message")} value={draft.text} disabled={draft.pending} onChange={(e) => updateDraft({ text: e.target.value })} error={draft.error ? t("agents.bubbles.sendError") : undefined} />
-      <Button variant="accent" type="submit" disabled={!draft.text.trim() || draft.pending}>{t("agents.bubbles.send")}</Button>
+      <Field control="textarea" autoGrow echo rows={1} hint={narrow ? undefined : t("agents.bubbles.sendHint", { keys: currentPlatform() === "mac" ? "⌘ Enter" : "Ctrl+Enter" })} onKeyDown={(e) => { if (isSendChord(e)) { e.preventDefault(); submit(); } }} label={t("agents.bubbles.message")} hideLabel placeholder={t("agents.bubbles.message")} value={draft.text} disabled={draft.pending} onChange={(e) => updateDraft({ text: e.target.value })} error={draft.error ? t("agents.bubbles.sendError") : undefined} />
+      <Button variant="accent" type="submit" aria-keyshortcuts="Control+Enter Meta+Enter" disabled={!draft.text.trim() || draft.pending}>{t("agents.bubbles.send")}</Button>
     </form>
   </Card>;
   return narrow ? <dialog className="card-dialog bubble-dialog" aria-modal="true" ref={dialog} aria-labelledby="bubble-chat-title" onCancel={(e) => { e.preventDefault(); close(); }}>{contents}</dialog> : contents;

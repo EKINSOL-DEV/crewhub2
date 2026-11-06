@@ -159,6 +159,27 @@ export async function run({ pass, page, check, out }) {
   await p.waitForTimeout(300);
   const typed = await box.inputValue().catch(() => "");
   ok("chat dock (round 69, w5-9): fourteen keys typed with no pause between them all arrive in the message box", typed === "Where are you?", `the box holds ${JSON.stringify(typed)}`);
+  // Round 69 (w5-10): Enter adds a line and sends nothing; Ctrl+Enter (Cmd+Enter on a Mac) sends: loops' own choice (CL-181).
+  // On desktop the box says so under itself, and Send carries the chord for assistive tech. The row presses Control+Enter,
+  // which the chord takes on every platform.
+  await box.fill("");
+  await box.focus().catch((e) => note("box " + e.message.split("\n")[0]));
+  await p.keyboard.type("first");
+  await p.keyboard.press("Enter");
+  await p.keyboard.type("second");
+  await p.waitForTimeout(300);
+  const lined = await box.inputValue().catch(() => "");
+  const thread = () => p.locator(".bubble-chat .thread").innerText().catch(() => "");
+  const sentByEnter = /first/.test(await thread());
+  ok("chat dock (round 69, w5-10): Enter adds a line and sends nothing", lined === "first\nsecond" && !sentByEnter, `the box holds ${JSON.stringify(lined)}; in the thread after Enter: ${sentByEnter}`);
+  const hint = (await p.locator(".chat-compose .hint").innerText().catch(() => "")).trim();
+  const shortcuts = await p.getByRole("button", { name: "Send" }).getAttribute("aria-keyshortcuts").catch(() => null);
+  await p.keyboard.press("Control+Enter");
+  await p.waitForFunction(() => /first\s*second/.test(document.querySelector(".bubble-chat .thread")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
+  const sentByChord = /first\s*second/.test(await thread());
+  const emptied = (await box.inputValue().catch(() => "x")) === "";
+  ok("chat dock (round 69, w5-10): Ctrl+Enter sends the lines and empties the box; the hint under the box and Send's aria-keyshortcuts name the chord", sentByChord && emptied && /^(⌘ Enter|Ctrl\+Enter) sends$/.test(hint) && shortcuts === "Control+Enter Meta+Enter", `sent ${sentByChord}, box empty ${emptied}, hint ${JSON.stringify(hint)}, aria-keyshortcuts ${JSON.stringify(shortcuts)}`);
+  await p.waitForFunction(() => !document.querySelector(".chat-compose textarea")?.disabled, null, { timeout: 5000 }).catch(() => {});
   await p.locator("textarea").first().fill("Hello from the browser regression pass");
   await p.getByRole("button", { name: "Send" }).click().catch((e) => note("send " + e.message.split("\n")[0]));
   // Round 64 (w5-8): a Send by keyboard (or click) must not drop the focus to the body: once the box is enabled again, the focus is back in it.

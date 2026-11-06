@@ -35,9 +35,19 @@ export const COPIES: readonly Copy[] = [
     source: "apps/web/src/components/bubbles/Bubbles.tsx",
     divergences: [
       {
-        why: "w5-9, the message box's Field echoes the draft synchronously, loops' own word from CL-119 (crewhub-loops d4cf7397); docs/proposals/loops-dock-input.md",
-        from: '<Field control="textarea" autoGrow rows={1} label={t("agents.bubbles.message")}',
-        to: '<Field control="textarea" autoGrow echo rows={1} label={t("agents.bubbles.message")}',
+        why: "w5-10, the send chord: loops' own imports from CL-181 (crewhub-loops c7f9d679); docs/proposals/loops-dock-input.md",
+        from: 'import { Button, Card, Chip, Field, Menu } from "../primitives";\n',
+        to: 'import { Button, Card, Chip, Field, isSendChord, Menu } from "../primitives";\nimport { currentPlatform } from "../settings/testNotification";\n',
+      },
+      {
+        why: "w5-9 and w5-10, the message box's Field line: `echo` (CL-119, crewhub-loops d4cf7397) and the send chord with its hint (CL-181, c7f9d679), loops' own line less `draft.gated`, which a1bed0f lacks; docs/proposals/loops-dock-input.md",
+        from: '<Field control="textarea" autoGrow rows={1} label={t("agents.bubbles.message")} hideLabel',
+        to: '<Field control="textarea" autoGrow echo rows={1} hint={narrow ? undefined : t("agents.bubbles.sendHint", { keys: currentPlatform() === "mac" ? "⌘ Enter" : "Ctrl+Enter" })} onKeyDown={(e) => { if (isSendChord(e)) { e.preventDefault(); submit(); } }} label={t("agents.bubbles.message")} hideLabel',
+      },
+      {
+        why: "w5-10, Send carries the chord for assistive tech (CL-181, crewhub-loops c7f9d679); docs/proposals/loops-dock-input.md",
+        from: '<Button variant="accent" type="submit" disabled={!draft.text.trim() || draft.pending}>',
+        to: '<Button variant="accent" type="submit" aria-keyshortcuts="Control+Enter Meta+Enter" disabled={!draft.text.trim() || draft.pending}>',
       },
     ],
   },

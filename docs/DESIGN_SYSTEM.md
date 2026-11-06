@@ -48,8 +48,10 @@ entry in [bubbles-copy.ts](../scripts/bubbles-copy.ts) (`divergences`: the findi
 the source text, which must be in loops' file exactly once, and the copy's text).
 The check applies the records to loops' text before it compares, so any other edit
 still fails, and a record whose text loops no longer holds fails too: re-copy the
-file and drop the record. Today: `Bubbles.tsx`, the message box's `Field` line,
-`echo` (w5-9, loops' own word from CL-119); loops' patch and the state of loops'
+file and drop the record. Today: `Bubbles.tsx`, three records, loops' own lines
+from CL-119 and CL-181: the primitives import with `isSendChord` and the platform
+import, the message box's `Field` line (`echo`, the send chord and its hint) and
+Send's `aria-keyshortcuts` (w5-9 and w5-10); loops' commits and the state of loops'
 HEAD are in the proposal `docs/proposals/loops-dock-input.md` (round 69's doc branch).
 
 The two loops tests next to the chat, `drafts.test.tsx` and `events.test.ts`, are
@@ -68,7 +70,8 @@ adapter in this repository, never by editing a copy:
 | `../../state/session` | [state/session.ts](../apps/world/src/state/session.ts): the demo person Nicky, an admin |
 | `../board/format` | [board/format.ts](../apps/world/src/components/board/format.ts): `timeAgo`, copied |
 | `../Avatar`, `../Icon` | [Avatar.tsx](../apps/world/src/components/Avatar.tsx), [Icon.tsx](../apps/world/src/components/Icon.tsx): ported; the sprite has only the icons the chat uses |
-| `../primitives` | `Chip.Person`, `Chip.Link` and `Chip.Delivery` added to the world's Chip; Menu copied |
+| `../primitives` | `Chip.Person`, `Chip.Link` and `Chip.Delivery` added to the world's Chip; Menu copied; `isSendChord` ported from loops' `sendChord.ts` (CL-181, round 69) |
+| `../settings/testNotification` | [settings/testNotification.ts](../apps/world/src/components/settings/testNotification.ts): loops' `currentPlatform` alone (the send hint's "⌘ Enter" or "Ctrl+Enter"), ported; the world has no notification test |
 | `react-router-dom` | [shims/react-router-dom.ts](../apps/world/src/shims/react-router-dom.ts), through a Vite alias and a tsconfig path: `useNavigate` to `/settings/agents` opens the world's Settings card |
 
 One layout rule for the chat lives in `world.css`, outside the copies: the chat
