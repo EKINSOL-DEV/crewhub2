@@ -51,8 +51,8 @@ import { nodeWarningLine, runningNodeVersion } from "./nodeVersion.ts";
 import { type HostStep, createHost } from "./host.ts";
 import { createStepPrinter, instructionLine, seconds, stepLine as formatStep } from "./steps.ts";
 import { createKeyStore } from "./keyStore.ts";
-import { runFilePath, writeRunFile } from "./runFile.ts";
-import { mint } from "./runningHost.ts";
+import { readRunFile, runFilePath, writeRunFile } from "./runFile.ts";
+import { mint, worldRefusal } from "./runningHost.ts";
 import { explainSqliteWarning, openWorldDb, type WorldDb } from "./worldDb.ts";
 import { loadPairingSecret } from "./pairing.ts";
 
@@ -152,6 +152,13 @@ try {
   if (args.command === "open" || args.command === "world") {
     // A host that already runs on the port mints the link (runningHost.ts: the run file's secret, loopback only).
     const link = await mint(config.port, args.origin);
+    // A development host (npm run host) serves no built world: `world` opens nothing on it and says what to do
+    // (design choice H2, round 72, refuse); a host someone started is not ended by another command.
+    const refusal = args.command === "world" && link !== null ? worldRefusal(readRunFile(config.port), config.port) : null;
+    if (refusal !== null) {
+      log(refusal);
+      process.exit(1);
+    }
     if (link !== null) {
       if (args.command === "world" && !args.noOpen && openBrowser(link)) log(`a host already runs on ${config.port}; opened the browser on a new link`);
       else {
@@ -241,7 +248,7 @@ process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 if (build !== null && !build.fresh) host.setBuilding(true);
 try {
-  removeRunFile = writeRunFile(host.port, { pid: process.pid, url: host.url, mintSecret });
+  removeRunFile = writeRunFile(host.port, { pid: process.pid, url: host.url, mintSecret, world: staticDir !== undefined });
 } catch {
   log(`cannot write the run file ${runFile(host.port)}: "open" cannot reach this host while it runs`);
 }
