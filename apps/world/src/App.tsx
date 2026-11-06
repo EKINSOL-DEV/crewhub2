@@ -153,7 +153,7 @@ function World() {
     // The model is a new object on every reduction; the districts follow who stands where.
   }, [districtKey, plan, model]);
   const here = hereOf(view, districts);
-  const build = useBuildMode(town, inside, view.room, setAnnouncement);
+  const build = useBuildMode(town, inside, view.room, setAnnouncement, townRuntime());
   const rules = useMemo(() => ruleProps(model, town.doc.rules), [model, town.doc.rules]);
   const townLayer = useMemo<TownLayer>(
     () => ({

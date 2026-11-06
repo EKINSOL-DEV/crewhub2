@@ -54,6 +54,7 @@
     "packages/world-cast/test",
     "packages/cast-*/src",
     "packages/cast-*/test",
+    "packages/style-greenhouse/scripts",
     "packages/style-greenhouse/src",
     "packages/style-greenhouse/test",
     "scripts/prop-validate.ts",
