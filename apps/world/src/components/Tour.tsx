@@ -4,7 +4,7 @@
    dimmed and the camera never moves (reduced motion or not). Tab cycles among the card's buttons (Escape leaves). The
    steps, the placement and the flag are state/tour.ts. */
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
-import { boxOf, placeStep, tourAnnouncement, tourSteps, type Placement, type Rect, type TourStep } from "../state/tour";
+import { boxOf, highlightedWords, placeStep, tourAnnouncement, tourSteps, type Placement, type Rect, type TourStep } from "../state/tour";
 import { Button } from "./primitives";
 
 interface TourProps {
@@ -108,7 +108,7 @@ export function Tour({ mode, onClose, reducedMotion, returnTo = null, fallback =
       }
     }
   };
-  const highlighted = step.target ? `Highlighted on the screen: ${target.name ?? step.targetName}.` : `Nothing is highlighted: ${step.targetName}.`;
+  const highlighted = highlightedWords(step, target.name);
   // The focus stays on Next (Enter, Enter, Enter walks the tour), so a new step is said here, not by the dialog's name.
   const announcement = tourAnnouncement(steps, index, moved, highlighted);
 
