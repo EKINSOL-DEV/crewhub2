@@ -183,6 +183,10 @@ export async function run({ pass, page, check, out }) {
   const hint = await p.locator(".chat-compose .hint").first().innerText().catch(() => "");
   ok("chat dock (round 69, w5-10): on a wide screen the hint under the box names the chord that sends", /(\u2318 Enter|Ctrl\+Enter) sends/.test(hint), `the hint reads ${JSON.stringify(hint)}`);
   await p.waitForFunction(() => !document.querySelector(".chat-compose textarea")?.disabled, null, { timeout: 5000 }).catch(() => {});
+  // rd2's review note (round 69): the box is empty once it is enabled again after the chord's send, so a Field that never
+  // adopts the owner's reset (the draft emptied on success) cannot pass.
+  const afterChord = await box.inputValue().catch(() => "");
+  ok("chat dock (round 69, w5-10): once the box is enabled again after the chord's send it is empty", afterChord === "", `the box holds ${JSON.stringify(afterChord)}`);
   await box.fill("line one").catch((e) => note("box enter " + e.message.split("\n")[0]));
   await p.keyboard.press("Enter");
   await p.keyboard.type("line two");
