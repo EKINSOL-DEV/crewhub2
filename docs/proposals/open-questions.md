@@ -1,5 +1,7 @@
 # Open questions for Nicky (rounds 30 to 35, 2026-10-24)
 
+**One page for every decision, one row each:** [answer-sheet.md](answer-sheet.md) (round 69).
+
 **The smaller product choices** (words on screen, the tour, the host's odd cases, the figures, accessibility, the tools; forty-eight from rounds 48, 50, 51, 53, 54, 55 and 66) are on their own page: [design-choices.md](design-choices.md).
 
 **How to answer:** one line per number, in the form shown after each question (for example `3: less`), to crewy or in
@@ -188,7 +190,8 @@ The relay then answers the browser 502 `upstream_too_large`, and the page treats
 its last known facts; no screen changes). The host's own reads see no body, as they do a body that is not JSON today
 (a snapshot read fails as `loops_down`, a chat message makes no bubble), with one log line that never holds the body or
 the key. A stream line past the cap is dropped and the stream goes on from the next line. Seven unit tests; it merges
-cleanly onto `feat/world-demo` and with every other answer branch.
+cleanly with every other answer branch, and onto `feat/world-demo` through its port (since round 59's deepening the
+branch itself conflicts with the head; [merge-plan.md](merge-plan.md) §4 names the port that stands for it).
 
 **Options.** `cap`: that branch, at 4 MB (the same number as the town's inbound limit; a page of 50 tickets from loops is
 far under it). `<size>`: another cap. `as-is`: loops is trusted as a local process; a reviewer reads this

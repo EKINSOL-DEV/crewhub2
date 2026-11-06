@@ -1,4 +1,6 @@
-# Design choices for Nicky (rounds 41 to 66, 2026-11-05)
+# Design choices for Nicky (rounds 41 to 69, 2026-11-06)
+
+**One page for every decision, one row each:** [answer-sheet.md](answer-sheet.md) (round 69).
 
 **How this relates to [open-questions.md](open-questions.md):** those are the fifteen merge decisions (pairing, health,
 the answer branches); these are smaller product choices the reviews of rounds 41 to 51 wrote down and left alone:
@@ -7,12 +9,13 @@ round 48 (checked against the code at `d150cf4`) and nine from round 50's review
 accessibility (K, X, W13 and W14, checked at `5126318`), two from round 51's review of the host and the tools
 (H3 and P1, checked at `86bfbf6`), X5, the last of round 50's accessibility review, written up in round 52, E2
 from round 53's review of the page's state (checked at `402b618`), P2, W15 and W16 from round 54 (checked at
-`35a3ebf`), P3 from round 55's look at round 54's mutation runs (checked at `cc23d62`), and L3 from round 64's walk
-w2-3, written up in round 66 (checked at `ab476f3`).
+`35a3ebf`), P3 from round 55's look at round 54's mutation runs (checked at `cc23d62`), L3 from round 64's walk
+w2-3, written up in round 66 (checked at `ab476f3`), and W17 and N1 from round 64's walks w1-13 and w4-20, written up in
+round 69 (checked at `0dee42e`).
 
 **How to answer:** one line per id, in the same short form as the open questions, for example `T1: as recommended`,
 `W4: keep` or `S1: waits`. A whole block in one line works too: `wording block: as recommended`
-(the eighteen choices marked *wording*, gathered at the end), or `T: as recommended` for a group. **Nothing changes
+(the nineteen choices marked *wording*, gathered at the end), or `T: as recommended` for a group. **Nothing changes
 until you answer:** each choice names what stays if you say nothing, which is always the world as it is today.
 
 **The groups:** [first visit and tour](#first-visit-and-tour-t) (T, 9), [words on screen](#words-on-screen-w) (W, 12),
@@ -20,7 +23,7 @@ until you answer:** each choice names what stays if you say nothing, which is al
 [the storyline](#the-storyline-s) (S, 4), [editing the town](#editing-the-town-e) (E, 2), and from round 50
 [the figures](#the-figures-k) (K, 3) and [accessibility](#accessibility-x) (X, 5); words on screen gained W13 and W14;
 from round 51 the host gained H3, and [the tools](#the-tools-p) (P, 3) is new; round 53 added E2, round 54 P2,
-W15 and W16, round 55 P3, and round 66 L3. **The cost** of a choice names the files, the tests and the pixel sets that would change. The demo pixel set
+W15 and W16, round 55 P3, round 66 L3, and round 69 W17 and [the labels](#the-labels-n) (N, 1). **The cost** of a choice names the files, the tests and the pixel sets that would change. The demo pixel set
 (`tools/pixcheck.mjs`) pictures the town, the town hall, a building and its rooms at 1440 and 375 px, light and dark,
 with the label layer hidden and the tour off; so plates, labels, sheets and the tour never move it.
 
@@ -333,6 +336,26 @@ there; the frame is loops, not the world.
 **If you say nothing:** as it is.
 **Answer:** `W16: say-the-frame / keep`
 
+### W17. An archived building's two ticket lines (round 69, walkthrough w1-13) *wording*
+
+**Today.** The text view's section for a boarded-up building says "Tickets: 2 backlog, 1 planned, 0 in progress, 0 review,
+1 done" and four lines later "Administration: Backlog 0, Planning 0, Review 0, Done 0", "The floor: quiet" (the walker,
+w1-13). The first line is loops' own count of the project's tickets, which an archived building keeps (`counts`,
+`packages/world-model/src/reducer.ts`, `archivedBuilding`); the second counts the cards on the racks (`hallSummary`,
+`packages/world-model/src/describe.ts:232`), and a closed building holds none: the project's archiving took them, and a
+ticket read after it puts none back (`projection.ts:661`). Both lines are true, and nothing says why they differ. The same
+hall sentence is the room focus status line ("Zoomed to Administration: Backlog 0 …", `apps/world/src/world/roomWords.ts:23`).
+**Options.** `why`: both lines stay, and for a boarded-up building the Administration line says instead "Administration:
+the racks are boarded up; the tickets are archived with the project". `tickets`: the Tickets line stays and a boarded-up
+building gets no hall lines (Administration, The floor, Lead's office). `halls`: the hall lines stay and a boarded-up
+building gets no Tickets line. `keep`.
+**Recommended:** `why`: both lines are true, and the new sentence says the one thing the walker could not know, that the
+racks are empty because the archive took the tickets; dropping either line hides a fact.
+**Cost:** one branch on `building.archived` in `hallSummary` (`describe.ts`), which `roomWords.ts` shares, so the status
+line follows; a case in `packages/world-model/test/halls.test.ts` and `apps/world/test/roomWords.test.ts`. No pixel set.
+**If you say nothing:** the two lines as they are.
+**Answer:** `W17: why / tickets / halls / keep`
+
 ## The live road (L)
 
 ### L1. "Loops down" for a host that is fine with loops (r48-live L4)
@@ -569,7 +592,7 @@ there: "No cast named … is installed; … stands in." (`castText.ts:46`).
 `keep`.
 **Recommended:** `say` (this page's; the review named the gap).
 **Cost:** `castText.ts` and the registry's `refused()`; a test in `apps/world/test`. No pixel set. Held with round 50's
-cast branch (`task/r50-casts-held`).
+cast branch (`task/r50-casts-held`, `9ebd022c`, a branch of this Mac's repository only, not on origin).
 **If you say nothing:** "No cast named … is installed".
 **Answer:** `K3: say / keep`
 
@@ -690,10 +713,35 @@ nothing a person sees.
 **If you say nothing:** `keep`.
 **Answer:** `P3: race / seam / keep`
 
+## The labels (N)
+
+### N1. Fewer labels in a short window (round 69, walkthrough w4-20)
+
+**Today.** A phone held sideways (750 x 342) inside a building with Details on: "the labels pile up in a staircase and the
+building's plate lies over the playback bar" (the walker, w4-20; [the picture](../images/walkthrough-r64/w4-20-landscape-labels.png)).
+The label rules know a narrow screen, not a short one: `compact` is `(max-width: 599px)`
+(`apps/world/src/components/WorldCanvas.tsx:647`), so sideways at 750 px nothing is compact. The building's plate inside is
+expanded, its counts and its lead row (`:314`); every figure in a shown room carries its full plate, not a pill (`:733-735`);
+every rack says its count (`:713`); and with Details on every room is shown (`:674`), every object's name tag with it. The
+layout then moves what overlaps upwards (`apps/world/src/world/labelLayout.ts`), which in 342 px is a staircase. Upright on
+the same phone the compact rules thin all of this.
+**Options.** `compact`: a short window (under 480 px tall) counts as compact for the labels, as a narrow one does: the plate
+inside shows its title line only, figures carry pills, rack counts and name tags show for the revealed room or the picked
+figure, and Details means what it means upright. `tags`: only the Details layer thins in a short window: rack counts and
+object name tags show on hover, focus or tap, while the plate and the figures' full plates stay. `keep`.
+**Recommended:** `compact`: it is the same phone, turned, and the rules that keep its labels apart upright already exist;
+one media rule reuses them.
+**Cost:** `compact`: the `COMPACT` rule in `WorldCanvas.tsx` gains `(max-height: 479px)`, and everything `useCompact` feeds
+follows, the agent card's placement too (`:386`), so one look at the card sideways; a regress `walk` row on the iPhone
+profile sideways. No pixel set (the demo set is 1440 x 900 and 375 px upright). `tags`: the `shows` and `near` conditions
+in `Interior`, and the same `walk` row.
+**If you say nothing:** the staircase sideways.
+**Answer:** `N1: compact / tags / keep`
+
 ## The wording block
 
-Eighteen choices change words only, nothing else: **T3, W1, W2, W3, W4, W5, W6, W7, W8, W9, W10, W13, W14, W15, W16, S1, S2,
-S3.**
+Nineteen choices change words only, nothing else: **T3, W1, W2, W3, W4, W5, W6, W7, W8, W9, W10, W13, W14, W15, W16, W17,
+S1, S2, S3.**
 `wording block: as recommended` takes the recommended answer for each; name one to keep it out
 (`wording block: as recommended, but W2: keep`).
 
@@ -710,6 +758,6 @@ S3.**
   work for a later round, not a product choice.
 - **The soak rule's readings** (rounds 45 and 47n): the measuring tool's rule; the Lead's report says it needs no
   decision from Nicky.
-- **The tour's 1.5 s beat** (open question 5) and the other fifteen merge decisions: they are in
+- **The tour's 1.5 s beat** (open question 5) and the other fourteen merge decisions: they are in
   [open-questions.md](open-questions.md).
 - **Rounds 41 to 47:** their reports leave no product choice for Nicky; what they left is tool and test work.
