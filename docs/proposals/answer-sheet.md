@@ -13,11 +13,10 @@ pages hold the reasons, and [merge-plan.md](merge-plan.md) says how the answer b
    question 1 (`tab` if the cookie's threat is in scope, else `cookie+expiry`), T4 (`lift` or `end`) and W2 (`alert` or
    `waiting`); `all recommended, 1: tab, T4: end, W2: alert` settles them.
 2. **`walkthrough: all`**: every prepared walk branch merges. That is a fast-forward of `feat/world-demo` to
-   `sugg/all-r65-on-head` (`f65f4cb8` tonight: `feat/world-demo@0dee42ed` plus the 40 prepared branches, every tip inside it;
-   `<sha>` once it also carries `sugg/p2-recopy`, the w5-9 and w5-10 answer, after tonight's proof),
-   the same page code as the builds four walkers walked in rounds 67 and 68 (`9daea890`, `46c04f06`; since then tests and
-   docs only). The walk ids that are not prepared (a design choice holds them, or
-   nothing is built) stay as they are unless you answer them one by one.
+   `sugg/all-r65-on-head`: today's head plus `sugg/all-r65@<sha>` (the 40 prepared branches and, tonight, `sugg/p2-recopy`,
+   the w5-9 and w5-10 answer); its tip is on origin, and it is the same page code as the builds four walkers walked in
+   rounds 67 and 68 (`9daea890`, `46c04f06`; since then tests, docs and the dock's re-copy). The walk ids that are not
+   prepared (a design choice holds them, or nothing is built) stay as they are unless you answer them one by one.
 3. **One line per row**, in the form the row's third column shows: `3: less`, `W7: drop`, `w3-1: do it`, `w6-13: as it is`,
    `journey 4: as suggested`, `wording block: as recommended`, `T: as recommended`.
 
@@ -38,7 +37,7 @@ port stands for which branch (`--use`). Its last row is `0dee42ed` with `sugg/al
 the six ports on it, the same since `e3da2c1` (round 61), all merge clean onto `0dee42ed` tonight (checked by rd1 and by
 sh, `git merge-tree`), so they are the ones to pass to the replay on today's head. Both replays ran with those six ports and passed `npm run check` on `feat/world-demo@29c514ed` in
 round 65 (`tab` 1841 tests, `cookie+expiry` 1838), and `feat/world-demo` has changed only docs since (`git diff --name-only
-29c514ed 0dee42ed`); on tonight's `sugg/all-r65-on-head` (`f65f4cb8`, which contains `0dee42ed`) they passed again in round 68
+29c514ed 0dee42ed`); on the round-68 candidate `sugg/all-r65-on-head@f65f4cb8` (which contains `0dee42ed`) they passed again in round 68
 (`tab` 1946, `cookie+expiry` 1943). The rows below name the branch (yours) and its port (the one to merge).
 
 ## Open questions (open-questions.md, 15)
@@ -133,7 +132,7 @@ One row per id in the six journeys and the "Findings an answer branch already co
 page's "Fixed this round" table and the three the page marks as merged since (the line under the table) are done and have
 no row; the section "What the walks added to the open design choices"
 adds no id of its own. **Prepared** means a `sugg/<id>` branch is ready: `do it` merges it, `as it is` leaves it; every
-prepared branch's tip tonight is inside `sugg/all-r65-on-head` (`f65f4cb8`), so `walkthrough: all` is the 40 `do it` rows
+prepared branch's tip is inside `sugg/all-r65` (`<sha>` tonight), so `walkthrough: all` is the 40 `do it` rows
 at once, and `journey N: as suggested` is one journey's; w5-9 and w5-10 join it tonight through `sugg/p2-recopy` (the
 candidate's new tip follows the proof), so `walkthrough: all` then says yes to them in the preferred way. Where a design choice holds a finding, the row points there and
 takes that choice's recommendation; answer the choice, not the id. Where nothing is built and no choice holds it, the
