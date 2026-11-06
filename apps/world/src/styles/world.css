@@ -962,8 +962,21 @@
   .demo-word-short {
     display: inline;
   }
-  .demo-chip > .chip {
+  /* The chip is the brand row's second line: a 22 px pill (the chip menu's 40 px touch height would push the breadcrumb
+     card under it into the chat row, whose top is a fixed calc), with an invisible 40 px hit pad, as the chip buttons have. */
+  .demo-chip {
+    position: relative;
     height: 1.375rem;
+    padding: 0 var(--space-2);
+  }
+  .demo-chip::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, var(--control-h-touch));
+    height: var(--control-h-touch);
+    transform: translate(-50%, -50%);
   }
   /* The connection chip keeps its word when something is wrong; "Live" is its icon alone (the label says it). */
   .connection-chip[data-connection="live"] .chip > span {
