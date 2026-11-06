@@ -1,6 +1,7 @@
 /* The Greenhouse style: the botanical miniature studio as a `WorldStyle`. The manifest, palette, swatches and lighting
-   presets are data (../style.json); simple models are parts-JSON (../models/<key>.json) drawn by the shared parts
-   renderer; code draws only what needs it (shaders, stretchable walls and floors, instanced leaves). */
+   presets are data (../style.json); simple models are parts-JSON (../models/<key>.json, listed by the generated
+   ../models/index.ts) drawn by the shared parts renderer; code draws only what needs it (shaders, stretchable walls and
+   floors, instanced leaves). Nothing here is Vite's alone, so the style loads in Node too (round 71). */
 import * as THREE from "three";
 import type { CastManifest, FigureKit } from "@crewhub/world-cast";
 import type {
@@ -14,7 +15,7 @@ import type {
   WorldStyleFactory,
 } from "@crewhub/world-style";
 import { resolveStyleOptions } from "@crewhub/world-style";
-import manifestJson from "../style.json";
+import manifestJson from "../style.json" with { type: "json" };
 import * as civic from "./civic.ts";
 import * as life from "./life.ts";
 import { codeModel } from "./codeModels.ts";
@@ -24,6 +25,7 @@ import { Kit, type GreenhouseManifestData } from "./kit.ts";
 import { BLOB_SHADOWS, LIGHT_POOLS, SURFACES } from "./keys.ts";
 import { compileLook, type Look, type LooksData, type MaterialSwap } from "./looks.ts";
 import type { PropModel } from "@crewhub/world-engine";
+import { modelFiles } from "../models/index.ts";
 import { ModelStore } from "./models.ts";
 import { partsModel } from "./parts.ts";
 import * as pieces from "./pieces.ts";
@@ -35,12 +37,10 @@ type ManifestFile = StyleManifest & GreenhouseManifestData & { looks?: LooksData
 const manifest = manifestJson as unknown as ManifestFile;
 
 /**
- * Data models by file name without `.json`: `<key>` or `<key>.<variant>`, validated the first time one is drawn
- * (models.ts); an invalid file is reported then and skipped.
+ * Data models by file name without `.json`: `<key>` or `<key>.<variant>` (the generated list), validated the first time
+ * one is drawn (models.ts); an invalid file is reported then and skipped.
  */
-const dataModels = new ModelStore(
-  new Map(Object.entries(import.meta.glob<unknown>("../models/*.json", { eager: true, import: "default" })).map(([path, json]) => [path.slice(path.lastIndexOf("/") + 1, -".json".length), json])),
-);
+const dataModels = new ModelStore(modelFiles);
 
 /** What draws a model: the style itself, or one of its looks (its own kit for what it recolours, and its data). */
 interface Dresser {
