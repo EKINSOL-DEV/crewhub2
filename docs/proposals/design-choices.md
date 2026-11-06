@@ -865,6 +865,12 @@ still gets the one sentence) are not ended by L1 and W15.
 **New (polish, `dc/T9`, wb-2):** the Connect screen's first Tab stop is now the disclosure's summary, before the link
 "Open crewhub-loops: Settings › Agents" and the key field, because the disclosure sits above the link in the DOM and a
 summary is focusable where the paragraph was not. The main road would come first with the disclosure under the link.
+**Confirmed (round 74, cw):** by Tab from load the summary is the first ring on desktop and at 375 px, then the link, the key
+field and "Use the demo"; the a11y tree reads the closed details as a group after the three steps; the walkthrough-only
+candidate's first stop is the link, with the key field below the fold at 375 px. Half for a keyboard person (the side road
+is the first ring, every stop ringed and in reading order), so wb-2 stays polish on `dc/T9`. The disclosure under the link
+would keep T9's gain with the main road first, but it moves T9's own placement, which round 72 accepted: a choice for
+Nicky, not a fix.
 
 ### Journey 3: chat (wa)
 
@@ -895,6 +901,9 @@ screen and a tap on the ground keeps it (wc-1, confusing, new; the same mechanis
 which covers the tap road: a tap's click has `detail` 1; approved by wc).
 
 **Not seen as a person:** S4 (a seek back shows no empty room on either build; its model test holds it).
+**S4 again (round 74, cw):** not reachable as a person: in the classic plan (the one whose signs dim) and all four scenarios,
+at 0:00, 1:30, 5:00 and 15:50 and back at 0:00 and 0:30, no empty role room shows on either build, since no shipped
+storyline brings a role into a building later; `roleRoomsSeek.test.ts` holds it.
 
 **New (confusing, `dc/T5`, wc-2):** at the home view upright the cover fit puts Launch & Marketing's sign and its "1
 waiting on a person" beacon off the left edge, the Lodge off the top left, and the "OPS" sign under the camera toolbar,
@@ -902,6 +911,9 @@ so none of the three can be tapped from the home view; a swipe pans them in, and
 name them. The walkthrough-only candidate shows all six signs with an empty band under the chips. So the brief's
 question has its answer: it is a person's problem of the confusing kind, mostly the beacon out of view and the sign
 under the toolbar; `dc/T5-margin` (all four buildings kept, the band not filled) is the prepared alternative.
+**Round 74's perf (pf, finding 1):** the cover fit draws 35 % fewer calls on the phone home view (144 against 221, 0.55 M
+against 0.70 M triangles, five of five production pairs), the plots off the screen's sides being culled; the loop's CPU
+work per frame is unchanged (3.7 against 3.8 ms). A saving by design, no fix.
 
 ### Journey 5: keyboard and screen reader (wb)
 
@@ -945,6 +957,14 @@ the text view end at y 782, the dock's button starts at 799). Nothing half, noth
 **Not seen as a person:** K1 (casts register from code only, so no road brings a newer cast into the page; its two
 tests hold it), K2 (the label windows caught the figures settling at their desks, not the engine's walk; the speed test
 holds it).
+**Seen in round 74 (cw):** K1 as a person, on a copy of the candidate with one cast package added and registered as the four
+shipped casts are (the potlings' data with an activity, a work pose and a role this world does not know, the activity in
+the person too): one console warning per page load names the eight ignored keys, the person's pose among them; Settings ›
+Town › Cast lists the cast, the town, the inside and the casting room draw it, the text view names it (works). Polish on
+`dc/K1`, a line and not a fix: the person's unknown pose is reported under `figure.poses.…`, so the line appears twice
+and cannot be told from the figure's. K2 by the agents' name pills inside CrewHub World on the production build: 4.0x at
+4x and 13.5x (median) to 15.3x (p75) at 16x on the candidate, 6.0x at 16x on the walkthrough-only candidate (works at 4x
+and 16x; the page's speeds are 1, 4 and 16, so the entry's "8x" has no button).
 
 **From the mutation runs (mu):** one survivor needed code, not a test. K1 `lenient` warned about a newer-world figure but
 never about a newer-world person: `validatePerson` ran the figure check first and then answered with a fresh report of
