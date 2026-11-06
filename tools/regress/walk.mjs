@@ -242,6 +242,24 @@ export async function run({ pass, page, check, out }) {
   await shot(p, "09-settings");
   await p.keyboard.press("Escape");
 
+  // 7b. Settings > Town's tab line in the demo (round 75; design choice E2 `say`): a town kept in this browser's IndexedDB
+  // says to build in one tab at a time; a town kept in memory (no IndexedDB here) meets no other tab and says nothing.
+  // The other side, a live town, is section 15b of tools/regress/live.mjs.
+  {
+    const keepingLine = async (pg) => {
+      await town(pg, 1000);
+      await pg.getByRole("button", { name: "Settings", exact: true }).click();
+      await pg.waitForSelector(".settings-sheet", { timeout: 5000 });
+      const line = (await pg.locator(".settings-sheet .hint").filter({ hasText: /Layout revision/ }).first().innerText().catch(() => "")).replace(/\s+/g, " ");
+      await pg.context().close();
+      return line;
+    };
+    const kept = await keepingLine(await open());
+    const memory = await keepingLine(await open({ initScripts: [() => Object.defineProperty(globalThis, "indexedDB", { value: undefined, configurable: true })] }));
+    ok("Settings > Town: a demo town kept in this browser says to build in one tab at a time (E2)", /Kept in this browser \(IndexedDB\)\. Build in one tab at a time; another tab's edits are not seen here\./.test(kept), kept);
+    ok("Settings > Town: a demo town kept in memory says no such thing (E2)", /Kept in memory only/.test(memory) && !/one tab/.test(memory), memory);
+  }
+
   // 8. Where form
   await p.keyboard.press("t");
   await p.waitForTimeout(500);
