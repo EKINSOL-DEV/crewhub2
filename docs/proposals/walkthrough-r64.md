@@ -265,8 +265,8 @@ Prepared branches are ready; an answer `do it` merges that branch, `journey N: a
 
   Prepared: `sugg/p2-recopy` for w5-9 and w5-10 together (the preferred `do it`): loops already has this fix (CL-181
   `c7f9d679`) and chose the second way, Cmd/Ctrl+Enter sends with Enter a new line, which the re-copy brings, not
-  Enter-sends. The fallback is `sugg/w5-10`, built on `sugg/w5-9`'s tip (so its `do it` takes w5-9 with it), with the same
-  declared-divergence records. Both are in [loops-dock-input.md](loops-dock-input.md).
+  Enter-sends. The fallback is `sugg/w5-10`, built on `sugg/w5-9`'s tip (so its `do it` takes w5-9 with it), with its own
+  declared-divergence records (the same mechanism). Both are in [loops-dock-input.md](loops-dock-input.md).
 
 - **w5-11 · confusing (screen reader).** A card opened by Enter on the stage says nothing: the focus stays on the stage
   by design (the arrows keep moving the ring) and no live region changes; a blind person does not know a card opened
