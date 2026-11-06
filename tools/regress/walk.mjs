@@ -151,6 +151,14 @@ export async function run({ pass, page, check, out }) {
   // 5. Chat dock: open, send, scripted reply
   await p.locator("aside.dock button").first().click().catch((e) => note("dock " + e.message.split("\n")[0]));
   await p.waitForTimeout(800);
+  // Round 69 (w5-9): keys typed with no pause between them all arrive. The copied dock keeps the draft in a query cache
+  // whose notification comes a macrotask later, so the controlled box was reset to the stale text before the next key.
+  const box = p.locator(".chat-compose textarea").first();
+  await box.focus().catch((e) => note("box " + e.message.split("\n")[0]));
+  await p.keyboard.type("Where are you?");
+  await p.waitForTimeout(300);
+  const typed = await box.inputValue().catch(() => "");
+  ok("chat dock (round 69, w5-9): fourteen keys typed with no pause between them all arrive in the message box", typed === "Where are you?", `the box holds ${JSON.stringify(typed)}`);
   await p.locator("textarea").first().fill("Hello from the browser regression pass");
   await p.getByRole("button", { name: "Send" }).click().catch((e) => note("send " + e.message.split("\n")[0]));
   // Round 64 (w5-8): a Send by keyboard (or click) must not drop the focus to the body: once the box is enabled again, the focus is back in it.

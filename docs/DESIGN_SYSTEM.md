@@ -42,6 +42,16 @@ differs from its source at the recorded commit. It needs a crewhub-loops checkou
 (`CREWHUB_LOOPS_DIR`, or the sibling directory `../crewhub-loops`); without one, or
 without the commit, it prints that it skipped and passes.
 
+**A declared divergence** (round 69) is the one exception, and it is recorded, not
+skipped: a copy may carry an exact edit that loops has not taken yet, listed on its
+entry in [bubbles-copy.ts](../scripts/bubbles-copy.ts) (`divergences`: the finding,
+the source text, which must be in loops' file exactly once, and the copy's text).
+The check applies the records to loops' text before it compares, so any other edit
+still fails, and a record whose text loops no longer holds fails too: re-copy the
+file and drop the record. Today: `Bubbles.tsx`, the message box's `Field` line,
+`echo` (w5-9, loops' own word from CL-119); loops' patch and the state of loops'
+HEAD are in the proposal `docs/proposals/loops-dock-input.md` (round 69's doc branch).
+
 The two loops tests next to the chat, `drafts.test.tsx` and `events.test.ts`, are
 **not** copied. They run on vitest and Testing Library and import loops'
 `state/events`, none of which this repository has. The behaviour they pin stays

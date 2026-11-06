@@ -135,7 +135,7 @@ function Chat({ agent, narrow, dockHeight, pinned, onClose, onPin }: { agent: Ag
       </ol>
     </Card.Body>
     <form className="chat-compose" onSubmit={(e) => { e.preventDefault(); submit(); }}>
-      <Field control="textarea" autoGrow rows={1} label={t("agents.bubbles.message")} hideLabel placeholder={t("agents.bubbles.message")} value={draft.text} disabled={draft.pending} onChange={(e) => updateDraft({ text: e.target.value })} error={draft.error ? t("agents.bubbles.sendError") : undefined} />
+      <Field control="textarea" autoGrow echo rows={1} label={t("agents.bubbles.message")} hideLabel placeholder={t("agents.bubbles.message")} value={draft.text} disabled={draft.pending} onChange={(e) => updateDraft({ text: e.target.value })} error={draft.error ? t("agents.bubbles.sendError") : undefined} />
       <Button variant="accent" type="submit" disabled={!draft.text.trim() || draft.pending}>{t("agents.bubbles.send")}</Button>
     </form>
   </Card>;
