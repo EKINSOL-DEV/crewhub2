@@ -901,6 +901,13 @@
   }
 }
 
+/* Design choice T6 (round 72, word): the phone's short title and the Demo chip's bare word live in the markup beside the
+   full ones and show under 600 px only (the rules in the phone block below). */
+.brand-short,
+.demo-word-short {
+  display: none;
+}
+
 /* ── Phones: the playback bar spans the bottom, the camera stack sits above it ── */
 @media (max-width: 600px) {
   .world-corner {
@@ -932,16 +939,26 @@
   /* The title keeps its fold (w2's review): with the row wrapping, "CrewHub World" took its one-line width and pushed
      even the Live icon and the Demo chip to a second line; folding to two lines as before, it leaves the icon chips
      beside it and only a worded chip wraps. Design choice T6 (round 72, word): the title's second line goes instead
-     ("CrewHub" alone) and the Demo chip keeps its word, "Demo", without the scenario's name (the menu names it); the
-     chip stays beside the title on its first line (regress walk: w4-14). */
+     (the short title "CrewHub" stands in for the full one at this width: a second element, so the desktop's text
+     node stays whole) and the Demo chip keeps its word, "Demo", in place of its icon and without the scenario's name
+     (the menu names it); the chip stays beside the title on its first line (regress walk: w4-14). */
   .world-brand > strong {
     flex: 1 1 min-content;
     min-width: 0;
   }
-  .brand-world,
-  .demo-scenario,
+  .world-brand > strong:not(.brand-short) {
+    display: none;
+  }
+  .world-brand > .brand-short {
+    display: block;
+  }
+  .demo-word:not(.demo-word-short),
+  .demo-chip .icon,
   .demo-chip .menu-caret {
     display: none;
+  }
+  .demo-word-short {
+    display: inline;
   }
   /* The connection chip keeps its word when something is wrong; "Live" is its icon alone (the label says it). */
   .connection-chip[data-connection="live"] .chip > span {
