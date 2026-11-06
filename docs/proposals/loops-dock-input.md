@@ -48,14 +48,15 @@ already notes "changed in crewhub-loops after a1bed0f; re-copy it" for each. Two
 
 | Finding | Loops' commit | What it does |
 | --- | --- | --- |
-| w5-9 | **CL-119 `d4cf7397`** (1 Oct 2026, "the chat caret no longer jumps to the end (Field echo)") | `Field` gets an opt-in `echo` prop: the control shows a local copy set synchronously in the change handler, and adopts the owner's value only when it is one the Field did not emit (a draft restored, a thread switched, a reset after send); the chat's Field line gets the one word `echo`. Tests: `Field.caret.test.tsx` (vitest, six cases including "fast typing is not rolled back by a late echo") and a Playwright case in `bubbles.spec.ts`. |
+| w5-9 | **CL-119 `d4cf7397`** (1 Oct 2026, "the chat caret no longer jumps to the end (Field echo)") | `Field` gets an opt-in `echo` prop: the control shows a local copy set synchronously in the change handler, and adopts the owner's value only when it is one the Field did not emit (a draft restored, a thread switched, a reset after send); the chat's Field line gets the one word `echo`. Tests: `Field.caret.test.tsx` (vitest, eight cases, four of them over input, textarea and the auto-grow textarea, including "fast typing is not rolled back by a late echo") and a Playwright case in `bubbles.spec.ts`. |
 | w5-10 | **CL-181 `c7f9d679`** (3 Oct 2026, "Ctrl+Enter / Cmd+Enter sends the chat message; one send-chord rule for the chat, the quick ask and the comment composer") | `primitives/sendChord.ts`, `isSendChord`: Ctrl+Enter or Cmd+Enter sends; plain Enter, Shift+Enter and Alt+Enter keep their meaning (a new line); an IME composition never sends. The chat's Field gets `onKeyDown` with it, a hint "⌘ Enter sends" / "Ctrl+Enter sends" on desktop (not on a phone), and Send carries `aria-keyshortcuts="Control+Enter Meta+Enter"`. Tests: `sendChord.test.ts` (vitest) and two Playwright cases in `bubbles.spec.ts`. |
 
 Loops' own choice for w5-10 is the walkthrough's **second** way (Cmd/Ctrl+Enter sends), in Nicky's commit: "Enter, Shift+Enter
 and Alt+Enter keep their meaning". The branches build that, not Enter-sends.
 
-Neither `Field.tsx` nor `sendChord.ts` changed in loops after those commits, so what the branches port is loops' current
-text for both.
+The echo lines of `Field.tsx` and the whole of `sendChord.ts` are loops' current text: `sendChord.ts` has not changed since
+`c7f9d679`, and `Field.tsx` changed once after `d4cf7397` (CL-115 `32828b96`, 2 Oct, the error hint gets `role=alert`),
+elsewhere in the file, `useEchoValue` at HEAD being identical. So what the branches port is loops' current text for both.
 
 ### Loops' own change, trimmed to the lines that matter
 
@@ -196,7 +197,7 @@ hint "⌘ Enter sends" (Mac) or "Ctrl+Enter sends" under the box, loops' own; no
 
 ## The preferred `do it`: `sugg/p2-recopy`
 
-A third branch, built by rd1 in round 69 (tip `02a56791`, review pending with rd2): `Bubbles.tsx` and `queries.ts`
+A third branch, built by rd1 in round 69 (tip `02a56791`, approved by rd2 at 01:56 on 6 Nov): `Bubbles.tsx` and `queries.ts`
 re-copied verbatim at loops `c7f9d679` (the commit that brought both fixes), `sendChord.ts` copied with them, `Menu.tsx`
 and the other copies left at `a1bed0f`, and **no divergence records**. It does not change the copy rule: one line adds
 `sendChord.ts` to the list in `scripts/bubbles-copy.ts`, and the Bubbles and queries pins (the header lines) move to
@@ -207,7 +208,7 @@ world's `Field` echo from `sugg/w5-9` (`6f47a461`'s `Field.tsx`, byte for byte).
 **This is the preferred `do it` for w5-9 and w5-10 together.** `sugg/w5-9` and `sugg/w5-10` are the fallback, with the
 declared-divergence mechanism (crewy's rule: it lives on those two branches only, and merging it is Nicky's call).
 
-**State:** <pending> (rd2's review).
+**State:** approved by rd2 (01:56 by `date`, 6 Nov 2026); the Lead's carry decides whether it goes into `sugg/all-r65`.
 
 ## The clean end state
 
