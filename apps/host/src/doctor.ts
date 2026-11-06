@@ -151,7 +151,7 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
   }
   if (loaded === null && lines.every((l) => l.id !== "key")) {
     const where = (io.env.CREWHUB_WORLD_KEY_FILE ?? "").trim() === "" ? `looked in ${tilde(files.storedKey, home)} and ${tilde(files.defaultKey, home)}` : "";
-    fix("key", `no key yet (${where}). The world shows its Connect screen: in crewhub-loops make an external bot (Settings > Agents > New external bot, name crewhub-world, "Read only" off, no projects), copy the access key once and paste it there. The host stores it in ${tilde(files.storedKey, home)}.`);
+    fix("key", `no key yet (${where}). The world shows its Connect screen: in crewhub-loops open Settings > Agents > Connect CrewHub World and make its access key (on an older crewhub-loops, Settings > Agents > New external bot, name crewhub-world, "Read only" off, no projects), copy the key once and paste it there. The host stores it in ${tilde(files.storedKey, home)}.`);
   } else if (loaded !== null) {
     const problems: string[] = [];
     const info = statFile(loaded.file);
