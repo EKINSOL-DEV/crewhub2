@@ -111,13 +111,12 @@ export function chatRuntime(): Chat {
 /**
  * Road 2's page wiring (round 28, state/pageChat.ts): one runner for this word; its lines, its threads, its state and the
  * probe's verdict go to the chat stores (the road's words switch by themselves, r28-session); the page coming back into view and the online
- * event wake it. Returns the stop.
+ * event wake it (an ask now; the browser's online flag itself is not asked, design choice L2). Returns the stop.
  */
 function pageRoad(word: RoadWord): () => void {
   const runner = createPageChatRunner({
     ...word,
     hidden: () => document.hidden,
-    online: () => navigator.onLine,
     onLine: chatStores.said.remember,
     onThreads: chatStores.threads.remember,
     onState: (state) => {
@@ -167,6 +166,12 @@ export function useWorld(): WorldState {
 export function useConnection(): ConnectionState | null {
   const connection = worldRuntime().connection;
   return useSyncExternalStore(subscribeOf(connection), () => (connection ? connection.state() : null));
+}
+
+/** The host's own words on a host-tabs or host-failed state (design choice L1); null otherwise and in demo mode. */
+export function useConnectionReason(): string | null {
+  const connection = worldRuntime().connection;
+  return useSyncExternalStore(subscribeOf(connection), () => (connection ? connection.reason() : null));
 }
 
 /** The host's own word on its key from the stream's last status (none, checking, rejected, ok…); null in demo mode or from a host that does not say. */

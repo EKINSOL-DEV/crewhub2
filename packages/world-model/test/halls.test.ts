@@ -98,7 +98,9 @@ test("the three-rooms text view tells the halls' story: racks, desks, the huddle
   assert.match(own, /Ada is worker, from its name; home place on the floor, at a worker desk\./);
   assert.equal(lines.find((l) => l.text.startsWith("Ada is worker"))?.kind, "inference");
   assert.match(own, /Lin is lead, the project lead; home place in the lead's office\./);
-  assert.match(own, /5 tickets archived from the Done rack; .* the archive counter in Administration keeps the count\./);
+  // Design choice W6 (`drop`): the count is the archives since the page's last snapshot, so nothing "keeps" it.
+  assert.match(own, /^5 tickets archived from the Done rack; the truck took them away\.$/m);
+  assert.doesNotMatch(own, /keeps the count/);
   // No classic room section is left.
   assert.ok(!lines.some((l) => /: (Workers room|Storage|Lobby|Meeting room)$/.test(l.section)));
 });
@@ -112,7 +114,8 @@ test("the classic wording is the default and unchanged", () => {
   assert.match(text, /storage: 2 tickets in the pile\./);
   assert.match(text, /CH-12 .*on the desk of Ada\./);
   assert.match(text, /CH-20 is in transit from the planning room to the lead's office/);
-  assert.match(text, /5 tickets archived from Dispatch; .* the lobby keeps the count\./);
+  assert.match(text, /^5 tickets archived from Dispatch; the truck took them away\.$/m);
+  assert.doesNotMatch(text, /keeps the count/);
   assert.ok(lines.some((l) => l.section === "CH product (CH): Storage"));
   assert.ok(!lines.some((l) => l.section === "CH product (CH): Administration"));
 });

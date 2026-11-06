@@ -10,18 +10,20 @@ import { Chip } from "./primitives";
 
 /** The chip's word for a state. */
 export const connectionWord = (state: ConnectionState) => translate(`world.connection.${state}`);
+/** The chip's hint: the state's sentence, with the host's own words where it has them (host-failed, design choice L1). */
+export const connectionHint = (state: ConnectionState, reason: string | null = null) => translate(`world.connection.hint.${state}`, { reason: reason ?? translate("world.connection.hint.host-failed.none") });
 /** The text view's one line. */
 export const connectionLine = (state: ConnectionState) => translate("world.connection.text", { state: connectionWord(state) });
 
-export function ConnectionChip({ state, onOpen, open, ref }: { state: ConnectionState; onOpen?: () => void; open?: boolean; ref?: React.Ref<HTMLButtonElement> }) {
+export function ConnectionChip({ state, reason = null, onOpen, open, ref }: { state: ConnectionState; /** The host's own words on a host-tabs or host-failed state. */ reason?: string | null; onOpen?: () => void; open?: boolean; ref?: React.Ref<HTMLButtonElement> }) {
   const word = connectionWord(state);
-  const hint = translate(`world.connection.hint.${state}`);
+  const hint = connectionHint(state, reason);
   const label = translate("world.connection.label", { state: word });
   // Inside the button the title sits on the button itself, so the chip carries none.
   const chip =
     state === "stale" || state === "stream-busy" ? (
       onOpen ? <Chip.Stalled>{word}</Chip.Stalled> : <Chip.Stalled title={hint}>{word}</Chip.Stalled>
-    ) : state === "loops-down" || state === "unauthorized" || state === "unpaired" ? (
+    ) : state === "loops-down" || state === "unauthorized" || state === "unpaired" || state === "host-tabs" || state === "host-failed" ? (
       onOpen ? <Chip.Attention>{word}</Chip.Attention> : <Chip.Attention title={hint}>{word}</Chip.Attention>
     ) : (
       <Chip title={onOpen ? undefined : hint} icon={<Radio className="icon icon-sm" aria-hidden="true" />}>

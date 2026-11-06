@@ -204,6 +204,26 @@ export async function run({ pass, page, check, out }) {
     await p.waitForTimeout(1200);
   }
 
+  // 3b. W2 (design choice, `alert`): the plate of a figure with an alert leads its line with "Alert:", a word a first
+  // visitor knows ("Lit:" named the desk lamp). CR Lead's CR-23 waits on Nicky from the start to about 1:36; the jump
+  // list lands on the figure, selected, so its plate shows; then the Escape chain takes the page back to the town.
+  ok("seek plate", await seek(p, 60000));
+  await canvas(p).focus();
+  await p.keyboard.press("/");
+  const jump = p.getByRole("dialog", { name: "Jump to" });
+  await jump.waitFor({ timeout: 3000 }).catch(() => {});
+  await p.keyboard.type("CR Lead");
+  await p.waitForTimeout(400);
+  await p.keyboard.press("Enter");
+  await p.waitForFunction(() => globalThis.__town?.view?.entered != null, null, { timeout: 8000 }).catch(() => {});
+  await p.waitForTimeout(1200);
+  const plateText = (await p.locator(".agent-plate").first().innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+  ok("W2: the plate's alert line says Alert: CR-23 waiting on Nicky", /Alert: CR-23 waiting on Nicky/.test(plateText) && !/\bLit:/.test(plateText), plateText.slice(0, 120) || "no plate");
+  await shot(p, "04b-plate-alert");
+  for (let i = 0; i < 3; i++) await p.keyboard.press("Escape");
+  await p.waitForTimeout(1200);
+  ok("W2: the Escape chain returns to the town after the plate", (await entered(p)) == null, await crumbs(p));
+
   // 4. Inside a building while playing: drone, walks
   await seek(p, 200000);
   await speed(p, "4x").catch((e) => note("4x " + e.message.split("\n")[0]));
@@ -641,6 +661,27 @@ export async function run({ pass, page, check, out }) {
     await shot(p, `12-375-${scheme}-town`);
     const sc = await p.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
     ok(`375 ${scheme}: no horizontal scroll`, sc.sw <= sc.cw, `${sc.sw}/${sc.cw}`);
+    // Design choice T5 (round 72, frame): on a portrait phone the home view frames the town in the space between the
+    // chips and the playback bar (a cover fit: the sides run off), where a contain fit left an empty band under the chips
+    // and above the bar with the width binding. Measured through the dev build's scene (`__town`): the vertical extent
+    // of the lots' centres (ground and 2 up) projected by the home camera, as a share of the canvas height less the
+    // scene's own insets. The threshold stands between the two measured fits (base and branch: the numbers in r72-d3's
+    // report); without `__town` (a production build) the row is skipped with a note.
+    if (scheme === "light") {
+      const framing = await p.evaluate(() => {
+        const s = globalThis.__town;
+        if (!s?.camera || !s.renderer?.domElement || !s.view?.plan?.lots) return null;
+        const canvas = s.renderer.domElement;
+        const V = s.camera.position.constructor;
+        const ys = [];
+        for (const lot of s.view.plan.lots) for (const y of [0, 2]) ys.push(((1 - new V(lot.centre.x, y, lot.centre.z).project(s.camera).y) / 2) * canvas.clientHeight);
+        const insets = s.insets();
+        const free = canvas.clientHeight - insets.top - insets.bottom;
+        return { extent: Math.round(Math.max(...ys) - Math.min(...ys)), free: Math.round(free), share: (Math.max(...ys) - Math.min(...ys)) / free, lots: s.view.plan.lots.length };
+      });
+      if (framing === null) info("375 light: the home framing row needs the dev build's __town; skipped (T5)");
+      else ok("375 light: the home view frames the town in the band between the chips and the playback bar (T5: the lots' projected extent fills at least 0.72 of it)", framing.share >= 0.72, `extent ${framing.extent} of ${framing.free} px (${framing.share.toFixed(2)}), ${framing.lots} lots`);
+    }
     const small = await p.evaluate(() => [...document.querySelectorAll("button, a, input, select")].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && (r.height < 40 || r.width < 40) && getComputedStyle(e).visibility !== "hidden"; }).map((e) => (e.getAttribute("aria-label") || e.textContent || e.tagName).trim().slice(0, 24)));
     info(`375 ${scheme} targets under 40px (visible box): ${small.length} ${small.slice(0, 8).join(", ")}`);
     // A building's sign is a quiet name, smaller than a finger: its ::after pad is what is tapped.
@@ -654,6 +695,9 @@ export async function run({ pass, page, check, out }) {
       return chip && title ? { chipLeft: Math.round(chip.left), chipTop: Math.round(chip.top), chipBottom: Math.round(chip.bottom), titleRight: Math.round(title.right), titleTop: Math.round(title.top), titleMid: Math.round((title.top + title.bottom) / 2), titleBottom: Math.round(title.bottom) } : null;
     });
     ok(`375 ${scheme}: the Demo chip sits beside the brand's title, on its first line`, beside !== null && beside.chipLeft >= beside.titleRight && beside.chipTop < beside.titleMid && beside.chipBottom > beside.titleTop, beside ? `chip at ${beside.chipLeft}, ${beside.chipTop}..${beside.chipBottom}; title to ${beside.titleRight}, ${beside.titleTop}..${beside.titleBottom}` : "no chip or title");
+    // Design choice T6 (round 72, word): the chip says "Demo" (the scenario's name is the menu's), the title "CrewHub".
+    const words = await p.evaluate(() => ({ chip: (document.querySelector(".demo-chip")?.innerText ?? "").replace(/\s+/g, " ").trim(), title: (document.querySelector(".world-brand > strong")?.innerText ?? "").replace(/\s+/g, " ").trim() }));
+    ok(`375 ${scheme}: the header says Demo beside the title CrewHub (T6)`, words.chip === "Demo" && words.title === "CrewHub", JSON.stringify(words));
     if (scheme === "light") {
       // Round 64 (w4-7): a thumb has no T key and never meets the skip link, so a visible control must open the text view:
       // the "?" (Help) menu's row "Open the text view", tapped, as the tour's step 5 promises. Before, the menu held the
@@ -1009,5 +1053,88 @@ export async function run({ pass, page, check, out }) {
     const closed = (await menu.isVisible().catch(() => false)) === false;
     ok("landscape phone: the Agent chats menu fits the window or scrolls, and its last item can be reached and tapped", reachable && closed, facts ? `menu ${facts.client}/${facts.scroll} overflow ${facts.overflowY}, bottom ${facts.bottom} of ${facts.vh}; "${lastName}" at y ${lastBox ? Math.round(lastBox.y) : "?"}..${lastBox ? Math.round(lastBox.y + lastBox.height) : "?"}; tapped: menu ${closed ? "closed" : "still open"}` : "no menu");
     await ctx.close();
+  }
+
+  // 13. The same phone sideways, inside a building with Details on (round 64, w4-20; design choice N1 `compact`): a short
+  // window (under 480 px tall) counts as compact for the labels, as a narrow one does, so the building's plate inside
+  // shows its title line only (no counts, no lead row) and the figures carry pills, not their full plates with captions,
+  // instead of a staircase of labels over the playback bar.
+  {
+    const ctx = await browser.newContext({ ...devices["iPhone 13 landscape"], colorScheme: "light" });
+    const pg = await ctx.newPage();
+    watch(pg, pass.origin, pass.problems, "landscape-labels");
+    await pg.goto(pass.base);
+    await dressed(pg);
+    await pg.waitForTimeout(1000);
+    await canvas(pg).focus();
+    await pg.keyboard.press("ArrowRight");
+    await pg.keyboard.press("Enter");
+    await pg.waitForTimeout(2000);
+    await pg.getByRole("button", { name: "Details (D)", exact: true }).tap().catch(() => {});
+    await pg.waitForTimeout(900);
+    const counts = await pg.evaluate(() => ({
+      height: innerHeight,
+      width: innerWidth,
+      expandedSigns: document.querySelectorAll(".town-sign.expanded").length,
+      signCounts: document.querySelectorAll(".sign-counts").length,
+      captions: document.querySelectorAll(".agent-anchor .caption").length,
+      pills: document.querySelectorAll(".agent-anchor .name-pill").length,
+      rackCounts: document.querySelectorAll(".rack-sign .sign-muted").length,
+    }));
+    await shot(pg, "15-landscape-labels");
+    const inside = (await entered(pg)) !== null;
+    ok("landscape phone, inside with Details on: the labels are the compact set (the plate shows its title only, the figures carry pills, no captions; N1)", inside && counts.height < 480 && counts.expandedSigns === 0 && counts.signCounts === 0 && counts.captions === 0 && counts.pills > 0, `window ${counts.width} x ${counts.height}, expanded signs ${counts.expandedSigns}, counts ${counts.signCounts}, captions ${counts.captions}, pills ${counts.pills}, rack counts ${counts.rackCounts}${inside ? "" : ", not inside"}`);
+    await ctx.close();
+  }
+
+  // 14. A desktop with the copied dock (the demo's, bottom right): Settings open, then the text view open. Design choice
+  // T4 `end`: the sheet's scroll area ends above the dock, so the dock's round button lies over no line of the sheet.
+  {
+    const p = await open();
+    await town(p, 1500);
+    const aboveDock = async (sheet) =>
+      p.evaluate((sheet) => {
+        const dock = document.querySelector("body > aside.dock");
+        const s = document.querySelector(sheet);
+        if (!dock || !s) return { has: !!dock && !!s };
+        const d = dock.getBoundingClientRect();
+        const r = s.getBoundingClientRect();
+        const overlap = r.bottom > d.top + 1 && r.right > d.left + 1 && r.left < d.right - 1;
+        return { has: true, clear: !overlap, sheetBottom: Math.round(r.bottom), dockTop: Math.round(d.top) };
+      }, sheet);
+    await p.getByRole("button", { name: "Settings", exact: true }).click();
+    await p.waitForTimeout(800);
+    const settings = await aboveDock(".settings-sheet");
+    await shot(p, "15-settings-above-dock");
+    await p.keyboard.press("Escape");
+    await p.waitForTimeout(400);
+    await canvas(p).focus();
+    await p.keyboard.press("t");
+    await p.waitForTimeout(800);
+    const text = await aboveDock(".text-sheet");
+    await shot(p, "16-text-above-dock");
+    ok("desktop: with Settings open and with the text view open, the sheet ends above the copied dock (design choice T4, end)", settings.has && text.has && settings.clear && text.clear, `settings ${JSON.stringify(settings)}, text ${JSON.stringify(text)}`);
+    await p.context().close();
+  }
+
+  // 15. A 320 px window (design choice X4, `drop-word`): under 360 px the brand keeps its mark and loses the words
+  // "CrewHub World" from view, so the brand row no longer runs into the right toolbar; the words stay for a screen reader.
+  {
+    const p = await open({ width: 320, height: 568 });
+    await town(p, 1500);
+    const brand = await p.evaluate(() => {
+      const strong = document.querySelector(".world-brand > strong");
+      const row = document.querySelector(".world-brand");
+      const corner = document.querySelector(".world-corner-right");
+      if (!strong || !row || !corner) return { has: false };
+      const b = strong.getBoundingClientRect();
+      const r = row.getBoundingClientRect();
+      const c = corner.getBoundingClientRect();
+      const left = document.querySelector(".world-corner-left").getBoundingClientRect();
+      return { has: true, wordsShown: b.width > 2 && b.height > 2, words: strong.textContent, leftCornerRight: Math.round(left.right), cornerLeft: Math.round(c.left), rowRight: Math.round(r.right), vw: innerWidth };
+    });
+    await shot(p, "15-brand-320");
+    ok("320 px: the brand keeps its mark and loses its words from view, the words still in the DOM for a screen reader, and the left corner stays clear of the right toolbar (design choice X4)", brand.has && !brand.wordsShown && brand.words === "CrewHub World" && brand.leftCornerRight <= brand.cornerLeft + 1, JSON.stringify(brand));
+    await p.context().close();
   }
 }

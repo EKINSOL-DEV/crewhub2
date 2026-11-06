@@ -7,6 +7,8 @@ import { storedValue } from "./setting.ts";
 import type { InputKind } from "./inputWords.ts";
 
 export const TOUR_KEY = "crewhub-world.tour";
+/** The stage, the element steps 1 and 3 point at. */
+const STAGE = "main.world-stage";
 /** The full document, on GitHub: the host and Vite serve the world, not the repository's docs folder, and a page cannot
     open a file of the checkout; the GitHub page renders the document with its pictures. */
 export const INTRODUCTION_URL = "https://github.com/EKINSOL-DEV/crewhub2/blob/feat/world-demo/docs/INTRODUCTION.md";
@@ -33,7 +35,7 @@ export function tourSteps(mode: "demo" | "live", input: InputKind = "pointer"): 
       id: "town",
       title: "The town",
       text: `One building per project, on a town plan that grows with the project count; a ${touch ? "tap" : "click"} on a building enters it.`,
-      target: "main.world-stage",
+      target: STAGE,
       targetName: "the town",
     },
     {
@@ -47,7 +49,7 @@ export function tourSteps(mode: "demo" | "live", input: InputKind = "pointer"): 
       id: "card",
       title: "A figure's card",
       text: `Agents are figures in rooms by role; a ${touch ? "tap" : "click"} on one opens its card: where it is, when loops last saw it, its work ticket and its latest progress line.`,
-      target: "main.world-stage",
+      target: STAGE,
       targetName: "the town, where the figures stand",
     },
     mode === "demo"
@@ -151,14 +153,22 @@ export interface Placement {
 }
 
 const GUTTER = 16;
+
+/**
+ * Where the focus goes when the tour closes and nothing is left to return to (a first visit opened it with nothing
+ * focused): the stage, the town's canvas (the selector App's focusScene uses), design choice T2 (round 72, `stage`). A
+ * mouse visitor then sees no ring on a button they never touched; the next Tab still reaches the header. A tour opened
+ * from Settings keeps its own returnTo.
+ */
+export const TOUR_FOCUS_FALLBACK = "main.world-stage canvas";
 const GAP = 12;
 
 /**
  * Where the card goes so that it never covers the element it describes: below the target when there is room, else
- * above, else beside it; a step without a target is centred. On a phone (under 600 px) the card spans the width and
- * sits at the bottom, or at the top when the target is in the lower half of the screen. A card below its target also
- * keeps clear of `avoid` (the breadcrumb bar under the header; round 65, w1-14): it goes under that bar when the
- * screen has the room.
+ * above, else at the bottom left (a screen-tall target); a step without a target is centred. On a phone (under 600 px)
+ * the card spans the width and sits at the bottom, or at the top when the target is in the lower half of the screen. A
+ * card below its target also keeps clear of `avoid` (the breadcrumb bar under the header; round 65, w1-14): it goes
+ * under that bar when the screen has the room.
  */
 export function placeStep(target: Rect | null, viewport: { width: number; height: number }, card: { width: number; height: number }, avoid: Rect | null = null): Placement {
   const phone = viewport.width < 600;
@@ -178,8 +188,9 @@ export function placeStep(target: Rect | null, viewport: { width: number; height
   if (below + card.height + GUTTER <= viewport.height) return { left: centred, top: below, side: "below" };
   const above = target.top - GAP - card.height;
   if (above >= GUTTER) return { left: centred, top: above, side: "above" };
-  // A target as tall as the screen (the town itself): the card sits over its lower part, which it does not describe as such.
-  return { left: centred, top: Math.max(GUTTER, viewport.height - card.height - GUTTER), side: "centre" };
+  // A target as tall as the screen (the town itself): the card sits over its lower part, which it does not describe as
+  // such, at the bottom left, clear of the centred playback bar (design choice T1, round 72, bottom-left).
+  return { left: GUTTER, top: Math.max(GUTTER, viewport.height - card.height - GUTTER), side: "centre" };
 }
 
 /**
@@ -192,4 +203,15 @@ export function tourAnnouncement(steps: readonly TourStep[], index: number, move
   const step = steps[index];
   if (!moved || !step) return "";
   return `Step ${index + 1} of ${steps.length}. ${step.title}. ${step.text} ${highlighted}`;
+}
+
+/**
+ * What the card says is highlighted, for a screen reader: the element's own name (its aria-label, else its text), else
+ * the step's. The stage is the exception (design choice T3, `town`): its own name is the app's, "CrewHub World", which
+ * is also the demo's first project's name; the step's own name ("the town") is clearer, so the stage steps say theirs.
+ */
+export function highlightedWords(step: TourStep, name: string | null): string {
+  if (!step.target) return `Nothing is highlighted: ${step.targetName}.`;
+  const own = step.target === STAGE ? null : name;
+  return `Highlighted on the screen: ${own ?? step.targetName}.`;
 }

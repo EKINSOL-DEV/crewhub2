@@ -8,7 +8,7 @@ import { Bubbles } from "./components/bubbles/Bubbles";
 import { attachSendFocusGuard } from "./state/dockFocus";
 import { TownSettings } from "./components/TownSettings";
 import { SourceSettings } from "./components/SourceSettings";
-import { ConnectionChip, connectionLine, connectionWord } from "./components/ConnectionChip";
+import { ConnectionChip, connectionHint, connectionLine, connectionWord } from "./components/ConnectionChip";
 import { ConnectionPanel } from "./components/ConnectionPanel";
 import { ChatPanel } from "./components/ChatPanel";
 import { Tour } from "./components/Tour";
@@ -48,7 +48,7 @@ import { toggleFps } from "./state/fps";
 import { readRoleOverrides, writeRoleOverrides } from "./state/roleOverrides";
 import { useBuildMode } from "./state/build";
 import { useDark, useTheme } from "./state/theme";
-import { chatStores, townRuntime, useChat, useChatRoad, useConnection, useConnectionKey, useDirectorFeed, useRecentAnswers, useSaid, useTown, useUnreadAnswers, useWorld, worldRuntime } from "./state/runtimes";
+import { chatStores, townRuntime, useChat, useChatRoad, useConnection, useConnectionKey, useConnectionReason, useDirectorFeed, useRecentAnswers, useSaid, useTown, useUnreadAnswers, useWorld, worldRuntime } from "./state/runtimes";
 import type { TownLayer } from "./world/propLayer";
 import { pageConfig } from "./state/page";
 import { translate } from "./i18n";
@@ -56,7 +56,7 @@ import type { ConnectionState } from "@crewhub/loops-client";
 import type { Pick } from "./world/buildingView";
 import { roomName } from "./world/roomWords";
 import { useBuildingPlan } from "./state/buildingPlan";
-import { dialogIsOpen, tourTakesEscape, useOverlays } from "./state/overlays";
+import { dialogIsOpen, tourTakesEscape, useOverlays, coversCorners } from "./state/overlays";
 import { DirectorLog } from "./components/DirectorLog";
 import { PresenceSettings } from "./components/PresenceSettings";
 import { WhereForm } from "./components/WhereForm";
@@ -74,9 +74,12 @@ const NEXT_THEME = { system: "light", light: "dark", dark: "system" } as const;
 
 /* Below this width the chat is loops' narrow mode: a "Agent chats" menu in the corner and the chat as a full-screen dialog. */
 const NARROW = "(max-width: 899px)";
+/* A phone's width (world.css's phone rules): the text view then starts under the header rows and covers no corner (X2). */
+const PHONE = "(max-width: 600px)";
 // One media query list and one subscription for the page (state/media.ts): `matchMedia` on every render cost about
 // 1 ms at 4x of the enter's render (round 25), and an inline subscribe re-subscribed on every render (round 30).
 const useNarrow = () => useMedia(NARROW);
+const usePhone = () => useMedia(PHONE);
 
 const prefersReducedMotion = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const typing = (target: EventTarget | null) => target instanceof HTMLElement && (target.matches("input, select, textarea") || target.isContentEditable);
@@ -107,6 +110,7 @@ function World() {
   // The long-session probe (state/soak.ts): the stores' sizes on `window.__worldStores` for tools/memory.mjs. Reads only.
   useEffect(() => installSoakProbe(pageReads(() => worldRuntime().connection?.state() ?? null)), []);
   const narrow = useNarrow();
+  const phone = usePhone();
   const dockHeight = useDockHeight();
   const { theme, cycle } = useTheme();
   useDirectorFeed();
@@ -122,6 +126,8 @@ function World() {
   // The dialogs and panels over the town (state/overlays.ts): which are open, where the focus returns, what Escape closes.
   const [overlayState, overlays] = useOverlays();
   const { text: textOpen, settings: settingsOpen, connection: connectionOpen, tour: tourOpen, jump: jumpOpen, chat: chatOpen, editor: editorOpen } = overlayState.open;
+  // Design choice X2 (`inert`): the right toolbar, the chat chip and the camera toolbar are inert under a sheet that covers them.
+  const cornersCovered = coversCorners(overlayState.open, phone);
   // The introduction inside the world (round 20): open by itself once per browser, or from Settings and the "?" menu.
   const tourAsked = useRef(false);
   // A page the Demo chip's menu loaded (a scenario chosen) gives the chip the focus back (round 65, w5-18): the note is
@@ -476,6 +482,7 @@ function World() {
 
   const demo = model.mode === "demo";
   const connection = useConnection();
+  const connectionReason = useConnectionReason();
   // A change of the connection's state (Live, Loops down, Catching up, Stream busy, back to Live) is said once in the live
   // region: the chip changes its word, and a screen reader would otherwise hear nothing. Not the first value on load,
   // except right after a connect (round 65, w5-22): the Connect screen said the check started, the town says its end.
@@ -484,8 +491,10 @@ function World() {
     const justConnected = connection === "live" && takeConnected();
     const sentence = connectionSentence(justConnected, spokenConnection.current, connection);
     if (sentence === "connected" && connection !== null) setAnnouncement(translate("world.connection.connected", { state: connectionWord(connection) }));
-    else if (sentence === "changed" && connection !== null) setAnnouncement(translate("world.connection.changed", { state: connectionWord(connection), hint: translate(`world.connection.hint.${connection}`) }));
+    else if (sentence === "changed" && connection !== null) setAnnouncement(translate("world.connection.changed", { state: connectionWord(connection), hint: connectionHint(connection, connectionReason) }));
     spokenConnection.current = connection;
+    // The reason rides with its state; a change of the words alone is not said again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connection]);
   // The text view's Chat line and the Chat panel's small print say the chat session's state (round 14): one health read
   // when either opens on a live page (state/health.ts, the `glance` need), so the words are the host's current ones.
@@ -538,13 +547,13 @@ function World() {
 
       {/* The corners come before the scene, so Tab reaches the header before the scene's labels, as it is seen (round 52,
           r50-a11y A9); they still paint over the scene's top overlays by their z-index (world.css `.world-corner`). */}
-      <Corner demo={demo} connection={connection} connectionOpen={connectionOpen} onOpenConnection={openConnection} graphicsFailed={graphicsFailed} trail={trail} onGo={go} onJump={openJump} jumpOpen={jumpOpen} following={following ? agentName(following) : null} onStopFollow={() => follow(null)} />
+      <Corner demo={demo} connection={connection} connectionReason={connectionReason} connectionOpen={connectionOpen} onOpenConnection={openConnection} graphicsFailed={graphicsFailed} trail={trail} onGo={go} onJump={openJump} jumpOpen={jumpOpen} following={following ? agentName(following) : null} onStopFollow={() => follow(null)} />
 
-      <CornerTools theme={theme} cycle={cycle} details={details} buildOn={build.state.on} toggleBuild={build.toggle} settingsOpen={settingsOpen} openSettings={openSettings} closeSettings={closeSettings} graphicsFailed={graphicsFailed} openTour={openTour} openText={openText} />
+      <CornerTools inert={cornersCovered} theme={theme} cycle={cycle} details={details} buildOn={build.state.on} toggleBuild={build.toggle} settingsOpen={settingsOpen} openSettings={openSettings} closeSettings={closeSettings} graphicsFailed={graphicsFailed} openTour={openTour} openText={openText} />
 
       {/* The live Chat chip stands under Settings and follows it in the Tab order (round 65, w5-17); the demo's dock at the
           bottom right comes after the scene, as it is seen. */}
-      {!demo && <ChatCorner narrow={narrow} demo={demo} connection={connection} chatOpen={chatOpen} unread={unread.length} onOpenChat={() => openChat(null)} />}
+      {!demo && <ChatCorner inert={cornersCovered} narrow={narrow} demo={demo} connection={connection} chatOpen={chatOpen} unread={unread.length} onOpenChat={() => openChat(null)} />}
 
       <main className="world-stage" onKeyDown={sceneKey} aria-label="CrewHub World">
         {graphicsFailed ? null : (
@@ -573,7 +582,7 @@ function World() {
         {!demo && connection === "connecting" && <FirstSnapshot />}
       </main>
 
-      {connectionOpen && connection && <ConnectionPanel state={connection} onClose={closeConnection} />}
+      {connectionOpen && connection && <ConnectionPanel state={connection} reason={connectionReason} onClose={closeConnection} />}
 
       {chatOpen && <ChatPanel agent={chatAgent} health={hostHealth} connection={connection ?? "connecting"} road={chatRoad} full={narrow} answers={answers} recentEmpty={recentEmptyWords("live", chatRoad)} targetOf={talk.answerTarget} onAnswer={openAnswer} onClose={closeChat} />}
 
@@ -635,9 +644,9 @@ function World() {
         </Suspense>
       )}
 
-      {!graphicsFailed && <CameraToolbar camera={camera} walking={walking} toggleWalk={walking ? stopWalk : build.state.on ? null : startWalk} />}
+      {!graphicsFailed && <CameraToolbar inert={cornersCovered} camera={camera} walking={walking} toggleWalk={walking ? stopWalk : build.state.on ? null : startWalk} />}
 
-      {demo && <ChatCorner narrow={narrow} demo={demo} connection={connection} chatOpen={chatOpen} unread={unread.length} onOpenChat={() => openChat(null)} />}
+      {demo && <ChatCorner inert={cornersCovered} narrow={narrow} demo={demo} connection={connection} chatOpen={chatOpen} unread={unread.length} onOpenChat={() => openChat(null)} />}
 
       {playback && <PlaybackBar playback={playback} />}
 
@@ -733,6 +742,7 @@ const SCENARIO_RELOADS = "Changing it reloads the page.";
 const Corner = memo(function Corner({
   demo,
   connection,
+  connectionReason,
   connectionOpen,
   onOpenConnection,
   graphicsFailed,
@@ -746,6 +756,8 @@ const Corner = memo(function Corner({
   demo: boolean;
   /** The live source's state, where the Demo chip stands in demo mode; null for the demo. */
   connection: ConnectionState | null;
+  /** The host's own words on a host-tabs or host-failed state (design choice L1). */
+  connectionReason: string | null;
   /** Whether the Connection panel is open; the chip opens it. */
   connectionOpen: boolean;
   onOpenConnection: () => void;
@@ -766,7 +778,9 @@ const Corner = memo(function Corner({
     <header className="world-corner world-corner-left" data-chrome="">
       <div className="world-brand">
         <span className="brand-mark" aria-hidden="true" />
-        <strong>CrewHub World</strong>
+        <strong>
+          CrewHub<span className="brand-world"> World</span>
+        </strong>
         {demo && (
           <Menu
             name="Demo scenario"
@@ -776,7 +790,11 @@ const Corner = memo(function Corner({
               variant: "chip",
               className: "demo-chip",
               icon: <FlaskConical className="icon" aria-hidden="true" />,
-              label: <span className="demo-word">Demo: {scenario}</span>,
+              label: (
+                <span className="demo-word">
+                  Demo<span className="demo-scenario">: {scenario}</span>
+                </span>
+              ),
               // Said with the chip, as Settings › Source's hint is with its select (round 65, w5-18).
               ariaLabel: `Demo: scripted data. Scenario: ${scenario}. Choose a scenario; ${SCENARIO_RELOADS.toLowerCase()}`,
             }}
@@ -801,7 +819,7 @@ const Corner = memo(function Corner({
             ]}
           />
         )}
-        {!demo && connection && <ConnectionChip state={connection} open={connectionOpen} onOpen={onOpenConnection} />}
+        {!demo && connection && <ConnectionChip state={connection} reason={connectionReason} open={connectionOpen} onOpen={onOpenConnection} />}
       </div>
       {!graphicsFailed && (
         <nav className="world-breadcrumb" aria-label="Where you are" data-levels={trail.length}>
@@ -850,6 +868,8 @@ const Corner = memo(function Corner({
 const focusScene = () => document.querySelector<HTMLElement>("main.world-stage canvas")?.focus();
 
 const CornerTools = memo(function CornerTools(props: {
+  /** Under a sheet that covers the corner (X2): the buttons leave the Tab order and the accessibility tree. */
+  inert: boolean;
   theme: keyof typeof THEME_ICON;
   cycle: () => void;
   details: boolean;
@@ -863,10 +883,10 @@ const CornerTools = memo(function CornerTools(props: {
   /** The text view from the "?" menu (round 64, w4-7): a touch device has no T key and never meets the skip link. */
   openText: () => void;
 }) {
-  const { theme, cycle, details, buildOn, toggleBuild, settingsOpen, openSettings, closeSettings, graphicsFailed, openTour, openText } = props;
+  const { inert, theme, cycle, details, buildOn, toggleBuild, settingsOpen, openSettings, closeSettings, graphicsFailed, openTour, openText } = props;
   const ThemeIcon = THEME_ICON[theme];
   return (
-    <div className="world-corner world-corner-right" data-chrome="">
+    <div className="world-corner world-corner-right" data-chrome="" inert={inert}>
       <Button variant="ghost" iconOnly aria-label={`Theme: ${theme}. Switch to ${NEXT_THEME[theme]}.`} title={`Theme: ${theme}`} icon={<ThemeIcon className="icon" aria-hidden="true" />} onClick={cycle} />
       {!graphicsFailed && (
         <Button
@@ -910,9 +930,9 @@ const CornerTools = memo(function CornerTools(props: {
   );
 });
 
-const CameraToolbar = memo(function CameraToolbar({ camera, walking, toggleWalk }: { camera: (type: CameraAction) => void; walking: boolean; toggleWalk: (() => void) | null }) {
+const CameraToolbar = memo(function CameraToolbar({ inert, camera, walking, toggleWalk }: { inert: boolean; camera: (type: CameraAction) => void; walking: boolean; toggleWalk: (() => void) | null }) {
   return (
-    <div className="camera-toolbar" role="toolbar" aria-label="Camera" data-chrome="">
+    <div className="camera-toolbar" role="toolbar" aria-label="Camera" data-chrome="" inert={inert}>
       <Button
         variant="ghost"
         size="sm"
@@ -936,14 +956,14 @@ const CameraToolbar = memo(function CameraToolbar({ camera, walking, toggleWalk 
 /* In demo mode the copied dock and its "replies are scripted" note; in live mode the Chat chip, which opens the Chat
    panel: crewhub-loops' own chat framed in the world (components/ChatPanel; a session cookie never reaches the world,
    the frame carries the person's own). */
-const ChatCorner = memo(function ChatCorner({ narrow, demo, connection, chatOpen, unread, onOpenChat }: { narrow: boolean; demo: boolean; connection: ConnectionState | null; chatOpen: boolean; /** The answers not opened yet (round 65, w3-1): a count on the chip, whatever the camera shows. */ unread: number; onOpenChat: () => void }) {
+const ChatCorner = memo(function ChatCorner({ inert, narrow, demo, connection, chatOpen, unread, onOpenChat }: { /** Under a sheet that covers the corner (X2): the chip leaves the Tab order and the accessibility tree. */ inert: boolean; narrow: boolean; demo: boolean; connection: ConnectionState | null; chatOpen: boolean; /** The answers not opened yet (round 65, w3-1): a count on the chip, whatever the camera shows. */ unread: number; onOpenChat: () => void }) {
   // Round 64 (w5-8): the copied dock disables its box and Send while a message goes, which drops the focus to the body; the guard (state/dockFocus) brings it back.
   useEffect(() => (demo ? attachSendFocusGuard(document) : undefined), [demo]);
   if (!demo) {
     const hint = translate("world.chat.openHint");
     const name = unread === 0 ? hint : `${hint} ${unread === 1 ? translate("world.chat.unread.one") : translate("world.chat.unread.many", { count: String(unread) })}`;
     return (
-      <div className="world-chat world-chat-live" data-chrome="">
+      <div className="world-chat world-chat-live" data-chrome="" inert={inert}>
         <button type="button" className="chip-button chat-open" title={name} aria-label={name} aria-expanded={chatOpen} aria-haspopup="dialog" data-connection={connection ?? undefined} onClick={onOpenChat}>
           <Chip className="demo-chat-chip" icon={<MessageCircle className="icon" aria-hidden="true" />}>
             {translate("world.chat.open")}
@@ -958,7 +978,7 @@ const ChatCorner = memo(function ChatCorner({ narrow, demo, connection, chatOpen
     );
   }
   return (
-    <div className="world-chat" data-chrome="">
+    <div className="world-chat" data-chrome="" inert={inert}>
       <Bubbles narrow={narrow} />
       <Chip className="demo-chat-chip" icon={<MessageCircle className="icon" aria-hidden="true" />}>
         Demo: replies are scripted

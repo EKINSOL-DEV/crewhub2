@@ -1,6 +1,7 @@
 /**
  * Rooms of a building (plan 4.2): the status rooms, the lobby and the lead's office always; a role
- * room once an agent of that role has been present; the meeting room only while the meeting
+ * room once an agent of that role has been present (in the demo, since the last snapshot: a seek or a
+ * new loop forgets them, design choice S4, memory.ts); the meeting room only while the meeting
  * inference fires (plan 4.3).
  */
 import { lineWorker, ticketKeys } from "./agents.ts";

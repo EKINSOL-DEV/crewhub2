@@ -37,7 +37,7 @@
  */
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { chmodSync, mkdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -51,8 +51,9 @@ import { nodeWarningLine, runningNodeVersion } from "./nodeVersion.ts";
 import { type HostStep, createHost } from "./host.ts";
 import { createStepPrinter, instructionLine, seconds, stepLine as formatStep } from "./steps.ts";
 import { createKeyStore } from "./keyStore.ts";
-import { runFilePath, writeRunFile } from "./runFile.ts";
-import { mint } from "./runningHost.ts";
+import { ensureOwnDir, looseFolderLine, ownDirMode } from "./ownDir.ts";
+import { readRunFile, runFilePath, writeRunFile } from "./runFile.ts";
+import { mint, worldRefusal } from "./runningHost.ts";
 import { explainSqliteWarning, openWorldDb, type WorldDb } from "./worldDb.ts";
 import { loadPairingSecret } from "./pairing.ts";
 
@@ -152,6 +153,13 @@ try {
   if (args.command === "open" || args.command === "world") {
     // A host that already runs on the port mints the link (runningHost.ts: the run file's secret, loopback only).
     const link = await mint(config.port, args.origin);
+    // A development host (npm run host) serves no built world: `world` opens nothing on it and says what to do
+    // (design choice H2, round 72, refuse); a host someone started is not ended by another command.
+    const refusal = args.command === "world" && link !== null ? worldRefusal(readRunFile(config.port), config.port) : null;
+    if (refusal !== null) {
+      log(refusal);
+      process.exit(1);
+    }
     if (link !== null) {
       if (args.command === "world" && !args.noOpen && openBrowser(link)) log(`a host already runs on ${config.port}; opened the browser on a new link`);
       else {
@@ -175,17 +183,20 @@ try {
 }
 
 const staticDir = config.production ? distDir : undefined;
-// The host's own folder is 0700 before anything lands in it (the pairing secret of `world` comes before the stored key).
+// The host's own folder is 0700 before anything lands in it (the pairing secret of `world` comes before the stored key);
+// a folder that exists keeps its mode (design choice H1, round 72: the host tightens only what it made).
 if (args.command === "world") {
   try {
-    mkdirSync(config.configDir, { recursive: true, mode: 0o700 });
-    chmodSync(config.configDir, 0o700);
+    ensureOwnDir(config.configDir);
   } catch {
     // The pairing secret's own write says what is wrong.
   }
 }
 // Which folder this host keeps its key, archive memory, pairing secret and world database in, and why (round 34).
 log(folderLine);
+// Said once: an existing folder looser than 0700 is left as it is (H1); `doctor` warns the same.
+const ownMode = ownDirMode(config.configDir);
+if (ownMode !== null && (ownMode & 0o077) !== 0) log(looseFolderLine(config.configDir, ownMode));
 // The sign-in road is gone (round 19; round 28 on feat/world-demo): a session file an older host kept is deleted, said once.
 removeLeftoverSession(config.configDir, log);
 const pairingSecret = config.pairingFile === null ? undefined : loadPairingSecret(config.pairingFile);
@@ -241,7 +252,7 @@ process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 if (build !== null && !build.fresh) host.setBuilding(true);
 try {
-  removeRunFile = writeRunFile(host.port, { pid: process.pid, url: host.url, mintSecret });
+  removeRunFile = writeRunFile(host.port, { pid: process.pid, url: host.url, mintSecret, world: staticDir !== undefined });
 } catch {
   log(`cannot write the run file ${runFile(host.port)}: "open" cannot reach this host while it runs`);
 }

@@ -423,7 +423,7 @@ if (opts.demo) {
       const text = document.getElementById(d?.getAttribute("aria-describedby") ?? "")?.textContent ?? "";
       return { role: d?.getAttribute("role"), title, text, focusIn: d?.contains(document.activeElement) === true };
     });
-    ok("tour: the card is a dialog named by the step's title and described by its sentence, the highlighted element named", named.role === "dialog" && named.title === "The town" && /Highlighted on the screen: CrewHub World\./.test(named.text), named.text.slice(-60));
+    ok("tour: the card is a dialog named by the step's title and described by its sentence, the highlighted element named", named.role === "dialog" && named.title === "The town" && /Highlighted on the screen: the town\./.test(named.text), named.text.slice(-60));
     ok("tour: the focus is in the card when it opens", named.focusIn);
     // The focus opens on Next, the card's last control; from Skip, Tab goes straight to Next (Back is disabled on step 1).
     await r.getByRole("button", { name: "Skip" }).focus();

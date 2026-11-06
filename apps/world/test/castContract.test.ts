@@ -43,7 +43,7 @@ test("the fallback cast is registered", () => {
 for (const manifest of castRegistry.listCasts())
   test(`cast ${manifest.id}: every role and state builds, inside its budget, batchable far, and sees its work at every work place`, () => {
     const figure = castRegistry.figureOf(manifest.id);
-    if (figure) assert.deepEqual(validateFigure(figure), { ok: true, value: figure });
+    if (figure) assert.deepEqual(validateFigure(figure), { ok: true, value: figure, warnings: [] });
     // Measured with the reference kit (no style): the same shapes as a style's kit draws.
     const cast = castRegistry.castFor({ manifest: { id: "reference" } }, manifest.id);
     assert.equal(cast.manifest.id, manifest.id, "the cast builds (not the fallback)");
@@ -57,7 +57,7 @@ test("every shipped cast draws a person of its own: no project colour, no role, 
   for (const id of ids) {
     const person = castRegistry.personOf(id);
     assert.ok(person, `${id} has a person`);
-    assert.deepEqual(validatePerson(person), { ok: true, value: person }, id);
+    assert.deepEqual(validatePerson(person), { ok: true, value: person, warnings: [] }, id);
     const cast = castRegistry.castFor({ manifest: { id: "reference" } }, id);
     assert.equal(cast.hasPerson, true, id);
     // The person is no agent: nothing of the agent figure's rig is a screen, an antenna or a project band; here, at

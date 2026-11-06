@@ -298,8 +298,8 @@ test("the validators check a perch: its poses, its steps and their parts", () =>
     },
   });
   const errors = bad.ok ? [] : bad.errors;
+  // "figure.perch.sofa" is no error since design choice K1: a perch key this world does not know is a warning (lenient.test.ts).
   for (const path of [
-    "figure.perch.sofa",
     "figure.perch.desk.kind",
     "figure.perch.lead-desk.steps",
     "figure.perch.meeting-table.gap",

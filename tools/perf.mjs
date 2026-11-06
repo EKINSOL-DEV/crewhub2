@@ -318,6 +318,7 @@ for (const name of scenarios) {
     await run[name]();
   } catch (e) {
     console.log(`${name.padEnd(14)} FAILED: ${e.message.split("\n")[0]}`);
+    process.exitCode = 1; // P1 `fail`: a run with a FAILED line exits 1, like the tools that print n/n below full marks
   } finally {
     for (const context of openContexts) await context.close().catch(() => undefined);
   }

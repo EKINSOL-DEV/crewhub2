@@ -11,7 +11,7 @@ import { createConnection } from "node:net";
 // The wire by relative path, not `@crewhub/loops-client`: the Vite config (apps/world) imports this road, and Vite leaves a bare
 // package import to Node, which cannot load TypeScript on Node 22.12; a relative import is bundled with the config (round 60 N4).
 import { type HostHealth, readHostHealth, worldApiPath } from "../../../packages/loops-client/src/hostWire.ts";
-import { readRunFile } from "./runFile.ts";
+import { readRunFile, type RunFile } from "./runFile.ts";
 
 /** `GET /pair-mint` with the run file's secret in this header: a fresh pairing link from a host that already runs. */
 export const MINT_PATH = "/pair-mint";
@@ -79,6 +79,17 @@ export async function mint(port: number, origin: string | null): Promise<string 
   } catch {
     return null;
   }
+}
+
+/**
+ * Why `npm run world` will not open a browser on the host that runs on `port` (design choice H2, round 72, `refuse`):
+ * its run file says it serves no built world (`npm run host`, whose page is a JSON error). Null when the host serves the
+ * world, when its run file is from before and does not say, or when there is no run file. A host someone started is
+ * not ended by another command: the line says what to do instead.
+ */
+export function worldRefusal(file: RunFile | null, port: number): string | null {
+  if (file?.world !== false) return null;
+  return `a development host (npm run host) runs on ${port} and serves no built world: stop it (Ctrl+C in its terminal), or open your Vite page (npm run dev)`;
 }
 
 /** What the host said when the dev server told it an origin (`POST /world-api/dev-origin`, devOrigin.ts). */

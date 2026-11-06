@@ -143,6 +143,14 @@ export function hostUrl(origin: string): string {
 }
 
 /**
+ * Whether Settings › Source names the host (design choice T8, round 72, `answered`): only once a host has answered, so
+ * a demo page whose host never answered says nothing about one. The health is null until a host answers.
+ */
+export function hostAnswered(health: HostHealth | null): health is HostHealth {
+  return health !== null;
+}
+
+/**
  * Where "Sign in to crewhub-loops" goes: the loops web app the host names in its health (`loopsWebUrl`, optional; the
  * host adds it), else DEFAULT_LOOPS_URL. Only an http(s) URL is trusted for a link.
  */

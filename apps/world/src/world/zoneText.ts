@@ -93,6 +93,16 @@ export function townKeepingWords(kept: TownKeeping): string {
 }
 
 /**
+ * Settings > Town's line after `townKeepingWords` (design choice E2, `say`): a browser-kept demo town is one tab's. Each
+ * tab keeps its own history and numbers its own revisions (state/townStore.ts), so with build mode used in two tabs the
+ * later write wins, unsaid. The host refuses a stale write (409), and a browser-kept town in live mode waits for the
+ * host, so those two say nothing here.
+ */
+export function townTabsWords(kept: TownKeeping): string {
+  return kept === "browser" ? "Build in one tab at a time; another tab's edits are not seen here." : "";
+}
+
+/**
  * Settings > Zones' hint (round 64, w6-9): what a zone is, where the zones are kept (the Town card's own truth per
  * `townKeeping`: the demo's and a browser-kept town's sentence as it always was; the host's for a live town the host
  * keeps; the browser's until the host is back), and where to assign buildings.

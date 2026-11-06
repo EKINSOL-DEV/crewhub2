@@ -959,6 +959,23 @@
   }
 }
 
+/* Design choice X4 (`drop-word`): under 360 px the brand row needs about 130 to 138 px of its corner's 84 px and runs
+   into the right toolbar, so the brand keeps its mark and loses the words "CrewHub World" from view (they stay for a
+   screen reader, the .sr-only way, since the header is named by them). With T6 `word` the "Demo" word fits beside the mark. */
+@media (max-width: 359px) {
+  .world-brand > strong {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
 /* ── Phones: the playback bar spans the bottom, the camera stack sits above it ── */
 @media (max-width: 600px) {
   .world-corner {
@@ -989,13 +1006,15 @@
   }
   /* The title keeps its fold (w2's review): with the row wrapping, "CrewHub World" took its one-line width and pushed
      even the Live icon and the Demo chip to a second line; folding to two lines as before, it leaves the icon chips
-     beside it and only a worded chip wraps. */
+     beside it and only a worded chip wraps. Design choice T6 (round 72, word): the title's second line goes instead
+     ("CrewHub" alone) and the Demo chip keeps its word, "Demo", without the scenario's name (the menu names it); the
+     chip stays beside the title on its first line (regress walk: w4-14). */
   .world-brand > strong {
     flex: 1 1 min-content;
     min-width: 0;
   }
-  /* With four toolbar buttons beside it the brand keeps one line: the demo chip keeps its icon (and its label). */
-  .demo-word,
+  .brand-world,
+  .demo-scenario,
   .demo-chip .menu-caret {
     display: none;
   }
@@ -1165,6 +1184,15 @@
   overflow-x: auto;
   text-overflow: clip;
   scrollbar-width: thin;
+}
+/* Design choice T4 (`end`): with Settings or the text view open, the sheet's scroll area ends above the copied dock
+   (kit.css `.dock`, fixed at the bottom right, its height measured into --dock-height), so the dock's round button stays
+   reachable and lies over no line of the sheet. The text view keeps its top; Settings keeps its top and its own scroll. */
+.world-shell[data-dock] .text-sheet {
+  bottom: calc(var(--space-4) + var(--dock-height) + var(--space-2));
+}
+.world-shell[data-dock] .settings-sheet {
+  max-height: calc(100dvh - 4.25rem - var(--space-4) - var(--dock-height) - var(--space-2));
 }
 .world-shell[data-dock] .demo-chat-chip {
   position: fixed;
@@ -2779,6 +2807,24 @@ a.agent-ticket-link:focus-visible {
   margin: var(--space-3) 0 var(--space-2);
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
+}
+/* The older-loops road (design choice T9): a disclosure like the chat's "About this chat", closed at first. */
+.connect-older {
+  margin-top: var(--space-3);
+}
+.connect-older > summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+.connect-older > summary:focus-visible {
+  outline: 0;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+.connect-older > .connect-sub {
+  margin-top: var(--space-2);
 }
 .connect-steps {
   margin: 0;

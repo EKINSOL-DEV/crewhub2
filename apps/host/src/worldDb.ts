@@ -13,7 +13,8 @@
  * Writes carry the revision they are based on: `applyTown` answers a conflict instead of overwriting another browser's
  * revision (last write wins with a check; the browser reloads and says so).
  */
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { ensureOwnDir } from "./ownDir.ts";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { amendHistory, canRedo, canUndo, commitHistory, createHistory, currentDocument, redoHistory, undoHistory, type TownHistory, validateTownDocument } from "@crewhub/world-model";
@@ -191,8 +192,7 @@ export interface WorldDbOptions {
 export function openWorldDb(configDir: string, options: WorldDbOptions = {}): WorldDb {
   const log = options.log ?? (() => undefined);
   const migrations = options.migrations ?? MIGRATIONS;
-  mkdirSync(configDir, { recursive: true, mode: 0o700 });
-  chmodSync(configDir, 0o700);
+  ensureOwnDir(configDir);
   const file = path.join(configDir, WORLD_DB_NAME);
   const existed = existsSync(file);
   const db = new DatabaseSync(file);

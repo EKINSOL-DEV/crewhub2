@@ -17,6 +17,12 @@ const clock = (iso: string) => {
   const d = new Date(iso);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 };
+/** "YYYY-MM-DD HH:MM:SS" in the viewer's local time: the stamp is not from today, so the sentences say its date (W1). */
+const stamp = (iso: string) => {
+  const d = new Date(iso);
+  const two = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`;
+};
 const withTeam = (ts: string | null) => ({ ...emptyFacts(), team: ts === null ? null : { v: 1 as const, ts, sessions: [] } });
 
 test("freshnessOf: no snapshot or an unreadable stamp is stale with no age; older than STALE_AFTER_S is stale; the age never goes below zero", () => {
@@ -39,13 +45,13 @@ test("freshnessWords: the three surfaces' words for a missing, a stale and a fre
   const stale: Freshness = { teamTs: TS, ageSeconds: 3600, stale: true };
   assert.deepEqual(freshnessWords(stale), {
     short: `stale since ${clock(TS)}`,
-    sentence: `The team snapshot is stale since ${TS}: every agent's status shows as unknown.`,
-    whyUnknown: ` The team snapshot is stale since ${TS}, so a status shows as unknown until a fresh one.`,
+    sentence: `The team snapshot is stale since ${stamp(TS)}: every agent's status shows as unknown.`,
+    whyUnknown: ` The team snapshot is stale since ${stamp(TS)}, so a status shows as unknown until a fresh one.`,
   });
   assert.equal(freshnessWords({ teamTs: "yesterday", ageSeconds: null, stale: true }).short, "status unknown", "an unreadable stamp has no clock time");
   const fresh: Freshness = { teamTs: TS, ageSeconds: 30, stale: false };
-  assert.deepEqual(freshnessWords(fresh), { short: null, sentence: `Team snapshot from ${TS}, 30 s old.`, whyUnknown: "" });
-  assert.equal(freshnessWords({ teamTs: TS, ageSeconds: null, stale: false }).sentence, `Team snapshot from ${TS}, 0 s old.`, "a fresh snapshot with no age is said 0 s old, as before");
+  assert.deepEqual(freshnessWords(fresh), { short: null, sentence: `Team snapshot from ${stamp(TS)}, 30 s old.`, whyUnknown: "" });
+  assert.equal(freshnessWords({ teamTs: TS, ageSeconds: null, stale: false }).sentence, `Team snapshot from ${stamp(TS)}, 0 s old.`, "a fresh snapshot with no age is said 0 s old, as before");
 });
 
 test("a Freshness built by hand, no stamp yet not stale (the building sign's lead chip, the view's words): the lane keeps its words, the Town line still says no snapshot", () => {

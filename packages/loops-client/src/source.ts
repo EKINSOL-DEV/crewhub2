@@ -154,11 +154,15 @@ export interface WorldSource {
  * `stream-busy` when loops refused the host's stream with 429 `too_many_streams` (another host or tab uses the key);
  * `unpaired` when the host answers 401 `not_paired` to the snapshot or the stream after the first health read (a host
  * restarted without its pairing secret, or the cookie gone): the world shows "Pair this browser" and the source keeps
- * asking, so a new link brings it back by itself.
+ * asking, so a new link brings it back by itself. Two 503s of the host are not loops (design choice L1, round 72,
+ * own-words): `host-tabs` when the host holds its 64 tabs already (`too_many_tabs`), `host-failed` when the host itself
+ * could not assemble the snapshot (`snapshot_failed`); the host's message is the `reason`, and the source keeps asking.
  */
-export type ConnectionState = "connecting" | "live" | "catching-up" | "stale" | "loops-down" | "unauthorized" | "stream-busy" | "unpaired";
+export type ConnectionState = "connecting" | "live" | "catching-up" | "stale" | "loops-down" | "unauthorized" | "stream-busy" | "unpaired" | "host-tabs" | "host-failed";
 export interface ConnectionStatus {
   state(): ConnectionState;
+  /** The host's own words on a `host-tabs` or `host-failed` state (its 503's `message`); null in every other state. */
+  reason(): string | null;
   /**
    * The host's own word on its key from the last status message on the stream (`HostKeyState["state"]`: none, unchecked,
    * checking, rejected, ok), or null when the host has not said (a host from before round 11, or no stream yet). The world

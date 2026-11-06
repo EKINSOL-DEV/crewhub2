@@ -72,7 +72,7 @@ export function describeWorld(model: WorldModel, civic: CivicWords = CIVIC_WORDS
   const buildingName = (slug: string | null) => (slug ? (nameOf.get(slug) ?? slug) : `the ${civic.hall}`);
 
   if (model.mode === "demo") add("Town", "Demo mode: scripted data, no live crewhub-loops session", "demo");
-  add("Town", freshnessWords(model.freshness).sentence);
+  add("Town", freshnessWords(model.freshness, model.now).sentence);
   const active = model.buildings.filter((b) => !b.archived);
   const archived = model.buildings.filter((b) => b.archived);
   add(
@@ -139,9 +139,9 @@ function describeBuilding(building: Building, add: Add, buildingName: (slug: str
   for (const run of building.automationRuns) add(section, `${runWords(run)}.`);
   if (building.archivedCount > 0) {
     const n = `${building.archivedCount} ${building.archivedCount === 1 ? "ticket" : "tickets"}`;
-    // The classic lobby keeps the count itself; in three-rooms its archive counter does.
-    const counter = rooms === "classic" ? placeWords("lobby", rooms) : `the archive counter ${roomPlaceWords("lobby", rooms)}`;
-    add(section, `${n} archived from ${placeWords("dispatch", rooms)}; the truck took them away and ${counter} keeps the count.`);
+    // The count is the archives since the page's last snapshot (a reload or a fresh snapshot starts it at 0), so no
+    // lobby or counter "keeps" it (design choice W6, `drop`): the count stays, the claim goes.
+    add(section, `${n} archived from ${placeWords("dispatch", rooms)}; the truck took them away.`);
   }
 
   for (const agent of building.agents) describeAgent(section, agent, add, buildingName, rooms);
@@ -219,7 +219,8 @@ function huddleKey(building: Building): string | null {
 
 /**
  * One sentence per hall, the way the three-rooms text view and the room focus status line say it:
- * "Administration: Backlog 4, Planning 2, Review 1, Done 3; 2 flagged letters; 5 archived",
+ * "Administration: Backlog 4, Planning 2, Review 1, Done 3; 2 flagged letters; 5 archived" (boarded up: "Administration: the
+ * racks are boarded up; the tickets are archived with the project", W17),
  * "The floor: Ada at its desk on CH-12 (working), Bo (idle), the analyst desk empty; a huddle at the round table
  * about CH-12", "Lead's office: Lin (working); beacon: …". `laneWords` says an agent's state in brackets; the text
  * view uses its own words, the app the status line's.
@@ -232,7 +233,11 @@ export function hallSummary(building: Building, hall: Hall, laneWords: (agent: A
     const desk = a.deskTicketKey ? ` at its desk on ${a.deskTicketKey}` : "";
     return `${a.displayName}${desk} (${laneWords(a)})`;
   };
-  if (hall === "administration") {
+  if (hall === "administration" && building.archived) {
+    // W17 (walkthrough w1-13): the racks of a boarded-up building hold nothing because the project's archiving took its
+    // tickets; the building's own Tickets line keeps loops' count, so this line says why the two differ.
+    parts.push("the racks are boarded up; the tickets are archived with the project");
+  } else if (hall === "administration") {
     parts.push(RACK_KINDS.map((k) => `${RACK_NAMES[k]} ${building.objects.filter((o) => o.room === k).length}`).join(", "));
     if (building.mailbox.length) parts.push(`${building.mailbox.length} flagged ${building.mailbox.length === 1 ? "letter" : "letters"}`);
     if (building.archivedCount) parts.push(`${building.archivedCount} archived`);

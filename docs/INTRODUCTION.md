@@ -18,8 +18,9 @@ What it is not:
 - **Not a second source of truth.** Every fact on screen is a loops fact (a project, a board card, an agent, the team
   snapshot, an event). The world keeps no facts of its own beyond a small presentation memory (which drone is in the
   air, which card was seen) and the town document a person draws in build mode (section 2.6).
-- **Not a control.** Nothing in the world starts, stops, wakes or steers an agent. The one optional "director" moves
-  the world's own figures and is off by default (section 2.10).
+- **Not a control.** Nothing in the world starts, stops, wakes or steers an agent, except loops' own chat, framed in the
+  Chat panel, where you type as yourself. The one optional "director" moves the world's own figures and is off by
+  default (section 2.10).
 - **Read-only by construction, not by promise.** In live mode the browser never holds or sends a key to loops. Its reads go
   through a small relay, `apps/host`, which holds the one key and forwards an allow-list of `GET` paths only
   (`apps/host/src/allowList.ts`: health, `auth/me`, events and the stream, projects, features, milestones, releases,
@@ -195,7 +196,7 @@ model is not built ([ROADMAP.md](ROADMAP.md), "Open").
 | A ticket in progress with an assignee | The package on that agent's desk (a worker whose status line names the key is more specific than its lead) |
 | `ticket.moved` by an agent | The drone carries the package to its new place |
 | `ticket.moved` into Done by a person | A person figure carries the package to the Done rack |
-| A ticket archived from Done | Gone with the truck at the dock; the archive counter keeps the count |
+| A ticket archived from Done | Gone with the truck at the dock |
 | `comment.created` on a ticket | A speech mark over the package for 20 s |
 | A progress line | A caption over the agent's head for 20 s |
 | A ticket waiting on a person | A "waits on <name>" tag; a need pin on the building's sign in the town |

@@ -31,6 +31,15 @@ export interface OverlaysState<E> {
 
 const NOTHING_OPEN: Readonly<Record<OverlayKind, boolean>> = { tour: false, editor: false, jump: false, chat: false, connection: false, settings: false, text: false };
 
+/**
+ * Design choice X2 (`inert`): a sheet that starts at the top right covers the right toolbar, the chat chip and the camera
+ * toolbar, so App marks those corners inert while it is open (their buttons left the Tab order under it; the picture is
+ * unchanged). The Chat panel always: a side sheet on a desktop, the whole screen on a phone. The text view unless the
+ * window is a phone's (`phone`: at most 600 px wide, world.css), where it starts under the header rows and covers nothing.
+ * Settings starts under the right corner and is not counted.
+ */
+export const coversCorners = ({ text, chat }: Readonly<Record<OverlayKind, boolean>>, phone: boolean): boolean => chat || (text && !phone);
+
 /** A dialog stands over the town: the tour waits for it (the tour itself does not count). */
 export const dialogIsOpen = ({ open }: Pick<OverlaysState<unknown>, "open">): boolean => open.settings || open.jump || open.connection || open.chat || open.text || open.editor;
 

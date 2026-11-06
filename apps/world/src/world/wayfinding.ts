@@ -182,10 +182,11 @@ export function activeWords(counts: Record<TicketStatus, number>): string {
   return parts.length ? parts.join(", ") : "nothing in hand";
 }
 
-/** One sentence for a district: for the text view, the jump list and the label's accessible name. */
+/** One sentence for a district: for the text view, the jump list and the label's accessible name. What needs a person
+    ends it, said once ("1 waiting on a person", design choice W4); the district plate keeps its "Needs a person:" lead. */
 export function summaryWords(summary: Summary): string {
   const needs = needsWords(summary.needs);
-  return `${summary.buildings} ${summary.buildings === 1 ? "building" : "buildings"}, ${summary.agents} ${summary.agents === 1 ? "agent" : "agents"} (${summary.working} working). ${workWords(summary.counts)}.${needs ? ` Needs a person: ${needs}.` : ""}`;
+  return `${summary.buildings} ${summary.buildings === 1 ? "building" : "buildings"}, ${summary.agents} ${summary.agents === 1 ? "agent" : "agents"} (${summary.working} working). ${workWords(summary.counts)}.${needs ? ` ${needs}.` : ""}`;
 }
 
 /* ── The jump list ────────────────────────────────────────────────────── */
@@ -211,8 +212,9 @@ export interface JumpEntry {
   keywords: string;
 }
 
-/** What needs a person leads a row's detail, so it survives the row being cut short. */
-const lead = (needs: string): string => (needs ? `Needs a person: ${needs}. ` : "");
+/** What needs a person leads a row's detail, so it survives the row being cut short; the row's warning icon says
+    "Needs a person" (design choice W4, `once`: the need is said once). */
+const lead = (needs: string): string => (needs ? `${needs}. ` : "");
 
 /** Every place one can jump to: districts (in a region), buildings, agents and the two civic buildings. */
 export function jumpEntries(model: Pick<WorldModel, "zones" | "buildings" | "townHall" | "postOffice">, districts: readonly DistrictPlace[]): JumpEntry[] {

@@ -89,8 +89,8 @@ export function townChanges(before: TownDocument, after: TownDocument): string[]
   const userAfter = new Map(after.userProps.map((p) => [p.id, p]));
   const userAdded = [...userAfter.values()].filter((p) => !userBefore.has(p.id)).map((p) => p.name || p.id);
   const userGone = [...userBefore.values()].filter((p) => !userAfter.has(p.id)).map((p) => p.name || p.id);
-  if (userAdded.length) lines.push(`${plural(userAdded.length, "prop", "props")} joins the catalogue: ${listed(userAdded)}.`);
-  if (userGone.length) lines.push(`${plural(userGone.length, "prop", "props")} leaves the catalogue: ${listed(userGone)}.`);
+  if (userAdded.length) lines.push(`${plural(userAdded.length, "prop", "props")} ${userAdded.length === 1 ? "joins" : "join"} the catalogue: ${listed(userAdded)}.`);
+  if (userGone.length) lines.push(`${plural(userGone.length, "prop", "props")} ${userGone.length === 1 ? "leaves" : "leave"} the catalogue: ${listed(userGone)}.`);
 
   for (const rule of new Set([...Object.keys(before.rules), ...Object.keys(after.rules)]) as Set<keyof TownDocument["rules"]>) {
     const was = before.rules[rule] === true;

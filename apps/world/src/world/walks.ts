@@ -5,7 +5,7 @@
    Detail levels: only the entered building's rooms are "full"; every other building is "offscreen", so its agents
    jump instead of routing. The town stays "full", so the postman and cross-building walks are visible. Under reduced
    motion everything is offscreen: every move is a jump. */
-import type { Location } from "@crewhub/world-engine";
+import { MAX_TICK_SECONDS, type Location } from "@crewhub/world-engine";
 import type { AgentKey, Intent, RoomKind, WorldModel } from "@crewhub/world-model";
 import { directorErrands, planIdle, planMovement, type Ambient, type ErrandReason, type Leg, type MovementIntent, type Place } from "./movement.ts";
 import { FLOOR_RISE, type BuildingPlan } from "./buildingTemplate.ts";
@@ -28,6 +28,9 @@ export interface WalkOptions {
 }
 
 /** What the renderer needs per walker, in world units. Reused objects: read them, do not keep them. */
+/** Sub-steps a frame at most (K2): a 0.05 s frame (the scene's cap) at 16x is 0.8 s, eight engine ticks of 0.1 s. */
+const MAX_SUB_STEPS = 8;
+
 export interface Walker {
   readonly key: string;
   x: number;
@@ -139,13 +142,23 @@ export class Walks {
     return this.#postman ? this.#walkers.get(this.#postman.key) : undefined;
   }
 
-  /** Advances the simulation by `seconds` (simulation time) at source time `now` (ms, for idle buckets). */
+  /**
+   * Advances the simulation by `seconds` (simulation time) at source time `now` (ms, for idle buckets). The engine takes
+   * at most MAX_TICK_SECONDS a tick, so a frame's seconds go in sub-steps of that size (design choice K2, `story`: the
+   * figures keep story speed at 8x and 16x; before, a frame at 16x was cut to one engine tick, about 37 % of story
+   * speed at 60 fps). At most MAX_SUB_STEPS a frame: a 0.05 s frame at 16x; a longer frame (a tab that was hidden) walks
+   * that much and no more, as the cap meant.
+   */
   tick(seconds: number, now: number): void {
     const started = globalThis.performance.now();
-    if (seconds > 0) this.nav.sim.tick(seconds);
+    const steps = seconds > 0 ? Math.min(MAX_SUB_STEPS, Math.max(1, Math.ceil(seconds / MAX_TICK_SECONDS))) : 1;
+    const step = seconds > 0 ? Math.min(seconds / steps, MAX_TICK_SECONDS) : 0;
     this.#idle(now);
-    for (const state of [...this.#agents.values()]) this.#advance(state, seconds);
-    this.#advancePostman(seconds);
+    for (let i = 0; i < steps; i++) {
+      if (step > 0) this.nav.sim.tick(step);
+      for (const state of [...this.#agents.values()]) this.#advance(state, step);
+      this.#advancePostman(step);
+    }
     this.#refreshWalkers();
     this.tickMs = globalThis.performance.now() - started;
   }

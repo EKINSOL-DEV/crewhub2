@@ -48,7 +48,7 @@ test("screen: once the town runs, an unpaired source sends the person back to th
   // Loops down with a key that stands: the chip's story over the last known town (round 7's ops road).
   assert.equal(liveScreen("loops-down", health("ok")), null);
   assert.equal(liveScreen("loops-down"), null);
-  for (const state of ["connecting", "live", "catching-up", "stale", "stream-busy"] as const) {
+  for (const state of ["connecting", "live", "catching-up", "stale", "stream-busy", "host-tabs", "host-failed"] as const) {
     assert.equal(liveScreen(state), null, state);
     assert.equal(liveScreen(state, health("none")), null, `${state} with a health that lags`);
   }

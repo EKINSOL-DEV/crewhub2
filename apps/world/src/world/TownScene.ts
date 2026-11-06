@@ -14,6 +14,7 @@ import type { AgentPlacement, RoomKind, WorldModel } from "@crewhub/world-model"
 import { IDLE_STATE, type Cast, type FigureHandle, type FigureState } from "@crewhub/world-cast";
 import { styleOptionsKey, type EnvironmentHandle, type GraphicsQuality, type ModelAnimation, type ModelKey, type PaletteName, type ResolvedStyle, type StyleOptionValues, type StyleTheme } from "@crewhub/world-style";
 import { BuildingView, type Pick } from "./buildingView";
+import { nameTownCanvas } from "./canvasName";
 import { BACK_WALL_HEIGHT, BUILDING_CELL, FLOOR_RISE, type BuildingPlan } from "./buildingTemplate";
 import type { TownLayer } from "./propLayer";
 import { styleRegistry } from "./style";
@@ -517,11 +518,11 @@ export class TownScene {
     const canvas = this.renderer.domElement;
     canvas.tabIndex = 0;
     canvas.setAttribute("role", "application");
-    canvas.setAttribute(
-      "aria-label",
-      "The town. Arrow keys move between buildings, Enter goes inside. Inside a building arrow keys move between rooms, Enter zooms to a room, Escape goes back one level. Plus and minus zoom, brackets rotate, H returns home. D shows every label. W walks you around (W A S D or arrow keys, Escape stops). T opens the text view. Slash opens the jump list.",
-    );
     host.appendChild(canvas);
+    // "The town", described by its key guide in a hidden paragraph beside it (design choice X5, world/canvasName.ts).
+    const guide = host.ownerDocument.createElement("p");
+    nameTownCanvas(canvas, guide);
+    host.appendChild(guide);
     this.camera.position.copy(HOME_OFFSET);
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.enableDamping = !view.reducedMotion;
@@ -1455,9 +1456,11 @@ export class TownScene {
 
   /**
    * Frames the projected corners of `rects` (each up to `height`) seen along `direction` (camera minus target): the
-   * frustum height at zoom 1 and the ground point to aim at so they sit centred in the canvas less `insets`.
+   * frustum height at zoom 1 and the ground point to aim at so they sit centred in the canvas less `insets`. `contain`
+   * (the default) fits them whole; `cover` fills the free area's shorter axis and lets the other run off the screen
+   * (the home view on a portrait phone, design choice T5).
    */
-  frameRects(rects: readonly Bounds[], height: number, direction: THREE.Vector3, insets: Insets = NO_INSETS, margin = 1.04): { span: number; target: THREE.Vector3 } {
+  frameRects(rects: readonly Bounds[], height: number, direction: THREE.Vector3, insets: Insets = NO_INSETS, margin = 1.04, fit: "contain" | "cover" = "contain"): { span: number; target: THREE.Vector3 } {
     this.#offset.copy(direction).normalize();
     this.#right.crossVectors(UP, this.#offset).normalize();
     this.#up.crossVectors(this.#offset, this.#right).normalize();
@@ -1485,7 +1488,9 @@ export class TownScene {
     // The free area's share of each axis, and its centre's offset from the canvas centre in pixels (right, down).
     const fy = Math.max(0.2, 1 - (insets.top + insets.bottom) / canvasHeight),
       fx = Math.max(0.2, 1 - (insets.left + insets.right) / canvasWidth);
-    const span = Math.max((v1 - v0) / fy, (u1 - u0) / (aspect * fx)) * margin;
+    const byHeight = (v1 - v0) / fy,
+      byWidth = (u1 - u0) / (aspect * fx);
+    const span = (fit === "cover" ? Math.min(byHeight, byWidth) : Math.max(byHeight, byWidth)) * margin;
     const perPixel = span / canvasHeight;
     const uc = (u0 + u1) / 2 - ((insets.left - insets.right) / 2) * perPixel,
       vc = (v0 + v1) / 2 + ((insets.top - insets.bottom) / 2) * perPixel;
@@ -1497,7 +1502,9 @@ export class TownScene {
 
   /**
    * The home frame. On a portrait phone it frames tight (`homeRects` compact) and lets the town run under the side
-   * controls, so the town fills the tall screen instead of floating small in its middle.
+   * controls, so the town fills the tall screen instead of floating small in its middle: the town is framed in the
+   * space between the chips and the playback bar (a `cover` fit, design choice T5, round 72, frame), its sides running
+   * off the screen's edges where the town is wider than tall.
    */
   #homeFrame(sheet = true) {
     const canvas = this.renderer.domElement;
@@ -1511,7 +1518,7 @@ export class TownScene {
       const c = lotCentre(cell);
       rects.push({ minX: c.x - PLOT_SIZE / 4, maxX: c.x + PLOT_SIZE / 4, minZ: c.z - PLOT_SIZE / 4, maxZ: c.z + PLOT_SIZE / 4 });
     }
-    return this.frameRects(rects, 2, HOME_OFFSET, portrait ? portraitInsets(insets) : insets);
+    return portrait ? this.frameRects(rects, 2, HOME_OFFSET, portraitInsets(insets), 1.04, "cover") : this.frameRects(rects, 2, HOME_OFFSET, insets);
   }
 
   home(immediate: boolean) {

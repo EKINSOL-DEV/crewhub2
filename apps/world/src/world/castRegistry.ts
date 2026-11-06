@@ -41,7 +41,9 @@ export interface CastRegistry {
   readonly fallbackId: string;
   /**
    * Registers a cast; one whose data does not validate, or whose id is already registered (round 50, C2: it replaced
-   * the first silently), is refused with a warning.
+   * the first silently), is refused with a warning. A cast from a newer world (an activity, a role or a perch key this
+   * world does not know) is registered and drawn with what this world knows, with one warning naming what was ignored
+   * (design choice K1, `lenient`).
    */
   registerCast(factory: CastFactory): boolean;
   /** The casts refused so far, with their reasons (round 50, C1): a refused cast is otherwise gone without a trace. */
@@ -110,9 +112,12 @@ export function createCastRegistry(fallbackId: string, warn: (message: string) =
     registerCast(factory) {
       const manifest = validateCastManifest(factory.manifest);
       const errors = manifest.ok ? [] : manifest.errors;
+      // Design choice K1 (`lenient`): what the validators ignored of a cast from a newer world, warned about once below.
+      const ignored: string[] = manifest.ok ? [...manifest.warnings] : [];
       if (factory.figure) {
         const figure = factory.figure.format === "crewhub-figure-patch/1" ? validateFigurePatch(factory.figure) : validateFigure(factory.figure);
         if (!figure.ok) errors.push(...figure.errors);
+        else ignored.push(...figure.warnings);
         if (manifest.ok && (factory.figure.format === "crewhub-figure-patch/1") !== (factory.manifest.extends !== undefined))
           errors.push("cast: a cast that extends another ships a crewhub-figure-patch/1, any other a crewhub-figure/1");
       } else if (!factory.create) errors.push("cast: needs a figure (data) or create (code)");
@@ -120,6 +125,7 @@ export function createCastRegistry(fallbackId: string, warn: (message: string) =
         // A person of its own is checked as a person here; a patch is checked as a person once applied (personOf).
         const person = factory.person.format === "crewhub-figure-patch/1" ? validateFigurePatch(factory.person) : validatePerson(factory.person);
         if (!person.ok) errors.push(...person.errors);
+        else ignored.push(...person.warnings);
         if (manifest.ok && factory.person.format === "crewhub-figure-patch/1" && factory.manifest.extends === undefined)
           errors.push("cast: a person patch (crewhub-figure-patch/1) needs a cast to extend; a cast of its own ships a crewhub-figure/1 person");
       }
@@ -130,6 +136,7 @@ export function createCastRegistry(fallbackId: string, warn: (message: string) =
         return false;
       }
       factories.set(factory.manifest.id, factory);
+      if (ignored.length) once(`Cast "${factory.manifest.id}" comes from a newer world; ignored:\n  ${ignored.join("\n  ")}`);
       return true;
     },
     refused: () => refusals.map((r) => ({ id: r.id, errors: [...r.errors] })),

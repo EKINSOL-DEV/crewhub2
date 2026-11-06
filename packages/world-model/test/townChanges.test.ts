@@ -40,3 +40,15 @@ test("the same town changes nothing; every kind of difference gets one plain lin
   const many: TownDocument = { ...base(), plots: [...base().plots, ...["a", "b", "c", "d", "e"].map((slug, i) => ({ slug, cell: { x: 10 + i, z: 9 } }))] };
   assert.ok(townChanges(base(), many).includes("5 plots added: a, b, c and 2 more."));
 });
+
+test("design choice W5 (plural): the catalogue lines' verb agrees with the count: '1 prop joins', '2 props join', and 'leave' the same", () => {
+  const prop = (id: string, name: string) => ({ format: "crewhub-prop/1", id, name, description: "", category: "rest", tags: [], footprint: { width: 1, depth: 1 }, parts: [], provenance: { kind: "local" } }) as unknown as TownDocument["userProps"][number];
+  const one: TownDocument = { ...base(), userProps: [prop("user:nook", "Reading nook")] };
+  const two: TownDocument = { ...base(), userProps: [prop("user:nook", "Reading nook"), prop("user:lamp", "Lamp")] };
+  assert.ok(townChanges(base(), one).includes("1 prop joins the catalogue: Reading nook."));
+  assert.ok(townChanges(one, base()).includes("1 prop leaves the catalogue: Reading nook."));
+  const joined = townChanges(base(), two).filter((l) => /catalogue/.test(l));
+  const left = townChanges(two, base()).filter((l) => /catalogue/.test(l));
+  assert.deepEqual(joined.map((l) => l.replace(/: .*$/, "")), ["2 props join the catalogue"], joined.join(" | "));
+  assert.deepEqual(left.map((l) => l.replace(/: .*$/, "")), ["2 props leave the catalogue"], left.join(" | "));
+});

@@ -62,6 +62,8 @@ export interface PresentationMemory {
   lanes: Record<AgentKey, LaneMemory>;
   /** Per building slug: when a role room first had an agent (source ms). */
   roleRooms: Record<string, Partial<Record<RoleId, number>>>;
+  /** `Facts.snapshots` the role rooms were last kept for: in the demo a new snapshot forgets them (design choice S4). */
+  roleRoomsSnapshot: number;
   /** The last real building per agent, kept after 30 quiet minutes. */
   locations: Record<AgentKey, string>;
   /** Ticket drones in the air, by ticket id. */
@@ -85,6 +87,7 @@ export function emptyMemory(): PresentationMemory {
   return {
     lanes: {},
     roleRooms: {},
+    roleRoomsSnapshot: 0,
     locations: {},
     flights: {},
     places: {},
@@ -100,11 +103,23 @@ export function emptyMemory(): PresentationMemory {
 /**
  * Round 50 (M4): forgets what the facts no longer hold: the lane and the place of an agent no longer listed, the role
  * rooms of a building no longer there. What is still there is kept as it was: a listed agent keeps its debounce, and
- * a building that stayed keeps its role rooms, after a seek too.
+ * a building that stayed keeps its role rooms, after a seek too (in live mode; the demo's seek is `forgetRoleRoomsAtSnapshot`).
  */
 export function forgetGone(memory: PresentationMemory, agents: readonly { key: AgentKey }[], projects: Readonly<Record<string, unknown>>): void {
   const listed = new Set(agents.map((a) => a.key));
   for (const key of Object.keys(memory.lanes)) if (!listed.has(key)) delete memory.lanes[key];
   for (const key of Object.keys(memory.locations)) if (!listed.has(key)) delete memory.locations[key];
   for (const slug of Object.keys(memory.roleRooms)) if (!(slug in projects)) delete memory.roleRooms[slug];
+}
+
+/**
+ * Design choice S4 (`forget`, round 72), the demo only: a new snapshot (a seek, a new loop) is a new start of the story,
+ * so the role rooms are forgotten and come again as the story brings them; before, a room seen once stood empty after a
+ * seek back ("no worker agents active") before anybody of that role had come. A team update between snapshots keeps
+ * them, as in live mode a new snapshot does (there is no story to replay there, and the reducer does not call this).
+ */
+export function forgetRoleRoomsAtSnapshot(memory: PresentationMemory, snapshots: number): void {
+  if (memory.roleRoomsSnapshot === snapshots) return;
+  memory.roleRoomsSnapshot = snapshots;
+  memory.roleRooms = {};
 }

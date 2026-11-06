@@ -1,8 +1,9 @@
 /*
  * The run file: `$TMPDIR/crewhub-world-host-<port>.json`, mode 0600 in the user's temp folder, written by `npm run host`
- * and `npm run world` with the host's pid, URL and the mint secret, removed at exit. A program of the same user reads
- * the secret from it to mint a pairing link (`open`) or to tell the host a dev origin (`npm run dev`, round 26): the
- * file's mode is what makes "can read it" mean "the same user".
+ * and `npm run world` with the host's pid, URL, the mint secret and whether it serves the built world (`world`, design
+ * choice H2: `npm run world` refuses to open a browser on a development host), removed at exit. A program of the same
+ * user reads the secret from it to mint a pairing link (`open`) or to tell the host a dev origin (`npm run dev`,
+ * round 26): the file's mode is what makes "can read it" mean "the same user".
  */
 import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -14,6 +15,8 @@ export interface RunFile {
   pid: number;
   url: string;
   mintSecret: string;
+  /** Whether this host serves the built world (`npm run world`); false for `npm run host`; absent in a file from before. */
+  world?: boolean;
 }
 
 /** The run file of the host on `port`, or null when there is none, it is unreadable or not the file's shape. */
@@ -27,7 +30,7 @@ export function readRunFile(port: number): RunFile | null {
   try {
     const parsed = JSON.parse(text) as Partial<RunFile>;
     if (typeof parsed.pid !== "number" || typeof parsed.url !== "string" || typeof parsed.mintSecret !== "string" || parsed.mintSecret === "") return null;
-    return { pid: parsed.pid, url: parsed.url, mintSecret: parsed.mintSecret };
+    return { pid: parsed.pid, url: parsed.url, mintSecret: parsed.mintSecret, ...(typeof parsed.world === "boolean" ? { world: parsed.world } : {}) };
   } catch {
     return null;
   }
