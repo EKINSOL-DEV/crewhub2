@@ -9,6 +9,7 @@ import { useCast } from "../state/cast";
 import { setStyleOption, useStyleOptions } from "../state/styleOptions";
 import { townRuntime } from "../state/runtimes";
 import type { TownState } from "../state/town";
+import { zoneNameStep, type ZoneNameEvent } from "../state/zoneNameField";
 import { castRegistry } from "../world/cast";
 import { resolveLook } from "../world/look";
 import { styleRegistry } from "../world/style";
@@ -129,15 +130,15 @@ function ZoneLookFields({ zone, context, edits }: { zone: Zone; context: LookCon
   );
 }
 
-/** A zone's name: typed freely, written to the town document when the field is left or Enter is pressed (one undo step). */
+/** A zone's name: typed freely, written to the town document when the field is left or Enter is pressed (one undo step);
+    Escape drops the draft and keeps the old name (design choice E1). The steps are state/zoneNameField.ts. */
 function ZoneName({ zone, onCommit }: { zone: Zone; onCommit: (name: string | null) => void }) {
   const [draft, setDraft] = useState<string | null>(null);
   const group = zone.source === "group";
-  const commit = () => {
-    if (draft === null) return;
-    const name = draft.trim() || null;
-    if (name !== zone.name) onCommit(name);
-    setDraft(null);
+  const step = (event: ZoneNameEvent) => {
+    const next = zoneNameStep(draft, zone.name, event);
+    if (next.write) onCommit(next.write.name);
+    setDraft(next.draft);
   };
   return (
     <Field
@@ -148,10 +149,11 @@ function ZoneName({ zone, onCommit }: { zone: Zone; onCommit: (name: string | nu
       placeholder={zone.source === "default" ? "No zone" : "Unnamed zone"}
       disabled={group}
       {...(group ? { hint: "The name of the group in crewhub-loops." } : {})}
-      onChange={(e) => setDraft(e.currentTarget.value)}
-      onBlur={commit}
+      onChange={(e) => step({ type: "type", value: e.currentTarget.value })}
+      onBlur={() => step({ type: "blur" })}
       onKeyDown={(e) => {
-        if (e.key === "Enter") commit();
+        if (e.key === "Enter") step({ type: "enter" });
+        else if (e.key === "Escape") step({ type: "escape" });
       }}
     />
   );
