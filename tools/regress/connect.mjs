@@ -387,7 +387,7 @@ export async function runKeyFileNote({ pass, check, out }) {
   /** What the page's health reads say about the key, over the host's own answer; null: the host's answer as it is. */
   let word = null;
   const healthRoute = async (route) => {
-    const answer = await route.fetch();
+    const answer = await pg.request.get(route.request().url());
     const body = await answer.json();
     if (word !== null && body.connection) body.connection.key = { ...body.connection.key, ...word };
     await route.fulfill({ response: answer, json: body });
