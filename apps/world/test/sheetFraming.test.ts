@@ -42,6 +42,9 @@ test("a frame's zoom: clamped above a person's limit with the sheet closed, abov
   assert.deepEqual(framedZoom(40, false, 4), { zoom: 4, limit: 0.6 });
   assert.deepEqual(framedZoom(0.6, true, 16), { zoom: 0.6, limit: 0.6 });
   assert.deepEqual(framedZoom(0.25, true, 16), { zoom: 0.25, limit: 0.25 });
+  // The controls' maximum is never under 4 (TownScene's resize), so this pins only the clamp's promise: three's
+  // MathUtils.clamp line for line, where a floor above the ceiling gives the floor.
+  assert.deepEqual(framedZoom(1, false, 0.5), { zoom: 0.6, limit: 0.6 }, "a ceiling under the floor: the floor wins, as three's clamp has it");
 });
 
 test("the sheet closed on a camera a person moved: a target off the ground or a zoom under a person's limit eases back inside, and a camera inside stays (the eases-inside row)", () => {
@@ -61,6 +64,7 @@ test("the pan clamp's overhang beside the sheet: half the sheet's width in world
   assert.equal(sheetOverhang(20, 2, 900), sheetOverhang(20, 1, 900) / 2, "zoomed in twice, half the overhang");
   assert.equal(sheetOverhang(40, 1, 900), sheetOverhang(20, 1, 900) * 2, "a town twice as tall, twice the overhang");
   assert.equal(sheetOverhang(20, 1, 450), sheetOverhang(20, 1, 900) * 2, "a canvas half as tall, twice the overhang");
+  assert.equal(sheetOverhang(20, 1, 1), (20 * 348) / 2, "one pixel tall: half the sheet's width in world units at zoom 1");
   assert.equal(sheetOverhang(20, 1, 0), sheetOverhang(20, 1, 1), "a canvas without height counts as one pixel tall");
   assert.equal(sheetOverhang(20, 1, 0.5), sheetOverhang(20, 1, 1));
 });
