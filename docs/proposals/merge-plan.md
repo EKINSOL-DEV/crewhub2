@@ -338,6 +338,29 @@ q8's sentence lands in a paragraph both have, r27's bearer paragraph replaces a 
 `git merge-tree` of `task/r27-tab-pairing` against `task/q8-offline-say` is **clean**. The replay has no rule for this
 file any more: a conflict in `docs/LOOPS_SETUP.md` is for a person.
 
+### H. `apps/world/src/state/build.ts` after round 71's seam 2 (w6-3, w6-4, w4-2 alone)
+
+Round 71 put seam 2's base half on `feat/world-demo` (`f822a2dd`): `build.ts`'s relative imports say `.ts`, `./runtimes`
+left the import list, `TownRuntime` comes from `./town.ts`, and `useBuildMode` calls `editor.edit`/`editor.editAll` in
+place of `townRuntime().edit`/`editAll`. `sugg/w6-3`, `sugg/w6-4` and `sugg/w4-2` still stand on `689bc2f9`, so a single
+`do it` of one of them meets one conflict in `build.ts`. The rule: **feat's side for the imports and the editor calls,
+then the branch's own imports with `.ts`, and its own extra arguments.** Each resolution below typechecks, and `build.ts`
+still loads in Node (`apps/world/test/buildLoads.test.ts`); `sugg/all-r65-on-head` holds the three together in merge
+`ab95a394`.
+
+- **w6-3:** after `import type { Ghost } from "../world/propLayer.ts";` add
+  `import { messageShown } from "./buildMessage.ts";`; in `repose`,
+  `const result = editor.editAll(edits);` and `say(result.ok ? done : result.error, p.id);`, deps
+  `[editor, inside, say, template, town.definitions, town.doc]`.
+- **w6-4:** the `placements.ts` line imports `cellAt, checkGhost, freeCellIn, placedWords, refusedWords, reposeAction,
+  resolveBuildingPlacements, roomSite, type GhostCheck`; `repose`'s deps `[editor, inside, nameOf, say, template,
+  town.definitions, town.doc]`.
+- **w4-2:** after `import type { Ghost } from "../world/propLayer.ts";` add `import { buildWords } from "./inputWords.ts";`
+  and `import { touchInput } from "./media.ts";`.
+
+Two or three of them together: the union (all three: merge `ab95a394`). The replay has no rule for this file: a conflict
+in `build.ts` beyond these lines is for a person.
+
 ## 4. Checking the result, and the replay
 
 After the merges: `npm run check` on the head (the counts above are what to expect at these branch heads), and, before

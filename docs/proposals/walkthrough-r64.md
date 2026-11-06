@@ -183,6 +183,8 @@ Prepared branches are ready; an answer `do it` merges that branch, `journey N: a
   it, arrow keys move it, R turns it". **Suggestion:** touch words on a touch device ("a tap", "the joystick", no key hints), chosen by the page's input kind.
 
   Prepared: `sugg/w4-2`, in the four places the finding names; a few spoken key hints elsewhere stay.
+  On today's feat a single `do it` meets one `build.ts` conflict (round 71's seam 2); [merge-plan.md §3 H](merge-plan.md#h-appsworldsrcstatebuildts-after-round-71s-seam-2-w6-3-w6-4-w4-2-alone)
+  has its exact resolution, and `sugg/all-r65-on-head` holds the three together in merge `ab95a394`.
 
 - **w4-3 · confusing (screen reader).** The tour's step 4 ends, for a screen reader, with "Highlighted on the screen:
   Agent chatsChat with G-Man, 0 unreadPin an agentPin CR Lead…": the phone's dock is a tall column and the step reads
@@ -336,11 +338,15 @@ Prepared branches are ready; an answer `do it` merges that branch, `journey N: a
   prop to select it". **Suggestion:** the message clears when the selection it describes ends.
 
   Prepared: `sugg/w6-3`.
+  On today's feat a single `do it` meets one `build.ts` conflict (round 71's seam 2); [merge-plan.md §3 H](merge-plan.md#h-appsworldsrcstatebuildts-after-round-71s-seam-2-w6-3-w6-4-w4-2-alone)
+  has its exact resolution, and `sugg/all-r65-on-head` holds the three together in merge `ab95a394`.
 
 - **w6-4 · confusing.** A dragged prop that lands on something is refused with "Can't: It overlaps something or sticks
   out of the room.", naming no prop and no verb. **Suggestion:** "Can't move Soft landing there: it overlaps …", as the placement's refusal names the prop.
 
   Prepared: `sugg/w6-4`.
+  On today's feat a single `do it` meets one `build.ts` conflict (round 71's seam 2); [merge-plan.md §3 H](merge-plan.md#h-appsworldsrcstatebuildts-after-round-71s-seam-2-w6-3-w6-4-w4-2-alone)
+  has its exact resolution, and `sugg/all-r65-on-head` holds the three together in merge `ab95a394`.
 
 - **w6-5 · confusing.** The region map calls the buildings without a zone "Old town" where the sheet says "No zone (the
   town's own district)" and the text view "No zone (buildings without a zone)"; nothing says the two are one.
