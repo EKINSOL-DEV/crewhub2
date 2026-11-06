@@ -877,9 +877,32 @@ came from the default key file."): a rejection replaces the world by that screen
 chip, so the Connection panel's own line ("This key comes from the default key file, which the host never deletes …")
 is not on the road a person meets. Nothing half, nothing new.
 
-### Journey 4: a phone (wc)
+### Journey 4: a phone, touch only (wc; iPhone 13 and Pixel 5, upright and sideways, light and dark, 320 px)
 
-Pending at the time of this commit (T5's cover framing, T6's chip, N1 sideways): wc's report.
+**Seen to work:** T5 (`frame`, with a person's cost, below), T6 (`word`: "CrewHub" on one line with the "Demo" chip
+under it on the iPhone, beside it on the Pixel's 3 px more; both forms are the option's), T8, T9 (`disclosure`: the
+Connect screen 791 px tall instead of about 970, the key field and Connect inside the first screenful; a tap opens the
+older road), W1, W3, W4, W7, W8, E2, X4 (`drop-word` at 320 px: the mark and the Demo chip, the words out of view, no
+horizontal scroll), X5, N1 (`compact` sideways: the plate shows its title only, the figures carry pills, nothing over
+the playback bar; it ends w4-20; the rack signs and rule tags still overlap in a short diagonal, a polish matter outside
+N1's options).
+
+**Half:** T1 (`bottom-left`) held sideways (750 x 342): the card stands at the bottom left but still over the playback
+bar's left part, since the bar is wider than the margins there; upright the phone rule stands and nothing is covered.
+T2 (`stage`): the focus goes to the canvas, but after a tapped Done the canvas wears its 2 px ring round the whole
+screen and a tap on the ground keeps it (wc-1, confusing, new; the same mechanism as wa-1, fixed on `dc/T2@ab19869d`,
+which covers the tap road: a tap's click has `detail` 1).
+
+**Not seen as a person:** S4 (a seek back shows no empty room on either build; its model test holds it), K1 (casts
+register from code only), K2 (the label windows caught the figures settling at their desks, not the engine's walk; the
+speed test holds it).
+
+**New (confusing, `dc/T5`, wc-2):** at the home view upright the cover fit puts Launch & Marketing's sign and its "1
+waiting on a person" beacon off the left edge, the Lodge off the top left, and the "OPS" sign under the camera toolbar,
+so none of the three can be tapped from the home view; a swipe pans them in, and the jump list and the text view still
+name them. The walkthrough-only candidate shows all six signs with an empty band under the chips. So the brief's
+question has its answer: it is a person's problem of the confusing kind, mostly the beacon out of view and the sign
+under the toolbar; `dc/T5-margin` (all four buildings kept, the band not filled) is the prepared alternative.
 
 ### Journey 5: keyboard and screen reader (wb)
 
@@ -911,6 +934,10 @@ effect: it queues the status text from a ref and moves the ref on its next line,
 after the ref moved, so the comparison always says "same name". The pure test cannot see it; a component test that picks
 a name and reads the status region can. Fixed on `dc/W12@270ef5f3` by wa (a walk row, red 44/45 then green 45/45), reviewed by wc.
 
-### Journey 6: the town editor (wc)
+### Journey 6: the town editor (wc; a desktop at 1440 x 900, the iPhone by touch; demo, then live)
 
-Pending at the time of this commit: wc's report.
+**Seen to work:** E1 (`escape`: in Settings › Zones' name field Escape drops the draft and keeps the old name with the
+focus in the field; Enter and leaving the field write; Undo takes the write back), E2 (`say` in the demo; live the line
+is absent, as the option says), W2 (`alert`: the hovered plate reads "Alert: CR-23 waiting on Nicky"; the status tag and
+the text view's "is lit:" keep their words, as the heading says), W3 (`cards`), X5 (`short`), T4 (`end`: Settings and
+the text view end at y 782, the dock's button starts at 799). Nothing half, nothing new.
