@@ -3,7 +3,8 @@
  * and a rename) and never logged. These and `forget` are the host's only writes, and they are to its own folder (the
  * archive memory of `archiveStore.ts` shares `writeWhole` and the folder).
  */
-import { chmodSync, mkdirSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { ensureOwnDir } from "./ownDir.ts";
 import path from "node:path";
 import { STORED_KEY_NAME } from "./config.ts";
 
@@ -15,10 +16,9 @@ export interface KeyStore {
   forget(): void;
 }
 
-/** Writes `text` to `file` whole (a temp file beside it, mode 0600, then a rename), the folder made 0700 first. */
+/** Writes `text` to `file` whole (a temp file beside it, mode 0600, then a rename), the folder made 0700 first when it is not there (an existing one keeps its mode, design choice H1). */
 export function writeWhole(dir: string, file: string, text: string): void {
-  mkdirSync(dir, { recursive: true, mode: 0o700 });
-  chmodSync(dir, 0o700);
+  ensureOwnDir(dir);
   const temp = `${file}.${process.pid}.tmp`;
   writeFileSync(temp, text, { mode: 0o600 });
   chmodSync(temp, 0o600);

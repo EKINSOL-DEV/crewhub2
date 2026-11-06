@@ -16,6 +16,7 @@ import { checkKey } from "./keyCheck.ts";
 import { type LoopsClient, type LoopsTarget, createLoopsClient } from "./loops.ts";
 import { loopsHealth } from "./loopsHealth.ts";
 import { nodeWarningLine, readNvmrc, runningNodeVersion } from "./nodeVersion.ts";
+import { looseFolderLine } from "./ownDir.ts";
 import { type PortState, portState } from "./runningHost.ts";
 
 export type DoctorStatus = "ok" | "fix" | "skip" | "warn";
@@ -109,7 +110,10 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
     for (const id of ["folder", "health", "key", "auth", "projects", "agents", "team", "events", "archive", "port", "pairing"]) skip(id, "the configuration failed");
     return { lines, ok: false };
   }
-  ok("folder", configFolderLine(io.env, home));
+  // An existing folder looser than 0700 is a warning (design choice H1): the host leaves it as it is.
+  const folderInfo = statFile(config.configDir);
+  if (folderInfo !== null && (folderInfo.mode & 0o077) !== 0) warn("folder", `${configFolderLine(io.env, home)}: ${looseFolderLine(tilde(config.configDir, home), folderInfo.mode)}`);
+  else ok("folder", configFolderLine(io.env, home));
   const input: DiscoveryInput = {
     loopsUrl: config.loopsUrl,
     loopsSocket: config.loopsSocket,
