@@ -302,8 +302,9 @@ export async function run({ pass, page, check, out }) {
     // chips and the playback bar (a cover fit: the sides run off), where a contain fit left an empty band under the chips
     // and above the bar with the width binding. Measured through the dev build's scene (`__town`): the vertical extent
     // of the lots' centres (ground and 2 up) projected by the home camera, as a share of the canvas height less the
-    // scene's own insets. The threshold stands between the two measured fits (base and branch: the numbers in r72-d3's
-    // report); without `__town` (a production build) the row is skipped with a note.
+    // scene's own insets. The threshold stands between the two measured fits: 0.26 on 2d22df8a's contain fit, 0.66 on
+    // the cover fit (round 72, batch 3, both on the Small team's four lots); without `__town` (a production build) the
+    // row is skipped with a note.
     if (scheme === "light") {
       const framing = await p.evaluate(() => {
         const s = globalThis.__town;
@@ -317,7 +318,7 @@ export async function run({ pass, page, check, out }) {
         return { extent: Math.round(Math.max(...ys) - Math.min(...ys)), free: Math.round(free), share: (Math.max(...ys) - Math.min(...ys)) / free, lots: s.view.plan.lots.length };
       });
       if (framing === null) info("375 light: the home framing row needs the dev build's __town; skipped (T5)");
-      else ok("375 light: the home view frames the town in the band between the chips and the playback bar (T5: the lots' projected extent fills at least 0.72 of it)", framing.share >= 0.72, `extent ${framing.extent} of ${framing.free} px (${framing.share.toFixed(2)}), ${framing.lots} lots`);
+      else ok("375 light: the home view frames the town in the band between the chips and the playback bar (T5: the lots' projected extent fills at least 0.50 of it)", framing.share >= 0.5, `extent ${framing.extent} of ${framing.free} px (${framing.share.toFixed(2)}), ${framing.lots} lots`);
     }
     const small = await p.evaluate(() => [...document.querySelectorAll("button, a, input, select")].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && (r.height < 40 || r.width < 40) && getComputedStyle(e).visibility !== "hidden"; }).map((e) => (e.getAttribute("aria-label") || e.textContent || e.tagName).trim().slice(0, 24)));
     info(`375 ${scheme} targets under 40px (visible box): ${small.length} ${small.slice(0, 8).join(", ")}`);
