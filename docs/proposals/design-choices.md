@@ -13,6 +13,10 @@ from round 53's review of the page's state (checked at `402b618`), P2, W15 and W
 w2-3, written up in round 66 (checked at `ab476f3`), and W17 and N1 from round 64's walks w1-13 and w4-20, written up in
 round 69 (checked at `0dee42e`).
 
+**Prepared branches (round 72):** each heading ends with its branch, `dc/<id>` (the recommended option built exactly as the
+heading describes it, off `feat/world-demo@2d22df8a`, never merged by itself), or says why none is prepared. `all recommended`
+(or a block or a group) is then one merge of `dc/all-r72`, `2d22df8a` plus every prepared branch; the answer sheet's top names it.
+
 **How to answer:** one line per id, in the same short form as the open questions, for example `T1: as recommended`,
 `W4: keep` or `S1: waits`. A whole block in one line works too: `wording block: as recommended`
 (the nineteen choices marked *wording*, gathered at the end), or `T: as recommended` for a group. **Nothing changes
@@ -42,6 +46,7 @@ playback bar's right half).
 pixel set (the tour is off in them).
 **If you say nothing:** the card stays at the bottom centre.
 **Answer:** `T1: bottom-left / keep`
+**Prepared:** `dc/T1` `<sha>` (round 72).
 
 ### T2. The focus after the tour (r48-polish C8)
 
@@ -56,6 +61,7 @@ Escape returns the focus to Settings when Settings opened the tour; that path ke
 No pixel set.
 **If you say nothing:** the "?" button keeps the ring.
 **Answer:** `T2: stage / help`
+**Prepared:** `dc/T2` `<sha>` (round 72).
 
 ### T3. The name a screen reader hears for the stage (r48-polish C7) *wording*
 
@@ -69,6 +75,7 @@ figures stand"). `keep`.
 button's name stays). No pixel set.
 **If you say nothing:** a screen reader hears "CrewHub World".
 **Answer:** `T3: town / keep`
+**Prepared:** `dc/T3` `<sha>` (round 72). Walk finding w4-3 is not ended by it: `town` is written for steps 1 and 3 (the stage); step 4's dock is not in the option as worded (the answer sheet's note).
 
 ### T4. The chat dock's button over the open sheets (r48-polish C9)
 
@@ -81,6 +88,7 @@ dock. `keep`: the dock is always reachable, as meant.
 (the sheets are closed in it).
 **If you say nothing:** the button stays over the sheets.
 **Answer:** `T4: lift / end / keep`
+**Prepared:** `dc/T4-lift` `<sha>` for `lift` and `dc/T4-end` `<sha>` for `end` (round 72): one branch per option, both cheap; your answer picks one.
 
 ### T5. The town's framing on a phone (r48-polish C10)
 
@@ -92,6 +100,7 @@ pixel set's 375 px town pictures move, light and dark, so it is a deliberate pic
 pictures.
 **If you say nothing:** the phone's town stays framed low.
 **Answer:** `T5: frame / keep`
+**Prepared:** `dc/T5` `<sha>` (round 72).
 
 ### T6. The phone header's Demo chip (r48-polish C11)
 
@@ -105,6 +114,7 @@ there). `keep`.
 and dark.
 **If you say nothing:** the icon alone.
 **Answer:** `T6: word / keep`
+**Prepared:** `dc/T6` `<sha>` (round 72).
 
 ### T7. The focus ring round the whole screen (r48-polish C12)
 
@@ -116,6 +126,7 @@ on the stage.
 **Cost:** none for `keep`; `hide` is one rule in `world.css` and takes a visible focus away from keyboard users.
 **If you say nothing:** kept.
 **Answer:** `T7: keep / hide`
+**Not prepared:** `keep` is today's build; nothing to merge (round 72).
 
 ### T8. The host's address in the demo's Settings (r48-polish C4)
 
@@ -128,6 +139,7 @@ on the stage.
 **Cost:** `SourceSettings.tsx`. No test pins it; no pixel set.
 **If you say nothing:** the line stays.
 **Answer:** `T8: answered / disclosure / keep`
+**Prepared:** `dc/T8` `<sha>` (round 72).
 
 ### T9. The long Connect screen on a phone (r48-ui F3)
 
@@ -141,6 +153,7 @@ crewhub-loops ("On an older crewhub-loops without that card (today's Mac app): S
 pictures of that screen move; `docs/images/connect.png` would be retaken. No demo pixel set.
 **If you say nothing:** the paragraph stays open.
 **Answer:** `T9: disclosure / keep`
+**Prepared:** `dc/T9` `<sha>` (round 72).
 
 ## Words on screen (W)
 
@@ -155,6 +168,7 @@ time as loops sent it). A screen reader reads it out character by character.
 test pins the line today, so one is added. No pixel set.
 **If you say nothing:** the ISO time stays.
 **Answer:** `W1: clock / keep`
+**Prepared:** `dc/W1` `<sha>` (round 72).
 
 ### W2. "Lit:" on a plate (r48-polish C2) *wording*
 
@@ -166,6 +180,7 @@ the lead's in the demo). "Lit" means the alert lamp on the desk is on for that t
 too). No test pins "Lit"; no pixel set (labels are hidden in it).
 **If you say nothing:** "Lit:".
 **Answer:** `W2: waiting / alert / keep`
+**Prepared:** `dc/W2-alert` `<sha>` for `alert` (round 72). **Not prepared:** `waiting`: it needs two decisions this page does not make. The alert's own words (`reducer.ts`) also reach the card's attention chip, the figure's caption, the text view's "is lit:" line and the director's immovable reason, which greps the alert for `waiting` (`director.ts`), so an agent whose waiting ticket sits on a rack would become movable unless that rule changes too; and the plate prefixes every alert alike, so "Waiting: CR-24 stalled" would be false for a stall alert.
 
 ### W3. The demo note on every plate (r48-polish C3) *wording*
 
@@ -179,6 +194,7 @@ card's tooltip), and drop it from the agent plates. `keep`.
 **Cost:** `WorldCanvas.tsx`. No test; no pixel set.
 **If you say nothing:** the note on every plate.
 **Answer:** `W3: cards / keep`
+**Prepared:** `dc/W3` `<sha>` (round 72).
 
 ### W4. "Needs a person: 3 waiting on a person." (r48-polish C5) *wording*
 
@@ -193,6 +209,7 @@ screen-reader words already say "Needs a person", `JumpList.tsx:122`). `keep`.
 beacon check (`/Needs a person/`) still holds. No pixel set.
 **If you say nothing:** said twice.
 **Answer:** `W4: once / keep`
+**Prepared:** `dc/W4` `<sha>` (round 72).
 
 ### W5. "2 props joins the catalogue" (r48-model W1) *wording*
 
@@ -204,6 +221,7 @@ the singular (`packages/world-model/test/townChanges.test.ts:32`).
 **Cost:** `townChanges.ts:92-93`, a plural case in `townChanges.test.ts`. No pixel set.
 **If you say nothing:** "2 props joins".
 **Answer:** `W5: plural / keep`
+**Prepared:** `dc/W5` `<sha>` (round 72).
 
 ### W6. "the lobby keeps the count" (r48-model W2) *wording*
 
@@ -217,6 +235,7 @@ goes). `keep`.
 `apps/world/src/world/buildingView.ts` and `docs/LOOPS_INTEGRATION_PLAN.md`. No pixel set.
 **If you say nothing:** the lobby "keeps the count".
 **Answer:** `W6: drop / keep`
+**Prepared:** `dc/W6` `<sha>` (round 72).
 
 ### W7. "tonight" in Settings (r48-ui F1) *wording*
 
@@ -227,6 +246,7 @@ another." (`apps/world/src/components/TownSettings.tsx:108`). "Tonight" is a bui
 **Cost:** `TownSettings.tsx:108`. No test; no pixel set.
 **If you say nothing:** "tonight".
 **Answer:** `W7: drop / keep`
+**Prepared:** `dc/W7` `<sha>` (round 72).
 
 ### W8. The "Director model" field (r48-ui F2) *wording*
 
@@ -240,6 +260,7 @@ calls none.
 pixel set.
 **If you say nothing:** the model's name stays.
 **Answer:** `W8: none / keep`
+**Prepared:** `dc/W8` `<sha>` (round 72).
 
 ### W9. The words for a ticket status newer than this build (r48-unknown M7) *wording*
 
@@ -252,6 +273,7 @@ world, kept with the backlog).` (`packages/world-model/src/describe.ts:332`); th
 `packages/world-model/test/unknownStatus.test.ts:60`. No pixel set.
 **If you say nothing:** as built.
 **Answer:** `W9: as-built / <words>`
+**Not prepared:** `as-built` is today's build; nothing to merge (round 72).
 
 ### W10. The line of a card that could not be drawn (r48-unknown U5) *wording*
 
@@ -263,6 +285,7 @@ and "This card could not be drawn. The text view still says where Postman is and
 **Cost:** for other words, `AgentCard.tsx:145` and the regress `demo` group's check of the failed card. No pixel set.
 **If you say nothing:** as built.
 **Answer:** `W10: as-built / <words>`
+**Not prepared:** `as-built` is today's build; nothing to merge (round 72).
 
 ### W11. A label layer that fails shows nothing (r48-unknown U5)
 
@@ -274,6 +297,7 @@ were.
 **Cost:** for `line`, the `OverlayBoundary` fallback round the label layer in `WorldCanvas.tsx` and a regress check.
 **If you say nothing:** nothing is shown.
 **Answer:** `W11: nothing / line`
+**Not prepared:** `nothing` is today's build; nothing to merge (round 72).
 
 ### W12. The "Where is …?" answer keeps talking (r48-ui F4)
 
@@ -285,6 +309,7 @@ is meant; with the text view open in a live world it talks often.
 **Cost:** `WhereForm.tsx`. No test reads the announcement; no pixel set.
 **If you say nothing:** it keeps announcing.
 **Answer:** `W12: keep / on-choice`
+**Prepared:** `dc/W12` `<sha>` (round 72).
 
 ### W13. A name that left "Where is …?" (round 50, r48-ui U6) *wording*
 
@@ -297,6 +322,7 @@ another agent by itself.
 **Cost:** for other words, `whereChoice.ts:24,35` and `apps/world/test/whereChoice.test.ts`. No pixel set.
 **If you say nothing:** as built.
 **Answer:** `W13: as-built / <words>`
+**Not prepared:** `as-built` is today's build; nothing to merge (round 72).
 
 ### W14. Copy that cannot copy on the Pair screen (round 50, r48-ui N1) *wording*
 
@@ -308,6 +334,7 @@ happened.
 **Cost:** for other words, `en.ts:117`; `apps/world/test/copyFlash.test.ts` reads the state, not the words. No pixel set.
 **If you say nothing:** as built.
 **Answer:** `W14: as-built / <words>`
+**Not prepared:** `as-built` is today's build; nothing to merge (round 72).
 
 ### W15. Which bot the host's own words send people to make (round 54, r54-review) *wording*
 
@@ -323,6 +350,7 @@ New external bot" second. `keep`.
 and change with them. Touches `apps/host/src`, so the replays run. No pixel set.
 **If you say nothing:** the host's words send people to "New external bot".
 **Answer:** `W15: viewer-first / keep`
+**Prepared:** `dc/W15` `<sha>` (round 72). Walk finding w2-8 is not ended by it: W15 changes which bot the host's words name; one sentence per status (403 and 401) is not among its options (the answer sheet's note).
 
 ### W16. "Not a control" and loops' own chat (round 54, r54-review) *wording*
 
@@ -335,6 +363,7 @@ there; the frame is loops, not the world.
 **Cost:** one sentence in `INTRODUCTION.md`. No test, no pixel set.
 **If you say nothing:** as it is.
 **Answer:** `W16: say-the-frame / keep`
+**Prepared:** `dc/W16` `<sha>` (round 72).
 
 ### W17. An archived building's two ticket lines (round 69, walkthrough w1-13) *wording*
 
@@ -355,6 +384,7 @@ racks are empty because the archive took the tickets; dropping either line hides
 line follows; a case in `packages/world-model/test/halls.test.ts` and `apps/world/test/roomWords.test.ts`. No pixel set.
 **If you say nothing:** the two lines as they are.
 **Answer:** `W17: why / tickets / halls / keep`
+**Prepared:** `dc/W17` `<sha>` (round 72). It ends walk finding w1-13: both lines stay true and the new sentence says why they differ.
 
 ## The live road (L)
 
@@ -373,6 +403,7 @@ host could not read crewhub-loops: …" with the host's reason for the second. `
 `loops_down` and `unauthorized` only); the regress `live` group's "Loops down" checks stay. No pixel set.
 **If you say nothing:** "Loops down".
 **Answer:** `L1: own-words / keep`
+**Prepared:** `dc/L1` `<sha>` (round 72). Walk finding w2-5 is not ended by it: L1 words two 503s the host sends; a host that does not answer at all is not among its options (the answer sheet's note).
 
 ### L2. Road 2 waits for the browser to be online (r48-live Q1)
 
@@ -385,6 +416,7 @@ run on 127.0.0.1 and the town is live, yet no chat bubbles come until a network 
 **Cost:** `pageChat.ts:148,167`; the offline cases in `apps/world/test/pageChat.test.ts` turn round. No pixel set.
 **If you say nothing:** offline, road 2 asks nothing.
 **Answer:** `L2: ignore / keep`
+**Prepared:** `dc/L2` `<sha>` (round 72).
 
 ### L3. The chip says Live while the team snapshot is stale (round 66, walkthrough w2-3)
 
@@ -420,6 +452,7 @@ remedy (restart the host) is wrong for a stopped probe. `own-word`: `hostSource.
 word in `en.ts`, the chip and `world.css`; a regress `live` row. No pixel set: the demo has no connection chip.
 **If you say nothing:** the chip as it is.
 **Answer:** `L3: snapshot / own-word / keep`
+**Not prepared:** its precondition needs a real crewhub-loops, measured first (that a real loops' stamp moves on an upload with no change), never here (round 72).
 
 ## The host's behaviour (H)
 
@@ -435,6 +468,7 @@ an existing folder is looser than 0700. `tighten`: as it is, said in the README.
 **Cost:** the three `chmodSync` calls; host tests for a made and an existing folder; the README row. No pixel set.
 **If you say nothing:** any named folder becomes 0700.
 **Answer:** `H1: warn / tighten`
+**Prepared:** `dc/H1` `<sha>` (round 72).
 
 ### H2. `npm run world` beside a running `npm run host` (r48-review F18)
 
@@ -450,6 +484,7 @@ Vite page (npm run dev)" and exits 1. `take-over`: `world` stops the dev host an
 run file's new field. No pixel set.
 **If you say nothing:** the JSON error page.
 **Answer:** `H2: refuse / take-over / keep`
+**Prepared:** `dc/H2` `<sha>` (round 72).
 
 ### H3. "Forget this key" on a key from the old default key file (round 51, r51-review H2)
 
@@ -469,6 +504,7 @@ same reason, which the panel shows. `keep`.
 (the panel is in no set).
 **If you say nothing:** Forget on a default-file key comes back at the next start.
 **Answer:** `H3: stored-only / host-says / keep`
+**Prepared:** `dc/H3` `<sha>` (round 72).
 
 ## The storyline (S)
 
@@ -481,6 +517,7 @@ same reason, which the panel shows. `keep`.
 **Cost:** `script.ts:350`. No test pins it; no pixel set (it seeks to 2:00).
 **If you say nothing:** the old line.
 **Answer:** `S1: waits / keep`
+**Prepared:** `dc/S1` `<sha>` (round 72).
 
 ### S2. "Brand and Lab are the quiet ones" (r48-demo-fake D2, second half) *wording*
 
@@ -494,6 +531,7 @@ what makes a group quiet.
 **Cost:** `studio.ts:355`. No test pins it; no pixel set.
 **If you say nothing:** the sentence stays.
 **Answer:** `S2: drop / <words>`
+**Prepared:** `dc/S2` `<sha>` (round 72).
 
 ### S3. "stuck since the merge" (r48-demo-fake N2) *wording*
 
@@ -505,6 +543,7 @@ opens its card sees idle, not stuck.
 **Cost:** `script.ts:328`. No test pins it; no pixel set.
 **If you say nothing:** "stuck".
 **Answer:** `S3: idle / keep`
+**Prepared:** `dc/S3` `<sha>` (round 72).
 
 ### S4. The demo's rooms after a seek back (r48-model M4)
 
@@ -520,6 +559,7 @@ new snapshot keeps them, since there is no story to replay.
 seek back. The demo pixel set seeks forward from the start to 2:00, so it should not move; run it.
 **If you say nothing:** the rooms stay after a seek back.
 **Answer:** `S4: forget / keep`
+**Prepared:** `dc/S4` `<sha>` (round 72).
 
 ## Editing the town (E)
 
@@ -532,6 +572,7 @@ seek back. The demo pixel set seeks forward from the start to 2:00, so it should
 **Cost:** `ZonePanel.tsx`. No test reads the field; no pixel set.
 **If you say nothing:** leaving the field writes the draft.
 **Answer:** `E1: escape / keep`
+**Prepared:** `dc/E1` `<sha>` (round 72).
 
 ### E2. The demo town in two tabs (round 53, r53-review S1)
 
@@ -549,6 +590,7 @@ other tabs to reload the history after a write). `keep`.
 `townStore.ts` and a node test with two stores; no pixel set.
 **If you say nothing:** the later write wins, unsaid.
 **Answer:** `E2: say / sync / keep`
+**Prepared:** `dc/E2` `<sha>` (round 72).
 
 ## The figures (K)
 
@@ -568,6 +610,7 @@ activities, roles and perch poses this world does not know, as round 48 made the
 tests in `packages/world-cast`. No pixel set.
 **If you say nothing:** a cast from a newer world is refused, and classic-bots stands in.
 **Answer:** `K1: lenient / refuse`
+**Prepared:** `dc/K1` `<sha>` (round 72).
 
 ### K2. Walking at 8x and 16x: at story speed, or calmer?
 
@@ -582,6 +625,7 @@ be walking when the story has moved on. The scene's comment means them to keep u
 1x. The demo pixel set at speed and the regress `walk` group run at night.
 **If you say nothing:** today's frame-rate-dependent slowdown stays.
 **Answer:** `K2: story / even / keep`
+**Prepared:** `dc/K2` `<sha>` (round 72).
 
 ### K3. A cast that could not be loaded, on screen (round 50, r50-packages C1)
 
@@ -595,6 +639,7 @@ there: "No cast named … is installed; … stands in." (`castText.ts:46`).
 cast branch (`task/r50-casts-held`, `9ebd022c`, a branch of this Mac's repository only, not on origin).
 **If you say nothing:** "No cast named … is installed".
 **Answer:** `K3: say / keep`
+**Not prepared:** held with `task/r50-casts-held` `9ebd022c`, a branch of this Mac only, not on origin (round 72).
 
 ## Accessibility (X)
 
@@ -612,6 +657,7 @@ agent line. `none`.
 No pixel set.
 **If you say nothing:** nothing is spoken.
 **Answer:** `X1: own / all / none`
+**Not prepared:** `own` needs a signal the page does not have on the live roads: the page receives agent lines only (the host turns an agent's `dm.created` into a line and nothing of the person's messages; road 2 polls the same way; the Chat panel frames loops' own chat, whose sends the page cannot see), so "a reply to the person's own message" is definable in the demo alone, and which thread counts as the person's is a decision this page does not make (round 72, d4).
 
 ### X2. The text view and the Chat panel over the toolbar on a desktop
 
@@ -623,6 +669,7 @@ sheets start under the header, so the toolbar stays usable. `keep`.
 **Cost:** `inert` is `App.tsx` only. `below` changes `world.css` and the pictures with a sheet open (in no set).
 **If you say nothing:** the covered buttons stay tabbable.
 **Answer:** `X2: inert / below / keep`
+**Prepared:** `dc/X2` `<sha>` (round 72). Walk findings w2-2 and w3-7 are not ended by it: `inert` makes the covered corners inert; one sheet at a time, or side by side, is not among X2's options, so the stacking stays (the answer sheet's note).
 
 ### X3. The faded labels
 
@@ -635,6 +682,7 @@ text 5.76:1 and 6.98:1. `0.75`: the muted text too passes 4.5:1.
 **Cost:** `0.7` or `0.75` is one value, and every labelled picture with faded labels moves (`pixcheck --labels`).
 **If you say nothing:** 0.32, and no README line.
 **Answer:** `X3: keep / 0.7 / 0.75`
+**Not prepared:** `keep` is today's build; nothing to merge (round 72).
 
 ### X4. The header at 320 px (with T6)
 
@@ -646,6 +694,7 @@ corner wraps to two rows. `keep`.
 **Cost:** one `world.css` rule, and a 320 px picture to confirm (in no set).
 **If you say nothing:** the overlap stays.
 **Answer:** `X4: drop-word / wrap-tools / keep`
+**Prepared:** `dc/X4` `<sha>` (round 72).
 
 ### X5. The canvas's name: the whole key guide on every focus (round 50, r50-a11y N4)
 
@@ -660,6 +709,7 @@ guide after a pause or on request (NVDA+Tab, VoiceOver's hint). `keep`.
 reads the short name and the `aria-describedby`; a screen-reader check by hand. No pixel set.
 **If you say nothing:** the 60 words on every focus.
 **Answer:** `X5: short / keep`
+**Prepared:** `dc/X5` `<sha>` (round 72).
 
 ## The tools (P)
 
@@ -676,6 +726,7 @@ code is.
 without a browser. No pixel set.
 **If you say nothing:** exit 0.
 **Answer:** `P1: fail / keep`
+**Prepared:** `dc/P1` `<sha>` (round 72).
 
 ### P2. The copied loops files: catch an edit to a copy's body on CI too (round 54, r54-ci; r53-review CI5)
 
@@ -694,6 +745,7 @@ compares the hashes everywhere. `hash`: the hashes and the check only; whoever r
 about 20 lines and a test. Neither touches `apps/`; no pixel set.
 **If you say nothing:** a copy's body is checked only where a crewhub-loops checkout is.
 **Answer:** `P2: sync / hash / keep`
+**Not prepared:** `sugg/p2-recopy` is its partial (the dock's two files re-copied by hand); the check itself is not built (round 72).
 
 ### P3. A test that the clock decides, once, with a wide margin (round 55; r54-hosttests' survivor `host.ts:319`)
 
@@ -712,6 +764,7 @@ nothing a person sees.
 **Cost:** `race`: one test and two lines in `wait.ts`. `seam`: about 10 lines in `loops.ts` and one test. No pixel set.
 **If you say nothing:** `keep`.
 **Answer:** `P3: race / seam / keep`
+**Not prepared:** `keep` is today's build; nothing to merge (round 72).
 
 ## The labels (N)
 
@@ -737,6 +790,7 @@ profile sideways. No pixel set (the demo set is 1440 x 900 and 375 px upright). 
 in `Interior`, and the same `walk` row.
 **If you say nothing:** the staircase sideways.
 **Answer:** `N1: compact / tags / keep`
+**Prepared:** `dc/N1` `<sha>` (round 72). It ends walk finding w4-20.
 
 ## The wording block
 
