@@ -18,3 +18,10 @@ export function zoneNameStep(draft: string | null, current: string | null, event
   const name = draft.trim() || null;
   return { draft: null, write: name !== current ? { name } : null };
 }
+
+/** The field's keys (`KeyboardEvent.key`): Enter writes the draft, Escape drops it (design choice E1); any other key is the field's own, no step. */
+export function zoneNameKey(key: string): ZoneNameEvent | null {
+  if (key === "Enter") return { type: "enter" };
+  if (key === "Escape") return { type: "escape" };
+  return null;
+}

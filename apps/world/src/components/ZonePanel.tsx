@@ -9,7 +9,7 @@ import { useCast } from "../state/cast";
 import { setStyleOption, useStyleOptions } from "../state/styleOptions";
 import { townRuntime } from "../state/runtimes";
 import type { TownState } from "../state/town";
-import { zoneNameStep, type ZoneNameEvent } from "../state/zoneNameField";
+import { zoneNameKey, zoneNameStep, type ZoneNameEvent } from "../state/zoneNameField";
 import { castRegistry } from "../world/cast";
 import { resolveLook } from "../world/look";
 import { styleRegistry } from "../world/style";
@@ -152,8 +152,8 @@ function ZoneName({ zone, onCommit }: { zone: Zone; onCommit: (name: string | nu
       onChange={(e) => step({ type: "type", value: e.currentTarget.value })}
       onBlur={() => step({ type: "blur" })}
       onKeyDown={(e) => {
-        if (e.key === "Enter") step({ type: "enter" });
-        else if (e.key === "Escape") step({ type: "escape" });
+        const event = zoneNameKey(e.key);
+        if (event) step(event);
       }}
     />
   );
