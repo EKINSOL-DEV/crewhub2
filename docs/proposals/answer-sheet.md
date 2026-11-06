@@ -84,8 +84,8 @@ still needs a word: `alert` or `waiting`). A group answers at once too: `T: as r
 | T1 | The tour card over the playback bar | `T1: bottom-left / keep` | `bottom-left` | the card stays at the bottom centre | `dc/T1` `<sha>` |
 | T2 | The focus after the tour | `T2: stage / help` | `stage` | the "?" button keeps the ring | `dc/T2` `<sha>` |
 | T3 *w* | The name a screen reader hears for the stage | `T3: town / keep` | `town` | a screen reader hears "CrewHub World" | `dc/T3` `<sha>` (w4-3: not ended by it) |
-| T4 | The chat dock's button over the open sheets | `T4: lift / end / keep` | `lift` or `end` (the review gave both; `end` keeps the dock reachable too) | the button stays over the sheets | `dc/T4-lift` `<sha>` (`lift`), `dc/T4-end` `<sha>` (`end`) |
-| T5 | The town's framing on a phone | `T5: frame / keep` | `frame` | the phone's town stays framed low | `dc/T5` `<sha>` |
+| T4 | The chat dock's button over the open sheets | `T4: lift / end / keep` | `lift` or `end` (the review gave both; `end` keeps the dock reachable too) | the button stays over the sheets | `dc/T4-lift` `<sha>` (`lift`), `dc/T4-end` `<sha>` (`end`); `dc/all-r72` carries `dc/T4-end`, `dc/T4-lift` beside it |
+| T5 | The town's framing on a phone | `T5: frame / keep` | `frame` | the phone's town stays framed low | `dc/T5` `<sha>` (the recommended cover fit: fills the band, loses two buildings off the sides on a phone; in `dc/all-r72`); an alternative `dc/T5-margin` `<sha>` keeps all four buildings and does not fill the band; both have pictures |
 | T6 | The phone header's Demo chip | `T6: word / keep` | `word` | the icon alone | `dc/T6` `<sha>` |
 | T7 | The focus ring round the whole screen | `T7: keep / hide` | `keep` | kept | none: `keep` is today's build |
 | T8 | The host's address in the demo's Settings | `T8: answered / disclosure / keep` | `answered` | the line stays | `dc/T8` `<sha>` |

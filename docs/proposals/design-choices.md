@@ -88,7 +88,7 @@ dock. `keep`: the dock is always reachable, as meant.
 (the sheets are closed in it).
 **If you say nothing:** the button stays over the sheets.
 **Answer:** `T4: lift / end / keep`
-**Prepared:** `dc/T4-lift` `<sha>` for `lift` and `dc/T4-end` `<sha>` for `end` (round 72): one branch per option, both cheap; your answer picks one.
+**Prepared:** `dc/T4-lift` `<sha>` for `lift` and `dc/T4-end` `<sha>` for `end` (round 72): one branch per option, both cheap; your answer picks one. `dc/all-r72` carries `dc/T4-end`, with `dc/T4-lift` beside it.
 
 ### T5. The town's framing on a phone (r48-polish C10)
 
@@ -100,7 +100,7 @@ pixel set's 375 px town pictures move, light and dark, so it is a deliberate pic
 pictures.
 **If you say nothing:** the phone's town stays framed low.
 **Answer:** `T5: frame / keep`
-**Prepared:** `dc/T5` `<sha>` (round 72).
+**Prepared:** `dc/T5` `<sha>` (round 72; the recommended cover fit: fills the band between the chips and the playback bar, and loses two buildings off the sides on a phone); an alternative, `dc/T5-margin` `<sha>`, keeps all four buildings and does not fill the band; both have before/after pictures. `dc/all-r72` carries `dc/T5`.
 
 ### T6. The phone header's Demo chip (r48-polish C11)
 
