@@ -34,3 +34,12 @@ export function whereChoice(agents: readonly WhereAgent[], people: readonly (rea
   if (agents.some((a) => a.key === chosen.key) || people.some(([id]) => id === chosen.key)) return { selected: chosen.key, gone: null, options: [] };
   return { selected: chosen.key, gone: chosen.name, options: [{ key: chosen.key, label: `${chosen.name} (no longer in the world)` }] };
 }
+
+/**
+ * What the form's live region says (design choice W12, round 72, `on-choice`): the answer at the moment a name is
+ * chosen, said once; while that choice stands the visible answer updates silently (an agent walks, the names nearby
+ * change) and the region keeps its words. Nothing before the first choice. `before` is the choice the region last saw.
+ */
+export function whereSaid(said: string, before: WhereChosen | null, chosen: WhereChosen | null, answer: string): string {
+  return chosen !== null && chosen.key !== before?.key ? answer : said;
+}
