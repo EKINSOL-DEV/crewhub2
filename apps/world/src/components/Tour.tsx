@@ -3,7 +3,7 @@
    where it was when it closes; the ring's element is named to a screen reader in the card's description; nothing is
    dimmed and the camera never moves (reduced motion or not). Tab cycles among the card's buttons (Escape leaves). The
    steps, the placement and the flag are state/tour.ts. */
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { boxOf, highlightedWords, placeStep, tourAnnouncement, tourSteps, TOUR_FOCUS_FALLBACK, type Placement, type Rect, type TourStep } from "../state/tour";
 import { Button } from "./primitives";
 
@@ -54,14 +54,18 @@ export function Tour({ mode, onClose, reducedMotion, returnTo = null, fallback =
   const last = index === steps.length - 1;
 
   // The focus: into the card when it opens, back where it was when it closes (or to the opener's choice, or the stage).
+  // Ended by a pointer (a click or a tap on Skip or Done), the focus moves without a visible ring: the card re-focused
+  // Next by script after each click, so the browser would keep a keyboard-style focus and ring the stage, the whole
+  // screen (round 73, wa-1). Ended by the keyboard (Enter, Space, Escape), the ring stays, as a keyboard user needs it.
   const back = useRef<HTMLElement | null>(returnTo);
+  const byPointer = useRef(false);
   useEffect(() => {
     const captured = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
     back.current = returnTo ?? captured;
     next.current?.focus();
     return () => {
       const target = back.current?.isConnected ? back.current : document.querySelector<HTMLElement>(fallback);
-      target?.focus();
+      target?.focus(byPointer.current ? { focusVisible: false } : undefined);
     };
     // Once, at mount: what the opener passed is read then.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -85,7 +89,11 @@ export function Tour({ mode, onClose, reducedMotion, returnTo = null, fallback =
     setPlacement(placeStep(target.rect, { width: window.innerWidth, height: window.innerHeight }, size));
   }, [target, index]);
 
-  const close = (reason: "skip" | "done") => onClose(reason);
+  /** A click's `detail` counts the pointer's presses: 0 is the keyboard's click (Enter or Space on the button). */
+  const close = (reason: "skip" | "done", e?: MouseEvent) => {
+    byPointer.current = (e?.detail ?? 0) > 0;
+    onClose(reason);
+  };
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "Escape") {
       e.preventDefault();
@@ -141,7 +149,7 @@ export function Tour({ mode, onClose, reducedMotion, returnTo = null, fallback =
           {announcement}
         </p>
         <div className="tour-actions">
-          <Button size="sm" variant="ghost" onClick={() => close("skip")}>
+          <Button size="sm" variant="ghost" onClick={(e) => close("skip", e)}>
             Skip
           </Button>
           <span className="tour-actions-main">
@@ -159,8 +167,8 @@ export function Tour({ mode, onClose, reducedMotion, returnTo = null, fallback =
               ref={next}
               size="sm"
               variant="primary"
-              onClick={() => {
-                if (last) return close("done");
+              onClick={(e) => {
+                if (last) return close("done", e);
                 setMoved(true);
                 setIndex((i) => i + 1);
               }}
