@@ -107,7 +107,10 @@ test("a beacon lights for waiting on a person, attention and stalled; an archive
   assert.equal(summary.agents, 4);
   assert.equal(summary.beacon, true);
   assert.equal(summarise([quiet]).beacon, false);
-  assert.match(summaryWords(summary), /^2 buildings, 4 agents \(4 working\)\. .*Needs a person: 1 waiting on a person, 1 needs attention, 1 stalled\.$/);
+  // Design choice W4 (`once`): the need is said once, "1 waiting on a person", not "Needs a person: 1 waiting on a person".
+  assert.match(summaryWords(summary), /^2 buildings, 4 agents \(4 working\)\. .*\. 1 waiting on a person, 1 needs attention, 1 stalled\.$/);
+  assert.doesNotMatch(summaryWords(summary), /Needs a person/);
+  assert.doesNotMatch(summaryWords(summarise([quiet])), /waiting|attention|stalled/, "nothing needed, nothing said");
 });
 
 test("the jump list finds zones, projects and agents, and puts what needs a person first", () => {
@@ -131,6 +134,13 @@ test("the jump list finds zones, projects and agents, and puts what needs a pers
   // An agent's jump lands in its room, inside its district.
   assert.deepEqual(entries.find((e) => e.id === "agent:a-dev")!.place, { district: "garden", building: "asking", room: "workers" });
   assert.equal(searchJumps(entries, "", 2).length, 2);
+  // Design choice W4 (`once`): a row's detail leads with the need itself; the warning icon (drawn for needs > 0) says "Needs a person".
+  const askingRow = entries.find((e) => e.id === "building:asking")!;
+  assert.match(askingRow.detail, /^1 waiting on a person, 1 needs attention, 1 stalled\. /);
+  assert.doesNotMatch(askingRow.detail, /Needs a person/);
+  assert.ok(askingRow.needs > 0);
+  assert.match(entries.find((e) => e.id === "zone:garden")!.detail, /^1 waiting on a person, 1 needs attention, 1 stalled\. \d+ buildings?, /);
+  assert.doesNotMatch(entries.find((e) => e.id === "building:quiet")?.detail ?? "", /waiting|attention|stalled|Needs/);
 });
 
 test("labels step back with distance, and only a region steps back to its districts", () => {
