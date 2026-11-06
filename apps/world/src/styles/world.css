@@ -901,6 +901,23 @@
   }
 }
 
+/* Design choice X4 (`drop-word`): under 360 px the brand row needs about 130 to 138 px of its corner's 84 px and runs
+   into the right toolbar, so the brand keeps its mark and loses the words "CrewHub World" from view (they stay for a
+   screen reader, the .sr-only way, since the header is named by them). With T6 `word` the "Demo" word fits beside the mark. */
+@media (max-width: 359px) {
+  .world-brand > strong {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
 /* ── Phones: the playback bar spans the bottom, the camera stack sits above it ── */
 @media (max-width: 600px) {
   .world-corner {
