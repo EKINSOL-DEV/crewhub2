@@ -382,4 +382,35 @@ export async function run({ pass, page, check, out }) {
     ok("landscape phone: the Agent chats menu fits the window or scrolls, and its last item can be reached and tapped", reachable && closed, facts ? `menu ${facts.client}/${facts.scroll} overflow ${facts.overflowY}, bottom ${facts.bottom} of ${facts.vh}; "${lastName}" at y ${lastBox ? Math.round(lastBox.y) : "?"}..${lastBox ? Math.round(lastBox.y + lastBox.height) : "?"}; tapped: menu ${closed ? "closed" : "still open"}` : "no menu");
     await ctx.close();
   }
+
+  // 13. A desktop with the copied dock (the demo's, bottom right): Settings open, then the text view open. Design choice
+  // T4 `lift`: the sheet stands above the dock while it is open, so the point at the dock's centre belongs to the sheet.
+  {
+    const p = await open();
+    await town(p, 1500);
+    const overDock = async (sheet) =>
+      p.evaluate((sheet) => {
+        const dock = document.querySelector("body > aside.dock");
+        const s = document.querySelector(sheet);
+        if (!dock || !s) return { has: !!dock && !!s };
+        const d = dock.getBoundingClientRect();
+        // The probe: just inside the dock's top edge, where the two boxes overlap (Settings' box, capped by its max-height,
+        // ends above the dock's centre; the text view's reaches the window's bottom).
+        const at = document.elementFromPoint(d.left + d.width / 2, d.top + 3);
+        return { has: true, inSheet: !!at && s.contains(at), at: at ? `${at.tagName.toLowerCase()}.${[...at.classList].join(".")}` : null, sheetZ: getComputedStyle(s).zIndex, dockZ: getComputedStyle(dock).zIndex, dockTop: Math.round(d.top), sheetBottom: Math.round(s.getBoundingClientRect().bottom) };
+      }, sheet);
+    await p.getByRole("button", { name: "Settings", exact: true }).click();
+    await p.waitForTimeout(800);
+    const settings = await overDock(".settings-sheet");
+    await shot(p, "15-settings-over-dock");
+    await p.keyboard.press("Escape");
+    await p.waitForTimeout(400);
+    await canvas(p).focus();
+    await p.keyboard.press("t");
+    await p.waitForTimeout(800);
+    const text = await overDock(".text-sheet");
+    await shot(p, "16-text-over-dock");
+    ok("desktop: with Settings open and with the text view open, the sheet stands above the copied dock (design choice T4, lift)", settings.has && text.has && settings.inSheet && text.inSheet, `settings ${JSON.stringify(settings)}, text ${JSON.stringify(text)}`);
+    await p.context().close();
+  }
 }
