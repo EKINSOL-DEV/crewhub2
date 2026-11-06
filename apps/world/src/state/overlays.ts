@@ -37,6 +37,9 @@ const NOTHING_OPEN: Readonly<Record<OverlayKind, boolean>> = { tour: false, edit
  * window is a phone's (`phone`: at most 600 px wide, world.css), where it starts under the header rows and covers nothing.
  * Settings starts under the right corner and is not counted.
  */
+/** A phone's width for `coversCorners` (App's `useMedia`): world.css's phone rules switch here; the text view then starts under the header rows and covers no corner. */
+export const PHONE_QUERY = "(max-width: 600px)";
+
 export const coversCorners = ({ text, chat }: Readonly<Record<OverlayKind, boolean>>, phone: boolean): boolean => chat || (text && !phone);
 
 /** A dialog stands over the town: the tour waits for it (the tour itself does not count). */
