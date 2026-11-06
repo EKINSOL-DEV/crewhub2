@@ -14,6 +14,7 @@ import type { AgentPlacement, RoomKind, WorldModel } from "@crewhub/world-model"
 import { IDLE_STATE, type Cast, type FigureHandle, type FigureState } from "@crewhub/world-cast";
 import { styleOptionsKey, type EnvironmentHandle, type GraphicsQuality, type ModelAnimation, type ModelKey, type PaletteName, type ResolvedStyle, type StyleOptionValues, type StyleTheme } from "@crewhub/world-style";
 import { BuildingView, type Pick } from "./buildingView";
+import { framedSpan, homeFit, type FrameFit } from "./frameFit";
 import { BACK_WALL_HEIGHT, BUILDING_CELL, FLOOR_RISE, type BuildingPlan } from "./buildingTemplate";
 import type { TownLayer } from "./propLayer";
 import { styleRegistry } from "./style";
@@ -1445,9 +1446,9 @@ export class TownScene {
    * Frames the projected corners of `rects` (each up to `height`) seen along `direction` (camera minus target): the
    * frustum height at zoom 1 and the ground point to aim at so they sit centred in the canvas less `insets`. `contain`
    * (the default) fits them whole; `cover` fills the free area's shorter axis and lets the other run off the screen
-   * (the home view on a portrait phone, design choice T5).
+   * (the home view on a portrait phone, design choice T5). The maths is world/frameFit.ts.
    */
-  frameRects(rects: readonly Bounds[], height: number, direction: THREE.Vector3, insets: Insets = NO_INSETS, margin = 1.04, fit: "contain" | "cover" = "contain"): { span: number; target: THREE.Vector3 } {
+  frameRects(rects: readonly Bounds[], height: number, direction: THREE.Vector3, insets: Insets = NO_INSETS, margin = 1.04, fit: FrameFit = "contain"): { span: number; target: THREE.Vector3 } {
     this.#offset.copy(direction).normalize();
     this.#right.crossVectors(UP, this.#offset).normalize();
     this.#up.crossVectors(this.#offset, this.#right).normalize();
@@ -1475,9 +1476,7 @@ export class TownScene {
     // The free area's share of each axis, and its centre's offset from the canvas centre in pixels (right, down).
     const fy = Math.max(0.2, 1 - (insets.top + insets.bottom) / canvasHeight),
       fx = Math.max(0.2, 1 - (insets.left + insets.right) / canvasWidth);
-    const byHeight = (v1 - v0) / fy,
-      byWidth = (u1 - u0) / (aspect * fx);
-    const span = (fit === "cover" ? Math.min(byHeight, byWidth) : Math.max(byHeight, byWidth)) * margin;
+    const span = framedSpan(u1 - u0, v1 - v0, aspect, fx, fy, margin, fit);
     const perPixel = span / canvasHeight;
     const uc = (u0 + u1) / 2 - ((insets.left - insets.right) / 2) * perPixel,
       vc = (v0 + v1) / 2 + ((insets.top - insets.bottom) / 2) * perPixel;
@@ -1505,7 +1504,7 @@ export class TownScene {
       const c = lotCentre(cell);
       rects.push({ minX: c.x - PLOT_SIZE / 4, maxX: c.x + PLOT_SIZE / 4, minZ: c.z - PLOT_SIZE / 4, maxZ: c.z + PLOT_SIZE / 4 });
     }
-    return portrait ? this.frameRects(rects, 2, HOME_OFFSET, { ...insets, left: 0, right: 0 }, 1.04, "cover") : this.frameRects(rects, 2, HOME_OFFSET, insets);
+    return this.frameRects(rects, 2, HOME_OFFSET, portrait ? { ...insets, left: 0, right: 0 } : insets, 1.04, homeFit(portrait));
   }
 
   home(immediate: boolean) {
