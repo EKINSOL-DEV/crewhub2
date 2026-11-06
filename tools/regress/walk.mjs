@@ -298,6 +298,27 @@ export async function run({ pass, page, check, out }) {
     await shot(p, `12-375-${scheme}-town`);
     const sc = await p.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
     ok(`375 ${scheme}: no horizontal scroll`, sc.sw <= sc.cw, `${sc.sw}/${sc.cw}`);
+    // Design choice T5 (round 72, frame): on a portrait phone the home view frames the town in the space between the
+    // chips and the playback bar (a cover fit: the sides run off), where a contain fit left an empty band under the chips
+    // and above the bar with the width binding. Measured through the dev build's scene (`__town`): the vertical extent
+    // of the lots' centres (ground and 2 up) projected by the home camera, as a share of the canvas height less the
+    // scene's own insets. The threshold stands between the two measured fits (base and branch: the numbers in r72-d3's
+    // report); without `__town` (a production build) the row is skipped with a note.
+    if (scheme === "light") {
+      const framing = await p.evaluate(() => {
+        const s = globalThis.__town;
+        if (!s?.camera || !s.renderer?.domElement || !s.view?.plan?.lots) return null;
+        const canvas = s.renderer.domElement;
+        const V = s.camera.position.constructor;
+        const ys = [];
+        for (const lot of s.view.plan.lots) for (const y of [0, 2]) ys.push(((1 - new V(lot.centre.x, y, lot.centre.z).project(s.camera).y) / 2) * canvas.clientHeight);
+        const insets = s.insets();
+        const free = canvas.clientHeight - insets.top - insets.bottom;
+        return { extent: Math.round(Math.max(...ys) - Math.min(...ys)), free: Math.round(free), share: (Math.max(...ys) - Math.min(...ys)) / free, lots: s.view.plan.lots.length };
+      });
+      if (framing === null) info("375 light: the home framing row needs the dev build's __town; skipped (T5)");
+      else ok("375 light: the home view frames the town in the band between the chips and the playback bar (T5: the lots' projected extent fills at least 0.72 of it)", framing.share >= 0.72, `extent ${framing.extent} of ${framing.free} px (${framing.share.toFixed(2)}), ${framing.lots} lots`);
+    }
     const small = await p.evaluate(() => [...document.querySelectorAll("button, a, input, select")].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && (r.height < 40 || r.width < 40) && getComputedStyle(e).visibility !== "hidden"; }).map((e) => (e.getAttribute("aria-label") || e.textContent || e.tagName).trim().slice(0, 24)));
     info(`375 ${scheme} targets under 40px (visible box): ${small.length} ${small.slice(0, 8).join(", ")}`);
     // A building's sign is a quiet name, smaller than a finger: its ::after pad is what is tapped.
