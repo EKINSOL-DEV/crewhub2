@@ -48,6 +48,7 @@ import { castRegistry } from "./cast";
 import { buildingLook, townLook, zoneLook, type LookContext } from "./worldLook";
 import { figureRole, figureState, type FigureFacts, type FigurePlace } from "./figureState";
 import { Visitor, walkTilt, WALK_TILTS, worldDirection, type WalkInput } from "./visitor";
+import { framedZoom, insideLimits, MIN_ZOOM, portraitInsets, resizeAction, sheetChange, sheetLeftInset, sheetOverhang, type FrameAction, type Insets } from "./sheetFraming";
 
 export interface TownView {
   model: WorldModel;
@@ -282,28 +283,11 @@ const TOWN = /^(b|n|d):|^c:[^:]+$/;
    moving camera snap: the labels must stay with the scene. */
 const EASE_TAU_MS = 100;
 /* The HTML chrome over the canvas, in CSS pixels (App's corners, playback bar and camera toolbar): framing keeps its
-   subject in the free area between them. Phones stack the corner rows and the camera buttons differently. */
-interface Insets {
-  top: number;
-  bottom: number;
-  left: number;
-  right: number;
-}
+   subject in the free area between them. Phones stack the corner rows and the camera buttons differently. The open
+   build sheet's part of it, and the zoom floors, are sheetFraming.ts's. */
 const NO_INSETS: Insets = { top: 0, bottom: 0, left: 0, right: 0 };
 const CHROME: Insets = { top: 104, bottom: 84, left: 24, right: 76 };
 const PHONE_CHROME: Insets = { top: 156, bottom: 76, left: 12, right: 60 };
-/* The build sheet's right edge and a gap (world.css `.build-sheet`: 1rem from the left, 20rem wide). Up to 600 px it lies
-   along the bottom instead and frames nothing. Round 65, w6-15. */
-const SHEET_RIGHT = 348;
-const SHEET_BESIDE_MIN_WIDTH = 600;
-/* Signs and district cards are centred on their anchors, so they hang past the town's edge towards the sheet. The room
-   kept for them grows with the window: a narrow one has none to give and spends it on the town. */
-const SHEET_SIGN_ROOM = 60;
-/* A person's zoom-out limit, and a frame's beside the open sheet, which may need less: the whole town in a narrow free area. */
-const MIN_ZOOM = 0.6;
-const SHEET_MIN_ZOOM = 0.25;
-/** A portrait frame lets the town run under the side controls; the open sheet beside it is no side control and stays. */
-const portraitInsets = (insets: Insets): Insets => ({ ...insets, left: insets.left >= SHEET_RIGHT ? insets.left : 0, right: 0 });
 
 export class TownScene {
   readonly renderer: THREE.WebGLRenderer;
@@ -1413,12 +1397,7 @@ export class TownScene {
       // A room focus or a district change under a follow does not pull the camera away either.
     } else if (view.entered && previous.zoomed !== view.zoomed) this.frameBuilding(view.entered, view.zoomed);
     else if (!view.entered && (previous.district ?? null) !== (view.district ?? null)) this.#frameOutside();
-    else if (!previous.sheetOpen !== !view.sheetOpen) {
-      if (this.#placed) {
-        if (!view.sheetOpen) this.#intoLimits();
-      } else if (view.entered) this.frameBuilding(view.entered, view.zoomed);
-      else this.#frameOutside();
-    }
+    else this.#frameAs(sheetChange(previous.sheetOpen, view.sheetOpen, this.#placed, view.entered));
     if (!view.sheetOpen) this.#zoomLimit = MIN_ZOOM;
     if (previous.walk && !walking) this.#endWalk(previous.walk);
     this.#life.configure({ ambient: view.ambient, reducedMotion: view.reducedMotion, quality: view.quality });
@@ -1463,9 +1442,7 @@ export class TownScene {
     const fit = (a: number, b: number, size: number) => Math.min(1, size / 3 / Math.max(1, a + b));
     const fy = fit(chrome.top, chrome.bottom, height),
       fx = fit(chrome.left, chrome.right, width);
-    const left = chrome.left * fx;
-    const beside = sheet && this.view.sheetOpen && width > SHEET_BESIDE_MIN_WIDTH;
-    return { top: chrome.top * fy, bottom: chrome.bottom * fy, left: beside ? SHEET_RIGHT + Math.min(SHEET_SIGN_ROOM, (width - SHEET_BESIDE_MIN_WIDTH) / 5) : left, right: chrome.right * fx };
+    return { top: chrome.top * fy, bottom: chrome.bottom * fy, left: sheetLeftInset(width, sheet && this.view.sheetOpen, chrome.left * fx), right: chrome.right * fx };
   }
 
   /**
@@ -1619,19 +1596,25 @@ export class TownScene {
 
   /** A frame's zoom. Beside the open sheet it may go below a person's limit, and they may then zoom out as far as the frame. */
   #framedZoom(zoom: number): number {
-    const framed = THREE.MathUtils.clamp(zoom, this.view.sheetOpen ? SHEET_MIN_ZOOM : MIN_ZOOM, this.controls.maxZoom);
-    this.#zoomLimit = Math.min(MIN_ZOOM, framed);
-    return framed;
+    const framed = framedZoom(zoom, this.view.sheetOpen, this.controls.maxZoom);
+    this.#zoomLimit = framed.limit;
+    return framed.zoom;
   }
 
   /** The sheet closed on a camera a person moved: past a person's limits it eases back inside them, and stays otherwise. */
   #intoLimits() {
-    const b = this.view.plan.ground,
-      from = this.#tween?.target ?? this.controls.target;
-    const target = new THREE.Vector3(THREE.MathUtils.clamp(from.x, b.minX, b.maxX), from.y, THREE.MathUtils.clamp(from.z, b.minZ, b.maxZ));
-    const zoom = Math.max(MIN_ZOOM, this.#tween?.zoom ?? this.camera.zoom);
-    if (target.equals(from) && zoom === (this.#tween?.zoom ?? this.camera.zoom)) return;
-    this.moveTo(target, target.clone().add(this.#tween?.position ?? this.camera.position).sub(from), zoom, false);
+    const from = this.#tween?.target ?? this.controls.target;
+    const inside = insideLimits(from, this.#tween?.zoom ?? this.camera.zoom, this.view.plan.ground);
+    if (!inside) return;
+    const target = new THREE.Vector3().copy(inside.target);
+    this.moveTo(target, target.clone().add(this.#tween?.position ?? this.camera.position).sub(from), inside.zoom, false);
+  }
+
+  /** One of sheetFraming's decisions, carried out. */
+  #frameAs(action: FrameAction) {
+    if (action === "intoLimits") this.#intoLimits();
+    else if (action === "frameBuilding" && this.view.entered) this.frameBuilding(this.view.entered, this.view.zoomed);
+    else if (action === "frameOutside") this.#frameOutside();
   }
 
   /** The view outside a building: the district the view is in, else the home frame. */
@@ -2034,9 +2017,7 @@ export class TownScene {
   /** The canvas changed size. Beside an open build sheet the frame is the free area's, so it is framed again (w6-15). */
   #resized = () => {
     this.resize();
-    if (!this.view.sheetOpen || this.#placed || this.view.walk || this.#following) return;
-    if (this.view.entered) this.frameBuilding(this.view.entered, this.view.zoomed);
-    else this.#frameOutside();
+    this.#frameAs(resizeAction(this.view.sheetOpen, this.#placed, !!this.view.walk, !!this.#following, this.view.entered));
   };
   invalidate = () => {
     this.#dirtyFrames = this.view.reducedMotion ? 2 : 45;
@@ -2132,7 +2113,7 @@ export class TownScene {
     // Keep panning inside the town; the frame's centre beside the sheet may lie off the ground by what the sheet shifts it.
     const b = this.view.plan.ground,
       t = this.controls.target;
-    const off = beside ? ((this.#span / this.camera.zoom) * SHEET_RIGHT) / 2 / Math.max(1, this.renderer.domElement.clientHeight) : 0;
+    const off = beside ? sheetOverhang(this.#span, this.camera.zoom, this.renderer.domElement.clientHeight) : 0;
     this.#v.set(THREE.MathUtils.clamp(t.x, b.minX - off, b.maxX + off), THREE.MathUtils.clamp(t.y, 0, 2), THREE.MathUtils.clamp(t.z, b.minZ - off, b.maxZ + off)).sub(t);
     this.camera.position.add(this.#v);
     t.add(this.#v);
