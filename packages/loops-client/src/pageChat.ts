@@ -161,7 +161,8 @@ export function readEvents(body: unknown): EventsPage {
  * to a chat is a poll by design, so an answer shows within 5 s, 2.5 s on average, at a dozen cheap indexed reads a
  * minute on loopback). A hidden tab shows no bubble, so it asks once a minute (the Recent answers list still fills).
  * After a failure the wait doubles from POLL_MS to POLL_MAX_MS and starts again at POLL_MS on the next answer.
- * Offline (`navigator.onLine` false) the poll is not scheduled at all: the `online` event asks again.
+ * The browser's online flag is not asked (design choice L2, round 72): a loopback ask needs no network; the `online`
+ * event is an ask now.
  */
 export const POLL_MS = 5_000;
 export const POLL_HIDDEN_MS = 60_000;
