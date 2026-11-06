@@ -318,7 +318,7 @@ export async function run({ pass, page, check, out }) {
     });
     ok(`375 ${scheme}: the Demo chip, worded, is the brand row's second line under the title, and the left corner keeps clear of the right toolbar (T6; before T6 the icon chip sat beside the title)`, beside !== null && beside.chipTop >= beside.titleBottom - 1 && Math.abs(beside.chipLeft - beside.titleLeft) <= 2 && beside.cornerRight <= beside.toolsLeft, beside ? `chip at ${beside.chipLeft}, ${beside.chipTop}..${beside.chipBottom}; title ${beside.titleLeft}..${beside.titleRight}, ${beside.titleTop}..${beside.titleBottom}; corner to ${beside.cornerRight}, tools from ${beside.toolsLeft}` : "no chip or title");
     // Design choice T6 (round 72, word): the chip says "Demo" (the scenario's name is the menu's), the title "CrewHub".
-    const words = await p.evaluate(() => ({ chip: (document.querySelector(".demo-chip")?.innerText ?? "").replace(/\s+/g, " ").trim(), title: (document.querySelector(".world-brand")?.innerText ?? "").replace(/\s+/g, " ").trim() }));
+    const words = await p.evaluate(() => ({ chip: (document.querySelector(".demo-chip")?.innerText ?? "").replace(/\s+/g, " ").trim(), title: ([...document.querySelectorAll(".world-brand > strong")].find((e) => e.getClientRects().length > 0)?.innerText ?? "").replace(/\s+/g, " ").trim() }));
     ok(`375 ${scheme}: the header says Demo beside the title CrewHub (T6)`, words.chip === "Demo" && words.title === "CrewHub", JSON.stringify(words));
     if (scheme === "light") {
       // Round 64 (w4-7): a thumb has no T key and never meets the skip link, so a visible control must open the text view:
