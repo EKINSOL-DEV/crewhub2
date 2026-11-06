@@ -254,19 +254,19 @@ Prepared branches are ready; an answer `do it` merges that branch, `journey N: a
   input event is read (a verbatim loops copy). **Suggestion:** a local state for the draft, the cache written after;
   a fix in crewhub-loops first, then a re-copy.
 
-  Prepared: `sugg/w5-9`; diverges from the loops copy until loops takes the patch in [loops-dock-input.md](loops-dock-input.md).
-  Loops already has it (CL-119 `d4cf7397`), so the divergence ends at the next re-copy of the chat; the branch also brings
-  the copy check's declared-divergence records, which `do it` merges too. The preferred `do it` for w5-9 and w5-10 together
-  is the re-copy branch `sugg/p2-recopy` (approved by rd2), the proposal says its state; `sugg/w5-9` is the fallback.
+  Prepared: `sugg/p2-recopy` for w5-9 and w5-10 together (the preferred `do it`): loops already has this fix (CL-119
+  `d4cf7397`), so the branch re-copies the chat's two files at loops `c7f9d679` and changes no copy rule. The fallback is
+  `sugg/w5-9`, which diverges from the loops copy until the next re-copy and also brings the copy check's
+  declared-divergence records, which its `do it` merges too. Both are in [loops-dock-input.md](loops-dock-input.md).
 
 - **w5-10 · confusing.** In the dock's message box Enter adds a newline; Cmd+Enter and Ctrl+Enter do nothing; only the
   Send button sends (a loops copy, so crewhub-loops' own choice). **Suggestion:** Enter sends and Shift+Enter breaks
   the line, as most chats do; or Cmd+Enter sends.
 
-  Prepared: `sugg/w5-10`; diverges from the loops copy until loops takes the patch in [loops-dock-input.md](loops-dock-input.md).
-  Loops already has it (CL-181 `c7f9d679`) and chose the second way, Cmd/Ctrl+Enter sends with Enter a new line: the branch
-  builds that, not Enter-sends; it is built on `sugg/w5-9`'s tip, so `do it` here takes w5-9 with it. The preferred `do it`
-  for both is the re-copy branch `sugg/p2-recopy` (approved by rd2); `sugg/w5-10` is the fallback.
+  Prepared: `sugg/p2-recopy` for w5-9 and w5-10 together (the preferred `do it`): loops already has this fix (CL-181
+  `c7f9d679`) and chose the second way, Cmd/Ctrl+Enter sends with Enter a new line, which the re-copy brings, not
+  Enter-sends. The fallback is `sugg/w5-10`, built on `sugg/w5-9`'s tip (so its `do it` takes w5-9 with it), with the same
+  declared-divergence records. Both are in [loops-dock-input.md](loops-dock-input.md).
 
 - **w5-11 · confusing (screen reader).** A card opened by Enter on the stage says nothing: the focus stays on the stage
   by design (the arrows keep moving the ring) and no live region changes; a blind person does not know a card opened
