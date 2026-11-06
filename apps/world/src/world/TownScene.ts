@@ -223,6 +223,10 @@ const ROOM_FRAME_HEIGHT = 1.1;
 /** On a portrait phone a room or building frame crops its diamond's outer corner tips (below 1: tighter). */
 const PORTRAIT_ROOM_MARGIN = 0.86;
 const PORTRAIT_BUILDING_MARGIN = 0.94;
+/** On a portrait phone the home view frames the town tighter (design choice T5, the gentler reading): the town grows by
+    about a fifth into the band between the chips and the playback bar, its edges running off the sides, the whole of a
+    small town still in the picture (the cover fit of `dc/T5` fills the band and crops more). */
+const PORTRAIT_TOWN_MARGIN = 0.86;
 /* The closest view: a frustum this many world units tall, about one desk with its robot. */
 const DESK_SPAN = 2.4;
 /**
@@ -1484,8 +1488,10 @@ export class TownScene {
   }
 
   /**
-   * The home frame. On a portrait phone it frames tight (`homeRects` compact) and lets the town run under the side
-   * controls, so the town fills the tall screen instead of floating small in its middle.
+   * The home frame. On a portrait phone it frames tight (`homeRects` compact, PORTRAIT_TOWN_MARGIN) and lets the town
+   * run under the side controls, so the town fills the tall screen instead of floating small in its middle (design
+   * choice T5, round 72: a tighter margin where a contain fit at 1.04 left an empty band under the chips and above the
+   * bar with the width binding).
    */
   #homeFrame() {
     const canvas = this.renderer.domElement;
@@ -1499,7 +1505,7 @@ export class TownScene {
       const c = lotCentre(cell);
       rects.push({ minX: c.x - PLOT_SIZE / 4, maxX: c.x + PLOT_SIZE / 4, minZ: c.z - PLOT_SIZE / 4, maxZ: c.z + PLOT_SIZE / 4 });
     }
-    return this.frameRects(rects, 2, HOME_OFFSET, portrait ? { ...insets, left: 0, right: 0 } : insets);
+    return portrait ? this.frameRects(rects, 2, HOME_OFFSET, { ...insets, left: 0, right: 0 }, PORTRAIT_TOWN_MARGIN) : this.frameRects(rects, 2, HOME_OFFSET, insets);
   }
 
   home(immediate: boolean) {
