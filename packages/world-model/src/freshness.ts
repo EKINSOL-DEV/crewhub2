@@ -22,21 +22,25 @@ export function freshnessOf(facts: Readonly<Facts>, now: number): Freshness {
 export interface FreshnessWords {
   /** The lane chip's and the figure tag's words for a stale snapshot: "stale since HH:MM" (the viewer's clock), "status unknown" before the first one or for an unreadable stamp; null when fresh. */
   short: string | null;
-  /** The text view's Town line: no snapshot yet, stale since the probe's own stamp, or from when and how old. */
+  /** The text view's Town line: no snapshot yet, stale since the stamp's clock time, or from when and how old. The stamp
+      is said as a clock time in the viewer's zone, "HH:MM:SS", with the date first only when it is not today at `now`
+      (design choice W1, `clock`): a screen reader spells an ISO stamp out character by character. */
   sentence: string;
   /** The director's reason for a status that stays unknown, with its leading space, after "No plan yet"; empty when fresh. */
   whyUnknown: string;
 }
 
 /**
- * The words each surface says for `freshness`; every sentence as its surface said it before round 61. `short` follows
- * `stale` alone (the lane chip did); the sentences read the stamp first (the text view and the director did). The two
- * agree on every `Freshness` from `freshnessOf`; they differ for one built by hand with no stamp yet not stale (the
- * building sign's lead chip), where the lane keeps its words and the Town line still says there is no snapshot.
+ * The words each surface says for `freshness`; every sentence as its surface said it before round 61, the stamp as a
+ * clock time since round 72 (W1). `short` follows `stale` alone (the lane chip did); the sentences read the stamp first
+ * (the text view and the director did). The two agree on every `Freshness` from `freshnessOf`; they differ for one
+ * built by hand with no stamp yet not stale (the building sign's lead chip), where the lane keeps its words and the
+ * Town line still says there is no snapshot. `now` (the source's clock, as `freshnessOf` had it) decides what today is.
  */
-export function freshnessWords(freshness: Freshness): FreshnessWords {
+export function freshnessWords(freshness: Freshness, now: number = Date.now()): FreshnessWords {
   const { teamTs, stale } = freshness;
   const since = clockTime(teamTs);
+  const stamp = teamTs === null ? null : stampWords(teamTs, now);
   const short = stale ? (since ? `stale since ${since}` : "status unknown") : null;
   if (teamTs === null)
     return {
@@ -47,10 +51,24 @@ export function freshnessWords(freshness: Freshness): FreshnessWords {
   if (stale)
     return {
       short,
-      sentence: `The team snapshot is stale since ${teamTs}: every agent's status shows as unknown.`,
-      whyUnknown: ` The team snapshot is stale since ${teamTs}, so a status shows as unknown until a fresh one.`,
+      sentence: `The team snapshot is stale since ${stamp}: every agent's status shows as unknown.`,
+      whyUnknown: ` The team snapshot is stale since ${stamp}, so a status shows as unknown until a fresh one.`,
     };
-  return { short, sentence: `Team snapshot from ${teamTs}, ${freshness.ageSeconds ?? 0} s old.`, whyUnknown: "" };
+  return { short, sentence: `Team snapshot from ${stamp}, ${freshness.ageSeconds ?? 0} s old.`, whyUnknown: "" };
+}
+
+/**
+ * The stamp as a clock time in the viewer's zone, "HH:MM:SS", with the date first ("YYYY-MM-DD HH:MM:SS") when the
+ * stamp is not from the viewer's today at `now`; an unreadable stamp as it came (design choice W1, `clock`).
+ */
+function stampWords(iso: string, now: number): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const two = (n: number) => String(n).padStart(2, "0");
+  const time = `${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`;
+  const today = new Date(now);
+  const sameDay = d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
+  return sameDay ? time : `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${time}`;
 }
 
 /** "HH:MM" in the viewer's local time, or null for a missing or unreadable timestamp. */

@@ -72,7 +72,7 @@ export function describeWorld(model: WorldModel, civic: CivicWords = CIVIC_WORDS
   const buildingName = (slug: string | null) => (slug ? (nameOf.get(slug) ?? slug) : `the ${civic.hall}`);
 
   if (model.mode === "demo") add("Town", "Demo mode: scripted data, no live crewhub-loops session", "demo");
-  add("Town", freshnessWords(model.freshness).sentence);
+  add("Town", freshnessWords(model.freshness, model.now).sentence);
   const active = model.buildings.filter((b) => !b.archived);
   const archived = model.buildings.filter((b) => b.archived);
   add(
