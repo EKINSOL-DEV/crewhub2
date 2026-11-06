@@ -363,6 +363,45 @@ export async function run({ pass, page, check, out }) {
   const keptMessage = (await build.locator(".build-message").allInnerTexts().catch(() => [])).join(" ").trim();
   ok("the sheet's message about the placed prop clears when the undo takes the prop away", keptMessage === "", keptMessage.slice(0, 120) || "(no message)");
   await shot(p, "08-build-undo");
+  // Round 65 (w6-4): a refused move or turn of a placed prop names the prop and the verb, as a refused placement
+  // does: "Can't move <prop> there: <reason>" after an arrow key, "Can't turn <prop> here: <reason>" after R. The verb
+  // is chosen where the key lands (build.ts repose: the rotation changed, or the cell), which no node test reaches
+  // (round 70): a prop longer than wide (the palette's title says its cells) is placed, pushed right until the room
+  // refuses the move, then turned; a turn that still fits is pushed on, until the long side cannot turn at the edge.
+  const message = async () => (await build.locator(".build-message").allInnerTexts().catch(() => [])).join(" ").replace(/\s+/g, " ").trim();
+  const press = async (key) => { await canvas(p).focus(); await p.keyboard.press(key); await p.waitForTimeout(250); return message(); };
+  const pickLong = () => p.evaluate(() => {
+    for (const el of document.querySelectorAll(".build-sheet .build-palette .palette-item")) {
+      const m = (el.getAttribute("title") ?? "").match(/^(.+): (\d+) by (\d+) cells$/);
+      if (m && m[2] !== m[3]) return { id: el.getAttribute("data-prop-id"), name: m[1] };
+    }
+    return null;
+  });
+  let long = await pickLong();
+  const groupButtons = build.locator(".build-groups button");
+  for (let g = 0, n = await groupButtons.count(); !long && g < n; g++) { await groupButtons.nth(g).click(); await p.waitForTimeout(200); long = await pickLong(); }
+  let longPlaced = "", refusedMove = "", refusedTurn = "", keys = 0;
+  if (long) {
+    await build.locator(`.palette-item[data-prop-id="${long.id}"]`).click();
+    await p.waitForTimeout(300);
+    await canvas(p).focus();
+    await p.keyboard.press("Enter");
+    await p.waitForTimeout(800);
+    longPlaced = (await status.innerText().catch(() => "")).replace(/\s+/g, " ");
+  }
+  if (/Placed /.test(longPlaced)) {
+    for (let turns = 0; turns < 4 && !/^Can't turn /.test(refusedTurn); turns++) {
+      let moved = "";
+      for (let i = 0; i < 14 && !/^Can't move /.test(moved); i++, keys++) moved = await press("ArrowRight");
+      if (/^Can't move /.test(moved)) refusedMove = moved;
+      const turned = await press("r");
+      keys++;
+      if (/^Can't turn /.test(turned)) refusedTurn = turned;
+    }
+    // The room as it was: the prop removed (its own undo step, after the placement's).
+    await press("Delete");
+  }
+  ok("a refused move says Can't move <prop> there, a refused turn Can't turn <prop> here: the prop named, the verb from the key (round 65, w6-4)", !!long && refusedMove.startsWith(`Can't move ${long.name} there: `) && refusedTurn.startsWith(`Can't turn ${long.name} here: `), long ? `${long.name}, ${longPlaced.slice(0, 50)} → ${refusedMove.slice(0, 100) || "(no refused move)"} | ${refusedTurn.slice(0, 100) || "(no refused turn)"} (${keys} keys)` : "no prop longer than wide in the palette");
   // Round 48 (r48-ui U7): the prop editor is a dialog: the focus goes into it when it opens and back to the button that
   // opened it when it closes (it stayed on New prop behind the sheet, and fell to the page on close).
   const newProp = build.getByRole("button", { name: "New prop", exact: true });
