@@ -843,7 +843,7 @@ X2 (`inert`, the text view), X5 (`short`), S1 (`waits`), S2 (`drop`), S3 (`idle`
 edge (wa-1, confusing). A choice for Nicky, not a fix: `:focus-visible` already hides the ring after a mouse Skip; the
 tour's own close by the mouse could end the same way.
 
-**Miss:** W12, found in journey 5 (below).
+**Miss:** W12, found in journey 5 (below) and met in journey 1 too (the text view's Where form at 1440 px: the status region empty after two choices, over 24 s).
 
 ### Journey 2: connecting (wb)
 
@@ -872,7 +872,10 @@ while the panel is open; 30 Tabs from its close button never reach a corner butt
 Chat chip), W1 (`clock`, live: "Team snapshot from 12:30:52, 30 s old."), T8 (`answered`, live: "Now: Live. The host
 answered. Host: … Key: crewhub-world."), W16 (`say-the-frame`, read in `docs/INTRODUCTION.md`), W15 (`viewer-first`, the
 rejected screen's "The host says:" on a builder key), H3 (`stored-only`: the env key file and the default file say where
-the key came from with no Forget; a stored key gets Forget). Nothing half, nothing new.
+the key came from with no Forget; a stored key gets Forget). H3's words show on the rejected Connect screen ("The key
+came from the default key file."): a rejection replaces the world by that screen within a second, and the screen has no
+chip, so the Connection panel's own line ("This key comes from the default key file, which the host never deletes …")
+is not on the road a person meets. Nothing half, nothing new.
 
 ### Journey 4: a phone (wc)
 
@@ -906,7 +909,7 @@ through every choice (sampled every 25 ms for 3 s, by the mouse and by typing on
 candidate says the answer at once on the same choice (and keeps talking, which is W12's complaint). The cause is in the
 effect: it queues the status text from a ref and moves the ref on its next line, and React runs the queued updater
 after the ref moved, so the comparison always says "same name". The pure test cannot see it; a component test that picks
-a name and reads the status region can. Fixed on `dc/W12` by wa, reviewed by wc (the Lead's report names the sha).
+a name and reads the status region can. Fixed on `dc/W12@270ef5f3` by wa (a walk row, red 44/45 then green 45/45), reviewed by wc.
 
 ### Journey 6: the town editor (wc)
 
