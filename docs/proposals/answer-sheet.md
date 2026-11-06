@@ -33,9 +33,9 @@ The merge plan's §1 table ("Your answers, your row, and what happens") is keyed
 The other three branch answers (`11: show`, `14: cap`, `15: cap`) merge cleanly in any row. **The ports.** Since round 59
 the answer branches themselves no longer merge clean onto the head (tonight, by `git merge-tree` on `0dee42ed`: every one
 conflicts but `task/q8-offline-say`); a port per branch carries the same change on the head, and the plan's §4 says which
-port stands for which branch (`--use`). Its table ends at `feat/world-demo@e3da2c1` (round 61); the six ports on that row
-all merge clean onto `0dee42ed` tonight (checked by rd1 and by sh, `git merge-tree`), so they are the ones to pass to the
-replay on today's head. Both replays ran with those six ports and passed `npm run check` on `feat/world-demo@29c514ed` in
+port stands for which branch (`--use`). Its last row is `0dee42ed` with `sugg/all-r65-on-head@f65f4cb8` (added tonight);
+the six ports on it, the same since `e3da2c1` (round 61), all merge clean onto `0dee42ed` tonight (checked by rd1 and by
+sh, `git merge-tree`), so they are the ones to pass to the replay on today's head. Both replays ran with those six ports and passed `npm run check` on `feat/world-demo@29c514ed` in
 round 65 (`tab` 1841 tests, `cookie+expiry` 1838), and `feat/world-demo` has changed only docs since (`git diff --name-only
 29c514ed 0dee42ed`); on tonight's `sugg/all-r65-on-head` (`f65f4cb8`, which contains `0dee42ed`) they passed again in round 68
 (`tab` 1946, `cookie+expiry` 1943). The rows below name the branch (yours) and its port (the one to merge).
@@ -134,18 +134,18 @@ adds no id of its own. **Prepared** means a `sugg/<id>` branch is ready: `do it`
 prepared branch's tip tonight is inside `sugg/all-r65-on-head` (`f65f4cb8`), so `walkthrough: all` is the 40 `do it` rows
 at once, and `journey N: as suggested` is one journey's. Where a design choice holds a finding, the row points there and
 takes that choice's recommendation; answer the choice, not the id. Where nothing is built and no choice holds it, the
-recommendation is `as it is` *(Lead, round 69)* with the page's reason. A sha is the branch's tip tonight (`git rev-parse`;
-local and origin agree).
+recommendation is `as it is` *(Lead, round 69)* with the page's reason. For any id, `<id>: <your words>` is the third
+answer, as the page says. A sha is the branch's tip tonight (`git rev-parse`; local and origin agree).
 
 | Id | The finding | Answer form | Recommended | If you say nothing | Ready branch |
 | --- | --- | --- | --- | --- | --- |
 | w1-11 / w4-8 | A click or tap on a figure's name pill zooms the room instead of opening its card | `w1-11: do it / as it is` | `do it` (finished in round 67: the town's pills now take the click or tap too) | the pill lets the click through | `sugg/w1-11` `130f8896` |
-| w1-12 | Three Details labels lead with "RULE", a build-mode word | `w1-12: do it / as it is / <your words>` | `do it` | the RULE labels | `sugg/w1-12` `ed66836a` |
+| w1-12 | Three Details labels lead with "RULE", a build-mode word | `w1-12: do it / as it is` | `do it` | the RULE labels | `sugg/w1-12` `ed66836a` |
 | w1-13 | An archived building's text says its ticket counts twice, once as all zero | `W17: …` (a design choice now; see the design-choices table) | W17's recommendation | the two lines | none |
 | w1-14 | The tour's last card covers the breadcrumb bar | `w1-14: do it / as it is` | `do it` | the card over the bar | `sugg/w1-14` `ef784275` |
 | w1-15 | A building sign has no hover state | `w1-15: do it / as it is` | `do it` | hover changes the pointer only | `sugg/w1-15` `b8b3a8d3` |
 | w1-16 | With Details on, label pairs touch | `w1-16: as it is / <your words>` | `as it is` *(Lead, round 69)*: the write-up has no suggestion for it; the label layout's known gap | the labels touch | none |
-| w1-17 | In walk mode the "You" tag is gone once the figure is through the door | `w1-17: do it / as it is` | `do it` (on the base the tag was hidden for about half a second at the door, not for good) | the tag goes at the door | `sugg/w1-17` `dc2c31d4` |
+| w1-17 | In walk mode the "You" tag is gone once the figure is through the door | `w1-17: do it / as it is` | `do it` (on the base the tag was hidden for about half a second at the door, not for good) | the tag is hidden about half a second at the door | `sugg/w1-17` `dc2c31d4` |
 | w1-18 | "loop 0" in the playback bar reads as a code on first start | `w1-18: do it / as it is` | `do it` (the count shows once the script has looped) | "loop 0" from the start | `sugg/w1-18` `300b53ff` |
 | w1-19 | The fresh install's plot says "Create a project in crewhub-loops" in letters a few pixels high | `w1-19: do it / as it is` | `do it` | the small board | `sugg/w1-19` `a5683647` |
 | w2-1 | With a dialog open over the tour, Escape closes the tour, not the dialog | `w2-1: do it / as it is` | `do it` | Escape closes the tour | `sugg/w2-1` `b4e49da9` |
@@ -153,14 +153,14 @@ local and origin agree).
 | w2-3 (the page's half) | The chip says Live while every event that arrives is old | `L3: snapshot / own-word / keep` (design choice L3) | L3's `snapshot` | the chip keys on arrivals | none |
 | w2-4 | The panel's crewhub-loops row breaks the variable name mid-word | `w2-4: do it / as it is` | `do it` | the broken word | `sugg/w2-4` `954fa5e3` |
 | w2-5 | A host restart shows as "Stale", then Live, with no word that the host was gone | `L1: own-words / keep` (the mirror of design choice L1) | L1's `own-words`. The sources differ in reach: L1 words two 503s the host sends; a host that does not answer at all is not among L1's options, so `L1: own-words` does not build this state | "Stale" on a host restart | none |
-| w2-6 | Two red console lines at every Live start when the world's origin is not set on loops | nothing to answer | done: its LOOPS_SETUP note is merged (round 65, `29c514ed`); the browser's CORS line itself cannot be avoided | | |
+| w2-6 | Two red console lines at every Live start when the world's origin is not set on loops | `w2-6: as it is` | `as it is` *(Lead, round 69)*: its LOOPS_SETUP note is already merged (round 65, `29c514ed`); the browser's CORS line itself cannot be avoided | the two lines, and the note | none needed |
 | w2-7 | "I opened the link" pressed before any link was opened says nothing | `w2-7: do it / as it is` | `do it` | the button looks dead | `sugg/w2-7` `4e2c482d` |
 | w2-8 | A key with too few rights is refused with 401's cause and "(401 or 403)" on screen | `W15: viewer-first / keep` (design choice W15's family) | W15's `viewer-first`. The sources differ in reach: W15 changes which bot the host's words name; one sentence per status (403 and 401) is not among its options | the one sentence for both | none |
 | w3-1 | An answer that comes while the camera is elsewhere shows nothing for its 12 s | `w3-1: do it / as it is` | `do it` | no count on the chip | `sugg/w3-1` `65712011` |
 | w3-2 | A bubble over a figure in the town carries no name | `w3-2: do it / as it is` | `do it` | the bubble without a name | `sugg/w3-2` `7db276f7` |
 | w3-4 | The bubble's 12 s start when the page sees the line, not when the person gets there | `w3-4: do it / as it is` | `do it`, with the branch's departures: live, the mark stands until the chat is opened or the agent's next answer; a pin's breathing ring and touch area stay on the pin (narrower by about 80 px at 375 and 1440); the 2 px between pin and mark on a phone does nothing; and round 67's v1-1 fix (a mark clicked after the bubble shows the bubble again for 12 s, `cb2342dc`, inside the tip) | the mark goes with the bubble | `sugg/w3-4` `b10a6e14` |
 | w3-5 | "About this chat" says "chat head" and "dock" | `w3-5: do it / as it is` | `do it` | the old sentence | `sugg/w3-5` `a75d4aa3` |
-| w3-6 | With loops frozen the chip went Live again on a reopened stream | nothing to answer | done: fixed and merged (round 65, `5ad0a52c`) | | |
+| w3-6 | With loops frozen the chip went Live again on a reopened stream | `w3-6: as it is` | `as it is` *(Lead, round 69)*: already fixed and merged (round 65, `5ad0a52c`) | the fix, on the head | none needed |
 | w4-2 | The tour, the card, the build sheet and walk mode speak of clicks and keys to a thumb | `w4-2: do it / as it is` | `do it` (in the four places the finding names; a few spoken key hints elsewhere stay) | click and key words on a phone | `sugg/w4-2` `5a34de14` |
 | w4-3 | The tour's step 4 reads the dock's every button run together to a screen reader | `T3: town / keep` (design choice T3's family) | T3's `town`. The sources differ in reach: T3's `town` is written for steps 1 and 3 (the stage); step 4's dock is not in its option as worded | the buttons run together | none |
 | w4-6 | A tapped sign keeps a red focus ring on a touch device | `w4-6: do it / as it is` | `do it` | the ring after a tap | `sugg/w4-6` `18d73d8d` |
@@ -182,7 +182,7 @@ local and origin agree).
 | w5-18 | Choosing a scenario reloads the page with nothing focused and no warning in the picker | `w5-18: do it / as it is` | `do it` | the silent reload | `sugg/w5-18` `cf809e89` |
 | w5-22 | After a connect, a screen reader hears the check start and never its end | `w5-22: do it / as it is` | `do it` (in the runs seen, a shorter sentence, "Connected: Live.", where the base already spoke; the silent run was not reproduced; the node test is the guard if it comes back) | "Connection: Live. Events arrive as they happen." | `sugg/w5-22` `55bcee1a` |
 | w5-23 | At loops' return two polite lines come 21 ms apart | `w5-23: as it is / <your words>` | `as it is` *(Lead, round 69)*: the write-up has no suggestion for it (none needed; a longer catch-up would make the first one true) | both lines | none |
-| w5-25 | A malformed key's reason is not said to a screen reader | nothing to answer | done: fixed and merged (round 65, `cef76e67`) | | |
+| w5-25 | A malformed key's reason is not said to a screen reader | `w5-25: as it is` | `as it is` *(Lead, round 69)*: already fixed and merged (round 65, `cef76e67`) | the fix, on the head | none needed |
 | w6-2 | A refused placement says its reason twice | `w6-2: do it / as it is` | `do it` | twice | `sugg/w6-2` `8d0d6aa6` |
 | w6-3 | The sheet keeps "Placed Oak bench … It is selected" after the selection is gone | `w6-3: do it / as it is` | `do it` | the stale message | `sugg/w6-3` `20f30431` |
 | w6-4 | A refused drag names no prop and no verb | `w6-4: do it / as it is` | `do it` | "Can't: …" | `sugg/w6-4` `c35dfe75` |
@@ -195,7 +195,7 @@ local and origin agree).
 | w6-14 | "Show free plots" in the Region draws 56 badges in a pile | `w6-14: do it / as it is` | `do it` | the pile | `sugg/w6-14` `0d2a289b` |
 | w6-11 / w4-16 | The pairing is a session cookie, while the Pair screen says it stays across host restarts | `1: tab / cookie+expiry / cookie` (question 1 covers it) | question 1's recommendation. With `tab` or `cookie+expiry` the Pair screen's sentence should then say when the pairing holds; the page does not say that either branch does it, so that is a line to write after the merge | the cookie and the sentence as they are | question 1's branches and ports |
 
-Forty rows say `do it` for a prepared branch (with w5-9 and w5-10 to come, 42); nine point at a design choice or a question
-(w1-13, w2-2 / w3-7, w2-3, w2-5, w2-8, w4-3, w4-20, w6-11 / w4-16, and w5-9 and w5-10 wait on tonight); two are `as it is` by
-the Lead's round 69 rule (w1-16, w5-23); three are done (w2-6, w3-6, w5-25). Round 67's two new findings (v1-1, v4-1) are
+Forty rows say `do it` for a prepared branch; eight point at a design choice or a question (w1-13, w2-2 / w3-7, w2-3,
+w2-5, w2-8, w4-3, w4-20, w6-11 / w4-16); two wait on tonight's part C (w5-9, w5-10); five are `as it is` by the Lead's
+round 69 rule (w1-16 and w5-23 with no suggestion; w2-6, w3-6 and w5-25 already merged in round 65). Round 67's two new findings (v1-1, v4-1) are
 fixed inside `sugg/w3-4` and `sugg/w6-6` and need no row.
