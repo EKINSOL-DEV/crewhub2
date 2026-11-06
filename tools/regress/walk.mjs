@@ -167,6 +167,10 @@ export async function run({ pass, page, check, out }) {
   await p.waitForTimeout(300);
   const sendFocus = await p.evaluate(() => { const a = document.activeElement; return a ? `${a.tagName.toLowerCase()}${a.closest(".chat-compose") ? " in the compose form" : ""}` : "none"; });
   ok("chat dock (round 64, w5-8): after Send the focus is back in the message box, not on the body", sendFocus === "textarea in the compose form", `focus on ${sendFocus}`);
+  // Round 69 (rd2's review of w5-9): once the box is enabled again the sent text is gone from it, so the Field's echo adopted the
+  // draft's reset after Send (an echo that never adopts the owner's value would keep the text here).
+  const afterSend = await p.locator(".chat-compose textarea").first().inputValue().catch(() => "x");
+  ok("chat dock (round 69, w5-9): after Send the box is empty again, the echo having adopted the draft's reset", afterSend === "", `the box holds ${JSON.stringify(afterSend)}`);
   await p.waitForTimeout(6000);
   const chat = await p.locator(".bubble-chat").innerText().catch(() => "");
   ok("chat message sent", /browser regression pass/.test(chat));
