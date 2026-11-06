@@ -15,7 +15,7 @@ export type KeyVerdict = { state: "ok"; name: string; displayName: string } | { 
 /** Does loops answer its health right now? The default trusts the caller: a plain 401/403 counts. */
 export type HealthProbe = () => Promise<boolean>;
 
-const MAKE_A_BOT = 'In crewhub-loops open Settings > Agents > New external bot: name crewhub-world, "Read only" off, no projects; then paste its access key here.';
+const MAKE_A_BOT = 'In crewhub-loops open Settings > Agents > Connect CrewHub World and make its access key (on an older crewhub-loops, Settings > Agents > New external bot: name crewhub-world, "Read only" off, no projects); then paste the key here.';
 export const PROBE_REASON = `A probe key reads nothing since CL-295. ${MAKE_A_BOT}`;
 export const READER_REASON = `Read-only bots cannot read the board (a "Read only" bot reads tickets of its projects only). ${MAKE_A_BOT}`;
 export const BUILDER_REASON = `The builder key reads tickets of its member projects only. ${MAKE_A_BOT}`;
