@@ -199,11 +199,16 @@ hint "⌘ Enter sends" (Mac) or "Ctrl+Enter sends" under the box, loops' own; no
 
 A third branch, built by rd1 in round 69 (tip `5c922d5b`, approved by rd2 at 02:07 on 6 Nov): `Bubbles.tsx` and `queries.ts`
 re-copied verbatim at loops `c7f9d679` (the commit that brought both fixes), `sendChord.ts` copied with them, `Menu.tsx`
-and the other copies left at `a1bed0f`, and **no divergence records**. It does not change the copy rule: one line adds
+and the other copies left at `a1bed0f`, and **no divergence record in `check:copy`**. It does not change the copy rule: one line adds
 `sendChord.ts` to the list in `scripts/bubbles-copy.ts`, and the Bubbles and queries pins (the header lines) move to
 `c7f9d679`; the check compares each copy with its own header's commit, as today. It takes the adapters the newer
 `Bubbles.tsx` and `queries.ts` need (what loops added on those files between `a1bed0f` and `c7f9d679`), and it takes the
 world's `Field` echo from `sugg/w5-9` (`6f47a461`'s `Field.tsx`, byte for byte).
+
+**So it is more than the re-copy.** The world's own `Field.tsx` (not a copy) carries a port of CL-119's echo, about 60
+lines, which a later P2 sync of the primitives would replace; `apps/world/src/api/types.ts` gains `dispatch_gated` (a
+dormant path here: the copied dock is demo-only and nothing answers it); and loops' visible hint "⌘ Enter sends" shows under
+the box on wide screens. All of it belongs to the two fixes.
 
 **This is the preferred `do it` for w5-9 and w5-10 together.** `sugg/w5-9` and `sugg/w5-10` are the fallback, with the
 declared-divergence mechanism (crewy's rule: it lives on those two branches only, and merging it is Nicky's call).
