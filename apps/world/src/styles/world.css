@@ -1071,6 +1071,15 @@
   text-overflow: clip;
   scrollbar-width: thin;
 }
+/* Design choice T4 (`end`): with Settings or the text view open, the sheet's scroll area ends above the copied dock
+   (kit.css `.dock`, fixed at the bottom right, its height measured into --dock-height), so the dock's round button stays
+   reachable and lies over no line of the sheet. The text view keeps its top; Settings keeps its top and its own scroll. */
+.world-shell[data-dock] .text-sheet {
+  bottom: calc(var(--space-4) + var(--dock-height) + var(--space-2));
+}
+.world-shell[data-dock] .settings-sheet {
+  max-height: calc(100dvh - 4.25rem - var(--space-4) - var(--dock-height) - var(--space-2));
+}
 .world-shell[data-dock] .demo-chat-chip {
   position: fixed;
   right: var(--space-3);
