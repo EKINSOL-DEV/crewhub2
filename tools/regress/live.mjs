@@ -6,8 +6,9 @@
  * page helpers (`page`), the check recorder (`check`) and the output folder (`out`); see regress.mjs for the four.
  */
 import { chip as chipOf, openPage, readTextView as text, textView as sheet, untilChip } from "../lib/page.mjs";
-import { dressed, list } from "../lib/world.mjs";
+import { list } from "../lib/world.mjs";
 import { startRig } from "../lib/rig.mjs";
+import { dressed } from "../lib/world.mjs";
 
 export async function run({ pass, page, check, out }) {
   const { browser, opts, plan, groups, origin, dist: DIST, distServed: DIST_SERVED, distFresh, problems, noteLoops } = pass;
