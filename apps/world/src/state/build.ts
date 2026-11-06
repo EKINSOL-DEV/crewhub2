@@ -1,20 +1,20 @@
 /* Build mode (plan 4.7 item 3, plan 6): one toggle, a chosen catalogue prop that follows the pointer or the arrow
    keys as a ghost, and a selected placed prop to turn, move or delete. Every placement goes through the engine's
    footprint rules (world/placements.ts `checkGhost`) before the edit is applied; the ghost says in words whether it
-   fits. Edits commit to the town document through the town runtime, so undo and reload follow. */
+   fits. Edits commit to the town document through the town runtime (the editor the page hands in), so undo and reload
+   follow. Its imports say `.ts` and it imports no page wiring, so the module loads in Node (round 71). */
 import { useCallback, useMemo, useState } from "react";
 import type { Cell, Rotation } from "@crewhub/world-engine";
 import type { Building, PlacedProp, RoomKind } from "@crewhub/world-model";
-import { buildingTemplate } from "../world/buildingTemplate";
-import { useBuildingPlan } from "./buildingPlan";
-import type { Pick } from "../world/buildingView";
-import { cellAt, checkGhost, freeCellIn, placedWords, refusedWords, reposeAction, resolveBuildingPlacements, roomSite, type GhostCheck } from "../world/placements";
-import type { Ghost } from "../world/propLayer";
-import { messageShown } from "./buildMessage";
-import { buildWords } from "./inputWords";
-import { touchInput } from "./media";
-import { townRuntime } from "./runtimes";
-import type { TownState } from "./town";
+import { buildingTemplate } from "../world/buildingTemplate.ts";
+import { useBuildingPlan } from "./buildingPlan.ts";
+import type { Pick } from "../world/buildingView.ts";
+import { cellAt, checkGhost, freeCellIn, placedWords, refusedWords, reposeAction, resolveBuildingPlacements, roomSite, type GhostCheck } from "../world/placements.ts";
+import type { Ghost } from "../world/propLayer.ts";
+import { messageShown } from "./buildMessage.ts";
+import { buildWords } from "./inputWords.ts";
+import { touchInput } from "./media.ts";
+import type { TownRuntime, TownState } from "./town.ts";
 
 export interface Spot {
   room: RoomKind;
@@ -41,6 +41,12 @@ export interface BuildState {
 const OFF: BuildState = { on: false, propId: null, rotation: 0, spot: null, selected: null, drag: null, message: "", about: null };
 const ARROWS: Record<string, Cell> = { ArrowLeft: { x: -1, z: 0 }, ArrowRight: { x: 1, z: 0 }, ArrowUp: { x: 0, z: -1 }, ArrowDown: { x: 0, z: 1 } };
 
+/** What build mode edits the town through: the town runtime's `edit` and `editAll` (App passes the page's runtime). */
+export interface BuildEditor {
+  edit: TownRuntime["edit"];
+  editAll: TownRuntime["editAll"];
+}
+
 export interface BuildMode {
   state: BuildState;
   /** The ghost to draw, with its verdict, or null. */
@@ -57,7 +63,7 @@ export interface BuildMode {
   place(): void;
 }
 
-export function useBuildMode(town: TownState, inside: Building | null, focusedRoom: RoomKind | null, announce: (text: string) => void): BuildMode {
+export function useBuildMode(town: TownState, inside: Building | null, focusedRoom: RoomKind | null, announce: (text: string) => void, editor: BuildEditor): BuildMode {
   const [state, setState] = useState<BuildState>(OFF);
   const buildingPlan = useBuildingPlan();
   const template = useMemo(() => (inside ? buildingTemplate(inside, buildingPlan) : null), [buildingPlan, inside]);
@@ -122,7 +128,7 @@ export function useBuildMode(town: TownState, inside: Building | null, focusedRo
         return;
       }
       const id = crypto.randomUUID();
-      const result = townRuntime().edit({
+      const result = editor.edit({
         type: "place",
         placement: { id, propId: state.propId, at: { building: inside.slug, room: spot.room }, cell: { ...spot.cell }, rotation: state.rotation },
       });
@@ -134,7 +140,7 @@ export function useBuildMode(town: TownState, inside: Building | null, focusedRo
       setState((s) => ({ ...s, propId: null, spot: null, selected: id }));
       say(`${placedWords(nameOf(state.propId), spot.room, buildingPlan)} ${buildWords(touchInput()).placed}`, id);
     },
-    [buildingPlan, inside, nameOf, say, state.propId, state.rotation, template, town.definitions, town.doc],
+    [buildingPlan, editor, inside, nameOf, say, state.propId, state.rotation, template, town.definitions, town.doc],
   );
   const place = useCallback(() => placeAt(state.spot), [placeAt, state.spot]);
 
@@ -152,10 +158,10 @@ export function useBuildMode(town: TownState, inside: Building | null, focusedRo
         rotation !== p.rotation
           ? [{ type: "rotate" as const, id: p.id, rotation }]
           : [{ type: "move" as const, id: p.id, cell, ...(room !== p.at.room ? { at: { building: inside.slug, room } } : {}) }];
-      const result = townRuntime().editAll(edits);
+      const result = editor.editAll(edits);
       say(result.ok ? done : result.error, p.id);
     },
-    [inside, nameOf, say, template, town.definitions, town.doc],
+    [editor, inside, nameOf, say, template, town.definitions, town.doc],
   );
 
   const rotate = useCallback(() => {
@@ -169,10 +175,10 @@ export function useBuildMode(town: TownState, inside: Building | null, focusedRo
 
   const remove = useCallback(() => {
     if (!selectedPlacement) return;
-    const result = townRuntime().edit({ type: "delete", id: selectedPlacement.id });
+    const result = editor.edit({ type: "delete", id: selectedPlacement.id });
     setState((s) => ({ ...s, selected: null, drag: null }));
     say(result.ok ? `Removed ${nameOf(selectedPlacement.propId)}. Undo brings it back.` : result.error);
-  }, [nameOf, say, selectedPlacement]);
+  }, [editor, nameOf, say, selectedPlacement]);
 
   const pointer = useCallback(
     (kind: "move" | "click" | "drag" | "drop", at: Spot | null, pick: Pick | null) => {
