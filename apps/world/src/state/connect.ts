@@ -93,6 +93,21 @@ export function withStreamKey(health: HostHealth | null, key: HostKeyState["stat
   return { ...health, connection: { ...connection, key: { ...connection.key, state: key } } };
 }
 
+export type ForgetOffer = "forget" | "default-file" | null;
+
+/**
+ * What the Connection panel's footer offers for the host's key (design choice H3, round 72, `stored-only`): "Forget this
+ * key" for the host's own stored key, as the Connect page's rejected screen does; for a rejected key read from the old
+ * default file, where it comes from (the host drops only its own stored copy, never a file outside its folder, so a
+ * Forget would read the same rejected key again at the next start); nothing for a key from CREWHUB_WORLD_KEY_FILE,
+ * a key of unknown source, no key, or a host from before the smooth connection.
+ */
+export function forgetOffer(key: Pick<HostKeyState, "state" | "source"> | undefined): ForgetOffer {
+  if (key?.source === "stored") return "forget";
+  if (key?.source === "default" && key.state === "rejected") return "default-file";
+  return null;
+}
+
 /** The host's `loopsCommit` (loops' own `version`) and, when the host saw another version first, that one: loops was updated under the host. */
 export function loopsVersion(health: Pick<HostHealth, "loopsCommit" | "loopsCommitBefore"> | null | undefined): { version: string; before: string | null } | null {
   if (!health || typeof health.loopsCommit !== "string" || health.loopsCommit === "") return null;
