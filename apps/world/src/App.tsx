@@ -739,9 +739,9 @@ const Corner = memo(function Corner({
     <header className="world-corner world-corner-left" data-chrome="">
       <div className="world-brand">
         <span className="brand-mark" aria-hidden="true" />
-        <strong>
-          CrewHub<span className="brand-world"> World</span>
-        </strong>
+        <strong>CrewHub World</strong>
+        {/* The phone's short title (design choice T6), shown under 600 px in the full one's place; the tools read the visible strong. */}
+        <strong className="brand-short">CrewHub</strong>
         {demo && (
           <Menu
             name="Demo scenario"
@@ -752,9 +752,10 @@ const Corner = memo(function Corner({
               className: "demo-chip",
               icon: <FlaskConical className="icon" aria-hidden="true" />,
               label: (
-                <span className="demo-word">
-                  Demo<span className="demo-scenario">: {scenario}</span>
-                </span>
+                <>
+                  <span className="demo-word">Demo: {scenario}</span>
+                  <span className="demo-word demo-word-short">Demo</span>
+                </>
               ),
               ariaLabel: `Demo: scripted data. Scenario: ${scenario}. Choose a scenario`,
             }}
