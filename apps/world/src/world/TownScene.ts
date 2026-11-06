@@ -25,7 +25,7 @@ import { JUMP_TRACK_MS, jumpBox, landingStep, type Landing } from "./landing";
 import { Construction, goesUp } from "./construction";
 import { lotCentre, lotKey } from "./settlement";
 import { homeRects, planKey, type TownPlan } from "./townPlan";
-import { dressedLots, dressPlan, planPaths, planPieces, settlementDressing, STAKED_SIGN, type DressPlan } from "./settlementDressing";
+import { dressedLots, dressPlan, planPaths, planPieces, settlementDressing, STAKED_SIGN, stakedSignAnchor, type DressPlan } from "./settlementDressing";
 import { LAWN_Y } from "./townDressing";
 import { InstanceCuller, instanceStaticSteps } from "./instanceStatic";
 import { mergeStatic, mergeStaticSteps } from "./mergeStatic";
@@ -1209,11 +1209,9 @@ export class TownScene {
     this.#anchors.set("c:town-hall", new THREE.Vector3(hall.x, 0.2, hall.z + CIVIC_LAWN / 2));
     // The clearing's staked plot carries a sign in words (`c:staked`, round 65, w1-19), in front of its lot as a
     // building's sign stands in front of its plot.
-    const staked = this.view.plan.staked;
-    if (staked) {
-      const c = lotCentre(staked);
-      this.#anchors.set("c:staked", new THREE.Vector3(c.x, 0.2, c.z + PLOT_SIZE / 2));
-    } else this.#anchors.delete("c:staked");
+    const sign = stakedSignAnchor(this.view.plan);
+    if (sign) this.#anchors.set("c:staked", new THREE.Vector3(sign.x, sign.y, sign.z));
+    else this.#anchors.delete("c:staked");
     if (signature !== this.#civicSignature) {
       this.#civicSignature = signature;
       this.#shadowDirty = true;

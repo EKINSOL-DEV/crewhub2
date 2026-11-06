@@ -15,6 +15,8 @@
      zone the blocks read as neighbourhoods without names.
    Landmarks (bandstand, chapel, windmill, farm corner, cottages) are dressed once the plan says they have arrived. */
 import { civicCenter, CIVIC_LOT, CIVIC_SIZE, PITCH, PLOT_SIZE, type Bounds, type PlotSpot } from "./townLayout.ts";
+import { lotCentre } from "./settlement.ts";
+import type { TownPlan } from "./townPlan.ts";
 import {
   COBBLE_Y,
   detail,
@@ -39,6 +41,16 @@ import {
 
 /** What the staked plot's sign says: the next thing to do in a town without a project. */
 export const STAKED_SIGN = "Create a project\nin crewhub-loops";
+
+/**
+ * Where the staked plot's sign in words stands (the `c:staked` label anchor, round 65, w1-19): in front of its lot, as a
+ * building's sign stands in front of its plot; null when the plan has no staked plot (round 71, seam 6).
+ */
+export const stakedSignAnchor = (plan: TownPlan): { x: number; y: number; z: number } | null => {
+  if (!plan.staked) return null;
+  const c = lotCentre(plan.staked);
+  return { x: c.x, y: 0.2, z: c.z + PLOT_SIZE / 2 };
+};
 
 export type Tier = "clearing" | "hamlet" | "village" | "town" | "region";
 
