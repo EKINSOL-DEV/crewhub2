@@ -20,7 +20,8 @@ test("W3 (cards): the agent plate carries no demo note; the object card still do
   // To the else branch (`full && (`): the plate's own `) : (` is not the first, the proxy ternary's inside it is.
   const plate = canvas.slice(plateStart, canvas.indexOf("full && (", plateStart));
   assert.match(plate, /className=\{`agent-plate/, "the slice is the plate");
-  assert.match(plate, /Lit: \{alert\}/, "the slice reaches the plate's last row");
+  // The alert row is "Lit:" today and "Alert:" with design choice W2 (dc/W2-alert): either is the plate's last row.
+  assert.match(plate, /(Lit|Alert): \{alert\}/, "the slice reaches the plate's last row");
   assert.doesNotMatch(plate, /<DemoNote/, "no note on the plate");
   assert.equal(canvas.match(/<DemoNote model=\{model\} \/>/g)?.length, 1, "one note is left: the object card's");
   assert.equal(card.match(/title=\{demo \? "Demo: there is no crewhub-loops web app to open" : undefined\}/g)?.length, 2, "the agent card's two key tooltips");
