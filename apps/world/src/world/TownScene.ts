@@ -21,6 +21,7 @@ import type { StyledPlot } from "./styleRegistry";
 import { lookAt, looksSignature, previewLooks, type TownLooks } from "./townLooks";
 import type { Ambient } from "./movement";
 import { CIVIC_LOT, civicCenter, PLOT_SIZE, type Bounds } from "./townLayout";
+import { JUMP_TRACK_MS, jumpBox, landingStep, type Landing } from "./landing";
 import { Construction, goesUp } from "./construction";
 import { lotCentre, lotKey } from "./settlement";
 import { homeRects, planKey, type TownPlan } from "./townPlan";
@@ -207,8 +208,6 @@ const CIVIC_LAWN = CIVIC_LOT;
    side of the town behind the near plane, where they were cut into shards. Zoom does the framing; this stays fixed. */
 const CAMERA_DISTANCE = 220;
 const HOME_OFFSET = new THREE.Vector3(1, 1.04, 1).normalize().multiplyScalar(CAMERA_DISTANCE);
-/* After a jump to a figure on a portrait phone the camera keeps it where it landed for this long (round 65, w4-11). */
-const JUMP_TRACK_MS = 6000;
 const UP = new THREE.Vector3(0, 1, 0);
 /* Framing heights: a building is seen up to its tall back walls, a room up to its people and desks. */
 /** Built interiors kept for a quick enter: the entered building's and the two most recently used others. */
@@ -469,7 +468,7 @@ export class TownScene {
   /** The agent the camera follows (TownScene.follow), the level last asked of the app, and the zoom it settles on. */
   #following: string | null = null;
   /** A jump's landing on a figure (`flyToAnchor`): its label anchor, where it last stood, and until when. */
-  #landing: { id: string; last: THREE.Vector3; until: number } | null = null;
+  #landing: Landing | null = null;
   #followAsked: string | null | undefined = undefined;
   #followZoom: number | null = null;
   #portraitCamera: THREE.OrthographicCamera | null = null;
@@ -1657,9 +1656,9 @@ export class TownScene {
     if (!anchor) return;
     const canvas = this.renderer.domElement;
     const centred = id.startsWith("a:") && canvas.clientWidth < canvas.clientHeight * 0.8;
-    this.frameGround(centred ? { minX: anchor.x - reach, maxX: anchor.x + reach, minZ: anchor.z - reach, maxZ: anchor.z + reach } : { minX: anchor.x - reach, maxX: anchor.x + reach, minZ: anchor.z - reach * 1.4, maxZ: anchor.z + reach * 0.6 }, 5);
+    this.frameGround(jumpBox(anchor, reach, centred), 5);
     // After frameGround: its moveTo ends any landing before.
-    this.#landing = centred ? { id, last: anchor.clone(), until: performance.now() + JUMP_TRACK_MS } : null;
+    this.#landing = centred ? { id, last: { x: anchor.x, z: anchor.z }, until: performance.now() + JUMP_TRACK_MS } : null;
     // frameGround takes it for a frame; a jump put the camera here, so the sheet's opening does not pull it away (w6-13).
     this.#placed = true;
   }
@@ -1672,13 +1671,12 @@ export class TownScene {
   #landingTick() {
     const landing = this.#landing;
     if (!landing) return;
-    const anchor = this.#anchors.get(landing.id);
-    if (!anchor || this.#walk || this.#following || this.view.entered || performance.now() > landing.until) {
+    const step = landingStep(landing, this.#anchors.get(landing.id), performance.now(), Boolean(this.#walk || this.#following || this.view.entered));
+    if (!step) {
       this.#landing = null;
       return;
     }
-    const delta = this.#v.copy(anchor).sub(landing.last).setY(0);
-    landing.last.copy(anchor);
+    const delta = this.#v.set(step.x, 0, step.z);
     this.controls.target.add(delta);
     this.camera.position.add(delta);
     if (this.#tween) {
