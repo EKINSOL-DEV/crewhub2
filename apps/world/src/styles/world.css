@@ -2596,6 +2596,24 @@ a.agent-ticket-link:focus-visible {
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
 }
+/* The older-loops road (design choice T9): a disclosure like the chat's "About this chat", closed at first. */
+.connect-older {
+  margin-top: var(--space-3);
+}
+.connect-older > summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+.connect-older > summary:focus-visible {
+  outline: 0;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+.connect-older > .connect-sub {
+  margin-top: var(--space-2);
+}
 .connect-steps {
   margin: 0;
   padding-left: 1.5rem;
