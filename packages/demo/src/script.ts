@@ -347,7 +347,7 @@ function storyline(s: ScriptBuilder): void {
   s.add("15:10", { type: "progress", ticket: "CL-40", agent: "analyst", kind: "update", text: "listing the types the world skips on purpose" });
   s.add("15:22", { type: "progress", ticket: "CR-24", agent: "cr-lead", kind: "update", text: "mailbox model in the branch" });
   s.add("15:34", { type: "lane", name: "marky", status: "working", contextLine: "MK-13: last post of the thread" });
-  s.add("15:36", { type: "lane", name: "cl-lead", status: "working", contextLine: "CL-88: release notes for 0.9.0" });
+  s.add("15:36", { type: "lane", name: "cl-lead", status: "working", contextLine: "CL-88: 0.9.0 waits for Nicky" });
 
   // 15:27 to 15:50 is quiet on purpose: the stream sends a heartbeat.
   // 15:40 to 16:00: the probe is back, the picture is fresh again, and the loop ends.
