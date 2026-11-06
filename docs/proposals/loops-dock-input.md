@@ -206,9 +206,10 @@ and the other copies left at `a1bed0f`, and **no divergence record in `check:cop
 world's `Field` echo from `sugg/w5-9` (`6f47a461`'s `Field.tsx`, byte for byte).
 
 **So it is more than the re-copy.** The world's own `Field.tsx` (not a copy) carries a port of CL-119's echo, about 60
-lines, which a later P2 sync of the primitives would replace; `apps/world/src/api/types.ts` gains `dispatch_gated` (a
-dormant path here: the copied dock is demo-only and nothing answers it); and loops' visible hint "⌘ Enter sends" shows under
-the box on wide screens. All of it belongs to the two fixes.
+lines, which a later port of loops' Field would replace (`Field.tsx` is not among P2's copies); and loops' visible hint
+"⌘ Enter sends" shows under the box on wide screens. Those two belong to the fixes. The re-copy at `c7f9d679` also brings
+two things that are not the fixes: `dispatch_gated` in `apps/world/src/api/types.ts` (CL-43; a dormant path here, since the
+copied dock is demo-only and nothing answers it) and a plain `WithTicketKeys` stand-in (CL-114's ticket keys, shown as text).
 
 **This is the preferred `do it` for w5-9 and w5-10 together.** `sugg/w5-9` and `sugg/w5-10` are the fallback, with the
 declared-divergence mechanism (crewy's rule: it lives on those two branches only, and merging it is Nicky's call).

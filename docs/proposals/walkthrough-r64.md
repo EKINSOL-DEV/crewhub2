@@ -256,7 +256,7 @@ Prepared branches are ready; an answer `do it` merges that branch, `journey N: a
 
   Prepared: `sugg/p2-recopy` for w5-9 and w5-10 together (the preferred `do it`): loops already has this fix (CL-119
   `d4cf7397`), so the branch re-copies the chat's two files at loops `c7f9d679` and changes no copy rule (no divergence record in
-  `check:copy`; the world's own `Field.tsx` carries a port of CL-119 that a later P2 sync of the primitives would replace). The fallback is
+  `check:copy`; the world's own `Field.tsx`, not one of P2's copies, carries a port of CL-119 that a later port of loops' Field would replace). The fallback is
   `sugg/w5-9`, which diverges from the loops copy until the next re-copy and also brings the copy check's
   declared-divergence records, which its `do it` merges too. Both are in [loops-dock-input.md](loops-dock-input.md).
 
