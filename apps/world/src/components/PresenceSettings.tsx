@@ -3,7 +3,7 @@
    and in live mode an opt-in of its own, off by default, whose label says the script then plays over real facts and
    moves only the figures here. */
 import { useEffect, useState } from "react";
-import { DIRECTOR_MODEL, PRESENCE_LIMITS, type PresenceSettings as Settings } from "@crewhub/world-model";
+import { PRESENCE_LIMITS, type PresenceSettings as Settings } from "@crewhub/world-model";
 import { Chip, Field } from "./primitives";
 import { setAmbient, useAmbient } from "../state/ambient";
 import { directorRuntime, useDirector } from "../state/runtimes";
@@ -92,7 +92,7 @@ export function PresenceSettings({ reducedMotion, demo }: { reducedMotion: boole
           {usage.capReached === "hour" ? "The hourly plan cap is reached" : "The daily plan cap is reached"}: the director is paused.
         </p>
       )}
-      <Field label="Director model" size="sm" readOnly value={DIRECTOR_MODEL} hint="Read-only. Cheap models only, no escalation. The demo never calls it." />
+      <Field label="Director model" size="sm" readOnly value="none; the scripted director calls no model" hint="Read-only." />
       <NumberField label="Scheduled plan every (minutes)" value={settings.intervalMinutes} min={L.intervalMinMinutes} max={L.intervalMaxMinutes} hint={`Minimum ${L.intervalMinMinutes} minutes`} onCommit={(v) => set({ intervalMinutes: v })} />
       <Field control="checkbox" label="Quick plans" checked={settings.quickPlans} hint="After a ticket move or a status change: 20 s debounce, one per building per minute." onChange={(e) => set({ quickPlans: e.currentTarget.checked })} />
       <div className="presence-pair">
