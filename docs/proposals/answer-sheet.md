@@ -18,7 +18,7 @@ pages hold the reasons, and [merge-plan.md](merge-plan.md) says how the answer b
    rounds 67 and 68 (`9daea890`, `46c04f06`; since then tests, docs, the dock's re-copy and round 71's invisible refactors). The walk ids that are not
    prepared (a design choice holds them, or nothing is built) stay as they are unless you answer them one by one.
 3. **`all recommended` for the design choices** (round 72; `wording block: as recommended` and `T: as recommended` the same way,
-   for their rows): every prepared `dc/<id>` branch merges. That is one merge of `dc/all-r72` (`<sha>`: today's head
+   for their rows): every prepared `dc/<id>` branch merges. That is one merge of `dc/all-r72` (`7f987cbc`: today's head
    `2d22df8a` plus every prepared `dc/<id>` branch, conflicts resolved there and named). With `walkthrough: all` as well it is
    a fast-forward of `feat/world-demo` to `all-on-head-r72`, `sugg/all-r65-on-head` plus `dc/all-r72` by a merge (named, not
    by sha: it holds this page). The choices with no branch (the last column says why) stay as they are unless you answer them one by one.
@@ -75,62 +75,62 @@ branch merged with `0dee42ed` is tree-identical to it (rd1, round 69).
 ## Design choices (design-choices.md, 50: 48 as of round 66, and W17 and N1 from round 69)
 
 Every "if you say nothing" is the world as it is today, in the page's own words. Since round 72 every design choice whose
-recommended option changes something has a branch ready, `dc/<id>` (the last column; `<sha>` until the final list lands); the
+recommended option changes something has a branch ready, `dc/<id>` (the last column, with its tip's short sha); the
 others say why not (the recommendation is today's build, a precondition, a decision the page does not make); K3 names a held one. *w* marks the nineteen wording choices: `wording block: as recommended` takes them all at once (W2 then
 still needs a word: `alert` or `waiting`). A group answers at once too: `T: as recommended`.
 
 | Id | The choice | Answer form | Recommended | If you say nothing | Ready branch |
 | --- | --- | --- | --- | --- | --- |
-| T1 | The tour card over the playback bar | `T1: bottom-left / keep` | `bottom-left` | the card stays at the bottom centre | `dc/T1` `<sha>` |
-| T2 | The focus after the tour | `T2: stage / help` | `stage` | the "?" button keeps the ring | `dc/T2` `<sha>` |
-| T3 *w* | The name a screen reader hears for the stage | `T3: town / keep` | `town` | a screen reader hears "CrewHub World" | `dc/T3` `<sha>` (w4-3: not ended by it) |
-| T4 | The chat dock's button over the open sheets | `T4: lift / end / keep` | `lift` or `end` (the review gave both; `end` keeps the dock reachable too) | the button stays over the sheets | `dc/T4-lift` `<sha>` (`lift`), `dc/T4-end` `<sha>` (`end`); `dc/all-r72` carries `dc/T4-end`, `dc/T4-lift` beside it |
-| T5 | The town's framing on a phone | `T5: frame / keep` | `frame` | the phone's town stays framed low | `dc/T5` `<sha>` (the recommended cover fit: fills the band, loses two buildings off the sides on a phone; in `dc/all-r72`); an alternative `dc/T5-margin` `<sha>` keeps all four buildings and does not fill the band; both have pictures |
-| T6 | The phone header's Demo chip | `T6: word / keep` | `word` | the icon alone | `dc/T6` `<sha>` |
+| T1 | The tour card over the playback bar | `T1: bottom-left / keep` | `bottom-left` | the card stays at the bottom centre | `dc/T1` `8f657770` |
+| T2 | The focus after the tour | `T2: stage / help` | `stage` | the "?" button keeps the ring | `dc/T2` `50c72723` |
+| T3 *w* | The name a screen reader hears for the stage | `T3: town / keep` | `town` | a screen reader hears "CrewHub World" | `dc/T3` `405cb14f` (w4-3: not ended by it) |
+| T4 | The chat dock's button over the open sheets | `T4: lift / end / keep` | `lift` or `end` (the review gave both; `end` keeps the dock reachable too) | the button stays over the sheets | `dc/T4-lift` `bb46afd9` (`lift`), `dc/T4-end` `a6558d14` (`end`); `dc/all-r72` carries `dc/T4-end`, `dc/T4-lift` beside it |
+| T5 | The town's framing on a phone | `T5: frame / keep` | `frame` | the phone's town stays framed low | `dc/T5` `fc202a52` (the recommended cover fit: fills the band, loses two buildings off the sides on a phone; in `dc/all-r72`); an alternative `dc/T5-margin` `efb4193c` keeps all four buildings and does not fill the band; both have pictures |
+| T6 | The phone header's Demo chip | `T6: word / keep` | `word` | the icon alone | `dc/T6` `b688bbf5` |
 | T7 | The focus ring round the whole screen | `T7: keep / hide` | `keep` | kept | none: `keep` is today's build |
-| T8 | The host's address in the demo's Settings | `T8: answered / disclosure / keep` | `answered` | the line stays | `dc/T8` `<sha>` |
-| T9 | The long Connect screen on a phone | `T9: disclosure / keep` | `disclosure` | the paragraph stays open | `dc/T9` `<sha>` |
-| W1 *w* | The text view's snapshot time | `W1: clock / keep` | `clock` | the ISO time stays | `dc/W1` `<sha>` |
-| W2 *w* | "Lit:" on a plate | `W2: waiting / alert / keep` | `alert` or `waiting` (the review named both) | "Lit:" | `dc/W2-alert` `<sha>` (`alert`); `waiting` not prepared: two decisions the page does not make (the stall alerts' prefix, the director's rule on the alert's words) |
-| W3 *w* | The demo note on every plate | `W3: cards / keep` | `cards` | the note on every plate | `dc/W3` `<sha>` |
-| W4 *w* | "Needs a person: 3 waiting on a person." | `W4: once / keep` | `once` | said twice | `dc/W4` `<sha>` |
-| W5 *w* | "2 props joins the catalogue" | `W5: plural / keep` | `plural` | "2 props joins" | `dc/W5` `<sha>` |
-| W6 *w* | "the lobby keeps the count" | `W6: drop / keep` | `drop` | the lobby "keeps the count" | `dc/W6` `<sha>` |
-| W7 *w* | "tonight" in Settings | `W7: drop / keep` | `drop` | "tonight" | `dc/W7` `<sha>` |
-| W8 *w* | The "Director model" field | `W8: none / keep` | `none` | the model's name stays | `dc/W8` `<sha>` |
+| T8 | The host's address in the demo's Settings | `T8: answered / disclosure / keep` | `answered` | the line stays | `dc/T8` `7bb15f1a` |
+| T9 | The long Connect screen on a phone | `T9: disclosure / keep` | `disclosure` | the paragraph stays open | `dc/T9` `c6074ef0` |
+| W1 *w* | The text view's snapshot time | `W1: clock / keep` | `clock` | the ISO time stays | `dc/W1` `4c05c22d` |
+| W2 *w* | "Lit:" on a plate | `W2: waiting / alert / keep` | `alert` or `waiting` (the review named both) | "Lit:" | `dc/W2-alert` `b03a6963` (`alert`); `waiting` not prepared: two decisions the page does not make (the stall alerts' prefix, the director's rule on the alert's words) |
+| W3 *w* | The demo note on every plate | `W3: cards / keep` | `cards` | the note on every plate | `dc/W3` `0bafde2d` |
+| W4 *w* | "Needs a person: 3 waiting on a person." | `W4: once / keep` | `once` | said twice | `dc/W4` `b5f2b58c` |
+| W5 *w* | "2 props joins the catalogue" | `W5: plural / keep` | `plural` | "2 props joins" | `dc/W5` `d0d3201c` |
+| W6 *w* | "the lobby keeps the count" | `W6: drop / keep` | `drop` | the lobby "keeps the count" | `dc/W6` `5ff73a07` |
+| W7 *w* | "tonight" in Settings | `W7: drop / keep` | `drop` | "tonight" | `dc/W7` `002220d0` |
+| W8 *w* | The "Director model" field | `W8: none / keep` | `none` | the model's name stays | `dc/W8` `21d68217` |
 | W9 *w* | The words for a ticket status newer than this build | `W9: as-built / <words>` | `as-built` | as built | none: `as-built` is today's build |
 | W10 *w* | The line of a card that could not be drawn | `W10: as-built / <words>` | `as-built` | as built | none: `as-built` is today's build |
 | W11 | A label layer that fails shows nothing | `W11: nothing / line` | `nothing` | nothing is shown | none: `nothing` is today's build |
-| W12 | The "Where is …?" answer keeps talking | `W12: keep / on-choice` | `on-choice` | it keeps announcing | `dc/W12` `<sha>` |
+| W12 | The "Where is …?" answer keeps talking | `W12: keep / on-choice` | `on-choice` | it keeps announcing | `dc/W12` `3ac09921` |
 | W13 *w* | A name that left "Where is …?" | `W13: as-built / <words>` | `as-built` | as built | none: `as-built` is today's build |
 | W14 *w* | Copy that cannot copy on the Pair screen | `W14: as-built / <words>` | `as-built` | as built | none: `as-built` is today's build |
-| W15 *w* | Which bot the host's own words send people to make | `W15: viewer-first / keep` | `viewer-first` | the host's words send people to "New external bot" | `dc/W15` `<sha>` (w2-8: not ended by it) |
-| W16 *w* | "Not a control" and loops' own chat | `W16: say-the-frame / keep` | `say-the-frame` | as it is | `dc/W16` `<sha>` |
-| L1 | "Loops down" for a host that is fine with loops | `L1: own-words / keep` | `own-words` | "Loops down" | `dc/L1` `<sha>` (w2-5: not ended by it) |
-| L2 | Road 2 waits for the browser to be online | `L2: ignore / keep` | `ignore` | offline, road 2 asks nothing | `dc/L2` `<sha>` |
+| W15 *w* | Which bot the host's own words send people to make | `W15: viewer-first / keep` | `viewer-first` | the host's words send people to "New external bot" | `dc/W15` `9bcc0d8d` (w2-8: not ended by it) |
+| W16 *w* | "Not a control" and loops' own chat | `W16: say-the-frame / keep` | `say-the-frame` | as it is | `dc/W16` `d9ac6800` |
+| L1 | "Loops down" for a host that is fine with loops | `L1: own-words / keep` | `own-words` | "Loops down" | `dc/L1` `f4432275` (w2-5: not ended by it) |
+| L2 | Road 2 waits for the browser to be online | `L2: ignore / keep` | `ignore` | offline, road 2 asks nothing | `dc/L2` `f0e9bb8f` |
 | L3 | The chip says Live while the team snapshot is stale (walk finding w2-3) | `L3: snapshot / own-word / keep` | `snapshot` (two limits: measure first that a real loops' stamp moves on an upload with no change, else L3 comes back; a probe clock more than 5 min off reads Stale) | the chip as it is | none: its precondition needs a real loops, measured first |
-| H1 | The host makes a folder it was pointed at private | `H1: warn / tighten` | `warn` | any named folder becomes 0700 | `dc/H1` `<sha>` |
-| H2 | `npm run world` beside a running `npm run host` | `H2: refuse / take-over / keep` | `refuse` | the JSON error page | `dc/H2` `<sha>` |
-| H3 | "Forget this key" on a key from the old default key file | `H3: stored-only / host-says / keep` | `stored-only` | Forget on a default-file key comes back at the next start | `dc/H3` `<sha>` |
-| S1 *w* | cl-lead's status line at 15:36 | `S1: waits / keep` | `waits` | the old line | `dc/S1` `<sha>` |
-| S2 *w* | "Brand and Lab are the quiet ones" | `S2: drop / <words>` | `drop` | the sentence stays | `dc/S2` `<sha>` |
-| S3 *w* | "stuck since the merge" | `S3: idle / keep` | `idle` | "stuck" | `dc/S3` `<sha>` |
-| S4 | The demo's rooms after a seek back | `S4: forget / keep` | `forget` in the demo (live mode keeps them) | the rooms stay after a seek back | `dc/S4` `<sha>` |
-| E1 | Escape in a zone's name field | `E1: escape / keep` | `escape` | leaving the field writes the draft | `dc/E1` `<sha>` |
-| E2 | The demo town in two tabs | `E2: say / sync / keep` | `say` | the later write wins, unsaid | `dc/E2` `<sha>` |
-| K1 | A cast made for a newer world: refused whole, or drawn with what this world knows? | `K1: lenient / refuse` | `lenient`, for those three enums only | a cast from a newer world is refused, and classic-bots stands in | `dc/K1` `<sha>` |
-| K2 | Walking at 8x and 16x: at story speed, or calmer? | `K2: story / even / keep` | `story` | today's frame-rate-dependent slowdown stays | `dc/K2` `<sha>` |
+| H1 | The host makes a folder it was pointed at private | `H1: warn / tighten` | `warn` | any named folder becomes 0700 | `dc/H1` `f18c3977` |
+| H2 | `npm run world` beside a running `npm run host` | `H2: refuse / take-over / keep` | `refuse` | the JSON error page | `dc/H2` `486949f3` |
+| H3 | "Forget this key" on a key from the old default key file | `H3: stored-only / host-says / keep` | `stored-only` | Forget on a default-file key comes back at the next start | `dc/H3` `1c897065` |
+| S1 *w* | cl-lead's status line at 15:36 | `S1: waits / keep` | `waits` | the old line | `dc/S1` `3088d9b3` |
+| S2 *w* | "Brand and Lab are the quiet ones" | `S2: drop / <words>` | `drop` | the sentence stays | `dc/S2` `42a3e577` |
+| S3 *w* | "stuck since the merge" | `S3: idle / keep` | `idle` | "stuck" | `dc/S3` `03e1c039` |
+| S4 | The demo's rooms after a seek back | `S4: forget / keep` | `forget` in the demo (live mode keeps them) | the rooms stay after a seek back | `dc/S4` `d8f7c645` |
+| E1 | Escape in a zone's name field | `E1: escape / keep` | `escape` | leaving the field writes the draft | `dc/E1` `f869085e` |
+| E2 | The demo town in two tabs | `E2: say / sync / keep` | `say` | the later write wins, unsaid | `dc/E2` `3d0357d9` |
+| K1 | A cast made for a newer world: refused whole, or drawn with what this world knows? | `K1: lenient / refuse` | `lenient`, for those three enums only | a cast from a newer world is refused, and classic-bots stands in | `dc/K1` `b64234df` |
+| K2 | Walking at 8x and 16x: at story speed, or calmer? | `K2: story / even / keep` | `story` | today's frame-rate-dependent slowdown stays | `dc/K2` `bfa5eb14` |
 | K3 | A cast that could not be loaded, on screen | `K3: say / keep` | `say` | "No cast named … is installed" | none ready; held with `task/r50-casts-held` `9ebd022c`, a branch of this Mac only, not on origin |
 | X1 | Which agent answers are spoken | `X1: own / all / none` | `own` | nothing is spoken | none: `own` needs a signal the page has only in the demo (which thread is the person's: a decision the page does not make) |
-| X2 | The text view and the Chat panel over the toolbar on a desktop | `X2: inert / below / keep` | `inert` | the covered buttons stay tabbable | `dc/X2` `<sha>` (w2-2 / w3-7: not ended by it) |
+| X2 | The text view and the Chat panel over the toolbar on a desktop | `X2: inert / below / keep` | `inert` | the covered buttons stay tabbable | `dc/X2` `60294429` (w2-2 / w3-7: not ended by it) |
 | X3 | The faded labels | `X3: keep / 0.7 / 0.75` | `keep`, with the README line | 0.32, and no README line | none: `keep` is today's build |
-| X4 | The header at 320 px (with T6) | `X4: drop-word / wrap-tools / keep` | `drop-word` | the overlap stays | `dc/X4` `<sha>` |
-| X5 | The canvas's name: the whole key guide on every focus | `X5: short / keep` | `short`, with the name fixed | the 60 words on every focus | `dc/X5` `<sha>` |
-| P1 | `tools/perf.mjs`'s exit code after a failed scenario | `P1: fail / keep` | `fail` | exit 0 | `dc/P1` `<sha>` |
+| X4 | The header at 320 px (with T6) | `X4: drop-word / wrap-tools / keep` | `drop-word` | the overlap stays | `dc/X4` `5d875d29` |
+| X5 | The canvas's name: the whole key guide on every focus | `X5: short / keep` | `short`, with the name fixed | the 60 words on every focus | `dc/X5` `e6d44389` |
+| P1 | `tools/perf.mjs`'s exit code after a failed scenario | `P1: fail / keep` | `fail` | exit 0 | `dc/P1` `f8751790` |
 | P2 | The copied loops files: catch an edit to a copy's body on CI too | `P2: sync / hash / keep` | `sync` | a copy's body is checked only where a crewhub-loops checkout is | none for the check itself. `sugg/p2-recopy` (the w5-9 and w5-10 rows) is `sync` done by hand for the dock's two files only, re-copied at loops `c7f9d679`; `Menu.tsx`, `bubbles.css` and `useMessageViewport.ts` stay at `a1bed0f`; the world's own `Field.tsx` (not one of P2's copies) carries a port of CL-119 that a later port of loops' Field would replace |
 | P3 | A test that the clock decides, once, with a wide margin | `P3: race / seam / keep` | `keep` | `keep` | none: `keep` is today's build |
-| W17 *w* | An archived building's two ticket lines (walk finding w1-13; new in round 69) | `W17: why / tickets / halls / keep` | `why` | the two lines as they are | `dc/W17` `<sha>` (ends w1-13) |
-| N1 | Fewer labels in a short window (walk finding w4-20; new in round 69) | `N1: compact / tags / keep` | `compact` | the staircase sideways | `dc/N1` `<sha>` (ends w4-20) |
+| W17 *w* | An archived building's two ticket lines (walk finding w1-13; new in round 69) | `W17: why / tickets / halls / keep` | `why` | the two lines as they are | `dc/W17` `0ecd9d3e` (ends w1-13) |
+| N1 | Fewer labels in a short window (walk finding w4-20; new in round 69) | `N1: compact / tags / keep` | `compact` | the staircase sideways | `dc/N1` `58456e28` (ends w4-20) |
 
 ## Walk findings (walkthrough-r64.md)
 
