@@ -302,7 +302,8 @@ for (const [theme, width] of COMBOS) {
       // line; only a chip grown to its word takes the next line. The brand row must not grow for the usual state.
       const beside = await p.evaluate(() => {
         const chip = document.querySelector("button.connection-chip")?.getBoundingClientRect();
-        const title = document.querySelector(".world-brand > strong")?.getBoundingClientRect();
+        // The visible title: under 600 px the short one stands in for the full one (design choice T6).
+        const title = [...document.querySelectorAll(".world-brand > strong")].find((e) => e.getClientRects().length > 0)?.getBoundingClientRect();
         return chip && title ? { chipLeft: Math.round(chip.left), chipTop: Math.round(chip.top), chipBottom: Math.round(chip.bottom), titleRight: Math.round(title.right), titleTop: Math.round(title.top), titleMid: Math.round((title.top + title.bottom) / 2), titleBottom: Math.round(title.bottom) } : null;
       });
       ok(`${tag}: the Live chip sits beside the brand's title, on its first line`, beside !== null && beside.chipLeft >= beside.titleRight && beside.chipTop < beside.titleMid && beside.chipBottom > beside.titleTop, beside ? `chip at ${beside.chipLeft}, ${beside.chipTop}..${beside.chipBottom}; title to ${beside.titleRight}, ${beside.titleTop}..${beside.titleBottom}` : "no chip or title");

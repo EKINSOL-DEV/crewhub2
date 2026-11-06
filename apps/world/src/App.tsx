@@ -727,9 +727,9 @@ const Corner = memo(function Corner({
     <header className="world-corner world-corner-left" data-chrome="">
       <div className="world-brand">
         <span className="brand-mark" aria-hidden="true" />
-        {/* The phone's short title first (design choice T6): the tools read the first strong at 375, the full one on a desktop is hidden nowhere. */}
-        <strong className="brand-short">CrewHub</strong>
         <strong>CrewHub World</strong>
+        {/* The phone's short title (design choice T6), shown under 600 px in the full one's place; the tools read the visible strong. */}
+        <strong className="brand-short">CrewHub</strong>
         {demo && (
           <Menu
             name="Demo scenario"

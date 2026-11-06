@@ -307,12 +307,13 @@ export async function run({ pass, page, check, out }) {
     // line; the brand row wraps only for a chip grown to its word, never in the demo's usual state.
     const beside = await p.evaluate(() => {
       const chip = document.querySelector(".demo-chip")?.getBoundingClientRect();
-      const title = document.querySelector(".world-brand > strong")?.getBoundingClientRect();
+      // The visible title: under 600 px the short one stands in for the full one (design choice T6).
+      const title = [...document.querySelectorAll(".world-brand > strong")].find((e) => e.getClientRects().length > 0)?.getBoundingClientRect();
       return chip && title ? { chipLeft: Math.round(chip.left), chipTop: Math.round(chip.top), chipBottom: Math.round(chip.bottom), titleRight: Math.round(title.right), titleTop: Math.round(title.top), titleMid: Math.round((title.top + title.bottom) / 2), titleBottom: Math.round(title.bottom) } : null;
     });
     ok(`375 ${scheme}: the Demo chip sits beside the brand's title, on its first line`, beside !== null && beside.chipLeft >= beside.titleRight && beside.chipTop < beside.titleMid && beside.chipBottom > beside.titleTop, beside ? `chip at ${beside.chipLeft}, ${beside.chipTop}..${beside.chipBottom}; title to ${beside.titleRight}, ${beside.titleTop}..${beside.titleBottom}` : "no chip or title");
     // Design choice T6 (round 72, word): the chip says "Demo" (the scenario's name is the menu's), the title "CrewHub".
-    const words = await p.evaluate(() => ({ chip: (document.querySelector(".demo-chip")?.innerText ?? "").replace(/\s+/g, " ").trim(), title: (document.querySelector(".world-brand > strong")?.innerText ?? "").replace(/\s+/g, " ").trim() }));
+    const words = await p.evaluate(() => ({ chip: (document.querySelector(".demo-chip")?.innerText ?? "").replace(/\s+/g, " ").trim(), title: (document.querySelector(".world-brand")?.innerText ?? "").replace(/\s+/g, " ").trim() }));
     ok(`375 ${scheme}: the header says Demo beside the title CrewHub (T6)`, words.chip === "Demo" && words.title === "CrewHub", JSON.stringify(words));
     if (scheme === "light") {
       // Round 64 (w4-7): a thumb has no T key and never meets the skip link, so a visible control must open the text view:
