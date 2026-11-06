@@ -219,7 +219,8 @@ function huddleKey(building: Building): string | null {
 
 /**
  * One sentence per hall, the way the three-rooms text view and the room focus status line say it:
- * "Administration: Backlog 4, Planning 2, Review 1, Done 3; 2 flagged letters; 5 archived",
+ * "Administration: Backlog 4, Planning 2, Review 1, Done 3; 2 flagged letters; 5 archived" (boarded up: "Administration: the
+ * racks are boarded up; the tickets are archived with the project", W17),
  * "The floor: Ada at its desk on CH-12 (working), Bo (idle), the analyst desk empty; a huddle at the round table
  * about CH-12", "Lead's office: Lin (working); beacon: …". `laneWords` says an agent's state in brackets; the text
  * view uses its own words, the app the status line's.
@@ -232,7 +233,11 @@ export function hallSummary(building: Building, hall: Hall, laneWords: (agent: A
     const desk = a.deskTicketKey ? ` at its desk on ${a.deskTicketKey}` : "";
     return `${a.displayName}${desk} (${laneWords(a)})`;
   };
-  if (hall === "administration") {
+  if (hall === "administration" && building.archived) {
+    // W17 (walkthrough w1-13): the racks of a boarded-up building hold nothing because the project's archiving took its
+    // tickets; the building's own Tickets line keeps loops' count, so this line says why the two differ.
+    parts.push("the racks are boarded up; the tickets are archived with the project");
+  } else if (hall === "administration") {
     parts.push(RACK_KINDS.map((k) => `${RACK_NAMES[k]} ${building.objects.filter((o) => o.room === k).length}`).join(", "));
     if (building.mailbox.length) parts.push(`${building.mailbox.length} flagged ${building.mailbox.length === 1 ? "letter" : "letters"}`);
     if (building.archivedCount) parts.push(`${building.archivedCount} archived`);
