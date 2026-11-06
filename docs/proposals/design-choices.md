@@ -569,7 +569,7 @@ there: "No cast named … is installed; … stands in." (`castText.ts:46`).
 `keep`.
 **Recommended:** `say` (this page's; the review named the gap).
 **Cost:** `castText.ts` and the registry's `refused()`; a test in `apps/world/test`. No pixel set. Held with round 50's
-cast branch (`task/r50-casts-held`).
+cast branch (`task/r50-casts-held`, `9ebd022c`, a branch of this Mac's repository only, not on origin).
 **If you say nothing:** "No cast named … is installed".
 **Answer:** `K3: say / keep`
 
@@ -710,6 +710,6 @@ S3.**
   work for a later round, not a product choice.
 - **The soak rule's readings** (rounds 45 and 47n): the measuring tool's rule; the Lead's report says it needs no
   decision from Nicky.
-- **The tour's 1.5 s beat** (open question 5) and the other fifteen merge decisions: they are in
+- **The tour's 1.5 s beat** (open question 5) and the other fourteen merge decisions: they are in
   [open-questions.md](open-questions.md).
 - **Rounds 41 to 47:** their reports leave no product choice for Nicky; what they left is tool and test work.
