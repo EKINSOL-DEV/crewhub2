@@ -642,9 +642,10 @@ function Wayfinding({ districts, district, marks, onIntent }: { districts: Distr
 /* Labels stay few, like the Greenhouse room: by default a name pill and at most one bubble per robot. A room's other
    labels (its sign, update cards, status and waiting tags, stalled clocks, pallet counts, rule chips) show while the room
    is revealed (under the pointer, with the keyboard focus or zoomed to), for the agent or object under the pointer or
-   selected, and everywhere with Details on. Below 600 px only the focused or zoomed room reveals, there is one room sign
-   (in one word), and name pills show only in a revealed room. Everything hidden here stays in the text view. */
-const COMPACT = "(max-width: 599px)";
+   selected, and everywhere with Details on. Below 600 px wide, or below 480 px tall (a phone held sideways, 750 x 342:
+   design choice N1 `compact`, round 72, walkthrough w4-20), only the focused or zoomed room reveals, there is one room
+   sign (in one word), and name pills show only in a revealed room. Everything hidden here stays in the text view. */
+const COMPACT = "(max-width: 599px), (max-height: 479px)";
 const useCompact = (): boolean => useMedia(COMPACT);
 
 const same = (a: Pick | null, b: Pick | null) => !!a && !!b && JSON.stringify(a) === JSON.stringify(b);
