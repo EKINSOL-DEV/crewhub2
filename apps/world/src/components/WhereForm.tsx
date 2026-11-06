@@ -37,12 +37,15 @@ export function WhereForm({ civic, rooms = "classic" }: { civic?: CivicWords; ro
   };
   const answer = gone !== null ? goneWords(gone) : selected ? where(model, selected, civic, rooms) : "No agents are in the world yet.";
   // Said once, at the choice (W12): the live region takes the answer of that moment and keeps it while the visible
-  // answer moves on; so the effect follows the choice alone, not the answer.
+  // answer moves on; so the effect follows the choice alone, not the answer. The choice the region last saw is read
+  // before the ref moves on: React runs a queued updater later, after `seen.current` would already name the new choice,
+  // which kept the region silent (round 73, wb-1).
   const [said, setSaid] = useState("");
   const seen = useRef<WhereChosen | null>(null);
   useEffect(() => {
-    setSaid((words) => whereSaid(words, seen.current, chosen, answer));
+    const before = seen.current;
     seen.current = chosen;
+    setSaid((words) => whereSaid(words, before, chosen, answer));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chosen]);
   return (
