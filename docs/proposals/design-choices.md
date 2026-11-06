@@ -820,12 +820,12 @@ S1, S2, S3.**
 
 **What was walked (6 Nov 2026, a day round):** `all-on-head-r72@ed8168d0`, the build a person meets after "all recommended,
 walkthrough: all" (`feat/world-demo@fab95579`, the 40 walkthrough suggestions and the 38 prepared design choices), as a
-production build against the fake, by four walkers who built none of the `dc/<id>` branches, along the six journeys of
-round 64. Two questions per choice: does it do what its heading's recommended option says (**works**, **half**, **miss**,
+production build against the fake, by three walkers (wa, wb, wc) who built none of the `dc/<id>` branches, along the six
+journeys of round 64. Two questions per choice: does it do what its heading's recommended option says (**works**, **half**, **miss**,
 written against its `dc/<id>`), and what is new that the walkthrough-only candidate `sugg/all-r65-on-head@d03e7fc0` did
 not have (checked on that candidate's own build before anything is called new). The walkers' reports (`r73-wa.md`,
 `r73-wb.md`, `r73-wc.md`) hold every step, measurement and picture; this section is the summary. A miss is fixed on its
-`dc/<id>` branch by another walker, red first, reviewed by a third, and carried into `dc/all-r72` and `all-on-head-r72`
+`dc/<id>` branch by another walker, red first, reviewed by a third (the outcome is written here when it is in), and carried into `dc/all-r72` and `all-on-head-r72`
 by merges (the Lead's report names the shas).
 
 ### Journey 1: first start, the tour, the scenarios, buildings and rooms, Details, the text view (wa)
@@ -840,8 +840,8 @@ X2 (`inert`, the text view), X5 (`short`), S1 (`waits`), S2 (`drop`), S3 (`idle`
 
 **Half:** T2 (`stage`): the focus does go to the stage on every road, but after Done by the mouse the stage's focus ring
 (T7 `keep`) frames the whole screen, so the picture T2 meant to take off the "?" button now stands round the screen's
-edge (wa-1, confusing). A choice for Nicky, not a fix: `:focus-visible` already hides the ring after a mouse Skip; the
-tour's own close by the mouse could end the same way.
+edge (wa-1, confusing, new). Fixed on `dc/T2@ab19869d` by wb (a tour ended by a pointer focuses the stage without a
+visible ring, by the keyboard with it; two tour rows, red then green), under wc's review.
 
 **Miss:** W12, found in journey 5 (below) and met in journey 1 too (the text view's Where form at 1440 px: the status region empty after two choices, over 24 s).
 
@@ -891,11 +891,9 @@ N1's options).
 bar's left part, since the bar is wider than the margins there; upright the phone rule stands and nothing is covered.
 T2 (`stage`): the focus goes to the canvas, but after a tapped Done the canvas wears its 2 px ring round the whole
 screen and a tap on the ground keeps it (wc-1, confusing, new; the same mechanism as wa-1, fixed on `dc/T2@ab19869d`,
-which covers the tap road: a tap's click has `detail` 1).
+which covers the tap road: a tap's click has `detail` 1; under wc's review).
 
-**Not seen as a person:** S4 (a seek back shows no empty room on either build; its model test holds it), K1 (casts
-register from code only), K2 (the label windows caught the figures settling at their desks, not the engine's walk; the
-speed test holds it).
+**Not seen as a person:** S4 (a seek back shows no empty room on either build; its model test holds it).
 
 **New (confusing, `dc/T5`, wc-2):** at the home view upright the cover fit puts Launch & Marketing's sign and its "1
 waiting on a person" beacon off the left edge, the Lodge off the top left, and the "OPS" sign under the camera toolbar,
@@ -932,7 +930,7 @@ through every choice (sampled every 25 ms for 3 s, by the mouse and by typing on
 candidate says the answer at once on the same choice (and keeps talking, which is W12's complaint). The cause is in the
 effect: it queues the status text from a ref and moves the ref on its next line, and React runs the queued updater
 after the ref moved, so the comparison always says "same name". The pure test cannot see it; a component test that picks
-a name and reads the status region can. Fixed on `dc/W12@270ef5f3` by wa (a walk row, red 44/45 then green 45/45), reviewed by wc.
+a name and reads the status region can. Fixed on `dc/W12@270ef5f3` by wa (a walk row, red 44/45 then green 45/45), under wc's review.
 
 ### Journey 6: the town editor (wc; a desktop at 1440 x 900, the iPhone by touch; demo, then live)
 
@@ -941,3 +939,7 @@ focus in the field; Enter and leaving the field write; Undo takes the write back
 is absent, as the option says), W2 (`alert`: the hovered plate reads "Alert: CR-23 waiting on Nicky"; the status tag and
 the text view's "is lit:" keep their words, as the heading says), W3 (`cards`), X5 (`short`), T4 (`end`: Settings and
 the text view end at y 782, the dock's button starts at 799). Nothing half, nothing new.
+
+**Not seen as a person:** K1 (casts register from code only, so no road brings a newer cast into the page; its two
+tests hold it), K2 (the label windows caught the figures settling at their desks, not the engine's walk; the speed test
+holds it).
