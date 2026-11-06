@@ -101,6 +101,8 @@ export function createHostSource(options: HostSourceOptions = {}, tuning: HostSo
   const listeners = new Set<(message: SourceMessage) => void>();
   const changeListeners = new Set<() => void>();
   let state: ConnectionState = "connecting";
+  /** The host's message on a host-tabs or host-failed 503 (design choice L1); null in every other state. */
+  let reason: string | null = null;
   /** The host's word on its key from the last status that carried one; null until then. */
   let keyWord: HostKeyState["state"] | null = null;
   let running = false;
@@ -133,10 +135,21 @@ export function createHostSource(options: HostSourceOptions = {}, tuning: HostSo
       }
     }
   };
-  const setState = (next: ConnectionState) => {
-    if (state === next) return;
+  const setState = (next: ConnectionState, why: string | null = null) => {
+    if (state === next && reason === why) return;
     state = next;
+    reason = why;
     changed();
+  };
+  /**
+   * The state a 503 of the host means: `unauthorized` as the host says it; the host's own two (`too_many_tabs`,
+   * `snapshot_failed`) with its message (design choice L1); anything else is loops not answering through the host.
+   */
+  const refused = (body: { error?: string; message?: string } | null): void => {
+    if (body?.error === "unauthorized") setState("unauthorized");
+    else if (body?.error === "too_many_tabs") setState("host-tabs", body.message ?? null);
+    else if (body?.error === "snapshot_failed") setState("host-failed", body.message ?? null);
+    else setState("loops-down");
   };
   const setKeyWord = (next: HostKeyState["state"] | null) => {
     if (keyWord === next) return;
@@ -249,8 +262,7 @@ export function createHostSource(options: HostSourceOptions = {}, tuning: HostSo
       return false;
     }
     if (response.status === 503) {
-      const body = (await response.json().catch(() => null)) as { error?: string } | null;
-      setState(body?.error === "unauthorized" ? "unauthorized" : "loops-down");
+      refused((await response.json().catch(() => null)) as { error?: string; message?: string } | null);
       return false;
     }
     if (response.status === 401 && (await notPaired(response))) {
@@ -297,10 +309,8 @@ export function createHostSource(options: HostSourceOptions = {}, tuning: HostSo
       return "ended";
     }
     if (!response.ok || response.body === null) {
-      if (response.status === 503) {
-        const body = (await response.json().catch(() => null)) as { error?: string } | null;
-        setState(body?.error === "unauthorized" ? "unauthorized" : "loops-down");
-      } else if (response.status === 401 && (await notPaired(response))) setState("unpaired");
+      if (response.status === 503) refused((await response.json().catch(() => null)) as { error?: string; message?: string } | null);
+      else if (response.status === 401 && (await notPaired(response))) setState("unpaired");
       return "ended";
     }
     retryMs = timings.retryMinMs;
@@ -373,7 +383,7 @@ export function createHostSource(options: HostSourceOptions = {}, tuning: HostSo
           return "ok";
         }
         if (message.loops === "ok") {
-          if (state === "loops-down" || state === "unauthorized" || state === "stream-busy") {
+          if (state === "loops-down" || state === "unauthorized" || state === "stream-busy" || state === "host-tabs" || state === "host-failed") {
             setState("catching-up");
             return "resnapshot";
           }
@@ -481,6 +491,7 @@ export function createHostSource(options: HostSourceOptions = {}, tuning: HostSo
 
   const connection: ConnectionStatus = {
     state: () => state,
+    reason: () => reason,
     key: () => keyWord,
     onChange(listener) {
       changeListeners.add(listener);

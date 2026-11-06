@@ -7,7 +7,7 @@ import { Bubbles } from "./components/bubbles/Bubbles";
 import { attachSendFocusGuard } from "./state/dockFocus";
 import { TownSettings } from "./components/TownSettings";
 import { SourceSettings } from "./components/SourceSettings";
-import { ConnectionChip, connectionLine, connectionWord } from "./components/ConnectionChip";
+import { ConnectionChip, connectionHint, connectionLine, connectionWord } from "./components/ConnectionChip";
 import { ConnectionPanel } from "./components/ConnectionPanel";
 import { ChatPanel } from "./components/ChatPanel";
 import { Tour } from "./components/Tour";
@@ -44,7 +44,7 @@ import { toggleFps } from "./state/fps";
 import { readRoleOverrides, writeRoleOverrides } from "./state/roleOverrides";
 import { useBuildMode } from "./state/build";
 import { useDark, useTheme } from "./state/theme";
-import { townRuntime, useChat, useChatRoad, useConnection, useConnectionKey, useDirectorFeed, useRecentAnswers, useSaid, useTown, useWorld, worldRuntime } from "./state/runtimes";
+import { townRuntime, useChat, useChatRoad, useConnection, useConnectionKey, useConnectionReason, useDirectorFeed, useRecentAnswers, useSaid, useTown, useWorld, worldRuntime } from "./state/runtimes";
 import type { TownLayer } from "./world/propLayer";
 import { pageConfig } from "./state/page";
 import { translate } from "./i18n";
@@ -447,13 +447,16 @@ function World() {
 
   const demo = model.mode === "demo";
   const connection = useConnection();
+  const connectionReason = useConnectionReason();
   // A change of the connection's state (Live, Loops down, Catching up, Stream busy, back to Live) is said once in the live
   // region: the chip changes its word, and a screen reader would otherwise hear nothing. Not the first value on load.
   const spokenConnection = useRef<ConnectionState | null>(null);
   useEffect(() => {
     if (spokenConnection.current !== null && connection !== null && spokenConnection.current !== connection)
-      setAnnouncement(translate("world.connection.changed", { state: connectionWord(connection), hint: translate(`world.connection.hint.${connection}`) }));
+      setAnnouncement(translate("world.connection.changed", { state: connectionWord(connection), hint: connectionHint(connection, connectionReason) }));
     spokenConnection.current = connection;
+    // The reason rides with its state; a change of the words alone is not said again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connection]);
   // The text view's Chat line and the Chat panel's small print say the chat session's state (round 14): one health read
   // when either opens on a live page (state/health.ts, the `glance` need), so the words are the host's current ones.
@@ -506,7 +509,7 @@ function World() {
 
       {/* The corners come before the scene, so Tab reaches the header before the scene's labels, as it is seen (round 52,
           r50-a11y A9); they still paint over the scene's top overlays by their z-index (world.css `.world-corner`). */}
-      <Corner demo={demo} connection={connection} connectionOpen={connectionOpen} onOpenConnection={openConnection} graphicsFailed={graphicsFailed} trail={trail} onGo={go} onJump={openJump} jumpOpen={jumpOpen} following={following ? agentName(following) : null} onStopFollow={() => follow(null)} />
+      <Corner demo={demo} connection={connection} connectionReason={connectionReason} connectionOpen={connectionOpen} onOpenConnection={openConnection} graphicsFailed={graphicsFailed} trail={trail} onGo={go} onJump={openJump} jumpOpen={jumpOpen} following={following ? agentName(following) : null} onStopFollow={() => follow(null)} />
 
       <CornerTools theme={theme} cycle={cycle} details={details} buildOn={build.state.on} toggleBuild={build.toggle} settingsOpen={settingsOpen} openSettings={openSettings} closeSettings={closeSettings} graphicsFailed={graphicsFailed} openTour={openTour} openText={openText} />
 
@@ -536,7 +539,7 @@ function World() {
         {!demo && connection === "connecting" && <FirstSnapshot />}
       </main>
 
-      {connectionOpen && connection && <ConnectionPanel state={connection} onClose={closeConnection} />}
+      {connectionOpen && connection && <ConnectionPanel state={connection} reason={connectionReason} onClose={closeConnection} />}
 
       {chatOpen && <ChatPanel agent={chatAgent} health={hostHealth} road={chatRoad} full={narrow} answers={answers} recentEmpty={recentEmptyWords("live", chatRoad)} targetOf={talk.answerTarget} onAnswer={openAnswer} onClose={closeChat} />}
 
@@ -694,6 +697,7 @@ const SCENARIO_CHOICES = pageConfig().scenarioChoices;
 const Corner = memo(function Corner({
   demo,
   connection,
+  connectionReason,
   connectionOpen,
   onOpenConnection,
   graphicsFailed,
@@ -707,6 +711,8 @@ const Corner = memo(function Corner({
   demo: boolean;
   /** The live source's state, where the Demo chip stands in demo mode; null for the demo. */
   connection: ConnectionState | null;
+  /** The host's own words on a host-tabs or host-failed state (design choice L1). */
+  connectionReason: string | null;
   /** Whether the Connection panel is open; the chip opens it. */
   connectionOpen: boolean;
   onOpenConnection: () => void;
@@ -753,7 +759,7 @@ const Corner = memo(function Corner({
             ]}
           />
         )}
-        {!demo && connection && <ConnectionChip state={connection} open={connectionOpen} onOpen={onOpenConnection} />}
+        {!demo && connection && <ConnectionChip state={connection} reason={connectionReason} open={connectionOpen} onOpen={onOpenConnection} />}
       </div>
       {!graphicsFailed && (
         <nav className="world-breadcrumb" aria-label="Where you are" data-levels={trail.length}>

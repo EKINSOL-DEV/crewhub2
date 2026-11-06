@@ -169,6 +169,12 @@ export function useConnection(): ConnectionState | null {
   return useSyncExternalStore(subscribeOf(connection), () => (connection ? connection.state() : null));
 }
 
+/** The host's own words on a host-tabs or host-failed state (design choice L1); null otherwise and in demo mode. */
+export function useConnectionReason(): string | null {
+  const connection = worldRuntime().connection;
+  return useSyncExternalStore(subscribeOf(connection), () => (connection ? connection.reason() : null));
+}
+
 /** The host's own word on its key from the stream's last status (none, checking, rejected, ok…); null in demo mode or from a host that does not say. */
 export function useConnectionKey(): ReturnType<ConnectionStatus["key"]> {
   const connection = worldRuntime().connection;

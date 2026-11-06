@@ -218,7 +218,7 @@ test("the first snapshot is marked once; later snapshots (a seek) are not", () =
 test("reconnect: the host-connected outlet fires each time the connection comes (back) to live, never while it stays live", () => {
   let state: ConnectionState = "connecting";
   const listeners = new Set<() => void>();
-  const connection: ConnectionStatus = { state: () => state, key: () => null, onChange: (l) => (listeners.add(l), () => listeners.delete(l)) };
+  const connection: ConnectionStatus = { state: () => state, reason: () => null, key: () => null, onChange: (l) => (listeners.add(l), () => listeners.delete(l)) };
   const set = (next: ConnectionState) => {
     state = next;
     for (const l of listeners) l();
