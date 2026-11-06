@@ -13,7 +13,7 @@ pages hold the reasons, and [merge-plan.md](merge-plan.md) says how the answer b
    question 1 (`tab` if the cookie's threat is in scope, else `cookie+expiry`), T4 (`lift` or `end`) and W2 (`alert` or
    `waiting`); `all recommended, 1: tab, T4: end, W2: alert` settles them.
 2. **`walkthrough: all`**: every prepared walk branch merges. That is a fast-forward of `feat/world-demo` to
-   `sugg/all-r65-on-head`: today's head plus `sugg/all-r65@<sha>` (the 40 prepared branches and, tonight, `sugg/p2-recopy`,
+   `sugg/all-r65-on-head`: today's head plus `sugg/all-r65@49c50b04` (the 40 prepared branches and, tonight, `sugg/p2-recopy`,
    the w5-9 and w5-10 answer); its tip is on origin, and it is the same page code as the builds four walkers walked in
    rounds 67 and 68 (`9daea890`, `46c04f06`; since then tests, docs and the dock's re-copy). The walk ids that are not
    prepared (a design choice holds them, or nothing is built) stay as they are unless you answer them one by one.
@@ -132,7 +132,7 @@ One row per id in the six journeys and the "Findings an answer branch already co
 page's "Fixed this round" table and the three the page marks as merged since (the line under the table) are done and have
 no row; the section "What the walks added to the open design choices"
 adds no id of its own. **Prepared** means a `sugg/<id>` branch is ready: `do it` merges it, `as it is` leaves it; every
-prepared branch's tip is inside `sugg/all-r65` (`<sha>` tonight), so `walkthrough: all` is the 40 `do it` rows
+prepared branch's tip is inside `sugg/all-r65` (`49c50b04` tonight), so `walkthrough: all` is the 40 `do it` rows
 at once, and `journey N: as suggested` is one journey's; w5-9 and w5-10 join it tonight through `sugg/p2-recopy` (the
 candidate's new tip follows the proof), so `walkthrough: all` then says yes to them in the preferred way. Where a design choice holds a finding, the row points there and
 takes that choice's recommendation; answer the choice, not the id. Where nothing is built and no choice holds it, the
@@ -173,8 +173,8 @@ answer, as the page says. A sha is the branch's tip tonight (`git rev-parse`; lo
 | w4-21 | The Chat panel's two small rows are 18 and 20 px tall | `w4-21: do it / as it is` | `do it` (real 40 px rows, not a pad) | the small rows | `sugg/w4-21` `97a3dde3` |
 | w4-22 | The Chat panel says nothing when loops is down | `w4-22: do it / as it is` | `do it` | the panel keeps "Sign in …" | `sugg/w4-22` `f388d8da` |
 | w5-6 | The camera keys say nothing to a screen reader | `w5-6: do it / as it is` | `do it` | silent keys | `sugg/w5-6` `3a724a4c` |
-| w5-9 | The chat dock's message box drops keystrokes that come fast (a verbatim crewhub-loops copy) | `w5-9: do it / as it is` | `do it`. crewhub-loops fixed it itself (CL-119, `d4cf7397`, 1 Oct, the Field "echo"), after the copies' pin `a1bed0f`. The preferred branch re-copies the dock's two files (`Bubbles.tsx`, `queries.ts`) at loops `c7f9d679` with `sendChord.ts` as a sixth copy, no divergence record and the copy rule unchanged, one branch for w5-9 and w5-10. The fallback ports loops' lines as a declared divergence of the copy and changes the copy rule to record it; your call per `loops-dock-input.md` (dk, tonight) | every other fast character is lost | preferred: `sugg/p2-recopy` `<sha>` (rd1 adds one test commit); fallback: `sugg/w5-9` `53657731` |
-| w5-10 | In the dock's message box Enter adds a newline and only Send sends (a loops copy) | `w5-10: do it / as it is` | `do it`. loops' own choice (CL-181, `c7f9d679`, 3 Oct: Ctrl+Enter or Cmd+Enter sends; Enter stays a newline), the walkthrough's second way. The same preferred branch as w5-9 brings it; the fallback is w5-10's own branch, from w5-9's, with a declared divergence and the copy-rule change | Enter breaks the line, nothing sends but the button | preferred: `sugg/p2-recopy` `<sha>`; fallback: `sugg/w5-10` `20f63b48` |
+| w5-9 | The chat dock's message box drops keystrokes that come fast (a verbatim crewhub-loops copy) | `w5-9: do it / as it is` | `do it`. crewhub-loops fixed it itself (CL-119, `d4cf7397`, 1 Oct, the Field "echo"), after the copies' pin `a1bed0f`. The preferred branch re-copies the dock's two files (`Bubbles.tsx`, `queries.ts`) at loops `c7f9d679` with `sendChord.ts` as a sixth copy, no divergence record and the copy rule unchanged, one branch for w5-9 and w5-10. The fallback ports loops' lines as a declared divergence of the copy and changes the copy rule to record it; your call per `loops-dock-input.md` (dk, tonight) | every other fast character is lost | preferred: `sugg/p2-recopy` `5c922d5b`; fallback: `sugg/w5-9` `53657731` |
+| w5-10 | In the dock's message box Enter adds a newline and only Send sends (a loops copy) | `w5-10: do it / as it is` | `do it`. loops' own choice (CL-181, `c7f9d679`, 3 Oct: Ctrl+Enter or Cmd+Enter sends; Enter stays a newline), the walkthrough's second way. The same preferred branch as w5-9 brings it; the fallback is w5-10's own branch, from w5-9's, with a declared divergence and the copy-rule change | Enter breaks the line, nothing sends but the button | preferred: `sugg/p2-recopy` `5c922d5b`; fallback: `sugg/w5-10` `20f63b48` |
 | w5-11 | A card opened by Enter on the stage says nothing to a screen reader | `w5-11: do it / as it is` | `do it` | silence | `sugg/w5-11` `11cf9e72` |
 | w5-15 | The key hints are read as part of a control's name | `w5-15: do it / as it is` | `do it` | "Town Esc" | `sugg/w5-15` `b4601966` |
 | w5-16 | The Help menu reads descriptions as names and the scenario picker reads its tick | `w5-16: do it / as it is` | `do it` (the tick's half only; the name's half is a crewhub-loops copy) | both read | `sugg/w5-16` `af7abe8e` |
