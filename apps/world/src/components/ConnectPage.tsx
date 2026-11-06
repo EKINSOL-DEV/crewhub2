@@ -228,7 +228,11 @@ export function ConnectPage({ screen }: ConnectPageProps) {
                     <li>{emphasised(t("world.connect.connect.step2"))}</li>
                     <li>{emphasised(t("world.connect.connect.step3"))}</li>
                   </ol>
-                  <p className="hint connect-sub">{emphasised(t("world.connect.connect.viewer", { origin: typeof location === "undefined" ? "" : location.origin }))}</p>
+                  {/* The older-loops road behind a disclosure, closed (design choice T9, round 72): the key field stays in the phone's first screenful. */}
+                  <details className="connect-older">
+                    <summary>{t("world.connect.connect.older")}</summary>
+                    <p className="hint connect-sub">{emphasised(t("world.connect.connect.viewer", { origin: typeof location === "undefined" ? "" : location.origin }))}</p>
+                  </details>
                 </>
               )}
               <div className="connect-open">
