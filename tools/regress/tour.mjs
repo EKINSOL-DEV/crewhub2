@@ -51,6 +51,9 @@ export async function run({ pass, page, check, out }) {
   await pg.waitForTimeout(200);
   const flag = await pg.evaluate(() => localStorage.getItem("crewhub-world.tour")).catch(() => null);
   ok("tour: Skip closes it and the browser remembers", (await card.count()) === 0 && flag === "done", String(flag));
+  // Design choice T2 (round 72, stage): the tour opened with nothing focused, so its end puts the focus on the stage.
+  const after = await pg.evaluate(() => (document.activeElement?.matches("main.world-stage canvas") ? "stage" : (document.activeElement?.getAttribute("aria-label") ?? document.activeElement?.tagName ?? "none"))).catch(() => "no page");
+  ok("tour: on a first visit the focus goes to the stage when the tour closes, not to the ? button (T2)", after === "stage", after);
   await pg.reload();
   await dressed(pg, 60000).catch(() => {});
   await pg.waitForTimeout(2500);
