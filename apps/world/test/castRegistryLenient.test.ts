@@ -38,3 +38,14 @@ test("K1: a cast from a newer world registers, and the registry warns once about
   assert.equal(registry.registerCast({ manifest: manifest("newer-pegs-2"), figure }), true);
   assert.equal(warnings.length, 2);
 });
+
+test("K1: a cast whose person comes from a newer world warns once about what the person check ignored", () => {
+  const warnings: string[] = [];
+  const registry = createCastRegistry("pegs", (m) => warnings.push(m));
+  const ofThisWorld: FigureSpec = { ...figure, poses: {} };
+  const person: FigureSpec = { ...figure, poses: { singing: { body: { rotation: [0, 0, 10] } } } as FigureSpec["poses"] };
+  assert.equal(registry.registerCast({ manifest: manifest("newer-person"), figure: ofThisWorld, person }), true);
+  assert.deepEqual(registry.refused(), []);
+  assert.equal(warnings.length, 1, warnings.join("\n---\n"));
+  assert.match(warnings[0]!, /^Cast "newer-person" comes from a newer world; ignored:\n {2}figure\.poses\.singing: is not an activity this world knows; ignored$/);
+});

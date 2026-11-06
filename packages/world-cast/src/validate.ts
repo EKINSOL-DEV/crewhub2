@@ -352,7 +352,9 @@ export function validatePerson(value: unknown): CastValidation<FigureSpec> {
   }
   if (isAccent(spec.halo)) r.error("person.halo", NO_ACCENT);
   if ("perch" in spec) r.error("person.perch", "a person never sits at a desk: no perch");
-  return r.done(value);
+  const own = r.done<FigureSpec>(value);
+  // Design choice K1: what the figure check ignored is said of the person too (round 73: it was dropped here).
+  return own.ok ? { ...own, warnings: [...checked.warnings, ...own.warnings] } : own;
 }
 
 /** A patch is checked on its own shape; whether its joints and part ids exist is checked on the patched figure. */

@@ -559,6 +559,18 @@ export async function run({ pass, page, check, out }) {
     if (pick) await whereSelect.selectOption({ label: pick });
     await p.getByRole("button", { name: /where/i }).first().click().catch(() => {});
     await p.waitForTimeout(500);
+    // Design choice W12 (`on-choice`, round 72): the answer is announced once when a name is chosen, so the form's
+    // sr-only status region holds the answer of that moment (the visible answer may already have moved on). Round 73
+    // (wb-1): on 3ac09921 the region stayed empty after a choice, because the effect queued its updater and then moved
+    // the "last seen" ref before React ran it; this row reads the region after the choice and after a second one.
+    const whereStatus = () => sheet(p).locator(".where-form [role=status]").first().innerText().then((t) => t.replace(/\s+/g, " ").trim()).catch(() => "");
+    const said1 = await whereStatus();
+    const second = options.find((o) => o !== pick && /cr-dev-1|CR Lead/i.test(o)) ?? options.find((o) => o !== pick && o.trim());
+    if (second) await whereSelect.selectOption({ label: second });
+    await p.waitForTimeout(500);
+    const said2 = await whereStatus();
+    const name1 = (pick ?? "").replace(/\s*\(.*$/, ""), name2 = (second ?? "").replace(/\s*\(.*$/, "");
+    ok("W12: a choice in Where is …? is announced once, the status region holding that moment's answer, and a second choice is announced again (round 73, wb-1)", said1.length > 0 && said1.includes(name1) && said2.length > 0 && said2 !== said1 && said2.includes(name2), `after "${name1}": "${said1.slice(0, 60)}"; after "${name2}": "${said2.slice(0, 60)}"`);
   }
   const whereText = await sheet(p).innerText().catch(() => "");
   ok("where answers", /You are|is in|real avatar|town hall/i.test(whereText), (whereText.match(/(You are[^\n]*)/) ?? [""])[0].slice(0, 140));
