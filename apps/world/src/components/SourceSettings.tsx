@@ -1,9 +1,9 @@
-/* Settings > Source: Automatic, Demo or Live, kept in this browser; the host URL as the page reaches it; what runs now
-   and why. Changing the choice reloads the page without a `?source=` override, since the source is decided once before
+/* Settings > Source: Automatic, Demo or Live, kept in this browser; the host URL as the page reaches it, once a host has
+   answered (design choice T8, round 72); what runs now and why. Changing the choice reloads the page without a `?source=` override, since the source is decided once before
    the app mounts (state/source.ts). */
 import { translate, useT } from "../i18n";
 import { useHostHealth } from "../state/health";
-import { hostUrl, hrefWithoutOverride, PROBE_TIMEOUT_MS, SOURCE_SETTINGS, writeSourceSetting, type SourceSetting } from "../state/source";
+import { hostAnswered, hostUrl, hrefWithoutOverride, PROBE_TIMEOUT_MS, SOURCE_SETTINGS, writeSourceSetting, type SourceSetting } from "../state/source";
 import { pageConfig } from "../state/page";
 import { Field } from "./primitives";
 
@@ -44,11 +44,13 @@ export function SourceSettings() {
       <p className="hint source-now">
         {t(`world.source.now.${source.source}`)} {reason}
       </p>
-      <p className="hint source-host">
-        {t("world.source.hostUrl", { url: hostUrl(globalThis.location?.origin ?? "") })}
-        {health && ` ${t(source.source === "live" && health.keyName ? "world.source.observer" : "world.source.keyName", { name: health.keyName })}`}
-        {health?.sharedKey && ` ${t("world.source.sharedKey")}`}
-      </p>
+      {hostAnswered(health) && (
+        <p className="hint source-host">
+          {t("world.source.hostUrl", { url: hostUrl(globalThis.location?.origin ?? "") })}
+          {` ${t(source.source === "live" && health.keyName ? "world.source.observer" : "world.source.keyName", { name: health.keyName })}`}
+          {health.sharedKey && ` ${t("world.source.sharedKey")}`}
+        </p>
+      )}
     </fieldset>
   );
 }
