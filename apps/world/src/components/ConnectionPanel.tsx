@@ -21,15 +21,17 @@ import { archivedSourceKey, connectOutcome, forgetOffer, loopsVersion, relativeT
 import { useHealthNeed, useHealthView } from "../state/health";
 import { useTown, useWorld } from "../state/runtimes";
 import { townKeeping, townKeepingWords, zonesOriginWords } from "../world/zoneText";
-import { connectionWord } from "./ConnectionChip";
+import { connectionHint, connectionWord } from "./ConnectionChip";
 import { Button, Card } from "./primitives";
 
 interface ConnectionPanelProps {
   state: ConnectionState;
+  /** The host's own words on a host-tabs or host-failed state (design choice L1). */
+  reason?: string | null;
   onClose: () => void;
 }
 
-export function ConnectionPanel({ state, onClose }: ConnectionPanelProps) {
+export function ConnectionPanel({ state, reason = null, onClose }: ConnectionPanelProps) {
   const { t } = useT();
   const { model } = useWorld();
   const town = useTown();
@@ -135,7 +137,7 @@ export function ConnectionPanel({ state, onClose }: ConnectionPanelProps) {
           <dt>{t("world.connection.panel.state")}</dt>
           <dd>
             <span data-connection={state}>{connectionWord(state)}</span>
-            <span className="hint"> {t(`world.connection.hint.${state}`)}</span>
+            <span className="hint"> {connectionHint(state, reason)}</span>
           </dd>
           {connection && (
             <>

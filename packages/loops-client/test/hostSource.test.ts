@@ -56,6 +56,8 @@ interface FakeHost {
   teamAnswered: number;
   cursor: number;
   snapshotStatus: number;
+  /** The body of a snapshot or stream refused with `snapshotStatus`/`streamStatus`; null: `{ error: "loops_down" }`. */
+  snapshotBody: { error: string; message?: string } | null;
   /** Not 200: the stream request is refused with that status (the host is not well); a reconnect back-off grows on it. */
   streamStatus: number;
   /** False: the host no longer knows this browser's cookie; the snapshot and the stream answer 401 not_paired. */
@@ -130,6 +132,7 @@ async function startHost(): Promise<FakeHost> {
     teamAnswered: 0,
     cursor: 100,
     snapshotStatus: 200,
+    snapshotBody: null,
     streamStatus: 200,
     paired: true,
     hang: false,
@@ -159,7 +162,7 @@ async function startHost(): Promise<FakeHost> {
       host.snapshots += 1;
       host.onSnapshot?.();
       if (!host.paired) return json(res, 401, { error: "not_paired" });
-      if (host.snapshotStatus !== 200) return json(res, host.snapshotStatus, { error: "loops_down" });
+      if (host.snapshotStatus !== 200) return json(res, host.snapshotStatus, host.snapshotBody ?? { error: "loops_down" });
       return json(res, 200, snapshotAt(host.cursor));
     }
     if (url.pathname === worldApiPath("/team")) {
@@ -180,7 +183,7 @@ async function startHost(): Promise<FakeHost> {
       host.cursors.push(url.searchParams.get("cursor"));
       if (host.hang) return; // never answered; closed with the server
       if (!host.paired) return json(res, 401, { error: "not_paired" });
-      if (host.streamStatus !== 200) return json(res, host.streamStatus, { error: "loops_down" });
+      if (host.streamStatus !== 200) return json(res, host.streamStatus, host.snapshotBody ?? { error: "loops_down" });
       res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
       res.write(`: welcome\ndata: ${JSON.stringify({ type: "status", loops: "ok" })}\n\n`);
       streams.add(res);
@@ -455,6 +458,39 @@ test("a 503 snapshot → loops-down and retries until it answers", async () => {
   host.snapshotStatus = 200;
   await run.until(() => run.state() === "live", "live");
   assert.equal(count(run.messages, "snapshot"), 1);
+  run.stop();
+  await host.close();
+});
+
+test("design choice L1 (round 72, own-words): the host's 503 too_many_tabs is host-tabs, never Loops down; the reason is the host's message; ok again is live", async () => {
+  const host = await startHost();
+  host.snapshotStatus = 503;
+  host.snapshotBody = { error: "too_many_tabs", message: "This host holds 64 tabs on its stream already; close one" };
+  const run = observe(host.url);
+  await run.until(() => run.state() === "host-tabs", "host-tabs");
+  assert.equal(run.source.connection!.reason(), "This host holds 64 tabs on its stream already; close one");
+  assert.ok(!run.states.includes("loops-down"), `never loops-down: ${run.states.join(",")}`);
+  host.snapshotStatus = 200;
+  await run.until(() => run.state() === "live", "live");
+  assert.equal(run.source.connection!.reason(), null, "live again: no reason");
+  run.stop();
+  await host.close();
+});
+
+test("design choice L1 (round 72, own-words): the host's own snapshot_failed is host-failed with the host's message, while loops' own reasons stay Loops down; a stream refused the same way says the same", async () => {
+  const host = await startHost();
+  host.snapshotStatus = 503;
+  host.snapshotBody = { error: "snapshot_failed", message: "The host could not assemble the snapshot: a read the allow-list refused" };
+  const run = observe(host.url);
+  await run.until(() => run.state() === "host-failed", "host-failed");
+  assert.equal(run.source.connection!.reason(), "The host could not assemble the snapshot: a read the allow-list refused");
+  host.snapshotBody = { error: "upstream_500" };
+  await run.until(() => run.state() === "loops-down", "loops' own failure: loops-down");
+  assert.equal(run.source.connection!.reason(), null);
+  host.snapshotStatus = 200;
+  host.streamStatus = 503;
+  host.snapshotBody = { error: "too_many_tabs", message: "This host holds 64 tabs on its stream already; close one" };
+  await run.until(() => run.state() === "host-tabs", "the stream's 503 too_many_tabs");
   run.stop();
   await host.close();
 });
