@@ -197,7 +197,7 @@ hint "⌘ Enter sends" (Mac) or "Ctrl+Enter sends" under the box, loops' own; no
 
 ## The preferred `do it`: `sugg/p2-recopy`
 
-A third branch, built by rd1 in round 69 (tip `02a56791`, approved by rd2 at 01:56 on 6 Nov): `Bubbles.tsx` and `queries.ts`
+A third branch, built by rd1 in round 69 (tip `5c922d5b`, approved by rd2 at 02:07 on 6 Nov): `Bubbles.tsx` and `queries.ts`
 re-copied verbatim at loops `c7f9d679` (the commit that brought both fixes), `sendChord.ts` copied with them, `Menu.tsx`
 and the other copies left at `a1bed0f`, and **no divergence records**. It does not change the copy rule: one line adds
 `sendChord.ts` to the list in `scripts/bubbles-copy.ts`, and the Bubbles and queries pins (the header lines) move to
@@ -208,7 +208,7 @@ world's `Field` echo from `sugg/w5-9` (`6f47a461`'s `Field.tsx`, byte for byte).
 **This is the preferred `do it` for w5-9 and w5-10 together.** `sugg/w5-9` and `sugg/w5-10` are the fallback, with the
 declared-divergence mechanism (crewy's rule: it lives on those two branches only, and merging it is Nicky's call).
 
-**State:** approved by rd2 (01:56 by `date`, 6 Nov 2026); the Lead's carry decides whether it goes into `sugg/all-r65`.
+**State:** approved by rd2 (02:07 by `date`, 6 Nov 2026, at `5c922d5b`); the Lead's carry decides whether it goes into `sugg/all-r65`.
 
 ## The clean end state
 
