@@ -14,6 +14,7 @@
      and takes Escape first; the tour's card takes it itself while the focus is inside. The text view is the view's
      chain's (state/view.ts), after build mode. */
 import { useState } from "react";
+import { flushSync } from "react-dom";
 
 export type OverlayKind = "tour" | "editor" | "jump" | "chat" | "connection" | "settings" | "text";
 
@@ -105,9 +106,17 @@ export function createOverlays<E extends { focus(): void }>({ active, publish }:
   };
 }
 
-/** The page's overlays: this render's state, and the moves, the same object for the page's life. */
+/**
+ * The page's overlays: this render's state, and the moves, the same object for the page's life. A move is published
+ * through `flushSync`, so the render it causes commits before the move goes on: a close lifts what the sheet made inert
+ * (design choice X2: the right toolbar, the chat chip and the camera toolbar under the text view or the Chat panel)
+ * before the focus returns to the opener, which an inert element would refuse (round 64's w4-7 row: Escape from the
+ * text view gives the focus back to Help).
+ */
 export function useOverlays(): [OverlaysState<HTMLElement>, Overlays<HTMLElement>] {
-  const [state, publish] = useState<OverlaysState<HTMLElement>>({ open: NOTHING_OPEN, tourReturn: null });
-  const [overlays] = useState(() => createOverlays<HTMLElement>({ active: () => (document.activeElement instanceof HTMLElement ? document.activeElement : null), publish }));
+  const [state, setState] = useState<OverlaysState<HTMLElement>>({ open: NOTHING_OPEN, tourReturn: null });
+  const [overlays] = useState(() =>
+    createOverlays<HTMLElement>({ active: () => (document.activeElement instanceof HTMLElement ? document.activeElement : null), publish: (next) => flushSync(() => setState(next)) }),
+  );
   return [state, overlays];
 }

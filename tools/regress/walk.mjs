@@ -665,8 +665,9 @@ export async function run({ pass, page, check, out }) {
     // chips and the playback bar (a cover fit: the sides run off), where a contain fit left an empty band under the chips
     // and above the bar with the width binding. Measured through the dev build's scene (`__town`): the vertical extent
     // of the lots' centres (ground and 2 up) projected by the home camera, as a share of the canvas height less the
-    // scene's own insets. The threshold stands between the two measured fits (base and branch: the numbers in r72-d3's
-    // report); without `__town` (a production build) the row is skipped with a note.
+    // scene's own insets. The threshold stands between the two measured fits: 0.26 on 2d22df8a's contain fit, 0.66 on
+    // the cover fit (round 72, batch 3, both on the Small team's four lots); without `__town` (a production build) the
+    // row is skipped with a note.
     if (scheme === "light") {
       const framing = await p.evaluate(() => {
         const s = globalThis.__town;
@@ -680,23 +681,30 @@ export async function run({ pass, page, check, out }) {
         return { extent: Math.round(Math.max(...ys) - Math.min(...ys)), free: Math.round(free), share: (Math.max(...ys) - Math.min(...ys)) / free, lots: s.view.plan.lots.length };
       });
       if (framing === null) info("375 light: the home framing row needs the dev build's __town; skipped (T5)");
-      else ok("375 light: the home view frames the town in the band between the chips and the playback bar (T5: the lots' projected extent fills at least 0.72 of it)", framing.share >= 0.72, `extent ${framing.extent} of ${framing.free} px (${framing.share.toFixed(2)}), ${framing.lots} lots`);
+      else ok("375 light: the home view frames the town in the band between the chips and the playback bar (T5: the lots' projected extent fills at least 0.50 of it)", framing.share >= 0.5, `extent ${framing.extent} of ${framing.free} px (${framing.share.toFixed(2)}), ${framing.lots} lots`);
     }
     const small = await p.evaluate(() => [...document.querySelectorAll("button, a, input, select")].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && (r.height < 40 || r.width < 40) && getComputedStyle(e).visibility !== "hidden"; }).map((e) => (e.getAttribute("aria-label") || e.textContent || e.tagName).trim().slice(0, 24)));
     info(`375 ${scheme} targets under 40px (visible box): ${small.length} ${small.slice(0, 8).join(", ")}`);
     // A building's sign is a quiet name, smaller than a finger: its ::after pad is what is tapped.
     const pads = await p.evaluate(() => [...document.querySelectorAll("button.town-sign")].flatMap((e) => { const s = getComputedStyle(e, "::after"); return s.content === "none" ? [0, 0] : [Math.round(parseFloat(s.width)), Math.round(parseFloat(s.height))]; }));
     ok(`375 ${scheme}: building signs have 40px hit pads`, pads.length > 0 && pads.every((n) => n >= 40), pads.join(","));
-    // Round 64 (w4-14, w2's review): the Demo chip, an icon at this width, stays beside the brand's title on its first
-    // line; the brand row wraps only for a chip grown to its word, never in the demo's usual state.
+    // Round 64 (w4-14, w2's review) had the Demo chip, an icon at this width, beside the brand's title on its first
+    // line, the brand row wrapping only for a chip grown to its word. Design choice T6 (round 72, word) changes that
+    // expectation: the chip keeps its word, "Demo", and "CrewHub" and a worded chip do not share the corner's 139 px,
+    // so the chip is the brand row's second line, where the title's second line ("World") was; it sits under the
+    // title, at the row's left edge (the brand mark starts the first line, so the chip is not aligned with the
+    // title's text), inside the left corner, which still keeps clear of the right toolbar.
     const beside = await p.evaluate(() => {
       const chip = document.querySelector(".demo-chip")?.getBoundingClientRect();
-      const title = document.querySelector(".world-brand > strong")?.getBoundingClientRect();
-      return chip && title ? { chipLeft: Math.round(chip.left), chipTop: Math.round(chip.top), chipBottom: Math.round(chip.bottom), titleRight: Math.round(title.right), titleTop: Math.round(title.top), titleMid: Math.round((title.top + title.bottom) / 2), titleBottom: Math.round(title.bottom) } : null;
+      // The visible title: under 600 px the short one stands in for the full one (design choice T6).
+      const title = [...document.querySelectorAll(".world-brand > strong")].find((e) => e.getClientRects().length > 0)?.getBoundingClientRect();
+      const corner = document.querySelector(".world-corner-left")?.getBoundingClientRect();
+      const tools = document.querySelector(".world-corner-right")?.getBoundingClientRect();
+      return chip && title && corner && tools ? { chipLeft: Math.round(chip.left), chipTop: Math.round(chip.top), chipBottom: Math.round(chip.bottom), titleLeft: Math.round(title.left), titleRight: Math.round(title.right), titleTop: Math.round(title.top), titleBottom: Math.round(title.bottom), cornerLeft: Math.round(corner.left), cornerRight: Math.round(corner.right), toolsLeft: Math.round(tools.left) } : null;
     });
-    ok(`375 ${scheme}: the Demo chip sits beside the brand's title, on its first line`, beside !== null && beside.chipLeft >= beside.titleRight && beside.chipTop < beside.titleMid && beside.chipBottom > beside.titleTop, beside ? `chip at ${beside.chipLeft}, ${beside.chipTop}..${beside.chipBottom}; title to ${beside.titleRight}, ${beside.titleTop}..${beside.titleBottom}` : "no chip or title");
+    ok(`375 ${scheme}: the Demo chip, worded, is the brand row's second line under the title, and the left corner keeps clear of the right toolbar (T6; before T6 the icon chip sat beside the title)`, beside !== null && beside.chipTop >= beside.titleBottom - 1 && beside.chipLeft >= beside.cornerLeft && beside.cornerRight <= beside.toolsLeft, beside ? `chip at ${beside.chipLeft}, ${beside.chipTop}..${beside.chipBottom}; title ${beside.titleLeft}..${beside.titleRight}, ${beside.titleTop}..${beside.titleBottom}; corner ${beside.cornerLeft}..${beside.cornerRight}, tools from ${beside.toolsLeft}` : "no chip or title");
     // Design choice T6 (round 72, word): the chip says "Demo" (the scenario's name is the menu's), the title "CrewHub".
-    const words = await p.evaluate(() => ({ chip: (document.querySelector(".demo-chip")?.innerText ?? "").replace(/\s+/g, " ").trim(), title: (document.querySelector(".world-brand > strong")?.innerText ?? "").replace(/\s+/g, " ").trim() }));
+    const words = await p.evaluate(() => ({ chip: (document.querySelector(".demo-chip")?.innerText ?? "").replace(/\s+/g, " ").trim(), title: ([...document.querySelectorAll(".world-brand > strong")].find((e) => e.getClientRects().length > 0)?.innerText ?? "").replace(/\s+/g, " ").trim() }));
     ok(`375 ${scheme}: the header says Demo beside the title CrewHub (T6)`, words.chip === "Demo" && words.title === "CrewHub", JSON.stringify(words));
     if (scheme === "light") {
       // Round 64 (w4-7): a thumb has no T key and never meets the skip link, so a visible control must open the text view:

@@ -177,7 +177,10 @@ for (const [state, title] of Object.entries(SCREENS))
         ok(`${state}: Tab reaches every control, each with a focus style`, stops.length > 0 && stops.every((s) => s.focusStyle && s.visible), stops.map((s) => `${s.role}:${s.name}${s.focusStyle ? "" : " NO FOCUS STYLE"}`).join(" → "));
         if (state === "connect") {
           // Connect is disabled (not in the Tab order) while the field is empty; with a key in the field it follows the field.
-          ok("connect: the order is the loops link, the key field, Use the demo", /^a:Open crewhub-loops/.test(`${stops[0]?.role}:${stops[0]?.name}`) && stops[1]?.role === "input" && /Use the demo/.test(stops[2]?.name ?? ""), stops.map((s) => `${s.role}:${s.name}`).join(" → "));
+          // Design choice T9 (round 72, disclosure): the older-loops road sits behind a closed disclosure where its paragraph
+          // stood, with the three steps and before the link that opens the loops app (it is the fourth way to make the key,
+          // read before opening the app), so its summary is one Tab stop before the link; before T9 the link came first.
+          ok("connect: the order is the older-loops disclosure (closed), the loops link, the key field, Use the demo (T9)", stops[0]?.role === "summary" && /^On an older crewhub-loops/.test(stops[0]?.name ?? "") && /^a:Open crewhub-loops/.test(`${stops[1]?.role}:${stops[1]?.name}`) && stops[2]?.role === "input" && /Use the demo/.test(stops[3]?.name ?? ""), stops.map((s) => `${s.role}:${s.name}`).join(" → "));
           await p.getByLabel("Access key").fill("chl_" + "k".repeat(43));
           await p.keyboard.press("Tab");
           ok("connect: with a key in the field, Tab reaches Connect next", await p.evaluate(() => document.activeElement?.textContent?.trim() === "Connect"));
@@ -309,7 +312,8 @@ for (const [theme, width] of COMBOS) {
       // line; only a chip grown to its word takes the next line. The brand row must not grow for the usual state.
       const beside = await p.evaluate(() => {
         const chip = document.querySelector("button.connection-chip")?.getBoundingClientRect();
-        const title = document.querySelector(".world-brand > strong")?.getBoundingClientRect();
+        // The visible title: under 600 px the short one stands in for the full one (design choice T6).
+        const title = [...document.querySelectorAll(".world-brand > strong")].find((e) => e.getClientRects().length > 0)?.getBoundingClientRect();
         return chip && title ? { chipLeft: Math.round(chip.left), chipTop: Math.round(chip.top), chipBottom: Math.round(chip.bottom), titleRight: Math.round(title.right), titleTop: Math.round(title.top), titleMid: Math.round((title.top + title.bottom) / 2), titleBottom: Math.round(title.bottom) } : null;
       });
       ok(`${tag}: the Live chip sits beside the brand's title, on its first line`, beside !== null && beside.chipLeft >= beside.titleRight && beside.chipTop < beside.titleMid && beside.chipBottom > beside.titleTop, beside ? `chip at ${beside.chipLeft}, ${beside.chipTop}..${beside.chipBottom}; title to ${beside.titleRight}, ${beside.titleTop}..${beside.titleBottom}` : "no chip or title");
