@@ -963,7 +963,6 @@ function AgentLabel({
                 Lit: {alert}
               </span>
             ))}
-            <DemoNote model={model} />
           </span>
         ) : (
           full && (
