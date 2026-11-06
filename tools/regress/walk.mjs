@@ -83,6 +83,26 @@ export async function run({ pass, page, check, out }) {
     await shot(p, `04-${label}`);
   }
 
+  // 3b. W2 (design choice, `alert`): the plate of a figure with an alert leads its line with "Alert:", a word a first
+  // visitor knows ("Lit:" named the desk lamp). CR Lead's CR-23 waits on Nicky from the start to about 1:36; the jump
+  // list lands on the figure, selected, so its plate shows; then the Escape chain takes the page back to the town.
+  ok("seek plate", await seek(p, 60000));
+  await canvas(p).focus();
+  await p.keyboard.press("/");
+  const jump = p.getByRole("dialog", { name: "Jump to" });
+  await jump.waitFor({ timeout: 3000 }).catch(() => {});
+  await p.keyboard.type("CR Lead");
+  await p.waitForTimeout(400);
+  await p.keyboard.press("Enter");
+  await p.waitForFunction(() => globalThis.__town?.view?.entered != null, null, { timeout: 8000 }).catch(() => {});
+  await p.waitForTimeout(1200);
+  const plateText = (await p.locator(".agent-plate").first().innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+  ok("W2: the plate's alert line says Alert: CR-23 waiting on Nicky", /Alert: CR-23 waiting on Nicky/.test(plateText) && !/\bLit:/.test(plateText), plateText.slice(0, 120) || "no plate");
+  await shot(p, "04b-plate-alert");
+  for (let i = 0; i < 3; i++) await p.keyboard.press("Escape");
+  await p.waitForTimeout(1200);
+  ok("W2: the Escape chain returns to the town after the plate", (await entered(p)) == null, await crumbs(p));
+
   // 4. Inside a building while playing: drone, walks
   await seek(p, 200000);
   await speed(p, "4x").catch((e) => note("4x " + e.message.split("\n")[0]));
