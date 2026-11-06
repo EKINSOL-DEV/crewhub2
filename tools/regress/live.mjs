@@ -15,6 +15,8 @@ export async function run({ pass, page, check, out }) {
   const { open, canvas } = page;
   const { ok, info, note } = check;
   const { tag, shot } = out;
+  // Design choice X2's row comes first: its own rig, closed before the group's starts on the same port.
+  await runInertCorners({ pass, page, check, out });
   // 15. Live mode against a fake crewhub-loops behind the host, both started here on 127.0.0.1: the rig (lib/rig.mjs)
   // with the loops web app the host names (`loopsWebUrl`), for the Chat panel's frame: a stub page that records how it
   // was fetched. The host serves the built world when it is there, else it stands behind your Vite; pairing on.
@@ -293,7 +295,6 @@ export async function run({ pass, page, check, out }) {
     for (const x of framed) problems.splice(problems.indexOf(x), 1);
     info(`live: ${framed.length} request(s) left the page for the loops web stub, the Chat panel's frame, as designed`);
   }
-  await runInertCorners({ pass, page, check, out });
 }
 
 /**
@@ -305,8 +306,8 @@ export async function run({ pass, page, check, out }) {
  *
  * Each read says what a keyboard meets, not only the attribute: every corner is there with a button that is painted, and
  * that button takes the focus when the corner is live and refuses it when the corner is inert. A corner that is missing,
- * or has no such button, fails the read, so the row cannot pass while holding nothing. Its own rig: it starts after the
- * live group's rig closed, on the same port, and the block ends with the demo page, after its own rig closed.
+ * or has no such button, fails the read, so the row cannot pass while holding nothing. Its own rig: it closes before the
+ * live group's rig starts on the same port, and the block ends with the demo page, after its own rig closed.
  */
 export async function runInertCorners({ pass, page, check, out }) {
   const { browser, opts, origin, dist: DIST, problems, noteLoops } = pass;
