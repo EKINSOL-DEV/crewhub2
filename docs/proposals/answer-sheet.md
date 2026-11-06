@@ -29,32 +29,37 @@ The merge plan's §1 table ("Your answers, your row, and what happens") is keyed
 - **`1: cookie+expiry`, `3: less`, `8: say`**: the third row, "**one merge**, one file (`apps/host/src/host.ts`, A) and a
   one-line test fix (B); rehearsed, the command does it", the command `… cookie+expiry q3 [q8] [q11] [q14] [q15] --check`.
 
-The other three branch answers (`11: show`, `14: cap`, `15: cap`) merge cleanly in any row. The plan's table of ports by
-head ends at `feat/world-demo@e3da2c1` (round 61); `feat/world-demo` is 80 commits on from it tonight (rounds 62 to 68:
-mutation tests, the walks, their fixes and docs), and the plan has not been replayed on a head since, so the ports named on
-its last row are the ones to pass until crewy replays on `0dee42ed`.
+The other three branch answers (`11: show`, `14: cap`, `15: cap`) merge cleanly in any row. **The ports.** Since round 59
+the answer branches themselves no longer merge clean onto the head (tonight, by `git merge-tree` on `0dee42ed`: every one
+conflicts but `task/q8-offline-say`); a port per branch carries the same change on the head, and the plan's §4 says which
+port stands for which branch (`--use`). Its table ends at `feat/world-demo@e3da2c1` (round 61); the six ports on that row
+all merge clean onto `0dee42ed` tonight (checked by rd1 and by sh, `git merge-tree`), so they are the ones to pass to the
+replay on today's head. The full replay with `npm run check` has not been run on a head after `e3da2c1`; the plan is redone
+when crewy replays on `0dee42ed`. The rows below name the branch (yours) and its port (the one to merge).
 
 ## Open questions (open-questions.md, 15)
 
-Branches checked tonight with `git rev-parse`; local and origin agree.
+Branches and ports checked tonight with `git rev-parse`; local and origin agree. A port's sha is the tip to merge on today's
+head; the branch's sha is the answer as the questions page and the merge plan name it.
 
 | Id | The question | Answer form | Recommended | If you say nothing | Ready branch |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Pairing: keep the cookie, or a bearer per tab? | `1: tab / cookie+expiry / cookie` | `tab` if that threat is in scope; otherwise `cookie+expiry` | `cookie`: the branch stays unmerged; the threat neither accepted in writing nor closed | `tab`: `task/r27-tab-pairing` `de2969e1`; `cookie+expiry`: `task/q1-cookie-expiry` `67d6970a`; `cookie`: none needed |
+| 1 | Pairing: keep the cookie, or a bearer per tab? | `1: tab / cookie+expiry / cookie` | `tab` if that threat is in scope; otherwise `cookie+expiry` | `cookie`: the branch stays unmerged; the threat neither accepted in writing nor closed | `tab`: `task/r27-tab-pairing` `de2969e1`, on today's head its port `port/task/r27-tab-pairing@50c712c` `8e9584d5`; `cookie+expiry`: `task/q1-cookie-expiry` `67d6970a`, port `port/task/q1-cookie-expiry@e5f79a9` `7d66a9bd`; `cookie`: none needed |
 | 2 | How many days an unused pairing lives | `2: 30 / <days> / never` | `30` | 30 days when question 1 brings an expiry (`tab` or `cookie+expiry`); with `cookie` there is none | rides on question 1's branch; another number is one setting (`CREWHUB_WORLD_PAIRING_IDLE_DAYS`) |
-| 3 | What health says before a browser is paired | `3: less / as-is` | `less` | `as-is`: everything, as today | `task/q3-health-less` `dbb5a41e` |
+| 3 | What health says before a browser is paired | `3: less / as-is` | `less` | `as-is`: everything, as today | `task/q3-health-less` `dbb5a41e`, port `port/task/q3-health-less@8a1ae94` `1aa9fe44` |
 | 4 | Keep the dev-origin route? | `4: keep / remove` | `keep` | `keep` | none (a code removal if `remove`) |
 | 5 | The tour's first card 1.5 s after the town stands | `5: 1.5 / <seconds>` | `1.5` | 1.5 s | none |
 | 6 | Should build mode wait for the host's town? | `6: wait / at-once` | `at-once` | `at-once` | none |
 | 7 | Connect and Pair screens over the scene, or in its place | `7: over / replace` | `replace` | `replace` | none |
-| 8 | Offline editing in two tabs of one browser | `8: support / say / as-is` | `say` | `as-is` | `say`: `task/q8-offline-say` `2fb1847f` (`support` is not built) |
+| 8 | Offline editing in two tabs of one browser | `8: support / say / as-is` | `say` | `as-is` | `say`: `task/q8-offline-say` `2fb1847f`, merges clean as itself (`support` is not built) |
 | 9 | The chat's road 2: one poller per tab | `9: accept / one-tab` | `accept` | `accept` | none |
 | 10 | Should the stream carry the host's chat word? | `10: stream / re-read` | `re-read` | `re-read` | none |
-| 11 | Say "since this page opened" on Recent answers | `11: show / as-is` | `show` | `as-is` | `show`: `task/q11-recent-since` `2c0bd7f7` |
+| 11 | Say "since this page opened" on Recent answers | `11: show / as-is` | `show` | `as-is` | `show`: `task/q11-recent-since` `2c0bd7f7`, port `port/task/q11-recent-since@a2faadd` `a031c277` |
 | 12 | The Connection panel's Chat section below the fold | `12: top / below` | `below` | `below` | none |
 | 13 | Retire `task/r19-viewer-switch` | `13: retire / merge` | `retire` | the branch stays as it is, unmerged | `merge`: `task/r19-viewer-switch` `f0a1e98d` (a no-op merge; `retire` deletes it) |
-| 14 | A cap on the host's parallel reads of agent messages | `14: cap / <number> / as-is` | `cap` | `as-is`: a burst of hundreds keeps losing bubbles (the branch stays unmerged) | `cap`: `task/q14-dm-read-cap` `f8fa725c`; `<number>` is that branch with one constant changed |
-| 15 | A size cap on an upstream body from loops | `15: cap / <size> / as-is` | `cap` at 4 MB | `as-is` | `cap`: `task/q15-body-cap` `c83b27c9`; `<size>` is that branch with `UPSTREAM_BODY_LIMIT` changed |
+| 14 | A cap on the host's parallel reads of agent messages | `14: cap / <number> / as-is` | `cap` | `as-is`: a burst of hundreds keeps losing bubbles (the branch stays unmerged) | `cap`: `task/q14-dm-read-cap` `f8fa725c`, port `port/task/q14-dm-read-cap@f2276db` `bf71781c`; `<number>` is that branch with one constant changed |
+| 15 | A size cap on an upstream body from loops | `15: cap / <size> / as-is` | `cap` at 4 MB | `as-is` | `cap`: `task/q15-body-cap` `c83b27c9`, port `port/task/q15-body-cap@2aad37d` `d3dd9eb0`; `<size>` is that branch with `UPSTREAM_BODY_LIMIT` changed |
 
 The questions page and the merge plan name the same seven branches at the same heads (`de2969e`, `67d6970`, `dbb5a41`,
-`2fb1847`, `2c0bd7f`, `f8fa725`, `c83b27c`), and those are the tips tonight.
+`2fb1847`, `2c0bd7f`, `f8fa725`, `c83b27c`), and those are the tips tonight. Question 13's `merge` is still a no-op: the
+branch merged with `0dee42ed` is tree-identical to it (rd1, round 69).
