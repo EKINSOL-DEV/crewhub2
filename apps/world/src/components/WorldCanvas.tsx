@@ -961,7 +961,7 @@ function AgentLabel({
             {agent.deskTicketKey && <span className="sign-muted">Desk: {agent.deskTicketKey}</span>}
             {agent.alerts.map((alert) => (
               <span key={alert} className="sign-muted">
-                Lit: {alert}
+                Alert: {alert}
               </span>
             ))}
             <DemoNote model={model} />
