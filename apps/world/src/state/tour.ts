@@ -150,8 +150,8 @@ const GAP = 12;
 
 /**
  * Where the card goes so that it never covers the element it describes: below the target when there is room, else
- * above, else beside it; a step without a target is centred. On a phone (under 600 px) the card spans the width and
- * sits at the bottom, or at the top when the target is in the lower half of the screen.
+ * above, else at the bottom left (a screen-tall target); a step without a target is centred. On a phone (under 600 px)
+ * the card spans the width and sits at the bottom, or at the top when the target is in the lower half of the screen.
  */
 export function placeStep(target: Rect | null, viewport: { width: number; height: number }, card: { width: number; height: number }): Placement {
   const phone = viewport.width < 600;
@@ -169,8 +169,9 @@ export function placeStep(target: Rect | null, viewport: { width: number; height
   if (below + card.height + GUTTER <= viewport.height) return { left: centred, top: below, side: "below" };
   const above = target.top - GAP - card.height;
   if (above >= GUTTER) return { left: centred, top: above, side: "above" };
-  // A target as tall as the screen (the town itself): the card sits over its lower part, which it does not describe as such.
-  return { left: centred, top: Math.max(GUTTER, viewport.height - card.height - GUTTER), side: "centre" };
+  // A target as tall as the screen (the town itself): the card sits over its lower part, which it does not describe as
+  // such, at the bottom left, clear of the centred playback bar (design choice T1, round 72, bottom-left).
+  return { left: GUTTER, top: Math.max(GUTTER, viewport.height - card.height - GUTTER), side: "centre" };
 }
 
 /**
