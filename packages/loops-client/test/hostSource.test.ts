@@ -856,3 +856,35 @@ test("round 55: a listener that stops the source on its first snapshot leaves no
     await host.close();
   }
 });
+
+test("design choice L1 (round 73, mutation run): a stream 401 whose body is not not_paired never says unpaired", async () => {
+  const host = await startHost();
+  host.streamStatus = 401;
+  host.snapshotBody = { error: "unauthorized" };
+  const run = observe(host.url);
+  await run.until(() => host.cursors.length >= 3, "three stream asks");
+  assert.ok(!run.states.includes("unpaired"), `a 401 that is not not_paired is not unpaired: ${run.states.join(",")}`);
+  run.stop();
+  await host.close();
+});
+
+test("design choice L1 (round 73, mutation run): a stream refused with the host's own 503 comes back to live when the host is well again, for host-tabs and for host-failed", async () => {
+  const host = await startHost();
+  host.streamStatus = 503;
+  host.snapshotBody = { error: "too_many_tabs", message: "This host holds 64 tabs on its stream already; close one" };
+  const run = observe(host.url);
+  await run.until(() => run.state() === "host-tabs", "the stream's 503 too_many_tabs");
+  host.streamStatus = 200;
+  host.snapshotBody = null;
+  await run.until(() => run.state() === "live", "live again after host-tabs");
+  assert.equal(run.source.connection!.reason(), null);
+  host.streamStatus = 503;
+  host.snapshotBody = { error: "snapshot_failed", message: "The host could not assemble the snapshot: a read the allow-list refused" };
+  host.endStreams();
+  await run.until(() => run.state() === "host-failed", "the stream's 503 snapshot_failed");
+  host.streamStatus = 200;
+  host.snapshotBody = null;
+  await run.until(() => run.state() === "live", "live again after host-failed");
+  run.stop();
+  await host.close();
+});
