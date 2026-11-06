@@ -244,10 +244,16 @@ export async function run({ pass, page, check, out }) {
     await field.press("Enter");
     await p.waitForTimeout(300);
     const onEnter = await read();
+    // A draft that trims to the name it already has: nothing to write, so no new revision, and the field shows the name.
+    await field.fill("Harbour ");
+    const sameTyped = await read();
+    await field.press("Enter");
+    await p.waitForTimeout(300);
+    const unchanged = await read();
     ok(
-      "a zone's name field: typing changes neither the zone's chip nor the revision, and Enter writes it as one revision (E1)",
-      id !== undefined && made.rev >= 0 && made.chip !== "" && typed.field === "Harbour" && typed.chip === made.chip && typed.rev === made.rev && onEnter.chip === "Harbour" && onEnter.field === "Harbour" && onEnter.rev === made.rev + 1,
-      `zone ${id}: made ${JSON.stringify(made)}, typed ${JSON.stringify(typed)}, Enter ${JSON.stringify(onEnter)}`,
+      "a zone's name field: typing changes neither the zone's chip nor the revision, Enter writes it as one revision, and Enter on a draft of the same name writes nothing (E1)",
+      id !== undefined && made.rev >= 0 && made.chip !== "" && typed.field === "Harbour" && typed.chip === made.chip && typed.rev === made.rev && onEnter.chip === "Harbour" && onEnter.field === "Harbour" && onEnter.rev === made.rev + 1 && sameTyped.field === "Harbour " && unchanged.field === "Harbour" && unchanged.rev === onEnter.rev,
+      `zone ${id}: made ${JSON.stringify(made)}, typed ${JSON.stringify(typed)}, Enter ${JSON.stringify(onEnter)}, the same name typed ${JSON.stringify(sameTyped)}, Enter ${JSON.stringify(unchanged)}`,
     );
     await field.fill("A draft to drop");
     const draft = await read();
@@ -259,14 +265,14 @@ export async function run({ pass, page, check, out }) {
     const left = await read();
     ok(
       "a zone's name field: Escape drops the draft and keeps the old name, the sheet stays open, and leaving the field then writes nothing (E1)",
-      draft.field === "A draft to drop" && draft.chip === "Harbour" && escaped.field === "Harbour" && escaped.chip === "Harbour" && escaped.rev === onEnter.rev && escaped.open && left.field === "Harbour" && left.chip === "Harbour" && left.rev === onEnter.rev,
+      draft.field === "A draft to drop" && draft.chip === "Harbour" && escaped.field === "Harbour" && escaped.chip === "Harbour" && escaped.rev === unchanged.rev && escaped.open && left.field === "Harbour" && left.chip === "Harbour" && left.rev === unchanged.rev,
       `draft ${JSON.stringify(draft)}, Escape ${JSON.stringify(escaped)}, left ${JSON.stringify(left)}`,
     );
     await field.fill("Quay");
     await field.press("Tab");
     await p.waitForTimeout(300);
     const blurred = await read();
-    ok("a zone's name field: leaving it with a draft writes the draft as one revision (E1)", blurred.chip === "Quay" && blurred.field === "Quay" && blurred.rev === onEnter.rev + 1, JSON.stringify(blurred));
+    ok("a zone's name field: leaving it with a draft writes the draft as one revision (E1)", blurred.chip === "Quay" && blurred.field === "Quay" && blurred.rev === unchanged.rev + 1, JSON.stringify(blurred));
     await p.context().close();
   }
 
