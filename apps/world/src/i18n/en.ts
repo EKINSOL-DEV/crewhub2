@@ -241,7 +241,7 @@ export const EN: Record<string, string> = {
   "world.connection.panel.forgetNo": "Keep",
   "world.connection.panel.forgetFailed": "The host did not forget the key: {reason}",
   "world.connection.panel.forgetBusy": "Forgetting…",
-  "world.connection.panel.keyFile": "This key comes from ~/.config/crewhub-loops/secrets/agent-crewhub-world.key. Remove that file, or paste a new key.",
+  "world.connection.panel.keyFile": "This key comes from the default key file, which the host never deletes. Remove that file, or paste a new key.",
   "world.connection.panel.session": "Chat",
   "world.connection.panel.answering": "The host answers again.",
   "world.connection.changed": "Connection: {state}. {hint}",
