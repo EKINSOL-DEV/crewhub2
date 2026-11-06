@@ -121,7 +121,7 @@ still needs a word: `alert` or `waiting`). A group answers at once too: `T: as r
 | X4 | The header at 320 px (with T6) | `X4: drop-word / wrap-tools / keep` | `drop-word` | the overlap stays | none |
 | X5 | The canvas's name: the whole key guide on every focus | `X5: short / keep` | `short`, with the name fixed | the 60 words on every focus | none |
 | P1 | `tools/perf.mjs`'s exit code after a failed scenario | `P1: fail / keep` | `fail` | exit 0 | none |
-| P2 | The copied loops files: catch an edit to a copy's body on CI too | `P2: sync / hash / keep` | `sync` | a copy's body is checked only where a crewhub-loops checkout is | none. w5-9 and w5-10 (the walkthrough table), if `do it`, change this same check in another way: it learns one declared patch per copy; a `sync` would have to carry that patch |
+| P2 | The copied loops files: catch an edit to a copy's body on CI too | `P2: sync / hash / keep` | `sync` | a copy's body is checked only where a crewhub-loops checkout is | none. w5-9 and w5-10's `do it` (the walk table) records one declared divergence per copy in this same check; a `sync` to loops after `c7f9d679` would bring loops' own two fixes and drop those records |
 | P3 | A test that the clock decides, once, with a wide margin | `P3: race / seam / keep` | `keep` | `keep` | none |
 | W17 *w* | An archived building's two ticket lines (walk finding w1-13; new in round 69) | `W17: why / tickets / halls / keep` | `why` | the two lines as they are | none |
 | N1 | Fewer labels in a short window (walk finding w4-20; new in round 69) | `N1: compact / tags / keep` | `compact` | the staircase sideways | none |
@@ -133,7 +133,8 @@ page's "Fixed this round" table and the three the page marks as merged since (th
 no row; the section "What the walks added to the open design choices"
 adds no id of its own. **Prepared** means a `sugg/<id>` branch is ready: `do it` merges it, `as it is` leaves it; every
 prepared branch's tip tonight is inside `sugg/all-r65-on-head` (`f65f4cb8`), so `walkthrough: all` is the 40 `do it` rows
-at once, and `journey N: as suggested` is one journey's. Where a design choice holds a finding, the row points there and
+at once, and `journey N: as suggested` is one journey's; w5-9 and w5-10, prepared tonight, join it only if the Lead carries
+them in (the full on-head proof green), else they are two answers of their own. Where a design choice holds a finding, the row points there and
 takes that choice's recommendation; answer the choice, not the id. Where nothing is built and no choice holds it, the
 recommendation is `as it is` *(Lead, round 69)* with the page's reason. For any id, `<id>: <your words>` is the third
 answer, as the page says. A sha is the branch's tip tonight (`git rev-parse`; local and origin agree).
@@ -172,8 +173,8 @@ answer, as the page says. A sha is the branch's tip tonight (`git rev-parse`; lo
 | w4-21 | The Chat panel's two small rows are 18 and 20 px tall | `w4-21: do it / as it is` | `do it` (real 40 px rows, not a pad) | the small rows | `sugg/w4-21` `97a3dde3` |
 | w4-22 | The Chat panel says nothing when loops is down | `w4-22: do it / as it is` | `do it` | the panel keeps "Sign in …" | `sugg/w4-22` `f388d8da` |
 | w5-6 | The camera keys say nothing to a screen reader | `w5-6: do it / as it is` | `do it` | silent keys | `sugg/w5-6` `3a724a4c` |
-| w5-9 | The chat dock's message box drops keystrokes that come fast (a verbatim crewhub-loops copy) | `w5-9: do it / as it is` | *being prepared tonight (C, dk); the Lead fills in its final state before the merge.* `do it` also merges a change to the copy rule: `check:copy` learns the branch's one declared patch on the loops copy, and `loops-dock-input.md` (dk writes it tonight on `task/r69-dock-doc`; a link once it is merged) names it, with the patch for crewhub-loops | every other fast character is lost | `sugg/w5-9`, tonight (C) |
-| w5-10 | In the dock's message box Enter adds a newline and only Send sends (a loops copy) | `w5-10: do it / as it is` | *being prepared tonight (C, dk); the Lead fills in its final state before the merge.* `do it` also merges the same change to the copy rule as w5-9, and `loops-dock-input.md` (dk writes it tonight on `task/r69-dock-doc`; a link once it is merged) names it | Enter breaks the line | `sugg/w5-10`, tonight (C) |
+| w5-9 | The chat dock's message box drops keystrokes that come fast (a verbatim crewhub-loops copy) | `w5-9: do it / as it is` | `do it`: loops' own fix (CL-119, `d4cf7397`, 1 Oct, the Field "echo") ported as one declared divergence of the copy, which is pinned at `a1bed0f`, before that fix. `do it` also merges the `check:copy` change (one declared divergence per copy); a re-copy at loops after `c7f9d679` (P2 `sync`) would bring both fixes and drop the records. The branch is `loops-dock-input.md`'s (dk, tonight) | every other fast character is lost | `sugg/w5-9` `<sha>` (after rd2's review) |
+| w5-10 | In the dock's message box Enter adds a newline and only Send sends (a loops copy) | `w5-10: do it / as it is` | `do it`: from w5-9's tip, loops' own choice (CL-181, `c7f9d679`, 3 Oct: Ctrl+Enter or Cmd+Enter sends; Enter stays a newline), the walkthrough's second way. `do it` also merges the same `check:copy` change; a re-copy at loops after `c7f9d679` (P2 `sync`) would bring both fixes and drop the records | Enter breaks the line, nothing sends but the button | `sugg/w5-10` `<sha>`, from w5-9's tip (after rd2's review) |
 | w5-11 | A card opened by Enter on the stage says nothing to a screen reader | `w5-11: do it / as it is` | `do it` | silence | `sugg/w5-11` `11cf9e72` |
 | w5-15 | The key hints are read as part of a control's name | `w5-15: do it / as it is` | `do it` | "Town Esc" | `sugg/w5-15` `b4601966` |
 | w5-16 | The Help menu reads descriptions as names and the scenario picker reads its tick | `w5-16: do it / as it is` | `do it` (the tick's half only; the name's half is a crewhub-loops copy) | both read | `sugg/w5-16` `af7abe8e` |
@@ -193,8 +194,8 @@ answer, as the page says. A sha is the branch's tip tonight (`git rev-parse`; lo
 | w6-14 | "Show free plots" in the Region draws 56 badges in a pile | `w6-14: do it / as it is` | `do it` | the pile | `sugg/w6-14` `0d2a289b` |
 | w6-11 / w4-16 | The pairing is a session cookie, while the Pair screen says it stays across host restarts | `1: tab / cookie+expiry / cookie` (question 1 covers it) | question 1's recommendation. With `tab` or `cookie+expiry` the Pair screen's sentence should then say when the pairing holds; the page does not say that either branch does it, so that is a line to write after the merge | the cookie and the sentence as they are | question 1's branches and ports |
 
-Forty rows say `do it` for a prepared branch; eight point at a design choice or a question (w1-13, w2-2 / w3-7, w2-3,
-w2-5, w2-8, w4-3, w4-20, w6-11 / w4-16); two wait on tonight's part C (w5-9, w5-10); two are `as it is` by the Lead's
+Forty-two rows say `do it` for a prepared branch (w5-9 and w5-10 with their shas to follow tonight); eight point at a
+design choice or a question (w1-13, w2-2 / w3-7, w2-3, w2-5, w2-8, w4-3, w4-20, w6-11 / w4-16); two are `as it is` by the Lead's
 round 69 rule (w1-16, w5-23, no suggestion written). Done since the walk, no answer needed: w2-6 (its LOOPS_SETUP note,
 `29c514ed`), w3-6 (`5ad0a52c`), w5-25 (`cef76e67`). Round 67's two new findings (v1-1, v4-1) are
 fixed inside `sugg/w3-4` and `sugg/w6-6` and need no row.
