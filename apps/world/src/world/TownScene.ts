@@ -14,6 +14,7 @@ import type { AgentPlacement, RoomKind, WorldModel } from "@crewhub/world-model"
 import { IDLE_STATE, type Cast, type FigureHandle, type FigureState } from "@crewhub/world-cast";
 import { styleOptionsKey, type EnvironmentHandle, type GraphicsQuality, type ModelAnimation, type ModelKey, type PaletteName, type ResolvedStyle, type StyleOptionValues, type StyleTheme } from "@crewhub/world-style";
 import { BuildingView, type Pick } from "./buildingView";
+import { nameTownCanvas } from "./canvasName";
 import { BACK_WALL_HEIGHT, BUILDING_CELL, FLOOR_RISE, type BuildingPlan } from "./buildingTemplate";
 import type { TownLayer } from "./propLayer";
 import { styleRegistry } from "./style";
@@ -512,11 +513,11 @@ export class TownScene {
     const canvas = this.renderer.domElement;
     canvas.tabIndex = 0;
     canvas.setAttribute("role", "application");
-    canvas.setAttribute(
-      "aria-label",
-      "The town. Arrow keys move between buildings, Enter goes inside. Inside a building arrow keys move between rooms, Enter zooms to a room, Escape goes back one level. Plus and minus zoom, brackets rotate, H returns home. D shows every label. W walks you around (W A S D or arrow keys, Escape stops). T opens the text view. Slash opens the jump list.",
-    );
     host.appendChild(canvas);
+    // "The town", described by its key guide in a hidden paragraph beside it (design choice X5, world/canvasName.ts).
+    const guide = host.ownerDocument.createElement("p");
+    nameTownCanvas(canvas, guide);
+    host.appendChild(guide);
     this.camera.position.copy(HOME_OFFSET);
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.enableDamping = !view.reducedMotion;
