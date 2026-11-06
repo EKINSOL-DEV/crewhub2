@@ -889,7 +889,10 @@ is not on the road a person meets. Nothing half, nothing new.
 runs: the Connection panel's note never showed, and the rejected screen stood there each time. What a person meets is that
 screen: it names the default key file and offers no Forget, so H3's aim holds, no Forget that comes back at the next start.
 The note's "which the host never deletes. Remove that file" is never read; the rejected screen has only its general fix
-line. Moving the note onto the rejected screen is a choice for Nicky, not made here.
+line. Moving the note onto the rejected screen is a choice for Nicky, not made here. From rb's review, with the same choice
+and not changed: for a default-file key the screen's red box still says "Paste a new access key, or forget this one." (the
+host's `STREAM_REFUSED_REASON`, already on `feat/world-demo`, from no `dc` branch), and with no Forget button there, rightly,
+those last words point at nothing.
 
 ### Journey 4: a phone, touch only (wc; iPhone 13 and Pixel 5, upright and sideways, light and dark, 320 px)
 
