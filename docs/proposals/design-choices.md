@@ -815,3 +815,95 @@ S1, S2, S3.**
 - **The tour's 1.5 s beat** (open question 5) and the other fourteen merge decisions: they are in
   [open-questions.md](open-questions.md).
 - **Rounds 41 to 47:** their reports leave no product choice for Nicky; what they left is tool and test work.
+
+## Round 73: the design choices walked
+
+**What was walked (6 Nov 2026, a day round):** `all-on-head-r72@ed8168d0`, the build a person meets after "all recommended,
+walkthrough: all" (`feat/world-demo@fab95579`, the 40 walkthrough suggestions and the 38 prepared design choices), as a
+production build against the fake, by four walkers who built none of the `dc/<id>` branches, along the six journeys of
+round 64. Two questions per choice: does it do what its heading's recommended option says (**works**, **half**, **miss**,
+written against its `dc/<id>`), and what is new that the walkthrough-only candidate `sugg/all-r65-on-head@d03e7fc0` did
+not have (checked on that candidate's own build before anything is called new). The walkers' reports (`r73-wa.md`,
+`r73-wb.md`, `r73-wc.md`) hold every step, measurement and picture; this section is the summary. A miss is fixed on its
+`dc/<id>` branch by another walker, red first, reviewed by a third, and carried into `dc/all-r72` and `all-on-head-r72`
+by merges (the Lead's report names the shas).
+
+### Journey 1: first start, the tour, the scenarios, buildings and rooms, Details, the text view (wa)
+
+**Seen to work:** T1 (`bottom-left`: the card at the bottom left on the town-wide steps, clear of the playback bar on all
+six steps), T3 (`town`), T4 (`end`: Settings and the text view end at y 782, the dock's button starts at 790), T8
+(`answered`: no "Host:" line on a static server), W1 (`clock`), W2 (`alert`), W3 (`cards`: the plate carries no demo note,
+the card's ticket keys carry it as a tooltip), W4 (`once`), W6 (`drop`), W7 (`drop`), W8 (`none`), W17 (`why`: the
+room zoom and the text view both say "the racks are boarded up; the tickets are archived with the project", which ends
+w1-13), E2 (`say`), K2 (`story`: at 4x the figures walk 3.9x as fast as at 1x, at 16x 14.6x, within the frame noise),
+X2 (`inert`, the text view), X5 (`short`), S1 (`waits`), S2 (`drop`), S3 (`idle`), S4 (`forget`, by its model test).
+
+**Half:** T2 (`stage`): the focus does go to the stage on every road, but after Done by the mouse the stage's focus ring
+(T7 `keep`) frames the whole screen, so the picture T2 meant to take off the "?" button now stands round the screen's
+edge (wa-1, confusing). A choice for Nicky, not a fix: `:focus-visible` already hides the ring after a mouse Skip; the
+tour's own close by the mouse could end the same way.
+
+**Miss:** W12, found in journey 5 (below).
+
+### Journey 2: connecting (wb)
+
+**Seen to work:** T9 (`disclosure`: the older-loops road behind a closed `details`, so at 375 px the key field and
+Connect sit in the first screen, the page 849 px tall instead of about 970), W15 (`viewer-first`: the host's log, the
+rejected screen and `doctor` lead with "Settings > Agents > Connect CrewHub World" and name "New external bot" second),
+T8 (`answered`: the Host line shows on the live page and not in a demo without a host), H1 (`warn`: a 0755 config
+folder is left as it is, said once at start and by `doctor`), H2 (`refuse`: `world` beside a development host prints the
+refusal and exits 1, no link), H3 (`stored-only`: Forget offered on the rejected screen for the stored key only; a key
+from `CREWHUB_WORLD_KEY_FILE` or from the old default file says where it came from instead), L1 (`own-words`: a 65th tab
+reads "Too many tabs. This host has too many tabs open; close one. crewhub-loops is fine; the page keeps asking.", said
+once, Live again 1.3 s after the tabs close; `snapshot_failed` is held by its unit test only), W1 (`clock` in the live
+text view). As the answer sheet notes, w2-5 (a host restart still reads "Stale") and w2-8 (a key refused on the stream
+still gets the one sentence) are not ended by L1 and W15.
+
+![The Connect screen at 375 px: the disclosure closed, the key field in the first screen](../images/design-choices/r73/t9-connect-375.png)
+
+**New (polish, `dc/T9`, wb-2):** the Connect screen's first Tab stop is now the disclosure's summary, before the link
+"Open crewhub-loops: Settings › Agents" and the key field, because the disclosure sits above the link in the DOM and a
+summary is focusable where the paragraph was not. The main road would come first with the disclosure under the link.
+
+### Journey 3: chat (wa)
+
+Pending at the time of this commit: wa's journey 3 was still running. The Lead's report carries its verdicts until this
+section is completed.
+
+### Journey 4: a phone (wc)
+
+Pending at the time of this commit (T5's cover framing, T6's chip, N1 sideways): wc's report.
+
+### Journey 5: keyboard and screen reader (wb)
+
+**Seen to work:** T2 (`stage`, by the keyboard: Done puts the focus on the canvas "The town", ringed, nothing said), T3
+(`town`: "Highlighted on the screen: the town." and "the town, where the figures stand."), T7 (`keep`), X5 (`short`:
+`canvas[aria-label="The town"][aria-describedby=town-key-guide]`, the guide a hidden paragraph; the stage's snapshot reads
+main "CrewHub World" › application "The town" › paragraph "Arrow keys …"), W4 (`once`: the jump list's rows say "3
+waiting on a person." with the icon's own "Needs a person"), X2 (`inert`: under the text view and under the Chat panel
+the right toolbar, the chat chip and the camera toolbar carry `inert`, the Tab order skips them and the focus returns to
+the opener; the dock's button stays reachable as T4 `end` means), X4 (`drop-word`: at 320 px the brand is its mark and
+the "Demo" chip, no overlap with the toolbar, the header 106 px; the walkthrough-only candidate wraps "CrewHub World"
+over an icon-only chip, 167 px, with the Town button over the chat chips).
+
+| `all-on-head-r72` at 320 px | the walkthrough-only candidate at 320 px |
+| --- | --- |
+| ![the brand is its mark and the Demo chip; the toolbar beside it](../images/design-choices/r73/x4-header-320-all-on-head-r72.png) | ![CrewHub World on two lines over an icon-only chip; the Town button over the chat chips](../images/design-choices/r73/x4-header-320-walkthrough-only.png) |
+
+Two notes outside the options as worded. X2: with the text view open the Chat chip is inside an inert corner, so the
+Chat panel cannot be opened over the text view from the chip any more, while the text view can still open over the Chat
+panel (T, or the skip link); and Settings still covers the camera toolbar, which stays tabbable after Settings' last
+control (X2 names the text view and the Chat panel only; the same as before). X4: at 320 px the Demo chip sits under the
+mark rather than beside it (beside from 359 px).
+
+**Miss (`dc/W12`, wb-1, broken, new):** W12 `on-choice`. The visible answer no longer carries `aria-live`, so it updates
+silently, as meant; but the choice itself is never announced: the hidden status region under the form stays empty
+through every choice (sampled every 25 ms for 3 s, by the mouse and by typing on the focused select). The walkthrough-only
+candidate says the answer at once on the same choice (and keeps talking, which is W12's complaint). The cause is in the
+effect: it queues the status text from a ref and moves the ref on its next line, and React runs the queued updater
+after the ref moved, so the comparison always says "same name". The pure test cannot see it; a component test that picks
+a name and reads the status region can. Fixed on `dc/W12` by wa, reviewed by wc (the Lead's report names the sha).
+
+### Journey 6: the town editor (wc)
+
+Pending at the time of this commit: wc's report.
