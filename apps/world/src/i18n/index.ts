@@ -1,7 +1,7 @@
 /* Adapter for the copied chat: loops' `useT` (crewhub-loops apps/web/src/i18n/index.ts @ a1bed0f) with the same flat dot
    keys, {var} interpolation and fallback to the key, over the English strings in ./en. English only. */
 import { useCallback } from "react";
-import { EN } from "./en";
+import { EN } from "./en.ts";
 
 export type Lang = "en";
 export type Vars = Record<string, string | number>;
