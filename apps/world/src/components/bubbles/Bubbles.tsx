@@ -1,4 +1,4 @@
-// Source: crewhub-loops apps/web/src/components/bubbles/Bubbles.tsx @ a1bed0f. Copied verbatim; do not edit here, change the source and re-copy.
+// Source: crewhub-loops apps/web/src/components/bubbles/Bubbles.tsx @ c7f9d679. Copied verbatim; do not edit here, change the source and re-copy.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
@@ -9,9 +9,11 @@ import { useSession } from "../../state/session";
 import { timeAgo } from "../board/format";
 import { Avatar } from "../Avatar";
 import { Icon } from "../Icon";
-import { Button, Card, Chip, Field, Menu } from "../primitives";
+import { Button, Card, Chip, Field, isSendChord, Menu } from "../primitives";
+import { currentPlatform } from "../settings/testNotification";
 import { useBubblesData, useBubblesFeature, useChat, usePins } from "./queries";
 import { useMessageViewport } from "./useMessageViewport";
+import { WithTicketKeys } from "../ticket/TicketKeyLink";
 import "./bubbles.css";
 
 export function Bubbles({ narrow }: { narrow: boolean }) {
@@ -125,7 +127,7 @@ function Chat({ agent, narrow, dockHeight, pinned, onClose, onPin }: { agent: Ag
         {all.map((m) => <li className="comment" key={m.id} data-actor={m.author.kind}>
           <Avatar kind={m.author.kind} name={m.author.displayName} />
           <div className="comment-body"><div className="comment-meta"><strong>{m.author.displayName}</strong> <time dateTime={m.createdAt} title={new Date(m.createdAt).toLocaleString(lang)}>{timeAgo(t, m.createdAt)}</time></div>
-            <p className="bubble-message-text">{m.bodyText}</p>
+            <p className="bubble-message-text"><WithTicketKeys text={m.bodyText} /></p>
             {m.author.kind === "user" && (m.deliveryState && ["uncertain", "unroutable", "obsolete"].includes(m.deliveryState) && !m.answeredAt
               ? <Chip.Delivery delivery={{ state: m.deliveryState, ticketId: null }} />
               : <Chip className="chip-delivery" data-state={m.state === "answered" ? "answered" : m.state === "delivered" ? "forwarded" : "pending"} icon={<Icon name={m.state === "queued" ? "clock" : "check"} size="sm" />}>{deliveryLabels[m.state]}</Chip>)}
@@ -135,8 +137,8 @@ function Chat({ agent, narrow, dockHeight, pinned, onClose, onPin }: { agent: Ag
       </ol>
     </Card.Body>
     <form className="chat-compose" onSubmit={(e) => { e.preventDefault(); submit(); }}>
-      <Field control="textarea" autoGrow rows={1} label={t("agents.bubbles.message")} hideLabel placeholder={t("agents.bubbles.message")} value={draft.text} disabled={draft.pending} onChange={(e) => updateDraft({ text: e.target.value })} error={draft.error ? t("agents.bubbles.sendError") : undefined} />
-      <Button variant="accent" type="submit" disabled={!draft.text.trim() || draft.pending}>{t("agents.bubbles.send")}</Button>
+      <Field control="textarea" autoGrow echo rows={1} hint={narrow ? undefined : t("agents.bubbles.sendHint", { keys: currentPlatform() === "mac" ? "⌘ Enter" : "Ctrl+Enter" })} onKeyDown={(e) => { if (isSendChord(e)) { e.preventDefault(); submit(); } }} label={t("agents.bubbles.message")} hideLabel placeholder={t("agents.bubbles.message")} value={draft.text} disabled={draft.pending} onChange={(e) => updateDraft({ text: e.target.value })} error={draft.error ? t(draft.gated ? "error.dispatch_gated" : "agents.bubbles.sendError") : undefined} />
+      <Button variant="accent" type="submit" aria-keyshortcuts="Control+Enter Meta+Enter" disabled={!draft.text.trim() || draft.pending}>{t("agents.bubbles.send")}</Button>
     </form>
   </Card>;
   return narrow ? <dialog className="card-dialog bubble-dialog" aria-modal="true" ref={dialog} aria-labelledby="bubble-chat-title" onCancel={(e) => { e.preventDefault(); close(); }}>{contents}</dialog> : contents;
