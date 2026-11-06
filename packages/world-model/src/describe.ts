@@ -139,9 +139,9 @@ function describeBuilding(building: Building, add: Add, buildingName: (slug: str
   for (const run of building.automationRuns) add(section, `${runWords(run)}.`);
   if (building.archivedCount > 0) {
     const n = `${building.archivedCount} ${building.archivedCount === 1 ? "ticket" : "tickets"}`;
-    // The classic lobby keeps the count itself; in three-rooms its archive counter does.
-    const counter = rooms === "classic" ? placeWords("lobby", rooms) : `the archive counter ${roomPlaceWords("lobby", rooms)}`;
-    add(section, `${n} archived from ${placeWords("dispatch", rooms)}; the truck took them away and ${counter} keeps the count.`);
+    // The count is the archives since the page's last snapshot (a reload or a fresh snapshot starts it at 0), so no
+    // lobby or counter "keeps" it (design choice W6, `drop`): the count stays, the claim goes.
+    add(section, `${n} archived from ${placeWords("dispatch", rooms)}; the truck took them away.`);
   }
 
   for (const agent of building.agents) describeAgent(section, agent, add, buildingName, rooms);

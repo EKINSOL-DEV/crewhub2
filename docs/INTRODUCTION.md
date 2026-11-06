@@ -195,7 +195,7 @@ model is not built ([ROADMAP.md](ROADMAP.md), "Open").
 | A ticket in progress with an assignee | The package on that agent's desk (a worker whose status line names the key is more specific than its lead) |
 | `ticket.moved` by an agent | The drone carries the package to its new place |
 | `ticket.moved` into Done by a person | A person figure carries the package to the Done rack |
-| A ticket archived from Done | Gone with the truck at the dock; the archive counter keeps the count |
+| A ticket archived from Done | Gone with the truck at the dock |
 | `comment.created` on a ticket | A speech mark over the package for 20 s |
 | A progress line | A caption over the agent's head for 20 s |
 | A ticket waiting on a person | A "waits on <name>" tag; a need pin on the building's sign in the town |

@@ -475,7 +475,7 @@ no celebration, and a rejected prop request brings no prop.
 | `ticket.stalled` (`stalled`) | The desk lamp dims and a clock shows "quiet 47 min"; nudges show as a counter. |
 | `ticket.stalled` (`attention`) | An amber beacon over the lead's office: "attention: cl-dev-3 blocked 12 min". |
 | `ticket.resumed` | Lamp and beacon clear. |
-| `ticket.archived` (a batch shares `batchId`) | A truck takes those objects out of Dispatch; the lobby keeps the count. |
+| `ticket.archived` (a batch shares `batchId`) | A truck takes those objects out of Dispatch. |
 | `release.published` | A banner in the lobby and a trophy on the lead's desk. |
 
 A status may retarget movement only after it has held for two snapshots, or for
