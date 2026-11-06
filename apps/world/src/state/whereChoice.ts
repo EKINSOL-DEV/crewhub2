@@ -43,3 +43,20 @@ export function whereChoice(agents: readonly WhereAgent[], people: readonly (rea
 export function whereSaid(said: string, before: WhereChosen | null, chosen: WhereChosen | null, answer: string): string {
   return chosen !== null && chosen.key !== before?.key ? answer : said;
 }
+
+/** The ref that holds the choice the region last saw, as React's `useRef` gives it. */
+export interface WhereSeen {
+  current: WhereChosen | null;
+}
+
+/**
+ * The form's effect on a choice (components/WhereForm.tsx), its body whole so a node test runs it as React does: the
+ * choice the region last saw is read before the ref moves on, and the region's words are queued through `setSaid`,
+ * whose updater React runs later, in the next render. An updater that read the ref itself ran after the ref had moved
+ * and kept the region silent (round 73, wb-1); `before` is the closure's, taken at the effect's own moment.
+ */
+export function whereRegionEffect(seen: WhereSeen, chosen: WhereChosen | null, answer: string, setSaid: (update: (said: string) => string) => void): void {
+  const before = seen.current;
+  seen.current = chosen;
+  setSaid((words) => whereSaid(words, before, chosen, answer));
+}

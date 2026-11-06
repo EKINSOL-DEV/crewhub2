@@ -1,13 +1,13 @@
 /* "Where is …?" in the text view: agent awareness (LOOPS_INTEGRATION_PLAN.md section 7.2) as text. The answer is the
    pure `where` of the world model, about 40 tokens, in zone labels; it is announced once when a name is chosen, and
-   updates silently after (design choice W12, round 72; state/whereChoice.ts whereSaid). The asker
+   updates silently after (design choice W12, round 72; state/whereChoice.ts whereSaid, whereRegionEffect). The asker
    here is a person picking a name (never the agent itself), so the answer is in the third person: "cr-lead is on the floor
    of …" (decision 8, round 15). */
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { where, type AgentPlacement, type CivicWords, type RoomWording } from "@crewhub/world-model";
 import { Field } from "./primitives";
 import { useWorld } from "../state/runtimes";
-import { goneWords, whereChoice, whereSaid, type WhereChosen } from "../state/whereChoice";
+import { goneWords, whereChoice, whereRegionEffect, type WhereChosen } from "../state/whereChoice";
 
 /** `civic`: what the town hall and the post office are called at the town's size (the lodge, the mailbox). `rooms`: the
     words for places, the classic rooms or the three halls, as the building is drawn. */
@@ -37,15 +37,13 @@ export function WhereForm({ civic, rooms = "classic" }: { civic?: CivicWords; ro
   };
   const answer = gone !== null ? goneWords(gone) : selected ? where(model, selected, civic, rooms) : "No agents are in the world yet.";
   // Said once, at the choice (W12): the live region takes the answer of that moment and keeps it while the visible
-  // answer moves on; so the effect follows the choice alone, not the answer. The choice the region last saw is read
-  // before the ref moves on: React runs a queued updater later, after `seen.current` would already name the new choice,
-  // which kept the region silent (round 73, wb-1).
+  // answer moves on; so the effect follows the choice alone, not the answer. Its body is state/whereChoice.ts
+  // `whereRegionEffect` (the choice the region last saw read before the ref moves on, the words queued after; round 73,
+  // wb-1), so a node test runs it as React does.
   const [said, setSaid] = useState("");
   const seen = useRef<WhereChosen | null>(null);
   useEffect(() => {
-    const before = seen.current;
-    seen.current = chosen;
-    setSaid((words) => whereSaid(words, before, chosen, answer));
+    whereRegionEffect(seen, chosen, answer, setSaid);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chosen]);
   return (
