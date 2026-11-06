@@ -307,16 +307,17 @@ export async function run({ pass, page, check, out }) {
     // line, the brand row wrapping only for a chip grown to its word. Design choice T6 (round 72, word) changes that
     // expectation: the chip keeps its word, "Demo", and "CrewHub" and a worded chip do not share the corner's 139 px,
     // so the chip is the brand row's second line, where the title's second line ("World") was; it sits under the
-    // title, left-aligned with it, and the left corner still keeps clear of the right toolbar.
+    // title, at the row's left edge (the brand mark starts the first line, so the chip is not aligned with the
+    // title's text), inside the left corner, which still keeps clear of the right toolbar.
     const beside = await p.evaluate(() => {
       const chip = document.querySelector(".demo-chip")?.getBoundingClientRect();
       // The visible title: under 600 px the short one stands in for the full one (design choice T6).
       const title = [...document.querySelectorAll(".world-brand > strong")].find((e) => e.getClientRects().length > 0)?.getBoundingClientRect();
       const corner = document.querySelector(".world-corner-left")?.getBoundingClientRect();
       const tools = document.querySelector(".world-corner-right")?.getBoundingClientRect();
-      return chip && title && corner && tools ? { chipLeft: Math.round(chip.left), chipTop: Math.round(chip.top), chipBottom: Math.round(chip.bottom), titleLeft: Math.round(title.left), titleRight: Math.round(title.right), titleTop: Math.round(title.top), titleBottom: Math.round(title.bottom), cornerRight: Math.round(corner.right), toolsLeft: Math.round(tools.left) } : null;
+      return chip && title && corner && tools ? { chipLeft: Math.round(chip.left), chipTop: Math.round(chip.top), chipBottom: Math.round(chip.bottom), titleLeft: Math.round(title.left), titleRight: Math.round(title.right), titleTop: Math.round(title.top), titleBottom: Math.round(title.bottom), cornerLeft: Math.round(corner.left), cornerRight: Math.round(corner.right), toolsLeft: Math.round(tools.left) } : null;
     });
-    ok(`375 ${scheme}: the Demo chip, worded, is the brand row's second line under the title, and the left corner keeps clear of the right toolbar (T6; before T6 the icon chip sat beside the title)`, beside !== null && beside.chipTop >= beside.titleBottom - 1 && Math.abs(beside.chipLeft - beside.titleLeft) <= 2 && beside.cornerRight <= beside.toolsLeft, beside ? `chip at ${beside.chipLeft}, ${beside.chipTop}..${beside.chipBottom}; title ${beside.titleLeft}..${beside.titleRight}, ${beside.titleTop}..${beside.titleBottom}; corner to ${beside.cornerRight}, tools from ${beside.toolsLeft}` : "no chip or title");
+    ok(`375 ${scheme}: the Demo chip, worded, is the brand row's second line under the title, and the left corner keeps clear of the right toolbar (T6; before T6 the icon chip sat beside the title)`, beside !== null && beside.chipTop >= beside.titleBottom - 1 && beside.chipLeft >= beside.cornerLeft && beside.cornerRight <= beside.toolsLeft, beside ? `chip at ${beside.chipLeft}, ${beside.chipTop}..${beside.chipBottom}; title ${beside.titleLeft}..${beside.titleRight}, ${beside.titleTop}..${beside.titleBottom}; corner ${beside.cornerLeft}..${beside.cornerRight}, tools from ${beside.toolsLeft}` : "no chip or title");
     // Design choice T6 (round 72, word): the chip says "Demo" (the scenario's name is the menu's), the title "CrewHub".
     const words = await p.evaluate(() => ({ chip: (document.querySelector(".demo-chip")?.innerText ?? "").replace(/\s+/g, " ").trim(), title: ([...document.querySelectorAll(".world-brand > strong")].find((e) => e.getClientRects().length > 0)?.innerText ?? "").replace(/\s+/g, " ").trim() }));
     ok(`375 ${scheme}: the header says Demo beside the title CrewHub (T6)`, words.chip === "Demo" && words.title === "CrewHub", JSON.stringify(words));
