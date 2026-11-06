@@ -4,8 +4,10 @@
    log, or remembered from an earlier run), loops' version (and the one the host saw first, when loops was updated under
    it), and how the host reaches loops. It holds the host health's `panel` need while open (state/health.ts: a read
    every 5 s, and at once when the connection's state changes).
-   "Forget this key" asks in the panel itself (no browser dialog), then DELETEs the stored key and reloads: the gate
-   then shows the Connect screen. Before pairing the host tells states only, and the panel says so. Never the key.
+   "Forget this key" (the host's stored key only, design choice H3; state/connect.ts forgetOffer) asks in the panel
+   itself (no browser dialog), then DELETEs the stored key and reloads: the gate then shows the Connect screen; a
+   rejected key from the old default file is named instead. Before pairing the host tells states only, and the panel
+   says so. Never the key.
    The "Updated 3 s ago" line ticks but is not live; a small sr-only region says once when the host stops answering,
    answers again, or did not forget the key. A "Zones" row says where a live town's districts come from: made by hand
    in this browser and kept there (crewhub-loops has no project groups, proposal L22), never shared. */
@@ -15,7 +17,7 @@ import { forgetHostKey, type ConnectionState } from "@crewhub/loops-client";
 import { useT } from "../i18n";
 import { chatWords } from "../state/chatRoad";
 import { useChatRoad } from "../state/runtimes";
-import { archivedSourceKey, connectOutcome, loopsVersion, relativeTime, untilTime } from "../state/connect";
+import { archivedSourceKey, connectOutcome, forgetOffer, loopsVersion, relativeTime, untilTime } from "../state/connect";
 import { useHealthNeed, useHealthView } from "../state/health";
 import { useTown, useWorld } from "../state/runtimes";
 import { townKeeping, townKeepingWords, zonesOriginWords } from "../world/zoneText";
@@ -111,7 +113,7 @@ export function ConnectionPanel({ state, onClose }: ConnectionPanelProps) {
   const keyWords = keyChecked !== null && connection?.session?.state === "key" ? t("world.connection.panel.key.viewer", { words: keyChecked }) : keyChecked;
   const lastEvent = connection ? (relativeTime(connection.stream.lastEventAt, now) ?? t("world.connection.panel.never")) : null;
   const cursor = connection?.stream.cursor ?? health?.cursor;
-  const stored = connection?.key.source === "stored" || (connection?.key.state === "rejected" && connection.key.source !== "env");
+  const offer = forgetOffer(connection?.key);
   const archived = connection?.archived;
   const version = loopsVersion(health);
   const archivedWords = archived
@@ -201,9 +203,11 @@ export function ConnectionPanel({ state, onClose }: ConnectionPanelProps) {
           {spoken}
         </p>
       </Card.Body>
-      {connection && paired && stored && (
+      {connection && paired && offer !== null && (
         <Card.Footer className="connection-footer">
-          {confirm ? (
+          {offer === "default-file" ? (
+            <p className="hint connection-note">{t("world.connection.panel.keyFile")}</p>
+          ) : confirm ? (
             <div className="connection-confirm" role="group" aria-labelledby="connection-forget-ask">
               <p id="connection-forget-ask">{t("world.connection.panel.forgetAsk")}</p>
               <div className="connection-confirm-row">
