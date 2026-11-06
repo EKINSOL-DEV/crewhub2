@@ -1,8 +1,8 @@
 /* Design choice H3 (round 72, `stored-only`): the Connection panel offers "Forget this key" for the host's stored key
    only, as the Connect page does (ConnectPage.tsx, `source === "stored"`). A rejected key read from the old default
-   file (~/.config/crewhub-loops/secrets/agent-crewhub-world.key) is not the host's to drop: the host never deletes a
+   file is not the host's to drop: the host never deletes a
    file outside its folder, so a Forget would bring the same rejected key back at the next `npm run world`. The panel
-   says where that key comes from instead. A key from CREWHUB_WORLD_KEY_FILE gets neither, as before. */
+   says where that key comes from instead. A key from the environment's key file gets neither, as before. */
 import assert from "node:assert/strict";
 import test from "node:test";
 import { forgetOffer } from "../src/state/connect.ts";

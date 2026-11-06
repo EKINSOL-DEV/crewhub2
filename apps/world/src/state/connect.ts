@@ -99,7 +99,7 @@ export type ForgetOffer = "forget" | "default-file" | null;
  * What the Connection panel's footer offers for the host's key (design choice H3, round 72, `stored-only`): "Forget this
  * key" for the host's own stored key, as the Connect page's rejected screen does; for a rejected key read from the old
  * default file, where it comes from (the host drops only its own stored copy, never a file outside its folder, so a
- * Forget would read the same rejected key again at the next start); nothing for a key from CREWHUB_WORLD_KEY_FILE,
+ * Forget would read the same rejected key again at the next start); nothing for a key from the environment's key file,
  * a key of unknown source, no key, or a host from before the smooth connection.
  */
 export function forgetOffer(key: Pick<HostKeyState, "state" | "source"> | undefined): ForgetOffer {
