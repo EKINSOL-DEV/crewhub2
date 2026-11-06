@@ -208,7 +208,8 @@ world's `Field` echo from `sugg/w5-9` (`6f47a461`'s `Field.tsx`, byte for byte).
 **This is the preferred `do it` for w5-9 and w5-10 together.** `sugg/w5-9` and `sugg/w5-10` are the fallback, with the
 declared-divergence mechanism (crewy's rule: it lives on those two branches only, and merging it is Nicky's call).
 
-**State:** approved by rd2 (02:07 by `date`, 6 Nov 2026, at `5c922d5b`); the Lead's carry decides whether it goes into `sugg/all-r65`.
+**State:** approved by rd2 (02:07 by `date`, 6 Nov 2026, at `5c922d5b`) and carried into `sugg/all-r65@49c50b04` (merged at
+02:07). `sugg/w5-9` and `sugg/w5-10` stay apart, as the fallback.
 
 ## The clean end state
 
