@@ -215,3 +215,20 @@ export function highlightedWords(step: TourStep, name: string | null): string {
   const own = step.target === STAGE ? null : name;
   return `Highlighted on the screen: ${own ?? step.targetName}.`;
 }
+
+/**
+ * Whether a click ended the tour by a pointer (a click or a tap on Skip or Done): a click's `detail` counts the pointer's
+ * presses, and the keyboard's click (Enter or Space on the button) has 0 (round 73, wa-1). No event is not a pointer.
+ */
+export function endedByPointer(detail: number | undefined): boolean {
+  return (detail ?? 0) > 0;
+}
+
+/**
+ * How the focus returns when the tour ends: without a visible ring after a pointer (the card re-focused Next by script
+ * after each click, so the browser would keep a keyboard-style focus and ring the stage, the whole screen), with the
+ * browser's own after the keyboard, as a keyboard user needs it (round 73, wa-1).
+ */
+export function returnFocusOptions(byPointer: boolean): FocusOptions | undefined {
+  return byPointer ? { focusVisible: false } : undefined;
+}

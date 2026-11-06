@@ -56,7 +56,7 @@ import type { ConnectionState } from "@crewhub/loops-client";
 import type { Pick } from "./world/buildingView";
 import { roomName } from "./world/roomWords";
 import { useBuildingPlan } from "./state/buildingPlan";
-import { dialogIsOpen, tourTakesEscape, useOverlays, coversCorners } from "./state/overlays";
+import { dialogIsOpen, tourTakesEscape, useOverlays, coversCorners, PHONE_QUERY } from "./state/overlays";
 import { DirectorLog } from "./components/DirectorLog";
 import { PresenceSettings } from "./components/PresenceSettings";
 import { WhereForm } from "./components/WhereForm";
@@ -74,12 +74,10 @@ const NEXT_THEME = { system: "light", light: "dark", dark: "system" } as const;
 
 /* Below this width the chat is loops' narrow mode: a "Agent chats" menu in the corner and the chat as a full-screen dialog. */
 const NARROW = "(max-width: 899px)";
-/* A phone's width (world.css's phone rules): the text view then starts under the header rows and covers no corner (X2). */
-const PHONE = "(max-width: 600px)";
 // One media query list and one subscription for the page (state/media.ts): `matchMedia` on every render cost about
 // 1 ms at 4x of the enter's render (round 25), and an inline subscribe re-subscribed on every render (round 30).
 const useNarrow = () => useMedia(NARROW);
-const usePhone = () => useMedia(PHONE);
+const usePhone = () => useMedia(PHONE_QUERY);
 
 const prefersReducedMotion = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const typing = (target: EventTarget | null) => target instanceof HTMLElement && (target.matches("input, select, textarea") || target.isContentEditable);

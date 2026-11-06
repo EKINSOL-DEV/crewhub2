@@ -103,6 +103,15 @@ export function townTabsWords(kept: TownKeeping): string {
 }
 
 /**
+ * The tab words as Settings > Town renders them after the keeping sentence (components/TownSettings.tsx): with their
+ * leading space for a browser-kept (IndexedDB) demo town, nothing otherwise. Not `townKeeping`'s "browser": a
+ * memory-kept demo town is "browser" there, but it is lost on reload and meets no other tab, so it says nothing here.
+ */
+export function townTabsLine(storage: "host" | "indexeddb" | "memory", mode: "demo" | "live"): string {
+  return storage === "indexeddb" && mode !== "live" ? ` ${townTabsWords("browser")}` : "";
+}
+
+/**
  * Settings > Zones' hint (round 64, w6-9): what a zone is, where the zones are kept (the Town card's own truth per
  * `townKeeping`: the demo's and a browser-kept town's sentence as it always was; the host's for a live town the host
  * keeps; the browser's until the host is back), and where to assign buildings.
