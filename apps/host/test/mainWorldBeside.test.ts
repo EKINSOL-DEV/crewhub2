@@ -16,6 +16,9 @@ import { MINT_HEADER, MINT_PATH } from "../src/runningHost.ts";
 
 const MAIN = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "main.ts");
 const SECRET = "s3cret";
+/** The link the fake host mints: a whole line of `world`'s stdout when it prints one. */
+const link = (port: number) => `http://127.0.0.1:${port}/#pair=abc`;
+const lines = (text: string) => text.split("\n");
 
 const listen = (server: Server) => new Promise<number>((resolve) => server.listen(0, "127.0.0.1", () => resolve((server.address() as { port: number }).port)));
 const close = (server: Server) => new Promise<void>((resolve) => server.close(() => resolve()));
@@ -56,7 +59,7 @@ describe("npm run world beside a running host, main.ts's road (H2, refuse)", () 
       asks.push(`${req.url} ${req.headers[MINT_HEADER] === SECRET ? "secret" : "no secret"}`);
       if (req.url === MINT_PATH && req.headers[MINT_HEADER] === SECRET) {
         res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify({ link: `http://127.0.0.1:${port}/#pair=abc` }));
+        res.end(JSON.stringify({ link: link(port) }));
       } else {
         res.writeHead(403);
         res.end();
@@ -80,13 +83,13 @@ describe("npm run world beside a running host, main.ts's road (H2, refuse)", () 
       file(true);
       const minted = await world();
       assert.equal(minted.status, 0, minted.stderr);
-      assert.match(minted.stdout, new RegExp(`^http://127\\.0\\.0\\.1:${port}/#pair=abc$`, "m"), "the link, as before");
+      assert.ok(lines(minted.stdout).includes(link(port)), `the link, as before: ${minted.stdout}`);
       assert.match(minted.stderr, new RegExp(`a host already runs on ${port}; open this link in the browser`));
       assert.doesNotMatch(minted.stderr, /serves no built world/);
       file(undefined);
       const before = await world();
       assert.equal(before.status, 0, before.stderr);
-      assert.match(before.stdout, new RegExp(`^http://127\\.0\\.0\\.1:${port}/#pair=abc$`, "m"), "a run file from before: as before");
+      assert.ok(lines(before.stdout).includes(link(port)), `a run file from before: as before: ${before.stdout}`);
       assert.equal(asks.length, 3);
     } finally {
       await close(fake);
