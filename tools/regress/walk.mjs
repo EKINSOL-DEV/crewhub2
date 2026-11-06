@@ -402,6 +402,33 @@ export async function run({ pass, page, check, out }) {
     await press("Delete");
   }
   ok("a refused move says Can't move <prop> there, a refused turn Can't turn <prop> here: the prop named, the verb from the key (round 65, w6-4)", !!long && refusedMove.startsWith(`Can't move ${long.name} there: `) && refusedTurn.startsWith(`Can't turn ${long.name} here: `), long ? `${long.name}, ${longPlaced.slice(0, 50)} → ${refusedMove.slice(0, 100) || "(no refused move)"} | ${refusedTurn.slice(0, 100) || "(no refused turn)"} (${keys} keys)` : "no prop longer than wide in the palette");
+  // Round 70 (w6-3, the Lead's follow-up): the sheet's message carries what it is about (build.ts `say(message, about)`):
+  // one about a selected prop ("Moved … to cell …") clears when that selection ends (Escape), one about nothing
+  // ("Removed … Undo brings it back.", said as the selection ends) stays. No node test loads build.ts, so these two
+  // rows are the test: a prop placed and moved with an arrow key, then Escape; a prop placed and Deleted.
+  const placeOne = async () => {
+    let said = "";
+    for (let i = 0; i < Math.min(entries, 8) && !/Placed /.test(said); i++) {
+      await build.locator(".build-palette .palette-item").nth(i).click();
+      await p.waitForTimeout(300);
+      await canvas(p).focus();
+      await p.keyboard.press("Enter");
+      await p.waitForTimeout(800);
+      said = await message();
+    }
+    return said;
+  };
+  const placedToMove = await placeOne();
+  let moved = "";
+  for (const key of ["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp"]) {
+    if (/^Moved /.test(moved)) break;
+    moved = await press(key);
+  }
+  const afterDeselect = await press("Escape");
+  ok("a moved prop's message clears when its selection ends: after an arrow key, Escape leaves no message (round 65, w6-3)", /Placed /.test(placedToMove) && /^Moved /.test(moved) && afterDeselect === "", `${placedToMove.slice(0, 40)} → ${moved.slice(0, 60) || "(no move)"} → after Escape "${afterDeselect.slice(0, 60)}"`);
+  const placedToRemove = await placeOne();
+  const removed = await press("Delete");
+  ok("a message about nothing stays when the selection ends: Delete's 'Removed … Undo brings it back.' shows with nothing selected (round 65, w6-3)", /Placed /.test(placedToRemove) && /^Removed .* Undo brings it back\.$/.test(removed), `${placedToRemove.slice(0, 40)} → "${removed.slice(0, 80) || "(no message)"}"`);
   // Round 48 (r48-ui U7): the prop editor is a dialog: the focus goes into it when it opens and back to the button that
   // opened it when it closes (it stayed on New prop behind the sheet, and fell to the page on close).
   const newProp = build.getByRole("button", { name: "New prop", exact: true });
