@@ -488,4 +488,25 @@ export async function run({ pass, page, check, out }) {
     ok("desktop: with Settings open and with the text view open, the sheet ends above the copied dock (design choice T4, end)", settings.has && text.has && settings.clear && text.clear, `settings ${JSON.stringify(settings)}, text ${JSON.stringify(text)}`);
     await p.context().close();
   }
+
+  // 15. A 320 px window (design choice X4, `drop-word`): under 360 px the brand keeps its mark and loses the words
+  // "CrewHub World" from view, so the brand row no longer runs into the right toolbar; the words stay for a screen reader.
+  {
+    const p = await open({ width: 320, height: 568 });
+    await town(p, 1500);
+    const brand = await p.evaluate(() => {
+      const strong = document.querySelector(".world-brand > strong");
+      const row = document.querySelector(".world-brand");
+      const corner = document.querySelector(".world-corner-right");
+      if (!strong || !row || !corner) return { has: false };
+      const b = strong.getBoundingClientRect();
+      const r = row.getBoundingClientRect();
+      const c = corner.getBoundingClientRect();
+      const left = document.querySelector(".world-corner-left").getBoundingClientRect();
+      return { has: true, wordsShown: b.width > 2 && b.height > 2, words: strong.textContent, leftCornerRight: Math.round(left.right), cornerLeft: Math.round(c.left), rowRight: Math.round(r.right), vw: innerWidth };
+    });
+    await shot(p, "15-brand-320");
+    ok("320 px: the brand keeps its mark and loses its words from view, the words still in the DOM for a screen reader, and the left corner stays clear of the right toolbar (design choice X4)", brand.has && !brand.wordsShown && brand.words === "CrewHub World" && brand.leftCornerRight <= brand.cornerLeft + 1, JSON.stringify(brand));
+    await p.context().close();
+  }
 }
