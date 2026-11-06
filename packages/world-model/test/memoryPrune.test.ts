@@ -2,7 +2,8 @@
  * The presentation memory forgets what the facts no longer hold (round 50, r48-model M4): the lane and the place of an
  * agent that is no longer listed, the role rooms of a building that is gone. What is still there is kept as it was: an
  * agent listed again keeps its debounce (round 49's `laneDebounce.test.ts`), and a building keeps a role room whose
- * agents left (design choice S4: a seek does not forget the role rooms of a building that stayed).
+ * agents left (in live mode, as here: a seek does not forget the role rooms of a building that stayed; in the demo a new
+ * snapshot forgets them, design choice S4 `forget`, roleRoomsSeek.test.ts).
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -74,7 +75,7 @@ test("round 50 (M4): a worker that comes back is seen afresh, its status at once
   assert.equal(posture(reduce(T0 + 20_000)), "focused");
 });
 
-test("round 50 (M4): a building that is gone loses its role rooms; one that stayed keeps a role room its workers left (S4)", () => {
+test("round 50 (M4): a building that is gone loses its role rooms; one that stayed keeps a role room its workers left (live mode; S4 forgets them in the demo)", () => {
   const start: WorldInput = { projects: [CL, CR], agents: AGENTS, team: team(T0, [lane("cl-lead", "working"), lane("cr-lead", "working"), ...workers(1), lane("cr-dev-1", "working", { lead: "cr-lead" })]) };
   const { reduce, resnapshot, memory } = world(start);
   reduce(T0);
