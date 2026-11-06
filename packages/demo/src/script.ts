@@ -325,7 +325,7 @@ function storyline(s: ScriptBuilder): void {
   s.add("12:45", { type: "comment", by: "cr-lead", ticket: `@${grill}`, text: "May the mailbox stand outside the building, by the door?" });
   s.add("12:52", { type: "comment", by: "nicky", ticket: `@${grill}`, text: "Yes, by the door: a postman never goes inside.", replyToLast: true });
   // A bound request (CL-240): Nicky asks g-man for a restart; the lead may not do it alone and asks for a click.
-  const restart = s.post("12:56", { type: "dm", from: "nicky", agent: "g-man", text: "Please restart cr-dev-2; it has been stuck since the merge." });
+  const restart = s.post("12:56", { type: "dm", from: "nicky", agent: "g-man", text: "Please restart cr-dev-2; it has sat idle since the merge." });
   s.add("13:02", { type: "dmReply", agent: "g-man", replyToClientId: `demo-a${restart}`, text: "I can restart cr-dev-2 for you. Confirm it on the card and I will do it right away." });
   s.add("13:03", { type: "delegationRequest", agent: "g-man", action: "restart", target: "cr-dev-2", expiresInMs: 10 * 60 * SECOND });
   s.post("12:58", { type: "comment", by: "nicky", ticket: "MK-12", text: "Once per day is fine." });
