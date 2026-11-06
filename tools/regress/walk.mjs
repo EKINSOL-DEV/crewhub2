@@ -382,4 +382,36 @@ export async function run({ pass, page, check, out }) {
     ok("landscape phone: the Agent chats menu fits the window or scrolls, and its last item can be reached and tapped", reachable && closed, facts ? `menu ${facts.client}/${facts.scroll} overflow ${facts.overflowY}, bottom ${facts.bottom} of ${facts.vh}; "${lastName}" at y ${lastBox ? Math.round(lastBox.y) : "?"}..${lastBox ? Math.round(lastBox.y + lastBox.height) : "?"}; tapped: menu ${closed ? "closed" : "still open"}` : "no menu");
     await ctx.close();
   }
+
+  // 13. The same phone sideways, inside a building with Details on (round 64, w4-20; design choice N1 `compact`): a short
+  // window (under 480 px tall) counts as compact for the labels, as a narrow one does, so the building's plate inside
+  // shows its title line only (no counts, no lead row) and the figures carry pills, not their full plates with captions,
+  // instead of a staircase of labels over the playback bar.
+  {
+    const ctx = await browser.newContext({ ...devices["iPhone 13 landscape"], colorScheme: "light" });
+    const pg = await ctx.newPage();
+    watch(pg, pass.origin, pass.problems, "landscape-labels");
+    await pg.goto(pass.base);
+    await dressed(pg);
+    await pg.waitForTimeout(1000);
+    await canvas(pg).focus();
+    await pg.keyboard.press("ArrowRight");
+    await pg.keyboard.press("Enter");
+    await pg.waitForTimeout(2000);
+    await pg.getByRole("button", { name: "Details (D)", exact: true }).tap().catch(() => {});
+    await pg.waitForTimeout(900);
+    const counts = await pg.evaluate(() => ({
+      height: innerHeight,
+      width: innerWidth,
+      expandedSigns: document.querySelectorAll(".town-sign.expanded").length,
+      signCounts: document.querySelectorAll(".sign-counts").length,
+      captions: document.querySelectorAll(".agent-anchor .caption").length,
+      pills: document.querySelectorAll(".agent-anchor .name-pill").length,
+      rackCounts: document.querySelectorAll(".rack-sign .sign-muted").length,
+    }));
+    await shot(pg, "15-landscape-labels");
+    const inside = (await entered(pg)) !== null;
+    ok("landscape phone, inside with Details on: the labels are the compact set (the plate shows its title only, the figures carry pills, no captions; N1)", inside && counts.height < 480 && counts.expandedSigns === 0 && counts.signCounts === 0 && counts.captions === 0 && counts.pills > 0, `window ${counts.width} x ${counts.height}, expanded signs ${counts.expandedSigns}, counts ${counts.signCounts}, captions ${counts.captions}, pills ${counts.pills}, rack counts ${counts.rackCounts}${inside ? "" : ", not inside"}`);
+    await ctx.close();
+  }
 }
