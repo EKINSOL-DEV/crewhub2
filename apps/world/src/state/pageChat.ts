@@ -6,7 +6,7 @@
    it goes through the host; the host only names the loops web origin (`health.loopsWebUrl`, the same origin the API
    is on).
 
-   The runner is pure in its inputs (the fetch, the clock, hidden and online, the stores' two writers), so a test drives
+   The runner is pure in its inputs (the fetch, the clock, hidden, the stores' two writers), so a test drives
    it in milliseconds; the page's wiring (state/runtimes.ts `pageRoad`, which the live chat of state/chat.ts restarts
    when the host's word changes) hands it the browser's. Its state (`PageChatState`) goes to the chat stores' `page`: the
    probe's verdict, the loops origin asked, whether the poll runs, how many polls, the last failure. This module imports nothing
@@ -69,7 +69,6 @@ export interface PageChatRunnerOptions {
   now?: () => number;
   schedule?: (fn: () => void, ms: number) => () => void;
   hidden?: () => boolean;
-  online?: () => boolean;
   onLine?: (line: ChatLine) => void;
   onThreads?: (threads: ChatThreadFact[]) => void;
   onState?: (state: PageChatState) => void;
@@ -79,7 +78,7 @@ export interface PageChatRunnerOptions {
 export interface PageChatRunner {
   start(): void;
   stop(): void;
-  /** The page came back into view, or the browser is online again: ask now. */
+  /** The page came back into view, or the browser says it is online again: ask now. */
   wake(): void;
   state(): PageChatState;
 }
@@ -90,7 +89,9 @@ export interface PageChatRunner {
  * `reprobeDelay` (30 s signed out or chat off; 5 min for a refused origin, each ask a CORS line in the console; a
  * back-off from 5 s to 5 min for nothing answering). A 401 or a 409 while polling ends the loop and the probe takes
  * over. One ask in flight at a time; `wake()` drops the pending timer and asks now. Nothing is asked while the host
- * has not said whether its key reads the chat, at a loops elsewhere than this computer, or offline. Every step is
+ * has not said whether its key reads the chat, or at a loops elsewhere than this computer. The browser's online flag is
+ * not asked (design choice L2, round 72, `ignore`): the road only ever asks a loops on this computer, and a loopback ask
+ * needs no network, so with Wi-Fi off the bubbles still come (round 29, Low 9, had it wait). Every step is
  * cancelled by `stop()` (a generation count: a late answer of a stopped runner changes nothing).
  */
 export function createPageChatRunner(options: PageChatRunnerOptions): PageChatRunner {
@@ -101,7 +102,6 @@ export function createPageChatRunner(options: PageChatRunnerOptions): PageChatRu
     return () => clearTimeout(id);
   });
   const hidden = options.hidden ?? (() => false);
-  const online = options.online ?? (() => true);
   const timeoutMs = options.timeoutMs ?? 10_000;
   let state: PageChatState = { ...INITIAL_PAGE_CHAT, origin: options.loopsOrigin };
   let generation = 0;
@@ -123,8 +123,8 @@ export function createPageChatRunner(options: PageChatRunnerOptions): PageChatRu
 
   async function probe(): Promise<void> {
     const mine = generation;
-    // One ask in flight per runner (round 29, Low 5); offline, nothing is asked: `wake()` (the online event) asks again.
-    if (busy || !online()) return;
+    // One ask in flight per runner (round 29, Low 5).
+    if (busy) return;
     busy = true;
     const outcome = await probePageChat(options.loopsOrigin, fetchFn, timeoutMs);
     busy = false;
@@ -143,11 +143,6 @@ export function createPageChatRunner(options: PageChatRunnerOptions): PageChatRu
   async function poll(): Promise<void> {
     const mine = generation;
     if (busy) return;
-    if (!online()) {
-      // Offline: nothing is scheduled; `wake()` (the online event) asks again.
-      set({ polling: true });
-      return;
-    }
     busy = true;
     const outcome = await pollPageChat(options.loopsOrigin, cursor === null ? { fromTail: true } : { cursor }, fetchFn, timeoutMs);
     busy = false;
@@ -218,8 +213,8 @@ export function createPageChatRunner(options: PageChatRunnerOptions): PageChatRu
       // The pending timer goes: one ask now, and the next is set after it (never two in flight, round 29 Low 5).
       cancel?.();
       cancel = null;
-      // A probe that never answered (offline when the page opened, round 48 r48-live) is asked here too: the page's
-      // wiring wakes the runner on the online event, it does not start it again.
+      // The online event wakes the runner too (the page's wiring; it does not start it again): an ask now, since a
+      // poll that failed while the network was away may answer now.
       if (state.road === "page") void poll();
       else void probe();
     },

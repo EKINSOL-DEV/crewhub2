@@ -1,6 +1,6 @@
 /* Road 2 of the chat in the page (round 28, state/pageChat.ts): the runner asks nothing while the host's key reads the
    chat; otherwise it probes, and where the contract says page it polls at the back-off's pace, hands every agent line to
-   the said store and the threads to the card's store, stops on a 401 and probes again, waits offline, slows hidden,
+   the said store and the threads to the card's store, stops on a 401 and probes again, slows hidden,
    starts over at the tail when the cursor is gone; stop() ends every step. The fetch, the clock and the timers are
    injected, so a run takes milliseconds. */
 import assert from "node:assert/strict";
@@ -66,12 +66,12 @@ function loops(options: { signedIn?: boolean; events?: () => unknown[]; cursorGo
 }
 const agentDm = (id: string) => ({ seq: 1, type: "dm.created", actor: { id: "crewhub-lead", kind: "agent" }, payload: { threadId: "t1", messageId: id, agentId: "crewhub-lead" } });
 
-function runner(input: { hostKeyReadsChat: boolean | null; fetchFn: FetchLike; hidden?: () => boolean; online?: () => boolean }) {
+function runner(input: { hostKeyReadsChat: boolean | null; fetchFn: FetchLike; hidden?: () => boolean }) {
   const c = clock();
   const lines: ChatLine[] = [];
   const threads: ChatThreadFact[][] = [];
   const states: PageChatState[] = [];
-  const r = createPageChatRunner({ loopsOrigin: ORIGIN, hostKeyReadsChat: input.hostKeyReadsChat, fetch: input.fetchFn, now: c.now, schedule: c.schedule, hidden: input.hidden ?? (() => false), online: input.online ?? (() => true), onLine: (l) => lines.push(l), onThreads: (t) => threads.push(t), onState: (s) => states.push(s) });
+  const r = createPageChatRunner({ loopsOrigin: ORIGIN, hostKeyReadsChat: input.hostKeyReadsChat, fetch: input.fetchFn, now: c.now, schedule: c.schedule, hidden: input.hidden ?? (() => false), onLine: (l) => lines.push(l), onThreads: (t) => threads.push(t), onState: (s) => states.push(s) });
   return { r, c, lines, threads, states };
 }
 
@@ -176,26 +176,23 @@ test("a verdict other than on is asked again: signed out every REPROBE_MS, a ref
   gone.r.stop();
 });
 
-test("hidden: the poll slows to a minute; offline: nothing is scheduled until wake() (the online event); a gone cursor starts again at the tail", async () => {
+test("hidden: the poll slows to a minute; the online event's wake() is an ask now (the browser's flag is not asked, L2); a gone cursor starts again at the tail", async () => {
   let hidden = false;
-  let online = true;
   const l = loops({ cursorGone: false });
-  const { r, c } = runner({ hostKeyReadsChat: false, fetchFn: l.fetchFn, hidden: () => hidden, online: () => online });
+  const { r, c } = runner({ hostKeyReadsChat: false, fetchFn: l.fetchFn, hidden: () => hidden });
   r.start();
   await settle();
   hidden = true;
   await c.tick();
   assert.equal(c.pending(), POLL_HIDDEN_MS);
   hidden = false;
-  online = false;
   await c.tick();
-  assert.equal(c.pending(), null, "offline: no poll scheduled");
-  assert.equal(r.state().polling, true, "the road stays on; it waits for the online event");
-  online = true;
+  assert.equal(c.pending(), POLL_MS, "the poll keeps its schedule whatever the browser says of the network");
+  assert.equal(r.state().polling, true);
   const before = l.calls.length;
   r.wake();
   await settle();
-  assert.equal(l.calls.length, before + 1, "online again: one poll now");
+  assert.equal(l.calls.length, before + 1, "the online event: one poll now");
   assert.equal(c.pending(), POLL_MS);
   r.stop();
   const gone = loops({ cursorGone: true });
@@ -340,35 +337,19 @@ test("round 29 (Medium 3): loops' chat bubbles switched off while polling (a 409
   r.stop();
 });
 
-test("round 29 (Low 9): the probe is not made while offline; once online, a start asks", async () => {
-  let online = false;
+test("design choice L2 (round 72, ignore): a start asks at once, with no word from the browser on the network (round 29, Low 9, waited for it); the online event's wake() with nothing pending is one ask now", async () => {
   const l = loops();
-  const { r, c } = runner({ hostKeyReadsChat: false, fetchFn: l.fetchFn, online: () => online });
+  const { r, c } = runner({ hostKeyReadsChat: false, fetchFn: l.fetchFn });
   r.start();
   await settle();
-  assert.deepEqual(l.calls, [], "offline: nothing asked");
-  assert.equal(c.pending(), null);
-  r.stop();
-  online = true;
-  const again = runner({ hostKeyReadsChat: false, fetchFn: l.fetchFn, online: () => online });
-  again.r.start();
-  await settle();
-  assert.equal(again.r.state().road, "page");
-  again.r.stop();
-});
-
-test("round 48 (r48-live): offline when the page opens, the online event's wake() makes the probe the start could not (the page's wiring wakes, it does not restart)", async () => {
-  let online = false;
-  const l = loops();
-  const { r } = runner({ hostKeyReadsChat: false, fetchFn: l.fetchFn, online: () => online });
-  r.start();
-  await settle();
-  assert.deepEqual(l.calls, [], "offline: nothing asked");
-  online = true;
+  assert.equal(l.calls[0], "/api/dm/threads", "the probe asks at the start");
+  assert.equal(r.state().road, "page");
+  assert.equal(c.pending(), POLL_MS, "and the poll is scheduled");
+  const before = l.calls.length;
   r.wake();
   await settle();
-  assert.equal(l.calls[0], "/api/dm/threads", "online again: the probe asks");
-  assert.equal(r.state().road, "page");
+  assert.equal(l.calls.length, before + 1, "the online event: one poll now, the pending timer replaced");
+  assert.equal(c.pending(), POLL_MS);
   r.stop();
 });
 
