@@ -50,7 +50,7 @@ import { castRegistry } from "./cast";
 import { buildingLook, townLook, zoneLook, type LookContext } from "./worldLook";
 import { figureRole, figureState, type FigureFacts, type FigurePlace } from "./figureState";
 import { Visitor, walkTilt, WALK_TILTS, worldDirection, type WalkInput } from "./visitor";
-import { framedZoom, insideLimits, MIN_ZOOM, portraitInsets, resizeAction, sheetChange, sheetLeftInset, sheetOverhang, type FrameAction, type Insets } from "./sheetFraming";
+import { framedZoom, insideLimits, MIN_ZOOM, portraitInsets, resizeAction, SHEET_BESIDE_MIN_WIDTH, sheetChange, sheetLeftInset, sheetOverhang, type FrameAction, type Insets } from "./sheetFraming";
 
 export interface TownView {
   model: WorldModel;
@@ -1504,7 +1504,9 @@ export class TownScene {
    * The home frame. On a portrait phone it frames tight (`homeRects` compact) and lets the town run under the side
    * controls, so the town fills the tall screen instead of floating small in its middle: the town is framed in the
    * space between the chips and the playback bar (a `cover` fit, design choice T5, round 72, frame), its sides running
-   * off the screen's edges where the town is wider than tall.
+   * off the screen's edges where the town is wider than tall. The cover fit is the phone's (up to SHEET_BESIDE_MIN_WIDTH
+   * wide, T5's own scope): from 601 px wide, portrait too, every plot stays on the canvas beside the open sheet
+   * (round 66, w6-13), which a cover fit would run off.
    */
   #homeFrame(sheet = true) {
     const canvas = this.renderer.domElement;
@@ -1518,7 +1520,8 @@ export class TownScene {
       const c = lotCentre(cell);
       rects.push({ minX: c.x - PLOT_SIZE / 4, maxX: c.x + PLOT_SIZE / 4, minZ: c.z - PLOT_SIZE / 4, maxZ: c.z + PLOT_SIZE / 4 });
     }
-    return portrait ? this.frameRects(rects, 2, HOME_OFFSET, portraitInsets(insets), 1.04, "cover") : this.frameRects(rects, 2, HOME_OFFSET, insets);
+    const cover = portrait && canvas.clientWidth <= SHEET_BESIDE_MIN_WIDTH;
+    return portrait ? this.frameRects(rects, 2, HOME_OFFSET, portraitInsets(insets), 1.04, cover ? "cover" : "contain") : this.frameRects(rects, 2, HOME_OFFSET, insets);
   }
 
   home(immediate: boolean) {
