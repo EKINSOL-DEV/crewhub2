@@ -1069,6 +1069,14 @@
   text-overflow: clip;
   scrollbar-width: thin;
 }
+/* Design choice T4 (`lift`): with Settings or the text view open, the sheet stands above the copied dock (kit.css `.dock`,
+   fixed in <body> at --z-drawer), instead of the dock's round button lying over the sheet's bottom right corner. The shell
+   makes no stacking context, so the sheet's z-index meets the dock's at the root. The Chat panel (live mode) never meets
+   a dock (the dock is the demo's), so it keeps its place. */
+.world-shell[data-dock] .text-sheet,
+.world-shell[data-dock] .settings-sheet {
+  z-index: calc(var(--z-drawer) + 1);
+}
 .world-shell[data-dock] .demo-chat-chip {
   position: fixed;
   right: var(--space-3);
