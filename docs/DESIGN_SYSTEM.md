@@ -24,16 +24,24 @@ Never edit the copies here. The current copies come from crewhub-loops commit
 ### The chat bubbles follow the same rule
 
 The chat dock and chat card are the loops chat itself (plan section 4.7, item 1).
-These files are verbatim copies of crewhub-loops at commit `a1bed0f`, each with one
-header line that names its source and the commit:
+These files are verbatim copies of crewhub-loops, each with one header line that
+names its source and the commit it was copied at (the dock's two files and the send
+chord at `c7f9d679`, CL-181, since round 69; the other three at `a1bed0f`):
 
-| Copy | Source in crewhub-loops |
-| --- | --- |
-| [Bubbles.tsx](../apps/world/src/components/bubbles/Bubbles.tsx) | `apps/web/src/components/bubbles/Bubbles.tsx` |
-| [queries.ts](../apps/world/src/components/bubbles/queries.ts) | `apps/web/src/components/bubbles/queries.ts` |
-| [useMessageViewport.ts](../apps/world/src/components/bubbles/useMessageViewport.ts) | `apps/web/src/components/bubbles/useMessageViewport.ts` |
-| [bubbles.css](../apps/world/src/components/bubbles/bubbles.css) | `apps/web/src/components/bubbles/bubbles.css` |
-| [primitives/Menu.tsx](../apps/world/src/components/primitives/Menu.tsx) | `apps/web/src/components/primitives/Menu.tsx` |
+| Copy | Source in crewhub-loops | Commit |
+| --- | --- | --- |
+| [Bubbles.tsx](../apps/world/src/components/bubbles/Bubbles.tsx) | `apps/web/src/components/bubbles/Bubbles.tsx` | `c7f9d679` |
+| [queries.ts](../apps/world/src/components/bubbles/queries.ts) | `apps/web/src/components/bubbles/queries.ts` | `c7f9d679` |
+| [useMessageViewport.ts](../apps/world/src/components/bubbles/useMessageViewport.ts) | `apps/web/src/components/bubbles/useMessageViewport.ts` | `a1bed0f` |
+| [bubbles.css](../apps/world/src/components/bubbles/bubbles.css) | `apps/web/src/components/bubbles/bubbles.css` | `a1bed0f` |
+| [primitives/Menu.tsx](../apps/world/src/components/primitives/Menu.tsx) | `apps/web/src/components/primitives/Menu.tsx` | `a1bed0f` |
+| [primitives/sendChord.ts](../apps/world/src/components/primitives/sendChord.ts) | `apps/web/src/components/primitives/sendChord.ts` | `c7f9d679` |
+
+What the copies import that loops has and the world does not is answered by a
+world-side stand-in at the same relative path, which changes nothing visible:
+`react-router-dom` (a Vite alias and a tsconfig path to `src/shims`),
+`components/ticket/TicketKeyLink.tsx` (`WithTicketKeys` renders the text plain) and
+`components/settings/testNotification.ts` (loops' own `currentPlatform` lines).
 
 To change the chat, change crewhub-loops, then copy the file again with a new
 header line. `npm run check:copy`

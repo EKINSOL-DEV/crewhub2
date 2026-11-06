@@ -1,4 +1,4 @@
-// Source: crewhub-loops apps/web/src/components/bubbles/queries.ts @ a1bed0f. Copied verbatim; do not edit here, change the source and re-copy.
+// Source: crewhub-loops apps/web/src/components/bubbles/queries.ts @ c7f9d679. Copied verbatim; do not edit here, change the source and re-copy.
 import { useEffect } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError, shouldRetry } from "../../api/client";
@@ -47,8 +47,8 @@ export function usePins() {
   });
 }
 
-interface ChatDraft { text: string; submittedText: string | null; clientId: string | null; pending: boolean; error: boolean }
-const emptyDraft = (): ChatDraft => ({ text: "", submittedText: null, clientId: null, pending: false, error: false });
+interface ChatDraft { text: string; submittedText: string | null; clientId: string | null; pending: boolean; error: boolean; gated: boolean }
+const emptyDraft = (): ChatDraft => ({ text: "", submittedText: null, clientId: null, pending: false, error: false, gated: false });
 
 export function useChat(agent: string, person: string) {
   const path = `/api/dm/threads/${encodeURIComponent(agent)}`;
@@ -62,7 +62,7 @@ export function useChat(agent: string, person: string) {
   const draft = useQuery<ChatDraft>({ queryKey: draftKey, enabled: false, queryFn: emptyDraft, initialData: emptyDraft, gcTime: Infinity });
   const updateDraft = (patch: Partial<ChatDraft>) => qc.setQueryData<ChatDraft>(draftKey, (current) => ({ ...(current ?? emptyDraft()), ...patch }));
   const send = useMutation({ mutationFn: (body: DmMessageRequest) => api.post<DmMessageResponse>(`${path}/messages`, body),
-    onError: () => updateDraft({ pending: false, error: true }),
+    onError: (error) => updateDraft({ pending: false, error: true, gated: error instanceof ApiError && error.code === "dispatch_gated" }),
     onSuccess: async () => {
       qc.setQueryData(draftKey, emptyDraft());
       await qc.invalidateQueries({ queryKey: dmKeys.messages(agent) });
@@ -73,7 +73,7 @@ export function useChat(agent: string, person: string) {
     const text = current.text.trim();
     if (!text || current.pending) return;
     const clientId = current.submittedText === text && current.clientId ? current.clientId : crypto.randomUUID();
-    updateDraft({ clientId, submittedText: text, pending: true, error: false });
+    updateDraft({ clientId, submittedText: text, pending: true, error: false, gated: false });
     send.mutate({ bodyMarkdown: text, clientId });
   };
   const read = useMutation({ scope: { id: `dm-read-${agent}` }, mutationFn: (lastReadMessageId: string) => api.put<void>(`${path}/read`, { lastReadMessageId }),
