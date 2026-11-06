@@ -941,7 +941,9 @@
      beside it and only a worded chip wraps. Design choice T6 (round 72, word): the title's second line goes instead
      (the short title "CrewHub" stands in for the full one at this width: a second element, so the desktop's text
      node stays whole) and the Demo chip keeps its word, "Demo", in place of its icon and without the scenario's name
-     (the menu names it); the chip stays beside the title on its first line (regress walk: w4-14). */
+     (the menu names it). "CrewHub" and a worded chip do not share the corner's 139 px, so the chip is the brand row's
+     second line, where "World" was (regress walk: w4-14, its expectation changed with this choice), compact, so the
+     breadcrumb under the row keeps clear of the chat row. The Live chip, an icon, stays beside the title. */
   .world-brand > strong {
     flex: 1 1 min-content;
     min-width: 0;
@@ -959,6 +961,9 @@
   }
   .demo-word-short {
     display: inline;
+  }
+  .demo-chip > .chip {
+    height: 1.375rem;
   }
   /* The connection chip keeps its word when something is wrong; "Live" is its icon alone (the label says it). */
   .connection-chip[data-connection="live"] .chip > span {
