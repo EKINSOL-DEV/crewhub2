@@ -337,6 +337,6 @@ export function noPlanLine(model: WorldModel, quickPlans: boolean): string {
   for (const reason of reasons) counts.set(reason as string, (counts.get(reason as string) ?? 0) + 1);
   const order = ["status unknown", "working", "blocked", "stalled", "waiting on a person"];
   const why = [...counts].sort((a, b) => b[1] - a[1] || order.indexOf(a[0]) - order.indexOf(b[0])).map(([reason, n]) => `${n} ${reason}`).join(", ");
-  const probe = counts.has("status unknown") ? freshnessWords(model.freshness).whyUnknown : "";
+  const probe = counts.has("status unknown") ? freshnessWords(model.freshness, model.now).whyUnknown : "";
   return `No plan yet: no agent here is idle (${why}), so the scripted director has nobody to move; it plans when one is.${probe}${quick}`;
 }

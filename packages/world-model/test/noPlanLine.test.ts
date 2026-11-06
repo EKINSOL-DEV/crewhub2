@@ -34,7 +34,9 @@ test("a stale team snapshot is named with its time; a fresh one adds nothing to 
   const greyed = [building("cr", [agent("a1", { posture: "greyed" })])];
   const stale = noPlanLine(world(greyed, { freshness: { teamTs: "2026-10-21T17:00:00Z", ageSeconds: 3600, stale: true } }), true);
   assert.match(stale, /\(1 status unknown\)/);
-  assert.match(stale, /The team snapshot is stale since 2026-10-21T17:00:00Z, so a status shows as unknown until a fresh one\./);
+  // W1: the stamp as a clock time (its date first when not the model's today), never the ISO form; freshnessClock.test.ts pins the form.
+  assert.match(stale, /The team snapshot is stale since (\d{4}-\d\d-\d\d )?\d\d:\d\d:\d\d, so a status shows as unknown until a fresh one\./);
+  assert.doesNotMatch(stale, /2026-10-21T17/);
   assert.doesNotMatch(stale, /No team probe/);
   const fresh = noPlanLine(world([building("cr", [agent("a1", { posture: "focused" }), agent("a2", { posture: "raised-hand" }), agent("a3", { alerts: ["ticket t-1 stalled"] })])], { freshness: probed }), false);
   assert.equal(fresh, "No plan yet: no agent here is idle (1 working, 1 blocked, 1 stalled), so the scripted director has nobody to move; it plans when one is.");
