@@ -309,7 +309,12 @@ export async function run({ pass, page, check, out }) {
  * or has no such button, fails the read, so the row cannot pass while holding nothing. Its own rig: it closes before the
  * live group's rig starts on the same port, and the block ends with the demo page, after its own rig closed.
  */
-export async function runInertCorners({ pass, page, check, out }) {
+export async function runInertCorners(context) {
+  // The row stands first in the group: a step that throws is its one failing check, and the group's own checks still run.
+  await inertCorners(context).catch((error) => context.check.ok("X2 (round 75): the three corners' row runs to its end", false, (error?.message ?? String(error)).split("\n")[0]));
+}
+
+async function inertCorners({ pass, page, check, out }) {
   const { browser, opts, origin, dist: DIST, problems, noteLoops } = pass;
   const { ok } = check;
   const { shot } = out;
