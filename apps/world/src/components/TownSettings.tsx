@@ -6,7 +6,7 @@ import { Download } from "lucide-react";
 import { type TownBackupInfo, readHostTownBackup, readHostTownBackups, readTownBackup, readTownBackups } from "@crewhub/loops-client";
 import { exportTownDocument, RULE_IDS, type RuleId, type TownDocument } from "@crewhub/world-model";
 import { RestoreDialog, type RestorePreview } from "./RestoreDialog";
-import { townKeepingWords } from "../world/zoneText";
+import { townKeepingWords, townTabsWords } from "../world/zoneText";
 import type { GraphicsQuality } from "@crewhub/world-style";
 import { QUALITY_CHOICES, setQuality, useQuality } from "../state/quality";
 import { setCast, useCast } from "../state/cast";
@@ -199,6 +199,7 @@ export function TownSettings({ town }: { town: TownState }) {
         <p className="hint">
           Layout revision {town.doc.revision}.{" "}
           {town.storage === "host" ? townKeepingWords("host") : town.storage === "indexeddb" ? (model.mode === "live" ? townKeepingWords("offline") : "Kept in this browser (IndexedDB).") : "Kept in memory only: it is lost on reload."}
+          {town.storage === "indexeddb" && model.mode !== "live" && ` ${townTabsWords("browser")}`}
           {town.storageNote && ` ${town.storageNote}`}
         </p>
         <div className="town-file">
