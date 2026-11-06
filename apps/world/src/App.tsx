@@ -52,7 +52,7 @@ import type { ConnectionState } from "@crewhub/loops-client";
 import type { Pick } from "./world/buildingView";
 import { roomName } from "./world/roomWords";
 import { useBuildingPlan } from "./state/buildingPlan";
-import { dialogIsOpen, useOverlays } from "./state/overlays";
+import { dialogIsOpen, useOverlays, coversCorners } from "./state/overlays";
 import { DirectorLog } from "./components/DirectorLog";
 import { PresenceSettings } from "./components/PresenceSettings";
 import { WhereForm } from "./components/WhereForm";
@@ -70,9 +70,12 @@ const NEXT_THEME = { system: "light", light: "dark", dark: "system" } as const;
 
 /* Below this width the chat is loops' narrow mode: a "Agent chats" menu in the corner and the chat as a full-screen dialog. */
 const NARROW = "(max-width: 899px)";
+/* A phone's width (world.css's phone rules): the text view then starts under the header rows and covers no corner (X2). */
+const PHONE = "(max-width: 600px)";
 // One media query list and one subscription for the page (state/media.ts): `matchMedia` on every render cost about
 // 1 ms at 4x of the enter's render (round 25), and an inline subscribe re-subscribed on every render (round 30).
 const useNarrow = () => useMedia(NARROW);
+const usePhone = () => useMedia(PHONE);
 
 const prefersReducedMotion = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const typing = (target: EventTarget | null) => target instanceof HTMLElement && (target.matches("input, select, textarea") || target.isContentEditable);
@@ -103,6 +106,7 @@ function World() {
   // The long-session probe (state/soak.ts): the stores' sizes on `window.__worldStores` for tools/memory.mjs. Reads only.
   useEffect(() => installSoakProbe(pageReads(() => worldRuntime().connection?.state() ?? null)), []);
   const narrow = useNarrow();
+  const phone = usePhone();
   const dockHeight = useDockHeight();
   const { theme, cycle } = useTheme();
   useDirectorFeed();
@@ -118,6 +122,8 @@ function World() {
   // The dialogs and panels over the town (state/overlays.ts): which are open, where the focus returns, what Escape closes.
   const [overlayState, overlays] = useOverlays();
   const { text: textOpen, settings: settingsOpen, connection: connectionOpen, tour: tourOpen, jump: jumpOpen, chat: chatOpen, editor: editorOpen } = overlayState.open;
+  // Design choice X2 (`inert`): the right toolbar, the chat chip and the camera toolbar are inert under a sheet that covers them.
+  const cornersCovered = coversCorners(overlayState.open, phone);
   // The introduction inside the world (round 20): open by itself once per browser, or from Settings and the "?" menu.
   const tourAsked = useRef(false);
   const [announcement, setSpoken] = useState("");
@@ -511,7 +517,7 @@ function World() {
           r50-a11y A9); they still paint over the scene's top overlays by their z-index (world.css `.world-corner`). */}
       <Corner demo={demo} connection={connection} connectionReason={connectionReason} connectionOpen={connectionOpen} onOpenConnection={openConnection} graphicsFailed={graphicsFailed} trail={trail} onGo={go} onJump={openJump} jumpOpen={jumpOpen} following={following ? agentName(following) : null} onStopFollow={() => follow(null)} />
 
-      <CornerTools theme={theme} cycle={cycle} details={details} buildOn={build.state.on} toggleBuild={build.toggle} settingsOpen={settingsOpen} openSettings={openSettings} closeSettings={closeSettings} graphicsFailed={graphicsFailed} openTour={openTour} openText={openText} />
+      <CornerTools inert={cornersCovered} theme={theme} cycle={cycle} details={details} buildOn={build.state.on} toggleBuild={build.toggle} settingsOpen={settingsOpen} openSettings={openSettings} closeSettings={closeSettings} graphicsFailed={graphicsFailed} openTour={openTour} openText={openText} />
 
       <main className="world-stage" onKeyDown={sceneKey} aria-label="CrewHub World">
         {graphicsFailed ? null : (
@@ -601,9 +607,9 @@ function World() {
         </Suspense>
       )}
 
-      {!graphicsFailed && <CameraToolbar camera={camera} walking={walking} toggleWalk={walking ? stopWalk : build.state.on ? null : startWalk} />}
+      {!graphicsFailed && <CameraToolbar inert={cornersCovered} camera={camera} walking={walking} toggleWalk={walking ? stopWalk : build.state.on ? null : startWalk} />}
 
-      <ChatCorner narrow={narrow} demo={demo} connection={connection} chatOpen={chatOpen} onOpenChat={() => openChat(null)} />
+      <ChatCorner inert={cornersCovered} narrow={narrow} demo={demo} connection={connection} chatOpen={chatOpen} onOpenChat={() => openChat(null)} />
 
       {playback && <PlaybackBar playback={playback} />}
 
@@ -814,6 +820,8 @@ const Corner = memo(function Corner({
 const focusScene = () => document.querySelector<HTMLElement>("main.world-stage canvas")?.focus();
 
 const CornerTools = memo(function CornerTools(props: {
+  /** Under a sheet that covers the corner (X2): the buttons leave the Tab order and the accessibility tree. */
+  inert: boolean;
   theme: keyof typeof THEME_ICON;
   cycle: () => void;
   details: boolean;
@@ -827,10 +835,10 @@ const CornerTools = memo(function CornerTools(props: {
   /** The text view from the "?" menu (round 64, w4-7): a touch device has no T key and never meets the skip link. */
   openText: () => void;
 }) {
-  const { theme, cycle, details, buildOn, toggleBuild, settingsOpen, openSettings, closeSettings, graphicsFailed, openTour, openText } = props;
+  const { inert, theme, cycle, details, buildOn, toggleBuild, settingsOpen, openSettings, closeSettings, graphicsFailed, openTour, openText } = props;
   const ThemeIcon = THEME_ICON[theme];
   return (
-    <div className="world-corner world-corner-right" data-chrome="">
+    <div className="world-corner world-corner-right" data-chrome="" inert={inert}>
       <Button variant="ghost" iconOnly aria-label={`Theme: ${theme}. Switch to ${NEXT_THEME[theme]}.`} title={`Theme: ${theme}`} icon={<ThemeIcon className="icon" aria-hidden="true" />} onClick={cycle} />
       {!graphicsFailed && (
         <Button
@@ -874,9 +882,9 @@ const CornerTools = memo(function CornerTools(props: {
   );
 });
 
-const CameraToolbar = memo(function CameraToolbar({ camera, walking, toggleWalk }: { camera: (type: CameraAction) => void; walking: boolean; toggleWalk: (() => void) | null }) {
+const CameraToolbar = memo(function CameraToolbar({ inert, camera, walking, toggleWalk }: { inert: boolean; camera: (type: CameraAction) => void; walking: boolean; toggleWalk: (() => void) | null }) {
   return (
-    <div className="camera-toolbar" role="toolbar" aria-label="Camera" data-chrome="">
+    <div className="camera-toolbar" role="toolbar" aria-label="Camera" data-chrome="" inert={inert}>
       <Button
         variant="ghost"
         size="sm"
@@ -900,19 +908,19 @@ const CameraToolbar = memo(function CameraToolbar({ camera, walking, toggleWalk 
 /* In demo mode the copied dock and its "replies are scripted" note; in live mode the Chat chip, which opens the Chat
    panel: crewhub-loops' own chat framed in the world (components/ChatPanel; a session cookie never reaches the world,
    the frame carries the person's own). */
-const ChatCorner = memo(function ChatCorner({ narrow, demo, connection, chatOpen, onOpenChat }: { narrow: boolean; demo: boolean; connection: ConnectionState | null; chatOpen: boolean; onOpenChat: () => void }) {
+const ChatCorner = memo(function ChatCorner({ inert, narrow, demo, connection, chatOpen, onOpenChat }: { inert: boolean; narrow: boolean; demo: boolean; connection: ConnectionState | null; chatOpen: boolean; onOpenChat: () => void }) {
   // Round 64 (w5-8): the copied dock disables its box and Send while a message goes, which drops the focus to the body; the guard (state/dockFocus) brings it back.
   useEffect(() => (demo ? attachSendFocusGuard(document) : undefined), [demo]);
   if (!demo)
     return (
-      <div className="world-chat" data-chrome="">
+      <div className="world-chat" data-chrome="" inert={inert}>
         <button type="button" className="chip-button chat-open" title={translate("world.chat.openHint")} aria-label={translate("world.chat.openHint")} aria-expanded={chatOpen} aria-haspopup="dialog" data-connection={connection ?? undefined} onClick={onOpenChat}>
           <Chip className="demo-chat-chip" icon={<MessageCircle className="icon" aria-hidden="true" />}>{translate("world.chat.open")}</Chip>
         </button>
       </div>
     );
   return (
-    <div className="world-chat" data-chrome="">
+    <div className="world-chat" data-chrome="" inert={inert}>
       <Bubbles narrow={narrow} />
       <Chip className="demo-chat-chip" icon={<MessageCircle className="icon" aria-hidden="true" />}>
         Demo: replies are scripted
