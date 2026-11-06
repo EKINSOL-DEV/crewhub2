@@ -4,7 +4,7 @@
    dimmed and the camera never moves (reduced motion or not). Tab cycles among the card's buttons (Escape leaves). The
    steps, the placement and the flag are state/tour.ts. */
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
-import { boxOf, highlightedWords, placeStep, tourAnnouncement, tourSteps, TOUR_FOCUS_FALLBACK, type Placement, type Rect, type TourStep } from "../state/tour";
+import { boxOf, endedByPointer, highlightedWords, placeStep, returnFocusOptions, tourAnnouncement, tourSteps, TOUR_FOCUS_FALLBACK, type Placement, type Rect, type TourStep } from "../state/tour";
 import { Button } from "./primitives";
 
 interface TourProps {
@@ -65,7 +65,7 @@ export function Tour({ mode, onClose, reducedMotion, returnTo = null, fallback =
     next.current?.focus();
     return () => {
       const target = back.current?.isConnected ? back.current : document.querySelector<HTMLElement>(fallback);
-      target?.focus(byPointer.current ? { focusVisible: false } : undefined);
+      target?.focus(returnFocusOptions(byPointer.current));
     };
     // Once, at mount: what the opener passed is read then.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -89,9 +89,9 @@ export function Tour({ mode, onClose, reducedMotion, returnTo = null, fallback =
     setPlacement(placeStep(target.rect, { width: window.innerWidth, height: window.innerHeight }, size));
   }, [target, index]);
 
-  /** A click's `detail` counts the pointer's presses: 0 is the keyboard's click (Enter or Space on the button). */
+  /** A click's `detail` counts the pointer's presses: 0 is the keyboard's click (Enter or Space on the button); state/tour.ts. */
   const close = (reason: "skip" | "done", e?: MouseEvent) => {
-    byPointer.current = (e?.detail ?? 0) > 0;
+    byPointer.current = endedByPointer(e?.detail);
     onClose(reason);
   };
   const onKey = (e: KeyboardEvent) => {
