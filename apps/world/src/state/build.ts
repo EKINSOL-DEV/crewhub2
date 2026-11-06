@@ -8,7 +8,7 @@ import type { Building, PlacedProp, RoomKind } from "@crewhub/world-model";
 import { buildingTemplate } from "../world/buildingTemplate";
 import { useBuildingPlan } from "./buildingPlan";
 import type { Pick } from "../world/buildingView";
-import { cellAt, checkGhost, freeCellIn, placedWords, refusedWords, resolveBuildingPlacements, roomSite, type GhostCheck } from "../world/placements";
+import { cellAt, checkGhost, freeCellIn, placedWords, refusedWords, reposeAction, resolveBuildingPlacements, roomSite, type GhostCheck } from "../world/placements";
 import type { Ghost } from "../world/propLayer";
 import { messageShown } from "./buildMessage";
 import { buildWords } from "./inputWords";
@@ -145,7 +145,7 @@ export function useBuildMode(town: TownState, inside: Building | null, focusedRo
       const verdict = checkGhost(town.doc, inside.slug, template, town.definitions, { id: p.id, propId: p.propId, room, cell, rotation });
       if (!verdict.ok) {
         // Both w6-3 (the message is about this prop) and w6-4 (the refusal names the prop and the verb).
-        say(refusedWords(rotation !== p.rotation ? "turn" : "move", nameOf(p.propId), verdict.reason), p.id);
+        say(refusedWords(reposeAction(rotation, p.rotation), nameOf(p.propId), verdict.reason), p.id);
         return;
       }
       const edits =

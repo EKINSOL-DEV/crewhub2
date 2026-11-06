@@ -118,6 +118,9 @@ export const placedWords = (propName: string, room: RoomKind, plan: BuildingPlan
 /** A refused move or turn of a placed prop: the verb and the prop's name before the engine's reason, as a refused placement says "Can't place <prop> here: <reason>" (round 65, w6-4). */
 export const refusedWords = (action: "move" | "turn", propName: string, reason: string): string => (action === "move" ? `Can't move ${propName} there: ${reason}` : `Can't turn ${propName} here: ${reason}`);
 
+/** What a repose of a placed prop is: a turn when the rotation asked differs from the one it stands at, else a move (the verb a refusal names; round 71's seam 3 over w6-4). */
+export const reposeAction = (rotation: Rotation, previous: Rotation): "move" | "turn" => (rotation !== previous ? "turn" : "move");
+
 /**
  * The building's rooms with the document's grid placements applied in document order, keyed by the template's own
  * room kinds (a placement in a hosted model room lands in its hall; one that no longer fits there is an error).
