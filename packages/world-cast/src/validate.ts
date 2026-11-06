@@ -4,7 +4,8 @@ import { PROP_SHAPES } from "@crewhub/world-engine";
 import type { CastManifest, FigurePatch, FigureSpec } from "./index.ts";
 import { CAST_ROLES, FIGURE_ACTIVITIES, MOTION_CHANNELS, MOTION_WAVES, WORK_POSES } from "./names.ts";
 
-export type CastValidation<T> = { ok: true; value: T } | { ok: false; errors: string[] };
+/** Accepted with what was ignored (design choice K1: an activity, a role or a perch key this world does not know), or refused. */
+export type CastValidation<T> = { ok: true; value: T; warnings: string[] } | { ok: false; errors: string[] };
 
 const POSE_KEYS = [...FIGURE_ACTIVITIES, "waiting", "carrying"];
 const MOTION_KEYS = [...FIGURE_ACTIVITIES, "waiting", "always"];
@@ -27,8 +28,30 @@ const isText = (value: unknown): value is string => typeof value === "string" &&
 
 class Report {
   readonly errors: string[] = [];
+  readonly warnings: string[] = [];
   error(path: string, message: string) {
     this.errors.push(`${path}: ${message}`);
+  }
+  /**
+   * Design choice K1 (`lenient`): a key of one of the three enums a later world may extend (an activity, a role, a work
+   * pose) that this world does not know is warned about and ignored, as round 48 made the live snapshot's enums lenient;
+   * the caller skips what it names. An unknown field stays an error (`keys`).
+   */
+  known(value: Bag, allowed: readonly string[], path: string, what: string): Set<string> {
+    const unknown = new Set<string>();
+    for (const key of Object.keys(value))
+      if (!allowed.includes(key)) {
+        unknown.add(key);
+        this.warnings.push(`${path}.${key}: is not ${what} this world knows; ignored`);
+      }
+    return unknown;
+  }
+  /** A list of names of one of those enums: a wrong shape is an error, an unknown name a warning. */
+  names(value: unknown, allowed: readonly string[], path: string, what: string): void {
+    if (!(Array.isArray(value) && value.length && value.every((x) => typeof x === "string"))) return this.error(path, `must be a list of ${allowed.join(", ")}`);
+    value.forEach((name: string, i) => {
+      if (!allowed.includes(name)) this.warnings.push(`${path}[${i}]: is not ${what} this world knows; ignored`);
+    });
   }
   vec3(value: unknown, path: string, limit = REACH): boolean {
     if (Array.isArray(value) && value.length === 3 && value.every((n) => isNumber(n) && Math.abs(n) <= limit)) return true;
@@ -39,7 +62,7 @@ class Report {
     for (const key of Object.keys(value)) if (!allowed.includes(key)) this.error(`${path}.${key}`, `is not a known field (${allowed.join(", ")})`);
   }
   done<T>(value: unknown): CastValidation<T> {
-    return this.errors.length ? { ok: false, errors: this.errors } : { ok: true, value: value as T };
+    return this.errors.length ? { ok: false, errors: this.errors } : { ok: true, value: value as T, warnings: this.warnings };
   }
 }
 
@@ -96,9 +119,8 @@ function parts(r: Report, value: unknown, path: string, joints: ReadonlySet<stri
       else ids.add(part.id);
     }
     if ("joint" in part && (!isText(part.joint) || (joints && !joints.has(part.joint)))) r.error(`${at}.joint`, "must be a joint of the figure");
-    for (const [key, allowed] of [["roles", CAST_ROLES], ["activities", FIGURE_ACTIVITIES]] as const)
-      if (key in part && !(Array.isArray(part[key]) && part[key].length && part[key].every((x) => (allowed as readonly unknown[]).includes(x))))
-        r.error(`${at}.${key}`, `must be a list of ${allowed.join(", ")}`);
+    if ("roles" in part) r.names(part.roles, CAST_ROLES, `${at}.roles`, "a role");
+    if ("activities" in part) r.names(part.activities, FIGURE_ACTIVITIES, `${at}.activities`, "an activity");
     for (const key of ["waiting", "carrying"]) if (key in part && typeof part[key] !== "boolean") r.error(`${at}.${key}`, "must be true or false");
     if ("detail" in part && part.detail !== "near") r.error(`${at}.detail`, 'must be "near"');
   });
@@ -121,8 +143,9 @@ function jointList(r: Report, value: unknown, path: string, known: Set<string>) 
 
 function poses(r: Report, value: unknown, path: string, joints: ReadonlySet<string> | null) {
   if (!isObject(value)) return r.error(path, "must be an object of poses");
-  r.keys(value, POSE_KEYS, path);
+  const unknown = r.known(value, POSE_KEYS, path, "an activity");
   for (const [key, pose] of Object.entries(value)) {
+    if (unknown.has(key)) continue;
     if (!isObject(pose)) {
       r.error(`${path}.${key}`, "must be an object of joints");
       continue;
@@ -150,8 +173,9 @@ function jointPoses(r: Report, pose: Bag, path: string, joints: ReadonlySet<stri
 /** The perches of a figure: per work pose or `default`, a step of its own, the top itself, or the floor. */
 function perches(r: Report, value: unknown, path: string, joints: ReadonlySet<string> | null, slots: Bag | null) {
   if (!isObject(value)) return r.error(path, "must be an object of perches per work pose");
-  r.keys(value, PERCH_KEYS, path);
+  const unknown = r.known(value, PERCH_KEYS, path, "a work pose");
   for (const [pose, perch] of Object.entries(value)) {
+    if (unknown.has(pose)) continue;
     const at = `${path}.${pose}`;
     if (!isObject(perch) || !["floor", "step", "surface"].includes(perch.kind as string)) {
       r.error(`${at}.kind`, 'must be "floor", "step" or "surface"');
@@ -193,8 +217,9 @@ function perches(r: Report, value: unknown, path: string, joints: ReadonlySet<st
 
 function motions(r: Report, value: unknown, path: string, joints: ReadonlySet<string> | null) {
   if (!isObject(value)) return r.error(path, "must be an object of motions");
-  r.keys(value, MOTION_KEYS, path);
+  const unknown = r.known(value, MOTION_KEYS, path, "an activity");
   for (const [key, list] of Object.entries(value)) {
+    if (unknown.has(key)) continue;
     if (!Array.isArray(list)) {
       r.error(`${path}.${key}`, "must be a list of motions");
       continue;
@@ -216,8 +241,9 @@ function motions(r: Report, value: unknown, path: string, joints: ReadonlySet<st
 
 function looks(r: Report, value: unknown, path: string, ids: ReadonlySet<string> | null) {
   if (!isObject(value)) return r.error(path, "must be an object of looks");
-  r.keys(value, LOOK_KEYS, path);
+  const unknown = r.known(value, LOOK_KEYS, path, "an activity");
   for (const [key, look] of Object.entries(value)) {
+    if (unknown.has(key)) continue;
     const at = `${path}.${key}`;
     if (!isObject(look) || !isObject(look.parts)) {
       r.error(at, "must be { parts }");
@@ -250,8 +276,8 @@ function colorways(r: Report, value: unknown, path: string) {
       if (!isObject(way.roles)) r.error(`${at}.roles`, "must be an object of roles");
       else
         for (const [role, color] of Object.entries(way.roles)) {
-          if (!(CAST_ROLES as readonly string[]).includes(role)) r.error(`${at}.roles.${role}`, "is not a role");
-          colorName(r, color, `${at}.roles.${role}`);
+          if (!(CAST_ROLES as readonly string[]).includes(role)) r.warnings.push(`${at}.roles.${role}: is not a role this world knows; ignored`);
+          else colorName(r, color, `${at}.roles.${role}`);
         }
     }
     if (!Array.isArray(way.others) || !way.others.length) r.error(`${at}.others`, "must list at least one colour");
