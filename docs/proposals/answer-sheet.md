@@ -67,10 +67,10 @@ The questions page and the merge plan name the same seven branches at the same h
 `2fb1847`, `2c0bd7f`, `f8fa725`, `c83b27c`), and those are the tips tonight. Question 13's `merge` is still a no-op: the
 branch merged with `0dee42ed` is tree-identical to it (rd1, round 69).
 
-## Design choices (design-choices.md, 48 as of round 66, plus the two below from part B)
+## Design choices (design-choices.md, 50: 48 as of round 66, and W17 and N1 from round 69)
 
 Every "if you say nothing" is the world as it is today, in the page's own words. No design choice has a branch ready; K3
-names a held one. *w* marks the eighteen wording choices: `wording block: as recommended` takes them all at once (W2 then
+names a held one. *w* marks the nineteen wording choices: `wording block: as recommended` takes them all at once (W2 then
 still needs a word: `alert` or `waiting`). A group answers at once too: `T: as recommended`.
 
 | Id | The choice | Answer form | Recommended | If you say nothing | Ready branch |
@@ -123,8 +123,8 @@ still needs a word: `alert` or `waiting`). A group answers at once too: `T: as r
 | P1 | `tools/perf.mjs`'s exit code after a failed scenario | `P1: fail / keep` | `fail` | exit 0 | none |
 | P2 | The copied loops files: catch an edit to a copy's body on CI too | `P2: sync / hash / keep` | `sync` | a copy's body is checked only where a crewhub-loops checkout is | none. w5-9 and w5-10 (the walkthrough table), if `do it`, change this same check in another way: it learns one declared patch per copy; a `sync` would have to carry that patch |
 | P3 | A test that the clock decides, once, with a wide margin | `P3: race / seam / keep` | `keep` | `keep` | none |
-
-The two choices made tonight from walk findings w1-13 and w4-20 (part B of round 69) follow here once written.
+| W17 *w* | An archived building's two ticket lines (walk finding w1-13; new in round 69) | `W17: why / tickets / halls / keep` | `why` | the two lines as they are | none |
+| N1 | Fewer labels in a short window (walk finding w4-20; new in round 69) | `N1: compact / tags / keep` | `compact` | the staircase sideways | none |
 
 ## Walk findings (walkthrough-r64.md)
 
@@ -141,7 +141,7 @@ answer, as the page says. A sha is the branch's tip tonight (`git rev-parse`; lo
 | --- | --- | --- | --- | --- | --- |
 | w1-11 / w4-8 | A click or tap on a figure's name pill zooms the room instead of opening its card | `w1-11: do it / as it is` | `do it` (finished in round 67: the town's pills now take the click or tap too) | the pill lets the click through | `sugg/w1-11` `130f8896` |
 | w1-12 | Three Details labels lead with "RULE", a build-mode word | `w1-12: do it / as it is` | `do it` | the RULE labels | `sugg/w1-12` `ed66836a` |
-| w1-13 | An archived building's text says its ticket counts twice, once as all zero | `W17: …` (a design choice now; see the design-choices table) | W17's recommendation | the two lines | none |
+| w1-13 | An archived building's text says its ticket counts twice, once as all zero | `W17: why / tickets / halls / keep` (design choice W17, new in round 69) | W17's `why` | the two lines | none |
 | w1-14 | The tour's last card covers the breadcrumb bar | `w1-14: do it / as it is` | `do it` | the card over the bar | `sugg/w1-14` `ef784275` |
 | w1-15 | A building sign has no hover state | `w1-15: do it / as it is` | `do it` | hover changes the pointer only | `sugg/w1-15` `b8b3a8d3` |
 | w1-16 | With Details on, label pairs touch | `w1-16: as it is / <your words>` | `as it is` *(Lead, round 69)*: the write-up has no suggestion for it; the label layout's known gap | the labels touch | none |
@@ -169,7 +169,7 @@ answer, as the page says. A sha is the branch's tip tonight (`git rev-parse`; lo
 | w4-11 | The jump to the postman frames it at the screen's left edge | `w4-11: do it / as it is` | `do it` (the camera also goes with the figure for 6 s, since the postman walks on while it lands) | the figure at the edge | `sugg/w4-11` `e75b9873` |
 | w4-12 | Settings › Town's paired selects cut their words at 390 px | `w4-12: do it / as it is` | `do it` | the cut words | `sugg/w4-12` `42163bb8` |
 | w4-18 | Inside a building the build sheet covers the lower 45 % of the screen | `w4-18: do it / as it is` | `do it` (the first way, a shorter sheet; the lower floor is still partly under it) | the tall sheet | `sugg/w4-18` `8f2ef238` |
-| w4-20 | Sideways inside a building the labels pile up in a staircase | `N1: …` (a design choice now; see the design-choices table) | N1's recommendation | the pile-up | none |
+| w4-20 | Sideways inside a building the labels pile up in a staircase | `N1: compact / tags / keep` (design choice N1, new in round 69) | N1's `compact` | the pile-up | none |
 | w4-21 | The Chat panel's two small rows are 18 and 20 px tall | `w4-21: do it / as it is` | `do it` (real 40 px rows, not a pad) | the small rows | `sugg/w4-21` `97a3dde3` |
 | w4-22 | The Chat panel says nothing when loops is down | `w4-22: do it / as it is` | `do it` | the panel keeps "Sign in …" | `sugg/w4-22` `f388d8da` |
 | w5-6 | The camera keys say nothing to a screen reader | `w5-6: do it / as it is` | `do it` | silent keys | `sugg/w5-6` `3a724a4c` |
