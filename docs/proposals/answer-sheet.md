@@ -35,8 +35,10 @@ the answer branches themselves no longer merge clean onto the head (tonight, by 
 conflicts but `task/q8-offline-say`); a port per branch carries the same change on the head, and the plan's §4 says which
 port stands for which branch (`--use`). Its table ends at `feat/world-demo@e3da2c1` (round 61); the six ports on that row
 all merge clean onto `0dee42ed` tonight (checked by rd1 and by sh, `git merge-tree`), so they are the ones to pass to the
-replay on today's head. The full replay with `npm run check` has not been run on a head after `e3da2c1`; the plan is redone
-when crewy replays on `0dee42ed`. The rows below name the branch (yours) and its port (the one to merge).
+replay on today's head. Both replays ran with those six ports and passed `npm run check` on `feat/world-demo@29c514ed` in
+round 65 (`tab` 1841 tests, `cookie+expiry` 1838), and `feat/world-demo` has changed only docs since (`git diff --name-only
+29c514ed 0dee42ed`); on tonight's `sugg/all-r65-on-head` (`f65f4cb8`, which contains `0dee42ed`) they passed again in round 68
+(`tab` 1946, `cookie+expiry` 1943). The rows below name the branch (yours) and its port (the one to merge).
 
 ## Open questions (open-questions.md, 15)
 
