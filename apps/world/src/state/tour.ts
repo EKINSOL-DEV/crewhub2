@@ -6,6 +6,8 @@
 import { storedValue } from "./setting.ts";
 
 export const TOUR_KEY = "crewhub-world.tour";
+/** The stage, the element steps 1 and 3 point at. */
+const STAGE = "main.world-stage";
 /** The full document, on GitHub: the host and Vite serve the world, not the repository's docs folder, and a page cannot
     open a file of the checkout; the GitHub page renders the document with its pictures. */
 export const INTRODUCTION_URL = "https://github.com/EKINSOL-DEV/crewhub2/blob/feat/world-demo/docs/INTRODUCTION.md";
@@ -28,7 +30,7 @@ export function tourSteps(mode: "demo" | "live"): TourStep[] {
       id: "town",
       title: "The town",
       text: "One building per project, on a town plan that grows with the project count; a click on a building enters it.",
-      target: "main.world-stage",
+      target: STAGE,
       targetName: "the town",
     },
     {
@@ -42,7 +44,7 @@ export function tourSteps(mode: "demo" | "live"): TourStep[] {
       id: "card",
       title: "A figure's card",
       text: "Agents are figures in rooms by role; a click on one opens its card: where it is, when loops last saw it, its work ticket and its latest progress line.",
-      target: "main.world-stage",
+      target: STAGE,
       targetName: "the town, where the figures stand",
     },
     mode === "demo"
@@ -192,4 +194,15 @@ export function tourAnnouncement(steps: readonly TourStep[], index: number, move
   const step = steps[index];
   if (!moved || !step) return "";
   return `Step ${index + 1} of ${steps.length}. ${step.title}. ${step.text} ${highlighted}`;
+}
+
+/**
+ * What the card says is highlighted, for a screen reader: the element's own name (its aria-label, else its text), else
+ * the step's. The stage is the exception (design choice T3, `town`): its own name is the app's, "CrewHub World", which
+ * is also the demo's first project's name; the step's own name ("the town") is clearer, so the stage steps say theirs.
+ */
+export function highlightedWords(step: TourStep, name: string | null): string {
+  if (!step.target) return `Nothing is highlighted: ${step.targetName}.`;
+  const own = step.target === STAGE ? null : name;
+  return `Highlighted on the screen: ${own ?? step.targetName}.`;
 }

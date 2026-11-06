@@ -30,6 +30,8 @@ export async function run({ pass, page, check, out }) {
   await card.waitFor({ timeout: 10000 }).catch(() => {});
   ok("tour: a fresh browser sees step 1 of 6 over the town, as a dialog named by its title", (await card.count()) === 1 && (await count(pg)) === "Step 1 of 6" && (await card.getAttribute("role")) === "dialog" && (await pg.locator(".tour-title").innerText().catch(() => "")) === "The town" && (await pg.evaluate(() => { const d = document.querySelector(".tour-card"); return document.getElementById(d?.getAttribute("aria-labelledby") ?? "")?.textContent === "The town"; })), await count(pg));
   ok("tour: the focus moved into the card, on Next", (await focusIn(pg)) === "Next", await focusIn(pg));
+  const text1 = (await pg.locator(".tour-text").innerText().catch(() => "")).replace(/\s+/g, " ");
+  ok("tour: step 1 names the stage by the step's own name to a screen reader, not the app's (design choice T3)", /Highlighted on the screen: the town\.$/.test(text1), text1.slice(-60));
   await pg.keyboard.press("Tab");
   const cycled = await focusIn(pg);
   await pg.keyboard.press("Shift+Tab");
