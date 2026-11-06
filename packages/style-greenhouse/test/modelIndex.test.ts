@@ -4,10 +4,12 @@
    with that file's content, and the file's text is exactly what the generator writes, so a model added or removed
    without a regeneration fails here) and holds the seam itself: the style's index loads in Node and draws a data model. */
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import * as THREE from "three";
 import { modelFiles } from "../models/index.ts";
 import { modelNames, PACKAGE_ROOT, render } from "../scripts/models-index.ts";
@@ -38,4 +40,32 @@ test("the style's index loads in Node: its factory's manifest, and a style that 
   assert.ok(banner.children.length > 0, "with its parts");
   assert.equal(style.model("no-such-model" as never), null, "an unknown key is null");
   style.dispose();
+});
+
+/** A package folder of its own under the temp folder: the generator copied to scripts/, these model files in models/. */
+function packageWith(files: readonly string[]): string {
+  // The real path: the module sees its own folder through import.meta.url, which Node gives without symlinks.
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), "style-models-")));
+  mkdirSync(path.join(root, "scripts"));
+  mkdirSync(path.join(root, "models"));
+  writeFileSync(path.join(root, "scripts", "models-index.ts"), readFileSync(path.join(ROOT, "scripts", "models-index.ts")));
+  for (const file of files) writeFileSync(path.join(root, "models", file), "{}\n");
+  return root;
+}
+
+test("run as a script the generator writes the folder's list, sorted by code unit; imported, it writes nothing", async () => {
+  // Files made in an order that is not the sorted one, and a file that is not a model.
+  const root = packageWith(["zeta.json", "town.willow.json", "beta.json", "town.json", "alpha.json", "notes.txt"]);
+  try {
+    const script = path.join(root, "scripts", "models-index.ts");
+    const names = ["alpha", "beta", "town", "town.willow", "zeta"];
+    const copy = (await import(pathToFileURL(script).href)) as typeof import("../scripts/models-index.ts");
+    assert.equal(copy.PACKAGE_ROOT, root);
+    assert.deepEqual(copy.modelNames(root), names, "the names sorted, the .txt left out");
+    assert.equal(existsSync(path.join(root, "models", "index.ts")), false, "an import writes nothing");
+    execFileSync(process.execPath, [script], { cwd: root, encoding: "utf8" });
+    assert.equal(readFileSync(path.join(root, "models", "index.ts"), "utf8"), render(names), "the script writes the list");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

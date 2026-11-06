@@ -14,12 +14,12 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 /** The style package's root folder. */
 export const PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-/** The model names of a package root's `models` folder: its `.json` files without the extension, sorted by code unit. */
+/** The model names of a package root's `models` folder: its `.json` files without the extension, in code-unit order (`sort()`'s own). */
 export function modelNames(root: string): string[] {
   return readdirSync(path.join(root, "models"))
     .filter((file) => file.endsWith(".json"))
     .map((file) => file.slice(0, -".json".length))
-    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    .sort();
 }
 
 /** The text of models/index.ts for these names. */
