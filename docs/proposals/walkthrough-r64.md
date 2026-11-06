@@ -1,5 +1,7 @@
 # Walkthroughs for Nicky (round 64, 2026-11-05)
 
+**One page for every decision, one row each:** [answer-sheet.md](answer-sheet.md) (round 69).
+
 Six fresh walkers met the world as a person does, each on the production build of `d2a9ead2` in a headless Chromium
 with the fake crewhub-loops behind a host of their own: **1** first start (w1), **2** connecting (w2), **3** chat (w3),
 **4** a phone (w4: an iPhone 13 and a Pixel 5 profile, thumbs only), **5** keyboard and screen reader (w5),
@@ -50,7 +52,8 @@ Prepared branches are ready; an answer `do it` merges that branch, `journey N: a
   picture: text.) **Suggestion:** one of the two, or a line that the boarded-up racks hold nothing because the tickets
   are archived with the project.
 
-  Not prepared: "one of the two" does not say which line to keep.
+  Not prepared: a design choice now, [W17](design-choices.md#w17-an-archived-buildings-two-ticket-lines-round-69-walkthrough-w1-13-wording)
+  (which line to keep, or a line that says why the racks are empty). Answer there: `W17: why` is the recommended one.
 
 - **w1-14 · polish.** The tour's last card (step 6) covers the breadcrumb bar ("Town · Jump to /") while it rings the
   Demo chip above. ![Step 6 of the tour over the breadcrumb bar](../images/walkthrough-r64/w1-14-tour-step6.png) **Suggestion:** the card below the bar, or to its right.
@@ -224,7 +227,8 @@ Prepared branches are ready; an answer `do it` merges that branch, `journey N: a
 - **w4-20 · polish.** Sideways (750 x 342) inside a building the labels pile up in a staircase and the building's
   plate lies over the playback bar; label layout, worse in a short window. ![Landscape, Details on: labels overlapping](../images/walkthrough-r64/w4-20-landscape-labels.png) **Suggestion:** fewer labels at once in a short window (Details shows the racks' counts on demand).
 
-  Not prepared: "fewer labels" does not say which labels.
+  Not prepared: a design choice now, [N1](design-choices.md#n1-fewer-labels-in-a-short-window-round-69-walkthrough-w4-20)
+  (which labels give way in a short window). Answer there: `N1: compact` is the recommended one.
 
 - **w4-21 · polish.** The Chat panel's "About this chat" and "Recent answers" rows are 18 and 20 px tall, the only
   controls under 40 px in the panel; a thumb misses them. **Suggestion:** 40 px rows (a pad, as the signs have).
