@@ -16,6 +16,7 @@ export const COPIES: readonly { copy: string; source: string }[] = [
   { copy: "apps/world/src/components/bubbles/useMessageViewport.ts", source: "apps/web/src/components/bubbles/useMessageViewport.ts" },
   { copy: "apps/world/src/components/bubbles/bubbles.css", source: "apps/web/src/components/bubbles/bubbles.css" },
   { copy: "apps/world/src/components/primitives/Menu.tsx", source: "apps/web/src/components/primitives/Menu.tsx" },
+  { copy: "apps/world/src/components/primitives/sendChord.ts", source: "apps/web/src/components/primitives/sendChord.ts" },
 ];
 
 const HEADER = /^(?:\/\/ |\/\* )Source: crewhub-loops (\S+) @ ([0-9a-f]{7,40})\. Copied verbatim; do not edit here, change the source and re-copy\.(?: \*\/)?$/;

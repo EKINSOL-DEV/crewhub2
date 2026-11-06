@@ -20,7 +20,8 @@ export type {
 export type Status = TicketStatus;
 
 // Source: crewhub-loops apps/web/src/api/types.ts @ a1bed0f (ApiErrorCode, FeatureOut, GlobalFeatureResponse, the chat
-// contracts and AgentsResponse), unchanged except that AgentOut is loops-client's.
+// contracts and AgentsResponse), unchanged except that AgentOut is loops-client's and ApiErrorCode carries 'dispatch_gated'
+// (CL-43, in loops' union since; the chat copy at c7f9d679 reads it).
 export type ApiErrorCode =
   | 'unauthenticated'
   | 'invalid_api_key'
@@ -41,6 +42,7 @@ export type ApiErrorCode =
   | 'version_conflict'
   | 'exists'
   | 'conflict'
+  | 'dispatch_gated'
   | 'last_admin'
   | 'stale_attempt'
   | 'length_required'

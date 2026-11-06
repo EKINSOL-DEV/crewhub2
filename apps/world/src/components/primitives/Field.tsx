@@ -3,8 +3,9 @@
    always present; `hideLabel` keeps it for assistive tech. `inline` drops the column wrapper and the label style so the caller
    can lay label and control in a row; `bare` drops the control's own look (for a control that a parent frames, like quick-ask).
    `autoGrow` is the textarea variant `.textarea-grow` (a message box): one line tall at rest, it grows with its content up to
-   the kit's max height and only then scrolls, so a short message never shows a scrollbar. */
-import { useEffect, useId, useLayoutEffect, useRef, type ComponentPropsWithRef, type ReactNode, type Ref } from "react";
+   the kit's max height and only then scrolls, so a short message never shows a scrollbar. `echo` is loops' CL-119 (crewhub-loops
+   d4cf7397), ported here for the copied chat dock (round 69, w5-9): see `useEchoValue`. */
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ChangeEvent, type ComponentPropsWithRef, type ReactNode, type Ref } from "react";
 import { cx } from "./cx";
 
 interface FieldOwn {
@@ -17,6 +18,8 @@ interface FieldOwn {
   bare?: boolean;
   /** Textarea only: grow with the content up to the max height, then scroll. */
   autoGrow?: boolean;
+  /** Input and textarea only: keep the typed text and the caret when the owner stores the value late (see `useEchoValue`). Never with a normalising owner. */
+  echo?: boolean;
   /** Class of the wrapper; `controlClassName` is for the control. */
   className?: string;
   controlClassName?: string;
@@ -30,8 +33,57 @@ export type FieldProps = FieldOwn &
     | ({ control: "checkbox"; size?: undefined } & Omit<ComponentPropsWithRef<"input">, "className" | "size" | "type">)
   );
 
+/* `echo` (opt-in, loops' CL-119): for a controlled text control whose owner stores the value asynchronously (the chat draft is a
+   query-cache entry whose notification comes a macrotask later). Such an owner rewrites the DOM value with a stale one after each
+   keystroke: React restores the controlled value at the end of the input event, so the next key edits the stale text (a character
+   lost) and the caret lands at the end. With `echo` the control shows a local copy, set synchronously in the change handler, so the
+   DOM value is never behind the typed text. The owner's value is adopted only when it is one we did not emit (a draft restored, a
+   thread switched, a reset after send); the values we did emit are remembered, and an echo older than the last acknowledged one,
+   while newer ones are still in flight, is ignored, so a slow owner cannot roll the text back mid-typing. Do NOT use it for an
+   owner that normalises the value (lowercase, trim, clamp): the normalised value equals what the owner already holds, so it would
+   never be adopted. Without `echo` a Field is stock React. */
+function useEchoValue<E extends HTMLInputElement | HTMLTextAreaElement>(on: boolean, value: unknown, onChange: ((e: ChangeEvent<E>) => void) | undefined) {
+  const live = on && typeof value === "string";
+  const [shown, setShown] = useState(live ? value : "");
+  const [seen, setSeen] = useState(value);
+  const [track, setTrack] = useState<{ list: string[]; acked: number }>({ list: [], acked: -1 });
+  if (live && value !== seen) {
+    setSeen(value);
+    const at = track.list.lastIndexOf(value);
+    const inFlight = track.list.length - 1 > track.acked;
+    if (at > track.acked) setTrack({ list: track.list, acked: at });
+    else if (at >= 0 && inFlight) {
+      /* an echo older than one already acknowledged, with newer text in flight: stale, ignore */
+    } else {
+      setTrack({ list: [], acked: -1 });
+      setShown(value);
+    }
+  }
+  if (!live) return { value: value as string | undefined, onChange };
+  return {
+    value: shown,
+    onChange: (e: ChangeEvent<E>) => {
+      const next = e.target.value;
+      setTrack((t) => ({ list: [...t.list, next], acked: t.acked }));
+      setShown(next);
+      onChange?.(e);
+    },
+  };
+}
+
+function EchoInput({ echo, ...props }: ComponentPropsWithRef<"input"> & { echo: boolean }) {
+  const { value, onChange, ...rest } = props;
+  return <input {...rest} {...useEchoValue<HTMLInputElement>(echo, value, onChange)} />;
+}
+
+function EchoTextarea({ grow, echo, ...props }: ComponentPropsWithRef<"textarea"> & { grow: boolean; echo: boolean }) {
+  const { value, onChange, ...rest } = props;
+  const own = useEchoValue<HTMLTextAreaElement>(echo, value, onChange);
+  return grow ? <GrowingTextarea {...rest} {...own} /> : <textarea {...rest} {...own} />;
+}
+
 export function Field(props: FieldProps) {
-  const { label, hideLabel, hint, error, size, inline, bare, autoGrow, className, controlClassName, control = "input", ...rest } = props;
+  const { label, hideLabel, hint, error, size, inline, bare, autoGrow, echo = false, className, controlClassName, control = "input", ...rest } = props;
   const auto = useId();
   const id = (rest as { id?: string }).id ?? auto;
   const noteId = `${id}-note`;
@@ -65,9 +117,11 @@ export function Field(props: FieldProps) {
       {control === "select" ? (
         <select {...(rest as ComponentPropsWithRef<"select">)} {...common} />
       ) : control === "textarea" ? (
-        grow ? <GrowingTextarea {...(rest as ComponentPropsWithRef<"textarea">)} {...common} /> : <textarea {...(rest as ComponentPropsWithRef<"textarea">)} {...common} />
+        <EchoTextarea {...(rest as ComponentPropsWithRef<"textarea">)} {...common} grow={grow} echo={echo} />
+      ) : control === "file" ? (
+        <input {...(rest as ComponentPropsWithRef<"input">)} {...common} type="file" />
       ) : (
-        <input {...(rest as ComponentPropsWithRef<"input">)} {...common} type={control === "file" ? "file" : (rest as ComponentPropsWithRef<"input">).type} />
+        <EchoInput {...(rest as ComponentPropsWithRef<"input">)} {...common} type={(rest as ComponentPropsWithRef<"input">).type} echo={echo} />
       )}
       {note ? (
         <div className="hint" id={noteId} style={error ? { color: "var(--danger)" } : undefined}>

@@ -23,6 +23,8 @@ export const EN: Record<string, string> = {
   "agents.bubbles.message": "Message",
   "agents.bubbles.sendError": "Could not send. Retry to send the same message once.",
   "agents.bubbles.send": "Send",
+  "agents.bubbles.sendHint": "{keys} sends",
+  "error.dispatch_gated": "Agents are not connected yet, so messages to them cannot be sent.",
   "agents.bubbles.queued": "Queued",
   "agents.bubbles.delivered": "Delivered",
   "agents.bubbles.answered": "Answered",

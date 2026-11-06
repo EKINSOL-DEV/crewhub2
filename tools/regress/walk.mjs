@@ -163,6 +163,34 @@ export async function run({ pass, page, check, out }) {
   const chat = await p.locator(".bubble-chat").innerText().catch(() => "");
   ok("chat message sent", /browser regression pass/.test(chat));
   ok("scripted reply arrived", /\(demo reply\)/.test(chat), chat.slice(-120).replace(/\n/g, " | "));
+  // Round 69 (w5-9 and w5-10, sugg/p2-recopy): the dock's message box as crewhub-loops has it at c7f9d679 (CL-119's echo,
+  // CL-181's send chord). w5-9: keys typed with no pause between them all arrive. On the a1bed0f copy the draft lives in a
+  // query cache whose notification comes a macrotask later, so the controlled box was reset to the stale text before the
+  // next key and every other character was lost.
+  const box = p.locator(".chat-compose textarea").first();
+  await box.fill("").catch((e) => note("box clear " + e.message.split("\n")[0]));
+  await box.focus().catch((e) => note("box focus " + e.message.split("\n")[0]));
+  await p.keyboard.type("Where are you?");
+  await p.waitForTimeout(300);
+  const typed = await box.inputValue().catch(() => "");
+  ok("chat dock (round 69, w5-9): fourteen keys typed with no pause between them all arrive in the message box", typed === "Where are you?", `the box holds ${JSON.stringify(typed)}`);
+  // w5-10: Ctrl+Enter (Cmd+Enter on a Mac; loops' isSendChord takes either) sends the message, and the hint under the box
+  // says so on a wide screen; plain Enter keeps its meaning, a new line, and sends nothing.
+  await box.fill("Sent by the chord").catch((e) => note("box chord " + e.message.split("\n")[0]));
+  await p.keyboard.press("Control+Enter");
+  const chordSent = await p.waitForFunction(() => Array.from(document.querySelectorAll(".bubble-chat .bubble-message-text")).some((el) => /Sent by the chord/.test(el.textContent ?? "")), null, { timeout: 5000 }).then(() => true).catch(() => false);
+  ok("chat dock (round 69, w5-10): Ctrl+Enter sends the message", chordSent, chordSent ? "" : `not in the chat after 5 s; the box holds ${JSON.stringify(await box.inputValue().catch(() => ""))}`);
+  const hint = await p.locator(".chat-compose .hint").first().innerText().catch(() => "");
+  ok("chat dock (round 69, w5-10): on a wide screen the hint under the box names the chord that sends", /(\u2318 Enter|Ctrl\+Enter) sends/.test(hint), `the hint reads ${JSON.stringify(hint)}`);
+  await p.waitForFunction(() => !document.querySelector(".chat-compose textarea")?.disabled, null, { timeout: 5000 }).catch(() => {});
+  await box.fill("line one").catch((e) => note("box enter " + e.message.split("\n")[0]));
+  await p.keyboard.press("Enter");
+  await p.keyboard.type("line two");
+  await p.waitForTimeout(300);
+  const twoLines = await box.inputValue().catch(() => "");
+  const enterSent = await p.evaluate(() => Array.from(document.querySelectorAll(".bubble-chat .bubble-message-text")).some((el) => /^line one$/.test((el.textContent ?? "").trim())));
+  ok("chat dock (round 69, w5-10): plain Enter adds a line and sends nothing", twoLines === "line one\nline two" && !enterSent, `the box holds ${JSON.stringify(twoLines)}${enterSent ? "; a message \"line one\" was sent" : ""}`);
+  await box.fill("").catch(() => {});
   await shot(p, "06-chat");
   await p.keyboard.press("Escape");
 

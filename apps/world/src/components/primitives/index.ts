@@ -4,4 +4,5 @@ export { Button, type ButtonProps, type ButtonVariant } from "./Button";
 export { Card, type CardProps } from "./Card";
 export { Chip, type KitStatus } from "./Chip";
 export { Field, type FieldProps } from "./Field";
+export { isSendChord, type ChordEvent } from "./sendChord";
 export { Menu, useContextMenu, type MenuForm, type MenuItem, type MenuProps } from "./Menu";
