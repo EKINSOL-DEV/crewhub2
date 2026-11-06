@@ -815,3 +815,140 @@ S1, S2, S3.**
 - **The tour's 1.5 s beat** (open question 5) and the other fourteen merge decisions: they are in
   [open-questions.md](open-questions.md).
 - **Rounds 41 to 47:** their reports leave no product choice for Nicky; what they left is tool and test work.
+
+## Round 73: the design choices walked
+
+**What was walked (6 Nov 2026, a day round):** `all-on-head-r72@ed8168d0`, the build a person meets after "all recommended,
+walkthrough: all" (`feat/world-demo@fab95579`, the 40 walkthrough suggestions and the 38 prepared design choices), as a
+production build against the fake, by three walkers (wa, wb, wc) who built none of the `dc/<id>` branches, along the six
+journeys of round 64. Two questions per choice: does it do what its heading's recommended option says (**works**, **half**, **miss**,
+written against its `dc/<id>`), and what is new that the walkthrough-only candidate `sugg/all-r65-on-head@d03e7fc0` did
+not have (checked on that candidate's own build before anything is called new). The walkers' reports (`r73-wa.md`,
+`r73-wb.md`, `r73-wc.md`) hold every step, measurement and picture; this section is the summary. A miss is fixed on its
+`dc/<id>` branch by another walker, red first, reviewed by a third (the outcome is written here when it is in), and carried into `dc/all-r72` and `all-on-head-r72`
+by merges (the Lead's report names the shas).
+
+### Journey 1: first start, the tour, the scenarios, buildings and rooms, Details, the text view (wa)
+
+**Seen to work:** T1 (`bottom-left`: the card at the bottom left on the town-wide steps, clear of the playback bar on all
+six steps), T3 (`town`), T4 (`end`: Settings and the text view end at y 782, the dock's button starts at 790), T8
+(`answered`: no "Host:" line on a static server), W1 (`clock`), W2 (`alert`), W3 (`cards`: the plate carries no demo note,
+the card's ticket keys carry it as a tooltip), W4 (`once`), W6 (`drop`), W7 (`drop`), W8 (`none`), W17 (`why`: the
+room zoom and the text view both say "the racks are boarded up; the tickets are archived with the project", which ends
+w1-13), E2 (`say`), K2 (`story`: at 4x the figures walk 3.9x as fast as at 1x, at 16x 14.6x, within the frame noise),
+X2 (`inert`, the text view), X5 (`short`), S1 (`waits`), S2 (`drop`), S3 (`idle`), S4 (`forget`, by its model test).
+
+**Half:** T2 (`stage`): the focus does go to the stage on every road, but after Done by the mouse the stage's focus ring
+(T7 `keep`) frames the whole screen, so the picture T2 meant to take off the "?" button now stands round the screen's
+edge (wa-1, confusing, new). Fixed on `dc/T2@ab19869d` by wb (a tour ended by a pointer focuses the stage without a
+visible ring, by the keyboard with it; two tour rows, red then green), approved by wc (the iPhone tap covered, three
+mutants red, the tour group 17/17).
+
+**Miss:** W12, found in journey 5 (below) and met in journey 1 too (the text view's Where form at 1440 px: the status region empty after two choices, over 24 s).
+
+### Journey 2: connecting (wb)
+
+**Seen to work:** T9 (`disclosure`: the older-loops road behind a closed `details`, so at 375 px the key field and
+Connect sit in the first screen, the page 849 px tall instead of about 970), W15 (`viewer-first`: the host's log, the
+rejected screen and `doctor` lead with "Settings > Agents > Connect CrewHub World" and name "New external bot" second),
+T8 (`answered`: the Host line shows on the live page and not in a demo without a host), H1 (`warn`: a 0755 config
+folder is left as it is, said once at start and by `doctor`), H2 (`refuse`: `world` beside a development host prints the
+refusal and exits 1, no link), H3 (`stored-only`: Forget offered on the rejected screen for the stored key only; a key
+from `CREWHUB_WORLD_KEY_FILE` or from the old default file says where it came from instead), L1 (`own-words`: a 65th tab
+reads "Too many tabs. This host has too many tabs open; close one. crewhub-loops is fine; the page keeps asking.", said
+once, Live again 1.3 s after the tabs close; `snapshot_failed` is held by its unit test only), W1 (`clock` in the live
+text view). As the answer sheet notes, w2-5 (a host restart still reads "Stale") and w2-8 (a key refused on the stream
+still gets the one sentence) are not ended by L1 and W15.
+
+![The Connect screen at 375 px: the disclosure closed, the key field in the first screen](../images/design-choices/r73/t9-connect-375.png)
+
+**New (polish, `dc/T9`, wb-2):** the Connect screen's first Tab stop is now the disclosure's summary, before the link
+"Open crewhub-loops: Settings › Agents" and the key field, because the disclosure sits above the link in the DOM and a
+summary is focusable where the paragraph was not. The main road would come first with the disclosure under the link.
+
+### Journey 3: chat (wa)
+
+**Seen to work:** X2 (`inert`, the Chat panel: the right corner, the camera toolbar and the chat corner carry `inert`
+while the panel is open; 30 Tabs from its close button never reach a corner button; Escape puts the focus back on the
+Chat chip), W1 (`clock`, live: "Team snapshot from 12:30:52, 30 s old."), T8 (`answered`, live: "Now: Live. The host
+answered. Host: … Key: crewhub-world."), W16 (`say-the-frame`, read in `docs/INTRODUCTION.md`), W15 (`viewer-first`, the
+rejected screen's "The host says:" on a builder key), H3 (`stored-only`: the env key file and the default file say where
+the key came from with no Forget; a stored key gets Forget). H3's words show on the rejected Connect screen ("The key
+came from the default key file."): a rejection replaces the world by that screen within a second, and the screen has no
+chip, so the Connection panel's own line ("This key comes from the default key file, which the host never deletes …")
+is not on the road a person meets. Nothing half, nothing new.
+
+### Journey 4: a phone, touch only (wc; iPhone 13 and Pixel 5, upright and sideways, light and dark, 320 px)
+
+**Seen to work:** T5 (`frame`, with a person's cost, below), T6 (`word`: "CrewHub" on one line with the "Demo" chip
+under it on the iPhone, beside it on the Pixel's 3 px more; both forms are the option's), T8, T9 (`disclosure`: the
+Connect screen 791 px tall instead of about 970, the key field and Connect inside the first screenful; a tap opens the
+older road), W1, W3, W4, W7, W8, E2, X4 (`drop-word` at 320 px: the mark and the Demo chip, the words out of view, no
+horizontal scroll), X5, N1 (`compact` sideways: the plate shows its title only, the figures carry pills, nothing over
+the playback bar; it ends w4-20; the rack signs and rule tags still overlap in a short diagonal, a polish matter outside
+N1's options).
+
+**Half:** T1 (`bottom-left`) held sideways (750 x 342): the card stands at the bottom left but still over the playback
+bar's left part, since the bar is wider than the margins there; upright the phone rule stands and nothing is covered.
+T2 (`stage`): the focus goes to the canvas, but after a tapped Done the canvas wears its 2 px ring round the whole
+screen and a tap on the ground keeps it (wc-1, confusing, new; the same mechanism as wa-1, fixed on `dc/T2@ab19869d`,
+which covers the tap road: a tap's click has `detail` 1; approved by wc).
+
+**Not seen as a person:** S4 (a seek back shows no empty room on either build; its model test holds it).
+
+**New (confusing, `dc/T5`, wc-2):** at the home view upright the cover fit puts Launch & Marketing's sign and its "1
+waiting on a person" beacon off the left edge, the Lodge off the top left, and the "OPS" sign under the camera toolbar,
+so none of the three can be tapped from the home view; a swipe pans them in, and the jump list and the text view still
+name them. The walkthrough-only candidate shows all six signs with an empty band under the chips. So the brief's
+question has its answer: it is a person's problem of the confusing kind, mostly the beacon out of view and the sign
+under the toolbar; `dc/T5-margin` (all four buildings kept, the band not filled) is the prepared alternative.
+
+### Journey 5: keyboard and screen reader (wb)
+
+**Seen to work:** T2 (`stage`, by the keyboard: Done puts the focus on the canvas "The town", ringed, nothing said), T3
+(`town`: "Highlighted on the screen: the town." and "the town, where the figures stand."), T7 (`keep`), X5 (`short`:
+`canvas[aria-label="The town"][aria-describedby=town-key-guide]`, the guide a hidden paragraph; the stage's snapshot reads
+main "CrewHub World" › application "The town" › paragraph "Arrow keys …"), W4 (`once`: the jump list's rows say "3
+waiting on a person." with the icon's own "Needs a person"), X2 (`inert`: under the text view and under the Chat panel
+the right toolbar, the chat chip and the camera toolbar carry `inert`, the Tab order skips them and the focus returns to
+the opener; the dock's button stays reachable as T4 `end` means), X4 (`drop-word`: at 320 px the brand is its mark and
+the "Demo" chip, no overlap with the toolbar, the header 106 px; the walkthrough-only candidate wraps "CrewHub World"
+over an icon-only chip, 167 px, with the Town button over the chat chips).
+
+| `all-on-head-r72` at 320 px | the walkthrough-only candidate at 320 px |
+| --- | --- |
+| ![the brand is its mark and the Demo chip; the toolbar beside it](../images/design-choices/r73/x4-header-320-all-on-head-r72.png) | ![CrewHub World on two lines over an icon-only chip; the Town button over the chat chips](../images/design-choices/r73/x4-header-320-walkthrough-only.png) |
+
+Two notes outside the options as worded. X2: with the text view open the Chat chip is inside an inert corner, so the
+Chat panel cannot be opened over the text view from the chip any more, while the text view can still open over the Chat
+panel (T, or the skip link); and Settings still covers the camera toolbar, which stays tabbable after Settings' last
+control (X2 names the text view and the Chat panel only; the same as before). X4: at 320 px the Demo chip sits under the
+mark rather than beside it (beside from 359 px).
+
+**Miss (`dc/W12`, wb-1, broken, new):** W12 `on-choice`. The visible answer no longer carries `aria-live`, so it updates
+silently, as meant; but the choice itself is never announced: the hidden status region under the form stays empty
+through every choice (sampled every 25 ms for 3 s, by the mouse and by typing on the focused select). The walkthrough-only
+candidate says the answer at once on the same choice (and keeps talking, which is W12's complaint). The cause is in the
+effect: it queues the status text from a ref and moves the ref on its next line, and React runs the queued updater
+after the ref moved, so the comparison always says "same name". The pure test cannot see it; a component test that picks
+a name and reads the status region can. Fixed on `dc/W12@270ef5f3` by wa (a walk row, red 44/45 then green 45/45), approved by wc (three mutants red on the
+row, the walk group 45/45).
+
+### Journey 6: the town editor (wc; a desktop at 1440 x 900, the iPhone by touch; demo, then live)
+
+**Seen to work:** E1 (`escape`: in Settings › Zones' name field Escape drops the draft and keeps the old name with the
+focus in the field; Enter and leaving the field write; Undo takes the write back), E2 (`say` in the demo; live the line
+is absent, as the option says), W2 (`alert`: the hovered plate reads "Alert: CR-23 waiting on Nicky"; the status tag and
+the text view's "is lit:" keep their words, as the heading says), W3 (`cards`), X5 (`short`), T4 (`end`: Settings and
+the text view end at y 782, the dock's button starts at 799). Nothing half, nothing new.
+
+**Not seen as a person:** K1 (casts register from code only, so no road brings a newer cast into the page; its two
+tests hold it), K2 (the label windows caught the figures settling at their desks, not the engine's walk; the speed test
+holds it).
+
+**From the mutation runs (mu):** one survivor needed code, not a test. K1 `lenient` warned about a newer-world figure but
+never about a newer-world person: `validatePerson` ran the figure check first and then answered with a fresh report of
+its own checks, so what the figure check ignored was dropped on the way (mu-1). Fixed on `dc/K1@2b2538b8` (the person's
+report carries the figure check's warnings when both checks pass, so the registry warns once about the cast), red
+first; the branch's tip after its tests is `0dc20610`, approved by wb. The other kills are tests only (dc/H1, L1, H3,
+W4, K2, W1), ten survivors argued equivalent; mu's report has the table.
