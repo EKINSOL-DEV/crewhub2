@@ -100,10 +100,12 @@ test("the card never covers what it describes: below the element, else above, el
   assert.equal(above.side, "above");
   assert.equal(above.top, 850 - 12 - 180);
   assert.ok(above.left + card.width <= 1440 - 16);
-  // The whole stage: no room below or above, the card sits low, over the stage's own lower part.
+  // The whole stage: no room below or above, the card sits low, over the stage's own lower part, at the bottom left,
+  // clear of the centred playback bar (design choice T1, round 72, bottom-left).
   const stage = { left: 0, top: 0, width: 1440, height: 900 };
   assert.equal(placeStep(stage, desktop, card).side, "centre");
   assert.equal(placeStep(stage, desktop, card).top, 900 - 180 - 16);
+  assert.equal(placeStep(stage, desktop, card).left, 16, "the bottom left, not over the playback bar");
   // No element: centred.
   const centred = placeStep(null, desktop, card);
   assert.equal(centred.side, "centre");
