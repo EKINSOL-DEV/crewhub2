@@ -76,7 +76,9 @@
            without a double full stop, the mark gone with the bubble, and the same on a phone in the dark theme; (round
            16) the Recent answers list: the text view's section listing both answers newest first after the bubbles
            went and opening the panel from a row, and the block on the phone; (round 18) the list's own explanation
-           behind About this chat. Then the no chat road (round 19), over a fake whose key does not read the chat: health
+           behind About this chat; (round 76) the Chat panel open while an agent in a pinned building answers: no removal
+           of the pin, no row with a mark, no mark after the panel closes. Then the no chat road (round 19), over a fake
+           whose key does not read the chat: health
            without a session, /world-api/session gone, the Connection panel's Chat section, the Chat panel's glance and
            About this chat, Recent answers' empty state and the text view's Chat line saying this crewhub-loops does not
            let the world read the chat and how to make a viewer key, no form, and an agent's answer showing no mark and

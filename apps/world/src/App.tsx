@@ -22,7 +22,7 @@ import type { AnswerTarget } from "./state/recentAnswers";
 import { useHealthNeed, useHostHealth, useLiveScreen } from "./state/health";
 import { installSoakProbe } from "./state/soak";
 import { pageReads } from "./state/soakPage";
-import { answerMarks, markWords, saidMarks, type SaidMark } from "./world/saidText";
+import { markWords, marksShown, saidMarks, type SaidMark } from "./world/saidText";
 import { JumpList } from "./components/JumpList";
 import { RecentAnswers } from "./components/RecentAnswers";
 import { IconSprite } from "./components/Icon";
@@ -188,8 +188,9 @@ function World() {
   const said = useSaid();
   // Live (walk finding w3-4): the marks come from the answers not opened yet, so a mark outlives its bubble until the
   // chat opens or the agent's next answer replaces it. The demo keeps the bubble's 12 s: its reply is read in the
-  // dock, which the page's chat opening never sees (s1's review of the first commit).
-  const marks = useMemo(() => (model.mode === "demo" ? saidMarks(model, said, Date.now()) : answerMarks(model, unread)), [model, said, unread]);
+  // dock, which the page's chat opening never sees (s1's review of the first commit). With the Chat panel open there are
+  // none (round 76): the panel reads an answer as it lands, and a mark for that one commit rebuilt the building's pin twice.
+  const marks = useMemo(() => (model.mode === "demo" ? saidMarks(model, said, Date.now()) : marksShown(model, unread, chatOpen)), [model, said, unread, chatOpen]);
   // The Recent answers list (round 16, state/recentAnswers.ts): the last answers the page saw, in the Chat panel and the
   // text view; a row opens that agent's chat by the card's rule (round 13), or its card in the demo.
   const answers = useRecentAnswers();

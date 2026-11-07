@@ -228,6 +228,51 @@ export async function run({ pass, page, check, out }) {
     } finally {
       await phoneCtx.close().catch(() => {});
     }
+    // Round 76 (round 75's base finding, from w3-4): with the Chat panel open an answer is read as it lands, so it makes
+    // no mark and the building's pin stands. Before, the pin became a row with the mark, then a new pin: two removals of
+    // the pin per answer, each restarting its breathing. A page of its own, so the rows above keep their counts.
+    const pinPg = await openPage(browser, { origin: keyOrigin, problems: own2, tag: "chat key pin" });
+    const pinCtx = pinPg.context();
+    try {
+      await pinPg.goto(`${keyOrigin}/`);
+      await pinPg.waitForSelector("canvas", { timeout: 60000 }).catch(() => {});
+      await pinPg.waitForSelector('.connection-chip[data-connection="live"]', { timeout: 20000 }).catch(() => {});
+      await pinPg.locator('.need-anchor[data-anchor="n:crewhub"] .need-pin').waitFor({ timeout: 30000 }).catch(() => {});
+      await pinPg.locator(".chat-open").click().catch(() => {});
+      await pinPg.waitForSelector(".chat-sheet", { timeout: 5000 }).catch(() => {});
+      const watching = await pinPg.evaluate(() => {
+        const anchor = document.querySelector('.need-anchor[data-anchor="n:crewhub"]');
+        const pin = anchor?.querySelector(".need-pin") ?? null;
+        if (pin === null) return false;
+        const seen = { pinRemovals: 0, rows: 0 };
+        const holdsPin = (node) => node.nodeType === 1 && (node.matches(".need-pin") || node.querySelector(".need-pin") !== null);
+        const count = (records) => {
+          for (const record of records) {
+            seen.pinRemovals += [...record.removedNodes].filter(holdsPin).length;
+            seen.rows += [...record.addedNodes].filter((node) => node.nodeType === 1 && node.matches(".roof-row")).length;
+          }
+        };
+        const observer = new MutationObserver(count);
+        observer.observe(anchor, { childList: true, subtree: true });
+        // The pin still being the first element, on the page, is what makes 0 removals mean something: a pin gone with its anchor is seen by no observer here.
+        window.__pinWatch = () => {
+          count(observer.takeRecords());
+          return { ...seen, samePin: anchor.isConnected && anchor.querySelector(".need-pin") === pin };
+        };
+        return true;
+      });
+      fake2.sendDm("cr-lead", "Is the reading nook done? (the panel open)");
+      const landed = await pinPg.locator('.chat-recent .recent-row[data-answer-agent="cr-lead"]').first().waitFor({ timeout: 30000 }).then(() => true).catch(() => false);
+      await pinPg.waitForTimeout(500);
+      const pinWatch = watching ? await pinPg.evaluate(() => window.__pinWatch()) : null;
+      await pinPg.keyboard.press("Escape");
+      await pinPg.waitForSelector(".chat-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
+      await pinPg.waitForTimeout(300);
+      const marksAfter = await pinPg.locator(".chat-mark").count();
+      ok("chat (round 76): with the Chat panel open an answer from an agent in a pinned building leaves the pin standing, 0 removals and no row with a mark, and no mark after the panel closes", landed && pinWatch !== null && pinWatch.samePin && pinWatch.pinRemovals === 0 && pinWatch.rows === 0 && marksAfter === 0, `watching ${watching}, answer landed ${landed}, ${JSON.stringify(pinWatch)}, marks after the panel ${marksAfter}`);
+    } finally {
+      await pinCtx.close().catch(() => {});
+    }
     problems.push(...own2.filter((x) => !(x.kind === "external" && (x.url ?? "").startsWith(`${web2.url}/`))));
   } finally {
     await ctx2.close().catch(() => {});
