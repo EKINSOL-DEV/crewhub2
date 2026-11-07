@@ -102,6 +102,17 @@ export interface DetachedNode {
   children?: DetachedNode[];
 }
 
+/** What the listing needs of a CDP session (a structural type: this file imports no browser driver). */
+export interface DetachedListSession {
+  send(method: "DOM.getDetachedDomNodes"): Promise<{ detachedNodes: { treeNode: DetachedNode }[] }>;
+}
+
+/** The detached trees the inspector can list, for `describeDetached`. The one place a tool makes this call. */
+export async function listDetachedNodes(session: DetachedListSession): Promise<{ treeNode: DetachedNode }[]> {
+  const { detachedNodes } = await session.send("DOM.getDetachedDomNodes");
+  return detachedNodes;
+}
+
 /** One line per detached tree the inspector holds: its root by tag, classes and label, and how many nodes hang
     from it. Nodes outside the document tree that still live are these (a toast a timer holds, an image a loader
     holds) or another document (an SVG image, a parsed string), which the counters' `documents` tells apart. */

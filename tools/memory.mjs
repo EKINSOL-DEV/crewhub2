@@ -85,7 +85,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { CHAT_FLAGS, CHAT_OPTIONS, CHAT_USAGE, READ_PAGE_CHAT, chatAgents, chatSettings, createDmReadCounter, formatBadStatuses, formatChat, formatFirstBad, nextDm, pageChatCounter } from "./lib/chatSoak.mjs";
-import { capDomDiff, describeDetached, domDiff, domInventory, formatDomDiff } from "./lib/domdiff.ts";
+import { capDomDiff, describeDetached, domDiff, domInventory, formatDomDiff, listDetachedNodes } from "./lib/domdiff.ts";
 import { formatRows, formatShapes, growth as heapGrowth, heapTotals, mb as heapMb, resolveThreeNames, topBySize } from "./lib/heap.mjs";
 import { LIVE_FLAGS, LIVE_OPTIONS, LIVE_USAGE, startLive } from "./lib/live.mjs";
 import { formatVerdict, judge, loopWarning, offLoopMinutes, snapshotDiff } from "./lib/verdict.mjs";
@@ -392,7 +392,7 @@ for (let t = 0; t <= minutes * 60; t = stepped ? Math.round((Date.now() - starte
     const diff = capDomDiff(domDiff(lastDom.inventory, inventory), 6);
     // Nodes alive outside the document tree: the detached trees the inspector can list, and the documents count
     // (an SVG image or a parsed string is a document of its own).
-    const detached = await cdp.send("DOM.getDetachedDomNodes").then((r) => describeDetached(r.detachedNodes, 4)).catch(() => []);
+    const detached = await listDetachedNodes(cdp).then((nodes) => describeDetached(nodes, 4)).catch(() => []);
     point.domDiff = { ...diff, documents: dom.documents, detached };
     const documents = dom.documents !== lastDom.documents ? ` (documents ${lastDom.documents} -> ${dom.documents})` : "";
     domLine = `\n  dom ${lastDom.nodes} -> ${dom.nodes}${documents}: ${formatDomDiff(diff)}${detached.length > 0 ? `; detached: ${detached.join(", ")}` : ""}`;
