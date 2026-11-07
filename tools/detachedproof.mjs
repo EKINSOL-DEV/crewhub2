@@ -23,8 +23,8 @@
    The tree: a button with onclick, a span and its text, and a bare text node: 4 nodes, 1 listener. Counters are read
    before the final probe, and the probe uses a session of its own, so it cannot hold what it reads.
 
-   Exit: 0 the listing keeps nothing; 1 the listing keeps the tree (red); 2 a control failed, or an arm read neither
-   kept nor freed, so the run says nothing. */
+   Exit: 0 the listing keeps nothing; 1 the listing keeps the tree (red); 2 a control failed, an arm read neither kept
+   nor freed, or the run itself threw, so the run says nothing. */
 import { writeFileSync } from "node:fs";
 import { describeDetached, detachedReading, listDetachedNodes } from "./lib/domdiff.ts";
 import { launch } from "./lib/world.mjs";
@@ -40,6 +40,11 @@ if (!Number.isInteger(reps) || reps < 1 || argv.length % 2 !== 0 || argv.some((a
   console.error("usage: node tools/detachedproof.mjs [--reps <n>] [--json <file>]");
   process.exit(2);
 }
+// Node's own exit for a throw is 1, which here means the listing keeps the tree. A throw says nothing about that.
+process.on("uncaughtException", (error) => {
+  console.error(`detachedproof: the run threw, so it says nothing: ${error.stack ?? error}`);
+  process.exit(2);
+});
 setTimeout(() => {
   console.error("detachedproof: over 180 s, stopping");
   process.exit(2);
