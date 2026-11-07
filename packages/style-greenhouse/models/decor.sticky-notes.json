@@ -1,0 +1,127 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-sticky-notes",
+  "name": "Sticky notes",
+  "description": "A stack of coral and tangerine sticky notes beside a sage pen cup with two pencils.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "notes",
+    "desk"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.08,
+        0.03,
+        0.08
+      ],
+      "position": [
+        -0.04,
+        0.015,
+        0
+      ],
+      "material": "tangerine",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.08,
+        0.012,
+        0.08
+      ],
+      "position": [
+        -0.04,
+        0.036,
+        0
+      ],
+      "material": "coral",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        12,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.01,
+        0.06
+      ],
+      "position": [
+        -0.02,
+        0.006,
+        0.08
+      ],
+      "material": "circle",
+      "radius": 0.003,
+      "rotation": [
+        0,
+        -20,
+        0
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.035,
+        0.09,
+        0.03
+      ],
+      "position": [
+        0.07,
+        0.045,
+        -0.02
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.01,
+        0.1,
+        0.01
+      ],
+      "position": [
+        0.065,
+        0.11,
+        -0.025
+      ],
+      "material": "tangerine",
+      "rotation": [
+        0,
+        0,
+        10
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.01,
+        0.1,
+        0.01
+      ],
+      "position": [
+        0.08,
+        0.11,
+        -0.01
+      ],
+      "material": "slate",
+      "rotation": [
+        8,
+        0,
+        -8
+      ]
+    }
+  ]
+}

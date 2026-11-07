@@ -1,0 +1,250 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "user:pie-chart-poster",
+  "name": "Pie chart poster",
+  "description": "A framed poster with a four-slice pie chart in sage, moss, coral and clay, and a small legend beside it.",
+  "category": "decoration",
+  "tags": [
+    "poster",
+    "chart",
+    "wall",
+    "analyst"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        1.1,
+        0.76,
+        0.03
+      ],
+      "position": [
+        0,
+        1.0,
+        -0.27
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.0,
+        0.66,
+        0.02
+      ],
+      "position": [
+        0,
+        1.0,
+        -0.25
+      ],
+      "material": "paper",
+      "radius": 0.01
+    },
+    {
+      "shape": "wedge",
+      "size": [
+        0.25,
+        0.02,
+        0.25
+      ],
+      "position": [
+        -0.25,
+        1.0,
+        -0.23
+      ],
+      "rotation": [
+        90,
+        0,
+        0
+      ],
+      "material": "sage",
+      "sweep": 140
+    },
+    {
+      "shape": "wedge",
+      "size": [
+        0.25,
+        0.02,
+        0.25
+      ],
+      "position": [
+        -0.25,
+        1.0,
+        -0.23
+      ],
+      "rotation": [
+        90,
+        140,
+        0
+      ],
+      "material": "moss",
+      "sweep": 90
+    },
+    {
+      "shape": "wedge",
+      "size": [
+        0.25,
+        0.02,
+        0.25
+      ],
+      "position": [
+        -0.25,
+        1.0,
+        -0.23
+      ],
+      "rotation": [
+        90,
+        230,
+        0
+      ],
+      "material": "coral",
+      "sweep": 60
+    },
+    {
+      "shape": "wedge",
+      "size": [
+        0.25,
+        0.02,
+        0.25
+      ],
+      "position": [
+        -0.25,
+        1.0,
+        -0.23
+      ],
+      "rotation": [
+        90,
+        290,
+        0
+      ],
+      "material": "clay",
+      "sweep": 70
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.07,
+        0.07,
+        0.012
+      ],
+      "position": [
+        0.1,
+        1.0999999999999999,
+        -0.235
+      ],
+      "material": "sage",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.26,
+        0.025,
+        0.012
+      ],
+      "position": [
+        0.31,
+        1.0999999999999999,
+        -0.235
+      ],
+      "material": "slate",
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.07,
+        0.07,
+        0.012
+      ],
+      "position": [
+        0.1,
+        0.9600000000000001,
+        -0.235
+      ],
+      "material": "moss",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.26,
+        0.025,
+        0.012
+      ],
+      "position": [
+        0.31,
+        0.9600000000000001,
+        -0.235
+      ],
+      "material": "slate",
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.07,
+        0.07,
+        0.012
+      ],
+      "position": [
+        0.1,
+        0.82,
+        -0.235
+      ],
+      "material": "coral",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.26,
+        0.025,
+        0.012
+      ],
+      "position": [
+        0.31,
+        0.82,
+        -0.235
+      ],
+      "material": "slate",
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.07,
+        0.07,
+        0.012
+      ],
+      "position": [
+        0.1,
+        0.6799999999999999,
+        -0.235
+      ],
+      "material": "clay",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.26,
+        0.025,
+        0.012
+      ],
+      "position": [
+        0.31,
+        0.6799999999999999,
+        -0.235
+      ],
+      "material": "slate",
+      "radius": 0.005
+    }
+  ]
+}

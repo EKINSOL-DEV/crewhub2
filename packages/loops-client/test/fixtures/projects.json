@@ -1,0 +1,23 @@
+{
+  "projects": [
+    {
+      "id": "pr_a1b2c3d4e5f6",
+      "slug": "crewhub-loops",
+      "key": "CL",
+      "name": "crewhub-loops",
+      "lead": { "id": "cl-lead", "kind": "agent", "displayName": "CL lead" },
+      "herdrSession": "ekinsol",
+      "counts": { "backlog": 4, "planned": 2, "in_progress": 1, "review": 1, "done": 12 },
+      "color": "coral",
+      "icon": "bot",
+      "description": "The ticket system.",
+      "archivedAt": null,
+      "effectiveRoute": { "agent": "cl-lead", "session": "ekinsol", "source": "project" },
+      "repoCount": 1,
+      "ticketTotal": 20,
+      "keyLocked": true,
+      "revision": 7
+    }
+  ],
+  "orderRevision": 3
+}

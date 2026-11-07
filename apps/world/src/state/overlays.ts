@@ -1,0 +1,99 @@
+/* The page's overlays, one module (round 60, pg-P2): which of the dialogs and panels over the town are open, where the
+   focus goes back to when each closes, and which one Escape closes. A value and its moves, so a node test drives them
+   with fake elements; `useOverlays` is the browser's adapter.
+
+   - **Where the focus returns.** Opening notes the element that had the focus; closing focuses it again. These are the
+     dialogs' own DOM focus returns: a recorded decision (round 59d, review-c2 5), so the view's module (state/view.ts) is
+     told `open: { text, build }` and answers `close`, and never holds an element.
+   - **One return slot for four.** The jump list, Settings, the text view and the Connection panel share one slot, as
+     they always have: a second one opening overwrites the first one's opener. The chat has its own. The prop editor and
+     the tour have none (the tour's card returns the focus itself, to `tourReturn`).
+   - **Escape** closes by a fixed order, not by which opened last: `ESCAPE_ORDER`. The tour stands before all of them, at
+     the top of App's key handler: Escape skips it wherever the focus is, a text field included. The text view is the
+     view's chain's (state/view.ts), after build mode. */
+import { useState } from "react";
+
+export type OverlayKind = "tour" | "editor" | "jump" | "chat" | "connection" | "settings" | "text";
+
+/** Innermost first: the first of these that is open is the one Escape closes. */
+export const ESCAPE_ORDER: readonly OverlayKind[] = ["editor", "jump", "chat", "connection", "settings"];
+
+/** Which focus return an overlay uses; an overlay not named has none. */
+const RETURN_SLOT: Partial<Record<OverlayKind, "shared" | "chat">> = { jump: "shared", settings: "shared", text: "shared", connection: "shared", chat: "chat" };
+
+export interface OverlaysState<E> {
+  open: Readonly<Record<OverlayKind, boolean>>;
+  /** Where the tour's card sends the focus when it closes: the Settings button when Settings opened it, else null. */
+  tourReturn: E | null;
+}
+
+const NOTHING_OPEN: Readonly<Record<OverlayKind, boolean>> = { tour: false, editor: false, jump: false, chat: false, connection: false, settings: false, text: false };
+
+/** A dialog stands over the town: the tour waits for it (the tour itself does not count). */
+export const dialogIsOpen = ({ open }: Pick<OverlaysState<unknown>, "open">): boolean => open.settings || open.jump || open.connection || open.chat || open.text || open.editor;
+
+export interface OverlaysConfig<E> {
+  /** The element that has the focus now, or null. */
+  active: () => E | null;
+  /** Hears each new state, for rendering. */
+  publish: (state: OverlaysState<E>) => void;
+}
+
+export interface Overlays<E> {
+  readonly state: OverlaysState<E>;
+  /** Opens an overlay; the element that has the focus is noted where this overlay returns to. */
+  open(kind: OverlayKind): void;
+  /** Closes an overlay and focuses where it returns to (an overlay with no return focuses nothing). */
+  close(kind: OverlayKind): void;
+  /** Closes an overlay and leaves the focus alone: the jump list on the chosen entry, where the scene takes it. */
+  dismiss(kind: OverlayKind): void;
+  /** "Show the introduction": Settings, if open, closes first without taking the focus, and the tour returns to its button. */
+  openTour(): void;
+  /** Opens the tour by itself (the first visit): the focus is not noted, and `tourReturn` stays as it was. */
+  startTour(): void;
+  /** The overlay Escape closes now; null when none of `ESCAPE_ORDER` is open. */
+  escapeTarget(): OverlayKind | null;
+}
+
+export function createOverlays<E extends { focus(): void }>({ active, publish }: OverlaysConfig<E>): Overlays<E> {
+  let state: OverlaysState<E> = { open: NOTHING_OPEN, tourReturn: null };
+  const slots: { shared: E | null; chat: E | null } = { shared: null, chat: null };
+  const change = (next: Partial<OverlaysState<E>["open"]>, tourReturn: E | null = state.tourReturn) => {
+    const moved = (Object.keys(next) as OverlayKind[]).some((kind) => state.open[kind] !== next[kind]);
+    if (!moved && tourReturn === state.tourReturn) return;
+    state = { open: { ...state.open, ...next }, tourReturn };
+    publish(state);
+  };
+  return {
+    get state() {
+      return state;
+    },
+    open(kind) {
+      const slot = RETURN_SLOT[kind];
+      if (slot) slots[slot] = active();
+      change({ [kind]: true });
+    },
+    close(kind) {
+      change({ [kind]: false });
+      const slot = RETURN_SLOT[kind];
+      if (slot) slots[slot]?.focus();
+    },
+    dismiss(kind) {
+      change({ [kind]: false });
+    },
+    openTour() {
+      change({ settings: false, tour: true }, state.open.settings ? slots.shared : null);
+    },
+    startTour() {
+      change({ tour: true });
+    },
+    escapeTarget: () => ESCAPE_ORDER.find((kind) => state.open[kind]) ?? null,
+  };
+}
+
+/** The page's overlays: this render's state, and the moves, the same object for the page's life. */
+export function useOverlays(): [OverlaysState<HTMLElement>, Overlays<HTMLElement>] {
+  const [state, publish] = useState<OverlaysState<HTMLElement>>({ open: NOTHING_OPEN, tourReturn: null });
+  const [overlays] = useState(() => createOverlays<HTMLElement>({ active: () => (document.activeElement instanceof HTMLElement ? document.activeElement : null), publish }));
+  return [state, overlays];
+}

@@ -1,0 +1,14 @@
+{
+  "requests": [
+    {
+      "id": "dg_01J9Q0W7K3ZT",
+      "messageId": "dm_01J9Q0W5A9XR",
+      "agent": "cl-lead",
+      "agentName": "CL lead",
+      "action": "agents.create",
+      "target": "cr-builder-2",
+      "expiresAt": "2026-10-07T12:30:00Z",
+      "text": "start a second builder on the world repo"
+    }
+  ]
+}

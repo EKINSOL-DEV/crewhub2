@@ -1,0 +1,28 @@
+/** Types for `no-app-reach.mjs` (a plain-Node preload, so the TypeScript test can import its rules). */
+export const APP_DATA_PARTS: readonly string[];
+export const APP_DATA: string;
+export const CONFIG_DIR: string;
+export const LOOPS_CONFIG: string;
+export const APP_PORTS: readonly number[];
+export const OTHER_PORTS: Map<number, string>;
+export const LISTEN_PORTS: number[];
+export const MARK: symbol;
+export function guardedHomes(env?: Record<string, string | undefined>, home?: string, userHome?: string): string[];
+export function guardedFolders(homes: string[]): { dir: string; why: string }[];
+export const GUARDED_HOMES: string[];
+export function realTmpDirs(env?: Record<string, string | undefined>, own?: string): string[];
+export function isRealRunFile(file: string, tmpDirs?: string[]): boolean;
+export function refusesPath(input: unknown, folders?: { dir: string; why: string }[], tmpDirs?: string[]): string | null;
+export function connectTarget(args: unknown[]): { port?: number; host?: string; path?: string };
+export function decoyOf(text: unknown): number | null;
+export const DECOY_PORT: number | null;
+export function refusesConnect(args: unknown[], decoy?: number | null): string | null;
+export function listenTarget(args: unknown[]): { port?: number; host?: string };
+export function refusesListen(args: unknown[], decoy?: number | null): string | null;
+export const GUARD_FILE: string;
+export const CHILD_FORMS: string[];
+export function handDownEnv(env: Record<string, string | undefined>, parent?: Record<string, string | undefined>, guardFile?: string): Record<string, string | undefined>;
+export function guardedArgs(args: unknown[], parent?: Record<string, string | undefined>, guardFile?: string): unknown[];
+export const OWN_CHILDREN: Set<number>;
+export function refusesKill(pid: number, signal?: string | number, own?: Set<number>, self?: number): string | null;
+export function refusesDatabase(location: unknown, folders?: { dir: string; why: string }[], tmpDirs?: string[]): string | null;

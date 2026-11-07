@@ -1,0 +1,408 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-town-bus",
+  "name": "Town bus",
+  "description": "A little cream town bus with a sage skirt and a tangerine stripe, waiting at the stop.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "town"
+  ],
+  "footprint": {
+    "width": 5,
+    "depth": 2
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        2.8,
+        0.95,
+        1.1
+      ],
+      "position": [
+        0,
+        0.72,
+        0
+      ],
+      "material": "cream",
+      "radius": 0.12
+    },
+    {
+      "shape": "box",
+      "size": [
+        2.82,
+        0.28,
+        1.12
+      ],
+      "position": [
+        0,
+        0.38,
+        0
+      ],
+      "material": "sage",
+      "radius": 0.08
+    },
+    {
+      "shape": "box",
+      "size": [
+        2.83,
+        0.06,
+        1.13
+      ],
+      "position": [
+        0,
+        0.58,
+        0
+      ],
+      "material": "tangerine",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        2.7,
+        0.12,
+        1.02
+      ],
+      "position": [
+        0,
+        1.24,
+        0
+      ],
+      "material": "chalk",
+      "radius": 0.06
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.4,
+        0.32,
+        0.02
+      ],
+      "position": [
+        -1.05,
+        0.9,
+        -0.56
+      ],
+      "material": "glass",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.4,
+        0.32,
+        0.02
+      ],
+      "position": [
+        -1.05,
+        0.9,
+        0.56
+      ],
+      "material": "glass",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.4,
+        0.32,
+        0.02
+      ],
+      "position": [
+        -0.55,
+        0.9,
+        -0.56
+      ],
+      "material": "glass",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.4,
+        0.32,
+        0.02
+      ],
+      "position": [
+        -0.55,
+        0.9,
+        0.56
+      ],
+      "material": "glass",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.4,
+        0.32,
+        0.02
+      ],
+      "position": [
+        -0.05,
+        0.9,
+        -0.56
+      ],
+      "material": "glass",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.4,
+        0.32,
+        0.02
+      ],
+      "position": [
+        -0.05,
+        0.9,
+        0.56
+      ],
+      "material": "glass",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.4,
+        0.32,
+        0.02
+      ],
+      "position": [
+        0.45,
+        0.9,
+        -0.56
+      ],
+      "material": "glass",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.4,
+        0.32,
+        0.02
+      ],
+      "position": [
+        0.45,
+        0.9,
+        0.56
+      ],
+      "material": "glass",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.4,
+        0.32,
+        0.02
+      ],
+      "position": [
+        0.95,
+        0.9,
+        -0.56
+      ],
+      "material": "glass",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.4,
+        0.32,
+        0.02
+      ],
+      "position": [
+        0.95,
+        0.9,
+        0.56
+      ],
+      "material": "glass",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.36,
+        0.8
+      ],
+      "position": [
+        1.41,
+        0.92,
+        0
+      ],
+      "material": "glass",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.36,
+        0.8
+      ],
+      "position": [
+        -1.41,
+        0.92,
+        0
+      ],
+      "material": "glass",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.03,
+        0.12,
+        0.5
+      ],
+      "position": [
+        1.42,
+        1.15,
+        0
+      ],
+      "material": "graphite",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.04,
+        0.05,
+        0.36
+      ],
+      "position": [
+        1.43,
+        1.15,
+        0
+      ],
+      "material": "lamp-glow",
+      "radius": 0.01
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.06,
+        0.06,
+        0.06
+      ],
+      "position": [
+        1.41,
+        0.45,
+        0.4
+      ],
+      "material": "lamp-glow"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.06,
+        0.06,
+        0.06
+      ],
+      "position": [
+        1.41,
+        0.45,
+        -0.4
+      ],
+      "material": "lamp-glow"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.5,
+        0.62,
+        0.02
+      ],
+      "position": [
+        0.95,
+        0.68,
+        0.565
+      ],
+      "material": "slate",
+      "radius": 0.02
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.2,
+        0.14,
+        0.2
+      ],
+      "position": [
+        -0.9,
+        0.2,
+        -0.5
+      ],
+      "material": "graphite",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.2,
+        0.14,
+        0.2
+      ],
+      "position": [
+        -0.9,
+        0.2,
+        0.5
+      ],
+      "material": "graphite",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.2,
+        0.14,
+        0.2
+      ],
+      "position": [
+        0.9,
+        0.2,
+        -0.5
+      ],
+      "material": "graphite",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.2,
+        0.14,
+        0.2
+      ],
+      "position": [
+        0.9,
+        0.2,
+        0.5
+      ],
+      "material": "graphite",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    }
+  ]
+}

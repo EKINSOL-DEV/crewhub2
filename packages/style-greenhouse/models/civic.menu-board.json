@@ -1,0 +1,255 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-civic-menu-board",
+  "name": "Menu board",
+  "description": "An A-frame chalkboard with the day's menu chalked on it.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "civic",
+    "cafe",
+    "sign"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.62,
+        0.9,
+        0.035
+      ],
+      "position": [
+        0.0,
+        0.46,
+        0.1
+      ],
+      "material": "timber",
+      "rotation": [
+        -13.0,
+        0.0,
+        0.0
+      ],
+      "radius": 0.015
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.52,
+        0.72,
+        0.02
+      ],
+      "position": [
+        0.0,
+        0.484,
+        0.115
+      ],
+      "material": "slate",
+      "rotation": [
+        -13.0,
+        0.0,
+        0.0
+      ],
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.3,
+        0.04,
+        0.012
+      ],
+      "position": [
+        0.0,
+        0.73,
+        0.07
+      ],
+      "material": "coral",
+      "rotation": [
+        -13.0,
+        0.0,
+        0.0
+      ],
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.38,
+        0.022,
+        0.012
+      ],
+      "position": [
+        0.0,
+        0.623,
+        0.095
+      ],
+      "material": "cream",
+      "rotation": [
+        -13.0,
+        0.0,
+        0.0
+      ],
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.3,
+        0.022,
+        0.012
+      ],
+      "position": [
+        -0.04,
+        0.54,
+        0.114
+      ],
+      "material": "cream",
+      "rotation": [
+        -13.0,
+        0.0,
+        0.0
+      ],
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.36,
+        0.022,
+        0.012
+      ],
+      "position": [
+        -0.01,
+        0.457,
+        0.133
+      ],
+      "material": "cream",
+      "rotation": [
+        -13.0,
+        0.0,
+        0.0
+      ],
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.26,
+        0.022,
+        0.012
+      ],
+      "position": [
+        -0.06,
+        0.375,
+        0.153
+      ],
+      "material": "cream",
+      "rotation": [
+        -13.0,
+        0.0,
+        0.0
+      ],
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.34,
+        0.022,
+        0.012
+      ],
+      "position": [
+        -0.02,
+        0.292,
+        0.172
+      ],
+      "material": "cream",
+      "rotation": [
+        -13.0,
+        0.0,
+        0.0
+      ],
+      "radius": 0.005
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.035,
+        0.05,
+        0.03
+      ],
+      "position": [
+        0.15,
+        0.201,
+        0.221
+      ],
+      "material": "cream",
+      "rotation": [
+        -13.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.62,
+        0.9,
+        0.035
+      ],
+      "position": [
+        0.0,
+        0.46,
+        -0.1
+      ],
+      "material": "timber",
+      "rotation": [
+        13.0,
+        0.0,
+        0.0
+      ],
+      "radius": 0.015
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.52,
+        0.72,
+        0.02
+      ],
+      "position": [
+        0.0,
+        0.484,
+        -0.115
+      ],
+      "material": "slate",
+      "rotation": [
+        13.0,
+        0.0,
+        0.0
+      ],
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.64,
+        0.03,
+        0.03
+      ],
+      "position": [
+        0.0,
+        0.9,
+        0.0
+      ],
+      "material": "brass",
+      "radius": 0.01
+    }
+  ]
+}

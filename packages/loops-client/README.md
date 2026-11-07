@@ -1,0 +1,33 @@
+# Loops client
+
+The crewhub-loops wire types (transcribed from `docs/integrators/` in crewhub-loops at `053b5f47`), hand-written
+runtime validators, the event allowlist, the `WorldSource` seam, and the two sources' contract: the demo
+(`packages/demo`) and the live source here.
+
+- `src/source.ts`: `WorldSource`, `LoopsSnapshot`, `SourceMessage`, `ConnectionStatus` (the live chip's states).
+- `src/hostWire.ts` (round 59d, C7): the wire between the world's host and the page, defined once: the route table under
+  `/world-api` (`WORLD_ROUTES`, `worldApiPath` builds a path from it; the host's allow-list matches against it), the
+  health answer (`HostHealth` as the page reads it, `HostHealthSent` as a current host writes it, `readHostHealth`), and
+  the stream's message kinds (`HostMessage`, `readHostMessage`, one message read strictly into its kind or why not),
+  and (round 60, H2) the town's and connect's JSON answers (`TownRead`, `TownWritten`, `TownConflict`, `TownBackups`,
+  `TownBackup`, `ConnectAnswer` as the page reads them, each with a `Sent` type a current host writes, and a reader per
+  answer: `readTownRead(status, body)` …, `readConnectAnswer`). The host writes through it, `hostSource.ts`, the page's
+  town store and connect words, and the stubs (`tools/lib/connectStub.mjs`, the tests' hand hosts) read through it;
+  `apps/host/test/wire.test.ts` runs the real host and the stubs against the readers.
+- `src/hostSource.ts`: `createHostSource(options)` reads the world's own host (`apps/host`) at `/world-api`: one
+  snapshot, then SSE events by `seq`; a `reset` re-snapshots (`catching-up`; a `seq` gap too with
+  `resnapshotOnGap`, off by default since loops filters the stream per key); heartbeats keep it
+  `live`; 40 s of silence is `stale`; the host's `status` says `loops-down` or `unauthorized`. `probeHost(baseUrl?,
+  timeoutMs?)` answers `GET /world-api/health` or `null`. One of the two files in the browser that may fetch
+  (`scripts/scan-model-calls.ts`); the other is `src/pageChat.ts`, chat road 2: the page's own GETs of the person's chat
+  at the loops web origin the host names. The clocks and the gap rule are the source's test seam, the second argument
+  `createHostSource(options, tuning)`; the page passes the options alone.
+- `src/validate.ts`: unknown keys are dropped; a ticket `kind` or `status` and an event `type` the package does not
+  know warn once per value and pass through (so `grill`, CL-245, or the next addition never drops a snapshot). Since
+  round 48 every other enum the live source reads does too: as itself where the world only compares it with known
+  values (a priority, a principal or actor kind, a stall, milestone or release state, the watchdog's mode), or as a
+  safe reading where the world looks it up (a project's or group's colour and icon: none; a label's colour: `mist`; a
+  progress kind: `update`). The chat's own shapes (DM messages, deliveries) stay strict.
+
+No React, no Three.js, no DOM. Tests: `node --test packages/loops-client/test/*.test.ts` (the host-source tests
+start their own server on `127.0.0.1` port 0).

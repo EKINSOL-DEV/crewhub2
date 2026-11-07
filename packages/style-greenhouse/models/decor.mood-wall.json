@@ -1,0 +1,345 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-mood-wall",
+  "name": "Mood wall",
+  "description": "A wall of colour swatches, fabric samples, sketches and a pressed leaf, pinned in neat rows.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "design",
+    "swatches",
+    "wall"
+  ],
+  "footprint": {
+    "width": 3,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        1.36,
+        0.6,
+        0.02
+      ],
+      "position": [
+        0,
+        0.7,
+        -0.23
+      ],
+      "material": "cream",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.085,
+        0.12,
+        0.012
+      ],
+      "position": [
+        -0.58,
+        0.87,
+        -0.214
+      ],
+      "material": "coral",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.085,
+        0.12,
+        0.012
+      ],
+      "position": [
+        -0.48,
+        0.87,
+        -0.214
+      ],
+      "material": "tangerine",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.085,
+        0.12,
+        0.012
+      ],
+      "position": [
+        -0.38,
+        0.87,
+        -0.214
+      ],
+      "material": "circle",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.085,
+        0.12,
+        0.012
+      ],
+      "position": [
+        -0.28,
+        0.87,
+        -0.214
+      ],
+      "material": "sage",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.085,
+        0.12,
+        0.012
+      ],
+      "position": [
+        -0.18,
+        0.87,
+        -0.214
+      ],
+      "material": "moss",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.085,
+        0.12,
+        0.012
+      ],
+      "position": [
+        -0.58,
+        0.72,
+        -0.214
+      ],
+      "material": "leaf",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.085,
+        0.12,
+        0.012
+      ],
+      "position": [
+        -0.48,
+        0.72,
+        -0.214
+      ],
+      "material": "terracotta",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.085,
+        0.12,
+        0.012
+      ],
+      "position": [
+        -0.38,
+        0.72,
+        -0.214
+      ],
+      "material": "clay",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.085,
+        0.12,
+        0.012
+      ],
+      "position": [
+        -0.28,
+        0.72,
+        -0.214
+      ],
+      "material": "slate",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.085,
+        0.12,
+        0.012
+      ],
+      "position": [
+        -0.18,
+        0.72,
+        -0.214
+      ],
+      "material": "brass",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.3,
+        0.22,
+        0.012
+      ],
+      "position": [
+        0.1,
+        0.78,
+        -0.214
+      ],
+      "material": "paper",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        3
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.06,
+        0.08,
+        0.01
+      ],
+      "position": [
+        0.08,
+        0.79,
+        -0.205
+      ],
+      "material": "leaf-dark",
+      "rotation": [
+        0,
+        0,
+        -20
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.22,
+        0.28,
+        0.012
+      ],
+      "position": [
+        0.48,
+        0.76,
+        -0.214
+      ],
+      "material": "paper",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        -4
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.14,
+        0.012,
+        0.01
+      ],
+      "position": [
+        0.48,
+        0.84,
+        -0.207
+      ],
+      "material": "slate",
+      "radius": 0.003,
+      "rotation": [
+        0,
+        0,
+        -4
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.14,
+        0.012,
+        0.01
+      ],
+      "position": [
+        0.48,
+        0.79,
+        -0.207
+      ],
+      "material": "slate",
+      "radius": 0.003,
+      "rotation": [
+        0,
+        0,
+        -4
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.14,
+        0.012,
+        0.01
+      ],
+      "position": [
+        0.48,
+        0.74,
+        -0.207
+      ],
+      "material": "slate",
+      "radius": 0.003,
+      "rotation": [
+        0,
+        0,
+        -4
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.4,
+        0.1,
+        0.012
+      ],
+      "position": [
+        -0.4,
+        0.5,
+        -0.214
+      ],
+      "material": "sage",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        -2
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.28,
+        0.12,
+        0.012
+      ],
+      "position": [
+        0.2,
+        0.5,
+        -0.214
+      ],
+      "material": "tangerine",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        3
+      ]
+    }
+  ]
+}

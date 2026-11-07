@@ -1,0 +1,182 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-town-signpost",
+  "name": "Signpost",
+  "description": "A timber signpost with arrow boards pointing along the streets.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "town"
+  ],
+  "footprint": {
+    "width": 3,
+    "depth": 3
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.1,
+        2.0,
+        0.1
+      ],
+      "position": [
+        0,
+        1.0,
+        0
+      ],
+      "material": "timber",
+      "radius": 0.02
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.09,
+        0.12,
+        0
+      ],
+      "position": [
+        0,
+        2.06,
+        0
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.12,
+        0.08,
+        0.14
+      ],
+      "position": [
+        0,
+        0.04,
+        0
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.62,
+        0.15,
+        0.035
+      ],
+      "position": [
+        0.32,
+        1.78,
+        -0.0
+      ],
+      "material": "cream",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.11,
+        0.11,
+        0.035
+      ],
+      "position": [
+        0.63,
+        1.78,
+        -0.0
+      ],
+      "material": "cream",
+      "rotation": [
+        0,
+        0,
+        45
+      ],
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.62,
+        0.15,
+        0.035
+      ],
+      "position": [
+        0.0,
+        1.55,
+        -0.32
+      ],
+      "material": "sage",
+      "rotation": [
+        0,
+        90,
+        0
+      ],
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.11,
+        0.11,
+        0.035
+      ],
+      "position": [
+        0.0,
+        1.55,
+        -0.63
+      ],
+      "material": "sage",
+      "rotation": [
+        0,
+        90,
+        45
+      ],
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.62,
+        0.15,
+        0.035
+      ],
+      "position": [
+        0.262,
+        1.32,
+        0.184
+      ],
+      "material": "cream",
+      "rotation": [
+        0,
+        -35,
+        0
+      ],
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.11,
+        0.11,
+        0.035
+      ],
+      "position": [
+        0.516,
+        1.32,
+        0.361
+      ],
+      "material": "cream",
+      "rotation": [
+        0,
+        -35,
+        45
+      ],
+      "radius": 0.005
+    }
+  ]
+}

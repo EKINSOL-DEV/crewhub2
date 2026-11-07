@@ -1,4 +1,6 @@
 /** Headless grid model. No renderer, timers, sockets, or AI. */
+import { MinHeap } from "./heap.ts";
+import { type PlacementRules, placementRules } from "./placement.ts";
 export interface Cell {
   x: number;
   z: number;
@@ -39,9 +41,10 @@ export interface Actor {
 }
 export type Placement = { ok: true } | { ok: false; reason: string };
 export type Definitions = Readonly<Record<string, PropDefinition>>;
+/** A mover's speed in cells per second, and the longest step one tick takes (a long frame moves no further). */
+export const SPEED_CELLS_PER_SECOND = 2.8;
+export const MAX_TICK_SECONDS = 0.1;
 export const cellKey = (c: Cell): string => `${c.x},${c.z}`;
-export const sameCell = (a: Cell, b: Cell): boolean =>
-  a.x === b.x && a.z === b.z;
 export const inBounds = (g: GridSpec, c: Cell): boolean =>
   Number.isInteger(c.x) &&
   Number.isInteger(c.z) &&
@@ -92,13 +95,44 @@ export function occupancy(l: WorldLayout, defs: Definitions): Int32Array {
   });
   return cells;
 }
-/** Deterministic 4-neighbor A*, with no diagonal corner cutting. Includes both ends. */
+/**
+ * Deterministic 4-neighbor A*, with no diagonal corner cutting. Includes both ends.
+ * Reserved cells are forbidden. Uses a binary heap; ties in f break by the order in
+ * which cells were first discovered, which reproduces the original open-list scan.
+ */
 export function findPath(
   g: GridSpec,
   blocked: Int32Array,
   start: Cell,
   goal: Cell,
-  reserved = new Set<string>(),
+  reserved: ReadonlySet<string> = new Set<string>(),
+): Cell[] | null {
+  if (reserved.has(cellKey(goal))) return null;
+  return search(g, blocked, start, goal, (c) =>
+    reserved.size && reserved.has(cellKey(c)) ? null : 1,
+  );
+}
+/**
+ * A* where `costOf(cell)` is the cost of entering a cell: `null` forbids it and
+ * values below 1 count as 1, so the Manhattan heuristic stays admissible. Used
+ * for "reserved cells are expensive" replans. Same tie order as `findPath`.
+ */
+export function findPathWeighted(
+  g: GridSpec,
+  blocked: Int32Array,
+  start: Cell,
+  goal: Cell,
+  costOf: (cell: Cell) => number | null,
+): Cell[] | null {
+  if (inBounds(g, goal) && costOf(goal) === null) return null;
+  return search(g, blocked, start, goal, costOf);
+}
+function search(
+  g: GridSpec,
+  blocked: Int32Array,
+  start: Cell,
+  goal: Cell,
+  costOf: (cell: Cell) => number | null,
 ): Cell[] | null {
   if (
     !inBounds(g, start) ||
@@ -109,26 +143,23 @@ export function findPath(
   const index = (c: Cell) => c.z * g.width + c.x;
   const s = index(start),
     end = index(goal);
-  if (blocked[s] !== -1 || blocked[end] !== -1 || reserved.has(cellKey(goal)))
-    return null;
+  if (blocked[s] !== -1 || blocked[end] !== -1) return null;
   if (s === end) return [{ ...start }];
   const cost = new Float64Array(blocked.length).fill(Infinity),
-    previous = new Int32Array(blocked.length).fill(-1);
-  const closed = new Uint8Array(blocked.length),
-    inOpen = new Uint8Array(blocked.length),
-    open = [s];
-  cost[s] = 0;
-  inOpen[s] = 1;
+    previous = new Int32Array(blocked.length).fill(-1),
+    order = new Int32Array(blocked.length).fill(-1),
+    closed = new Uint8Array(blocked.length),
+    open = new MinHeap();
   const h = (id: number) =>
     Math.abs((id % g.width) - goal.x) +
     Math.abs(Math.floor(id / g.width) - goal.z);
-  while (open.length) {
-    let best = 0;
-    for (let i = 1; i < open.length; i++)
-      if (cost[open[i]!]! + h(open[i]!) < cost[open[best]!]! + h(open[best]!))
-        best = i;
-    const current = open.splice(best, 1)[0]!;
-    inOpen[current] = 0;
+  let discovered = 0;
+  cost[s] = 0;
+  order[s] = discovered++;
+  open.push(h(s), order[s]!, s);
+  while (open.size) {
+    const current = open.pop();
+    if (closed[current]) continue;
     if (current === end) {
       const result: Cell[] = [];
       for (let id = end; id !== -1; id = previous[id]!)
@@ -144,53 +175,21 @@ export function findPath(
       { x, z: z + 1 },
       { x: x - 1, z },
     ]) {
-      if (!inBounds(g, c) || reserved.has(cellKey(c))) continue;
+      if (!inBounds(g, c)) continue;
       const n = index(c);
-      if (blocked[n] !== -1 || closed[n] || cost[current]! + 1 >= cost[n]!)
-        continue;
-      cost[n] = cost[current]! + 1;
+      if (blocked[n] !== -1 || closed[n]) continue;
+      const step = costOf(c);
+      if (step === null) continue;
+      const next = cost[current]! + Math.max(1, step);
+      if (next >= cost[n]!) continue;
+      cost[n] = next;
       previous[n] = current;
-      if (!inOpen[n]) {
-        open.push(n);
-        inOpen[n] = 1;
-      }
+      if (order[n] === -1) order[n] = discovered++;
+      // Lazy decrease-key: a stale entry is skipped once the cell is closed.
+      open.push(next + h(n), order[n]!, n);
     }
   }
   return null;
-}
-/** One flood fill validates every interaction cell, instead of repeated path searches. */
-function reachableCells(
-  g: GridSpec,
-  blocked: Int32Array,
-  start: Cell,
-): Uint8Array {
-  const visited = new Uint8Array(blocked.length),
-    queue = new Int32Array(blocked.length);
-  const first = start.z * g.width + start.x;
-  if (blocked[first] !== -1) return visited;
-  let read = 0,
-    write = 1;
-  queue[0] = first;
-  visited[first] = 1;
-  while (read < write) {
-    const id = queue[read++]!,
-      x = id % g.width,
-      z = Math.floor(id / g.width);
-    for (const c of [
-      { x: x - 1, z },
-      { x: x + 1, z },
-      { x, z: z - 1 },
-      { x, z: z + 1 },
-    ]) {
-      if (!inBounds(g, c)) continue;
-      const next = c.z * g.width + c.x;
-      if (!visited[next] && blocked[next] === -1) {
-        visited[next] = 1;
-        queue[write++] = next;
-      }
-    }
-  }
-  return visited;
 }
 export function validateLayout(value: unknown, defs: Definitions): WorldLayout {
   if (!value || typeof value !== "object")
@@ -203,8 +202,8 @@ export function validateLayout(value: unknown, defs: Definitions): WorldLayout {
     !Number.isInteger(l.grid.depth) ||
     l.grid.width < 1 ||
     l.grid.depth < 1 ||
-    l.grid.width > 128 ||
-    l.grid.depth > 128 ||
+    l.grid.width > 256 ||
+    l.grid.depth > 256 ||
     !Number.isFinite(l.grid.cellSize) ||
     l.grid.cellSize < 0.1 ||
     l.grid.cellSize > 10 ||
@@ -213,8 +212,13 @@ export function validateLayout(value: unknown, defs: Definitions): WorldLayout {
     !inBounds(l.grid, l.entrance)
   )
     throw new Error("Invalid grid or layout version.");
-  const ids = new Set<string>(),
-    occupied = new Set<string>();
+  // One byte a cell for what is taken (a Set of "x,z" strings cost a string per cell per call), and the entrance
+  // read on the way: the same checks, in the same order, with the same errors.
+  const { width } = l.grid;
+  const occupied = new Uint8Array(width * l.grid.depth);
+  const entrance = l.entrance.z * width + l.entrance.x;
+  let entranceBlocked = false;
+  const ids = new Set<string>();
   for (const p of l.props) {
     if (
       !p ||
@@ -228,14 +232,16 @@ export function validateLayout(value: unknown, defs: Definitions): WorldLayout {
     )
       throw new Error("Invalid prop identity or definition.");
     ids.add(p.id);
+    const blocks = defs[p.definitionId]!.blocksMovement;
     for (const c of propCells(p, defs)) {
-      if (!inBounds(l.grid, c) || occupied.has(cellKey(c)))
+      const at = c.z * width + c.x;
+      if (!inBounds(l.grid, c) || occupied[at] === 1)
         throw new Error("Props overlap or extend beyond the grid.");
-      occupied.add(cellKey(c));
+      occupied[at] = 1;
+      if (blocks && at === entrance) entranceBlocked = true;
     }
   }
-  if (occupancy(l, defs)[l.entrance.z * l.grid.width + l.entrance.x] !== -1)
-    throw new Error("Keep the entrance open.");
+  if (entranceBlocked) throw new Error("Keep the entrance open.");
   return structuredClone(l);
 }
 /** Compact semantics for future tool consumers; never exposes meshes or screen pixels. */
@@ -261,13 +267,15 @@ export class WorldSimulation {
   readonly definitions: Definitions;
   revision = 0;
   #occupied: Int32Array;
+  #rules: PlacementRules;
   constructor(
     layout: WorldLayout,
     defs: Definitions,
     actors: { id: string; cell: Cell }[],
   ) {
     this.definitions = defs;
-    this.layout = validateLayout(layout, defs);
+    this.#rules = placementRules(layout, defs);
+    this.layout = this.#rules.layout;
     this.#occupied = occupancy(this.layout, defs);
     const used = new Set<string>(),
       ids = new Set<string>();
@@ -323,9 +331,9 @@ export class WorldSimulation {
   }
   tick(seconds: number): void {
     if (!Number.isFinite(seconds) || seconds <= 0) return;
-    const dt = Math.min(seconds, 0.1);
+    const dt = Math.min(seconds, MAX_TICK_SECONDS);
     for (const a of this.actors) {
-      let distance = dt * 2.8;
+      let distance = dt * SPEED_CELLS_PER_SECOND;
       while (distance > 1e-9) {
         if (
           !a.next &&
@@ -347,44 +355,9 @@ export class WorldSimulation {
       }
     }
   }
+  /** The placement rules over the layout as it stands, with the crew: the cells the actors hold and stand on. */
   placement(prop: WorldProp): Placement {
-    let next: WorldLayout;
-    try {
-      next = validateLayout(
-        {
-          ...this.layout,
-          props: [...this.layout.props.filter((p) => p.id !== prop.id), prop],
-        },
-        this.definitions,
-      );
-    } catch (e) {
-      return {
-        ok: false,
-        reason: e instanceof Error ? e.message : "Invalid placement.",
-      };
-    }
-    const reserved = this.reservations();
-    if (propCells(prop, this.definitions).some((c) => reserved.has(cellKey(c))))
-      return { ok: false, reason: "A crew member is using that cell." };
-    const blocked = occupancy(next, this.definitions);
-    const reachable = reachableCells(next.grid, blocked, next.entrance);
-    const canReach = (c: Cell) =>
-      inBounds(next.grid, c) && reachable[c.z * next.grid.width + c.x] === 1;
-    for (const a of this.actors)
-      if (!canReach(a.next ?? a.cell))
-        return {
-          ok: false,
-          reason: "Keep a path from every crew member to the entrance.",
-        };
-    for (const p of next.props) {
-      const approaches = approachCells(p, this.definitions);
-      if (approaches.length && !approaches.some(canReach))
-        return {
-          ok: false,
-          reason: "Keep workstation interaction cells reachable.",
-        };
-    }
-    return { ok: true };
+    return this.#rules.check(prop, { reserved: this.reservations(), standing: this.actors.map((a) => a.next ?? a.cell) });
   }
   place(prop: WorldProp): Placement {
     const result = this.placement(prop);
@@ -396,6 +369,7 @@ export class WorldSimulation {
         structuredClone(prop),
       ],
     };
+    this.#rules = placementRules(this.layout, this.definitions);
     this.#occupied = occupancy(this.layout, this.definitions);
     for (const a of this.actors)
       if (a.destination) {
@@ -430,3 +404,9 @@ export class WorldSimulation {
     };
   }
 }
+
+export * from "./props.ts";
+export { MinHeap } from "./heap.ts";
+export * from "./placement.ts";
+export * from "./nav.ts";
+export * from "./navSim.ts";

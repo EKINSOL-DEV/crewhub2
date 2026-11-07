@@ -1,0 +1,12 @@
+{
+  "format": "crewhub-figure-patch/1",
+  "recolor": {"sage": "oat", "mist": "rain", "clay": "celadon", "slate": "root", "shoe": "root"},
+  "remove": ["hair", "fringe"],
+  "add": [
+    {"id": "hair", "joint": "hair", "shape": "sphere", "size": [0.25, 0.1, 0.24], "position": [0, 0.2, -0.03], "color": "slot:hair"},
+    {"id": "hat-brim", "joint": "hair", "shape": "cylinder", "size": [0.37, 0.025, 0.37], "position": [0, 0.31, 0.01], "color": "birch"},
+    {"id": "hat-crown", "joint": "hair", "shape": "cylinder", "size": [0.2, 0.15, 0.215], "position": [0, 0.385, -0.01], "color": "birch"},
+    {"id": "hat-band", "joint": "hair", "shape": "cylinder", "size": [0.215, 0.035, 0.22], "position": [0, 0.335, -0.01], "color": "moss-deep", "detail": "near"},
+    {"id": "hat-leaf", "joint": "hair", "shape": "sphere", "size": [0.07, 0.012, 0.035], "position": [0.17, 0.345, 0.1], "rotation": [0, 0, 20], "color": "shoot-leaf", "detail": "near"}
+  ]
+}

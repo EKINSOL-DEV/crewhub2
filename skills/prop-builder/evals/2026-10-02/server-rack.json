@@ -1,0 +1,401 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "user:server-rack",
+  "name": "Server rack",
+  "description": "A slate server rack with four graphite units, brass pulls, status lights and a vented chalk panel on top.",
+  "category": "work",
+  "tags": [
+    "server",
+    "rack",
+    "tech"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [
+    {
+      "x": 0,
+      "z": 1
+    }
+  ],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.52,
+        0.05,
+        0.5
+      ],
+      "position": [
+        0,
+        0.025,
+        -0.02
+      ],
+      "material": "moss"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.5,
+        1.14,
+        0.46
+      ],
+      "position": [
+        0,
+        0.62,
+        -0.02
+      ],
+      "material": "slate",
+      "radius": 0.05
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.52,
+        0.04,
+        0.48
+      ],
+      "position": [
+        0,
+        1.21,
+        -0.02
+      ],
+      "material": "moss"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.42,
+        0.16,
+        0.03
+      ],
+      "position": [
+        0,
+        0.2,
+        0.215
+      ],
+      "material": "graphite",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.14,
+        0.03,
+        0.02
+      ],
+      "position": [
+        -0.08,
+        0.2,
+        0.235
+      ],
+      "material": "brass",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.03,
+        0.03,
+        0.015
+      ],
+      "position": [
+        0.15,
+        0.23,
+        0.238
+      ],
+      "material": "lamp-glow",
+      "emissive": true,
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.03,
+        0.03,
+        0.015
+      ],
+      "position": [
+        0.15,
+        0.17,
+        0.238
+      ],
+      "material": "leaf",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.42,
+        0.16,
+        0.03
+      ],
+      "position": [
+        0,
+        0.4,
+        0.215
+      ],
+      "material": "graphite",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.14,
+        0.03,
+        0.02
+      ],
+      "position": [
+        -0.08,
+        0.4,
+        0.235
+      ],
+      "material": "brass",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.03,
+        0.03,
+        0.015
+      ],
+      "position": [
+        0.15,
+        0.43000000000000005,
+        0.238
+      ],
+      "material": "lamp-glow",
+      "emissive": true,
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.03,
+        0.03,
+        0.015
+      ],
+      "position": [
+        0.15,
+        0.37,
+        0.238
+      ],
+      "material": "leaf",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.42,
+        0.16,
+        0.03
+      ],
+      "position": [
+        0,
+        0.6,
+        0.215
+      ],
+      "material": "graphite",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.14,
+        0.03,
+        0.02
+      ],
+      "position": [
+        -0.08,
+        0.6,
+        0.235
+      ],
+      "material": "brass",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.03,
+        0.03,
+        0.015
+      ],
+      "position": [
+        0.15,
+        0.63,
+        0.238
+      ],
+      "material": "lamp-glow",
+      "emissive": true,
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.03,
+        0.03,
+        0.015
+      ],
+      "position": [
+        0.15,
+        0.57,
+        0.238
+      ],
+      "material": "tangerine",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.42,
+        0.16,
+        0.03
+      ],
+      "position": [
+        0,
+        0.8,
+        0.215
+      ],
+      "material": "graphite",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.14,
+        0.03,
+        0.02
+      ],
+      "position": [
+        -0.08,
+        0.8,
+        0.235
+      ],
+      "material": "brass",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.03,
+        0.03,
+        0.015
+      ],
+      "position": [
+        0.15,
+        0.8300000000000001,
+        0.238
+      ],
+      "material": "lamp-glow",
+      "emissive": true,
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.03,
+        0.03,
+        0.015
+      ],
+      "position": [
+        0.15,
+        0.77,
+        0.238
+      ],
+      "material": "leaf",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.42,
+        0.22,
+        0.03
+      ],
+      "position": [
+        0,
+        1.04,
+        0.215
+      ],
+      "material": "chalk",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.3,
+        0.015,
+        0.015
+      ],
+      "position": [
+        0,
+        0.98,
+        0.235
+      ],
+      "material": "slate",
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.3,
+        0.015,
+        0.015
+      ],
+      "position": [
+        0,
+        1.04,
+        0.235
+      ],
+      "material": "slate",
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.3,
+        0.015,
+        0.015
+      ],
+      "position": [
+        0,
+        1.1,
+        0.235
+      ],
+      "material": "slate",
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.1,
+        0.05,
+        0.01
+      ],
+      "position": [
+        0.12,
+        0.98,
+        0.235
+      ],
+      "material": "paper",
+      "radius": 0.004
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.02,
+        0.3,
+        0.02
+      ],
+      "position": [
+        0.2,
+        0.15,
+        -0.26
+      ],
+      "material": "graphite"
+    }
+  ]
+}

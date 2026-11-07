@@ -1,0 +1,3 @@
+{"v":1,"seq":4711,"ts":"2026-09-30T21:13:18.591Z","type":"ticket.moved",
+ "project":{"slug":"crewhub-loops","key":"CL"},"ticket":{"id":"tk_…","key":"CL-85","title":"…"},
+ "actor":{"id":"cl-lead","kind":"agent"},"recipientIds":[],"payload":{"from":"planned","to":"in_progress","position":1.5}}

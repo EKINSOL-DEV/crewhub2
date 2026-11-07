@@ -1,0 +1,23 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "user:whiteboard-sticky-notes",
+  "name": "Whiteboard with sticky notes",
+  "description": "A wall whiteboard in a pale timber frame with a pen tray, a marker, a few scribbled lines and three sticky notes.",
+  "category": "work",
+  "tags": ["whiteboard", "sticky-notes", "planning", "wall"],
+  "footprint": { "width": 2, "depth": 1 },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    { "shape": "box", "size": [1.1, 0.74, 0.05], "position": [0, 1.0, -0.27], "material": "timber-light" },
+    { "shape": "box", "size": [1.0, 0.64, 0.02], "position": [0, 1.0, -0.235], "material": "chalk", "radius": 0.01 },
+    { "shape": "box", "size": [0.8, 0.03, 0.07], "position": [0, 0.625, -0.22], "material": "timber-light" },
+    { "shape": "box", "size": [0.12, 0.02, 0.02], "position": [0.22, 0.65, -0.215], "material": "ink", "radius": 0.008 },
+    { "shape": "box", "size": [0.34, 0.012, 0.01], "position": [-0.28, 1.2, -0.222], "material": "slate", "radius": 0.004 },
+    { "shape": "box", "size": [0.26, 0.012, 0.01], "position": [-0.32, 1.15, -0.222], "material": "slate", "radius": 0.004 },
+    { "shape": "box", "size": [0.3, 0.012, 0.01], "position": [0.3, 0.84, -0.222], "material": "slate", "radius": 0.004 },
+    { "shape": "box", "size": [0.17, 0.17, 0.01], "position": [-0.3, 0.95, -0.222], "rotation": [0, 0, 4], "material": "coral", "radius": 0.003 },
+    { "shape": "box", "size": [0.17, 0.17, 0.01], "position": [0.0, 1.04, -0.222], "rotation": [0, 0, -3], "material": "tangerine", "radius": 0.003 },
+    { "shape": "box", "size": [0.17, 0.17, 0.01], "position": [0.3, 1.1, -0.222], "rotation": [0, 0, 2], "material": "mist", "radius": 0.003 }
+  ]
+}

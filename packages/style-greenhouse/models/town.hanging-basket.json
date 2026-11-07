@@ -1,0 +1,362 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-town-hanging-basket",
+  "name": "Hanging basket",
+  "description": "A mossy basket of trailing leaves and flowers hung from a lantern post on a little iron arm.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "town"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.34,
+        0.03,
+        0.03
+      ],
+      "position": [
+        0.2,
+        1.86,
+        0
+      ],
+      "material": "graphite",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.03,
+        0.12,
+        0.03
+      ],
+      "position": [
+        0.07,
+        1.8,
+        0
+      ],
+      "material": "graphite",
+      "rotation": [
+        0,
+        0,
+        40
+      ],
+      "radius": 0.01
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.01,
+        0.16,
+        0.01
+      ],
+      "position": [
+        0.36,
+        1.77,
+        0
+      ],
+      "material": "graphite"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.2,
+        0.12,
+        0.2
+      ],
+      "position": [
+        0.36,
+        1.62,
+        0
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.21,
+        0.09,
+        0.21
+      ],
+      "position": [
+        0.36,
+        1.69,
+        0
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.07,
+        0.07
+      ],
+      "position": [
+        0.53,
+        1.7,
+        0.0
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.07,
+        0.07
+      ],
+      "position": [
+        0.466,
+        1.73,
+        0.133
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.07,
+        0.07
+      ],
+      "position": [
+        0.321,
+        1.7,
+        0.166
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.07,
+        0.07
+      ],
+      "position": [
+        0.206,
+        1.73,
+        0.073
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.07,
+        0.07
+      ],
+      "position": [
+        0.208,
+        1.7,
+        -0.075
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.07,
+        0.07
+      ],
+      "position": [
+        0.324,
+        1.73,
+        -0.166
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.07,
+        0.07
+      ],
+      "position": [
+        0.468,
+        1.7,
+        -0.131
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.035,
+        0.09,
+        0.035
+      ],
+      "position": [
+        0.498,
+        1.52,
+        0.058
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.035,
+        0.09,
+        0.035
+      ],
+      "position": [
+        0.298,
+        1.52,
+        0.136
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.035,
+        0.09,
+        0.035
+      ],
+      "position": [
+        0.225,
+        1.52,
+        -0.066
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.035,
+        0.09,
+        0.035
+      ],
+      "position": [
+        0.43,
+        1.52,
+        -0.133
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.05,
+        0.05,
+        0.05
+      ],
+      "position": [
+        0.438,
+        1.76,
+        0.016
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.05,
+        0.05,
+        0.05
+      ],
+      "position": [
+        0.448,
+        1.73,
+        0.134
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.05,
+        0.05,
+        0.05
+      ],
+      "position": [
+        0.343,
+        1.76,
+        0.078
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.05,
+        0.05,
+        0.05
+      ],
+      "position": [
+        0.225,
+        1.73,
+        0.087
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.05,
+        0.05,
+        0.05
+      ],
+      "position": [
+        0.282,
+        1.76,
+        -0.017
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.05,
+        0.05,
+        0.05
+      ],
+      "position": [
+        0.275,
+        1.73,
+        -0.135
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.05,
+        0.05,
+        0.05
+      ],
+      "position": [
+        0.378,
+        1.76,
+        -0.078
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.05,
+        0.05,
+        0.05
+      ],
+      "position": [
+        0.496,
+        1.73,
+        -0.084
+      ],
+      "material": "cream"
+    }
+  ]
+}

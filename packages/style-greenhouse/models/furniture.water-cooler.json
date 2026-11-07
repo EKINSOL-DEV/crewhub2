@@ -1,0 +1,151 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-furniture-water-cooler",
+  "name": "Water cooler",
+  "description": "A chalk water cooler with a pale glass bottle on top, a brass tap and a stack of paper cups.",
+  "category": "gather",
+  "tags": [
+    "greenhouse",
+    "water",
+    "cooler"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.3,
+        0.55,
+        0.28
+      ],
+      "position": [
+        0,
+        0.275,
+        -0.02
+      ],
+      "material": "chalk",
+      "radius": 0.04
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.3,
+        0.04,
+        0.28
+      ],
+      "position": [
+        0,
+        0.02,
+        -0.02
+      ],
+      "material": "slate",
+      "radius": 0.015
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.12,
+        0.3,
+        0.12
+      ],
+      "position": [
+        0,
+        0.72,
+        -0.02
+      ],
+      "material": "glass"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.12,
+        0.06,
+        0.12
+      ],
+      "position": [
+        0,
+        0.87,
+        -0.02
+      ],
+      "material": "glass"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.04,
+        0.03,
+        0.04
+      ],
+      "position": [
+        0,
+        0.565,
+        -0.02
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.04,
+        0.03,
+        0.04
+      ],
+      "position": [
+        -0.06,
+        0.4,
+        0.13
+      ],
+      "material": "brass",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.04,
+        0.03,
+        0.04
+      ],
+      "position": [
+        0.06,
+        0.4,
+        0.13
+      ],
+      "material": "coral",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.2,
+        0.02,
+        0.08
+      ],
+      "position": [
+        0,
+        0.27,
+        0.13
+      ],
+      "material": "slate",
+      "radius": 0.008
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.03,
+        0.12,
+        0.022
+      ],
+      "position": [
+        0.2,
+        0.06,
+        0.1
+      ],
+      "material": "paper"
+    }
+  ]
+}

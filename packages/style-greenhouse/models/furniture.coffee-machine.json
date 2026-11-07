@@ -1,0 +1,172 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-furniture-coffee-machine",
+  "name": "Coffee machine",
+  "description": "The lobby coffee machine: a sage espresso machine on a chalk cabinet, a brass spout and a cream mug.",
+  "category": "gather",
+  "tags": [
+    "greenhouse",
+    "coffee"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [
+    {
+      "x": 0,
+      "z": 1
+    }
+  ],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.6,
+        0.7,
+        0.54
+      ],
+      "position": [
+        0,
+        0.35,
+        0
+      ],
+      "material": "chalk",
+      "radius": 0.03
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.68,
+        0.05,
+        0.6
+      ],
+      "position": [
+        0,
+        0.725,
+        0
+      ],
+      "material": "timber",
+      "radius": 0.025
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.42,
+        0.5,
+        0.36
+      ],
+      "position": [
+        0,
+        1,
+        -0.06
+      ],
+      "material": "sage",
+      "radius": 0.05
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.44,
+        0.06,
+        0.38
+      ],
+      "position": [
+        0,
+        1.28,
+        -0.06
+      ],
+      "material": "graphite",
+      "radius": 0.03
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.16,
+        0.3,
+        0.1
+      ],
+      "position": [
+        0,
+        1.05,
+        -0.29
+      ],
+      "material": "glass",
+      "radius": 0.03
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.3,
+        0.03,
+        0.2
+      ],
+      "position": [
+        0,
+        0.765,
+        0.2
+      ],
+      "material": "graphite",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.12,
+        0.06,
+        0.08
+      ],
+      "position": [
+        0,
+        1.12,
+        0.17
+      ],
+      "material": "brass",
+      "radius": 0.02
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.04,
+        0.09,
+        0.035
+      ],
+      "position": [
+        0,
+        0.825,
+        0.2
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.016,
+        0.016,
+        0.016
+      ],
+      "position": [
+        0.12,
+        1.2,
+        0.125
+      ],
+      "material": "lamp-glow",
+      "emissive": true
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.016,
+        0.016,
+        0.016
+      ],
+      "position": [
+        -0.12,
+        1.2,
+        0.125
+      ],
+      "material": "tangerine"
+    }
+  ]
+}

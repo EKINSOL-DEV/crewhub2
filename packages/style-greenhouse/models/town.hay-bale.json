@@ -1,0 +1,76 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-town-hay-bale",
+  "name": "Hay bale",
+  "description": "A round hay bale on its side.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "town"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 2
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.45,
+        0.6,
+        0.45
+      ],
+      "position": [
+        0,
+        0.45,
+        0
+      ],
+      "material": "brass",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.46,
+        0.08,
+        0.46
+      ],
+      "position": [
+        0,
+        0.465,
+        0.15
+      ],
+      "material": "clay",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.46,
+        0.08,
+        0.46
+      ],
+      "position": [
+        0,
+        0.465,
+        -0.15
+      ],
+      "material": "clay",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    }
+  ]
+}

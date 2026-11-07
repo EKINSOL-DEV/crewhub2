@@ -1,0 +1,532 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-town-barrow",
+  "name": "Flower barrow",
+  "description": "A market handcart loaded with potted flowers.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "town"
+  ],
+  "footprint": {
+    "width": 3,
+    "depth": 2
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        1.05,
+        0.1,
+        0.62
+      ],
+      "position": [
+        0,
+        0.52,
+        0
+      ],
+      "material": "timber",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.05,
+        0.16,
+        0.04
+      ],
+      "position": [
+        0,
+        0.63,
+        0.3
+      ],
+      "material": "timber-light",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.05,
+        0.16,
+        0.04
+      ],
+      "position": [
+        0,
+        0.63,
+        -0.3
+      ],
+      "material": "timber-light",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.04,
+        0.16,
+        0.62
+      ],
+      "position": [
+        -0.52,
+        0.63,
+        0
+      ],
+      "material": "timber-light",
+      "radius": 0.01
+    },
+    {
+      "shape": "torus",
+      "size": [
+        0.24,
+        0.035,
+        0
+      ],
+      "position": [
+        -0.22,
+        0.285,
+        0.37
+      ],
+      "material": "graphite",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "torus",
+      "size": [
+        0.24,
+        0.035,
+        0
+      ],
+      "position": [
+        -0.22,
+        0.285,
+        -0.37
+      ],
+      "material": "graphite",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.03,
+        0.8,
+        0.03
+      ],
+      "position": [
+        -0.22,
+        0.285,
+        0
+      ],
+      "material": "graphite",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.05,
+        0.46,
+        0.05
+      ],
+      "position": [
+        0.42,
+        0.23,
+        0.24
+      ],
+      "material": "timber",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.05,
+        0.46,
+        0.05
+      ],
+      "position": [
+        0.42,
+        0.23,
+        -0.24
+      ],
+      "material": "timber",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.44,
+        0.04,
+        0.04
+      ],
+      "position": [
+        0.74,
+        0.56,
+        0.26
+      ],
+      "material": "timber",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.44,
+        0.04,
+        0.04
+      ],
+      "position": [
+        0.74,
+        0.56,
+        -0.26
+      ],
+      "material": "timber",
+      "radius": 0.01
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.085,
+        0.13,
+        0.065
+      ],
+      "position": [
+        -0.36,
+        0.635,
+        -0.15
+      ],
+      "material": "terracotta"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.1,
+        0.08,
+        0.1
+      ],
+      "position": [
+        -0.36,
+        0.75,
+        -0.15
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.04,
+        0.04
+      ],
+      "position": [
+        -0.33,
+        0.83,
+        -0.13
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.035,
+        0.035,
+        0.035
+      ],
+      "position": [
+        -0.4,
+        0.81,
+        -0.18
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.085,
+        0.13,
+        0.065
+      ],
+      "position": [
+        -0.06,
+        0.635,
+        -0.15
+      ],
+      "material": "terracotta"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.1,
+        0.08,
+        0.1
+      ],
+      "position": [
+        -0.06,
+        0.75,
+        -0.15
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.04,
+        0.04
+      ],
+      "position": [
+        -0.03,
+        0.83,
+        -0.13
+      ],
+      "material": "lamp-glow"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.035,
+        0.035,
+        0.035
+      ],
+      "position": [
+        -0.1,
+        0.81,
+        -0.18
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.085,
+        0.13,
+        0.065
+      ],
+      "position": [
+        0.24,
+        0.635,
+        -0.15
+      ],
+      "material": "terracotta"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.1,
+        0.08,
+        0.1
+      ],
+      "position": [
+        0.24,
+        0.75,
+        -0.15
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.04,
+        0.04
+      ],
+      "position": [
+        0.27,
+        0.83,
+        -0.13
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.035,
+        0.035,
+        0.035
+      ],
+      "position": [
+        0.2,
+        0.81,
+        -0.18
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.085,
+        0.13,
+        0.065
+      ],
+      "position": [
+        -0.36,
+        0.635,
+        0.15
+      ],
+      "material": "terracotta"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.1,
+        0.08,
+        0.1
+      ],
+      "position": [
+        -0.36,
+        0.75,
+        0.15
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.04,
+        0.04
+      ],
+      "position": [
+        -0.33,
+        0.83,
+        0.17
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.035,
+        0.035,
+        0.035
+      ],
+      "position": [
+        -0.4,
+        0.81,
+        0.12
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.085,
+        0.13,
+        0.065
+      ],
+      "position": [
+        -0.06,
+        0.635,
+        0.15
+      ],
+      "material": "terracotta"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.1,
+        0.08,
+        0.1
+      ],
+      "position": [
+        -0.06,
+        0.75,
+        0.15
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.04,
+        0.04
+      ],
+      "position": [
+        -0.03,
+        0.83,
+        0.17
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.035,
+        0.035,
+        0.035
+      ],
+      "position": [
+        -0.1,
+        0.81,
+        0.12
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.085,
+        0.13,
+        0.065
+      ],
+      "position": [
+        0.24,
+        0.635,
+        0.15
+      ],
+      "material": "terracotta"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.1,
+        0.08,
+        0.1
+      ],
+      "position": [
+        0.24,
+        0.75,
+        0.15
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.04,
+        0.04
+      ],
+      "position": [
+        0.27,
+        0.83,
+        0.17
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.035,
+        0.035,
+        0.035
+      ],
+      "position": [
+        0.2,
+        0.81,
+        0.12
+      ],
+      "material": "lamp-glow"
+    }
+  ]
+}

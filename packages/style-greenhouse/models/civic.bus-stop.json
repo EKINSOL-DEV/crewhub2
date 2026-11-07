@@ -1,0 +1,750 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-civic-bus-stop",
+  "name": "Bus stop",
+  "description": "A sage-roofed glass bus shelter with a timber bench, a route map and a round stop sign on a post.",
+  "category": "rest",
+  "tags": [
+    "greenhouse",
+    "civic",
+    "bus",
+    "shelter"
+  ],
+  "footprint": {
+    "width": 5,
+    "depth": 3
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        2.94,
+        0.06,
+        1.66
+      ],
+      "position": [
+        0.0,
+        0.03,
+        0.0
+      ],
+      "material": "chalk",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        2.94,
+        0.08,
+        0.12
+      ],
+      "position": [
+        0.0,
+        0.04,
+        0.78
+      ],
+      "material": "cream",
+      "radius": 0.02
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.045,
+        2.1,
+        0.05
+      ],
+      "position": [
+        -1.22,
+        1.11,
+        -0.6
+      ],
+      "material": "moss"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.045,
+        2.1,
+        0.05
+      ],
+      "position": [
+        -1.22,
+        1.11,
+        0.42
+      ],
+      "material": "moss"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.045,
+        2.1,
+        0.05
+      ],
+      "position": [
+        1.22,
+        1.11,
+        -0.6
+      ],
+      "material": "moss"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.045,
+        2.1,
+        0.05
+      ],
+      "position": [
+        1.22,
+        1.11,
+        0.42
+      ],
+      "material": "moss"
+    },
+    {
+      "shape": "box",
+      "size": [
+        2.84,
+        0.09,
+        1.42
+      ],
+      "position": [
+        0.0,
+        2.2,
+        -0.08
+      ],
+      "material": "sage",
+      "rotation": [
+        -4.0,
+        0.0,
+        0.0
+      ],
+      "radius": 0.04
+    },
+    {
+      "shape": "box",
+      "size": [
+        2.9,
+        0.14,
+        0.05
+      ],
+      "position": [
+        0.0,
+        2.17,
+        0.62
+      ],
+      "material": "moss",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        2.6,
+        0.06,
+        1.2
+      ],
+      "position": [
+        0.0,
+        2.27,
+        -0.08
+      ],
+      "material": "leaf",
+      "rotation": [
+        -4.0,
+        0.0,
+        0.0
+      ],
+      "radius": 0.03
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.16,
+        0.112,
+        0.16
+      ],
+      "position": [
+        -1.0,
+        2.327,
+        -0.3
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.12,
+        0.084,
+        0.12
+      ],
+      "position": [
+        -0.55,
+        2.35,
+        0.2
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.14,
+        0.098,
+        0.14
+      ],
+      "position": [
+        0.1,
+        2.314,
+        -0.4
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.15,
+        0.105,
+        0.15
+      ],
+      "position": [
+        0.7,
+        2.355,
+        0.15
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.11,
+        0.077,
+        0.11
+      ],
+      "position": [
+        1.05,
+        2.301,
+        -0.45
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.045,
+        0.04,
+        0.045
+      ],
+      "position": [
+        -0.8,
+        2.361,
+        0.3
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.045,
+        0.04,
+        0.045
+      ],
+      "position": [
+        -0.2,
+        2.34,
+        0.0
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.045,
+        0.04,
+        0.045
+      ],
+      "position": [
+        0.35,
+        2.365,
+        0.35
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.045,
+        0.04,
+        0.045
+      ],
+      "position": [
+        0.9,
+        2.329,
+        -0.15
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.045,
+        0.04,
+        0.045
+      ],
+      "position": [
+        -1.15,
+        2.347,
+        0.1
+      ],
+      "material": "lamp-glow"
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.4,
+        0.025,
+        0.08
+      ],
+      "position": [
+        0.0,
+        2.13,
+        0.1
+      ],
+      "material": "lamp-glow",
+      "radius": 0.01,
+      "emissive": true
+    },
+    {
+      "shape": "box",
+      "size": [
+        2.36,
+        1.42,
+        0.025
+      ],
+      "position": [
+        0.0,
+        1.06,
+        -0.6
+      ],
+      "material": "glass",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        2.44,
+        0.06,
+        0.06
+      ],
+      "position": [
+        0.0,
+        0.32,
+        -0.6
+      ],
+      "material": "moss",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        2.44,
+        0.06,
+        0.06
+      ],
+      "position": [
+        0.0,
+        1.8,
+        -0.6
+      ],
+      "material": "moss",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.025,
+        1.42,
+        0.95
+      ],
+      "position": [
+        -1.22,
+        1.06,
+        -0.1
+      ],
+      "material": "glass",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.06,
+        1.0
+      ],
+      "position": [
+        -1.22,
+        1.8,
+        -0.1
+      ],
+      "material": "moss",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.06,
+        1.0
+      ],
+      "position": [
+        -1.22,
+        0.32,
+        -0.1
+      ],
+      "material": "moss",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.8,
+        0.05,
+        0.36
+      ],
+      "position": [
+        -0.15,
+        0.46,
+        -0.36
+      ],
+      "material": "timber",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.8,
+        0.1,
+        0.04
+      ],
+      "position": [
+        -0.15,
+        0.72,
+        -0.56
+      ],
+      "material": "timber",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.05,
+        0.42,
+        0.3
+      ],
+      "position": [
+        -0.9,
+        0.24,
+        -0.36
+      ],
+      "material": "moss",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.05,
+        0.42,
+        0.3
+      ],
+      "position": [
+        0.6,
+        0.24,
+        -0.36
+      ],
+      "material": "moss",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.62,
+        0.92,
+        0.03
+      ],
+      "position": [
+        0.78,
+        1.18,
+        -0.57
+      ],
+      "material": "cream",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.5,
+        0.025,
+        0.012
+      ],
+      "position": [
+        0.78,
+        1.32,
+        -0.55
+      ],
+      "material": "coral",
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.025,
+        0.4,
+        0.012
+      ],
+      "position": [
+        0.6,
+        1.1,
+        -0.55
+      ],
+      "material": "coral",
+      "radius": 0.005
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.035,
+        0.035,
+        0.012
+      ],
+      "position": [
+        0.6,
+        1.32,
+        -0.545
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.035,
+        0.035,
+        0.012
+      ],
+      "position": [
+        0.95,
+        1.32,
+        -0.545
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.035,
+        0.035,
+        0.012
+      ],
+      "position": [
+        0.6,
+        0.92,
+        -0.545
+      ],
+      "material": "moss"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.035,
+        0.035,
+        0.012
+      ],
+      "position": [
+        0.78,
+        1.5,
+        -0.545
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.035,
+        2.3,
+        0.04
+      ],
+      "position": [
+        1.3,
+        1.15,
+        0.62
+      ],
+      "material": "graphite"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.27,
+        0.04,
+        0.27
+      ],
+      "position": [
+        1.3,
+        2.3,
+        0.62
+      ],
+      "material": "sage",
+      "rotation": [
+        90.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.2,
+        0.02,
+        0.2
+      ],
+      "position": [
+        1.3,
+        2.3,
+        0.65
+      ],
+      "material": "cream",
+      "rotation": [
+        90.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.24,
+        0.1,
+        0.012
+      ],
+      "position": [
+        1.3,
+        2.32,
+        0.665
+      ],
+      "material": "moss",
+      "radius": 0.005
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.028,
+        0.028,
+        0.012
+      ],
+      "position": [
+        1.23,
+        2.255,
+        0.665
+      ],
+      "material": "graphite"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.028,
+        0.028,
+        0.012
+      ],
+      "position": [
+        1.37,
+        2.255,
+        0.665
+      ],
+      "material": "graphite"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.26,
+        0.36,
+        0.035
+      ],
+      "position": [
+        1.3,
+        1.5,
+        0.66
+      ],
+      "material": "slate",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.2,
+        0.28,
+        0.012
+      ],
+      "position": [
+        1.3,
+        1.5,
+        0.682
+      ],
+      "material": "cream",
+      "radius": 0.004
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.14,
+        0.46,
+        0.12
+      ],
+      "position": [
+        -1.42,
+        0.29,
+        0.6
+      ],
+      "material": "moss"
+    },
+    {
+      "shape": "torus",
+      "size": [
+        0.14,
+        0.02,
+        0.0
+      ],
+      "position": [
+        -1.42,
+        0.52,
+        0.6
+      ],
+      "material": "graphite"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.16,
+        0.14,
+        0.16
+      ],
+      "position": [
+        1.4,
+        0.14,
+        -0.62
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.12,
+        0.1,
+        0.12
+      ],
+      "position": [
+        1.32,
+        0.12,
+        -0.45
+      ],
+      "material": "leaf"
+    }
+  ]
+}

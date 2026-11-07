@@ -72,6 +72,7 @@
   --coral-text: #e0454d;
   --tangerine: #fd8f52;
   --circle: #d5565e;
+  --evening: #1d3133;      /* the world's lamplight air: a deep blue-green */
 
   /* --- Font --- */
   --font-sans: 'Archivo Variable', 'Archivo', 'Helvetica Neue', system-ui, sans-serif;
@@ -150,6 +151,8 @@
 
   /* ======================= Semantic aliases: light ======================= */
   --bg: color-mix(in oklab, var(--mist) 30%, var(--paper));        /* canvas behind panels */
+  --world-air: var(--paper);                                        /* the air the town floats in: centre */
+  --world-air-edge: color-mix(in oklab, var(--mist) 45%, var(--paper)); /* … and its soft edge (a vignette) */
   --surface: var(--paper);                                          /* cards, sidebar, panels */
   --surface-sunken: color-mix(in oklab, var(--mist) 22%, var(--paper)); /* inputs, hovered rows, code */
   --surface-raised: var(--paper);                                   /* menus, toasts, dialogs */
@@ -253,6 +256,8 @@
   :root:not([data-theme="light"]) {
     color-scheme: dark;
     --bg: var(--ink);
+    --world-air: color-mix(in oklab, var(--evening) 80%, var(--ink));
+    --world-air-edge: color-mix(in oklab, var(--evening) 30%, var(--ink));
     --surface: var(--ink-soft);
     --surface-sunken: color-mix(in oklab, var(--ink) 60%, var(--ink-soft));
     --surface-raised: var(--ink-card);
@@ -324,6 +329,8 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
   --bg: var(--ink);
+  --world-air: color-mix(in oklab, var(--evening) 80%, var(--ink));
+  --world-air-edge: color-mix(in oklab, var(--evening) 30%, var(--ink));
   --surface: var(--ink-soft);
   --surface-sunken: color-mix(in oklab, var(--ink) 60%, var(--ink-soft));
   --surface-raised: var(--ink-card);

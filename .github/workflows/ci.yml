@@ -8,12 +8,21 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same pull request cancels the run it supersedes; a push to a branch is never cancelled (round 54,
+# r53-review CI3).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   check:
     runs-on: ubuntu-latest
+    # A run takes about 1.5 minutes; a hang outside a test's own timeout (a file's top level, npm ci, the build) ends here,
+    # not at GitHub's default of 360 minutes (round 53, review CI1).
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm

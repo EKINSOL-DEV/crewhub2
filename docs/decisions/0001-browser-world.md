@@ -1,5 +1,7 @@
 # ADR 0001: Browser world with an independent bridge
 
+Status note: the browser-first, grid and town parts stay. The independent bridge and the Herdr-first adapters are superseded by [ADR 0005](0005-crewhub-world-on-loops.md): crewhub-loops is the service and a small CrewHub host (planned, not built) would read it.
+
 - Status: Accepted direction; implementation staged by milestone
 - Date: 2026-09-12
 

@@ -1,0 +1,8 @@
+// Source: crewhub-loops apps/web/src/components/bubbles/queries.ts @ a1bed0f. Copied verbatim; do not edit here, change the source and re-copy.
+import { useQuery } from "@tanstack/react-query";
+
+export const dmKeys = { threads: ["dm-threads"] as const };
+
+export function useThreads() {
+  return useQuery({ queryKey: dmKeys.threads, queryFn: () => [] });
+}

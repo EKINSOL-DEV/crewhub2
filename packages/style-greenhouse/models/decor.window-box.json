@@ -1,0 +1,177 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-window-box",
+  "name": "Window box",
+  "description": "A long timber planter along the glass with herbs, small leaves and a few tangerine flowers.",
+  "category": "greenery",
+  "tags": [
+    "greenhouse",
+    "planter",
+    "plants",
+    "window"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        1,
+        0.16,
+        0.16
+      ],
+      "position": [
+        0,
+        0.08,
+        -0.2
+      ],
+      "material": "timber",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.96,
+        0.02,
+        0.12
+      ],
+      "position": [
+        0,
+        0.16,
+        -0.2
+      ],
+      "material": "soil",
+      "radius": 0.005
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.08,
+        0.08,
+        0.07
+      ],
+      "position": [
+        -0.38,
+        0.21,
+        -0.2
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.08,
+        0.11,
+        0.07
+      ],
+      "position": [
+        -0.2,
+        0.23,
+        -0.2
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.08,
+        0.08,
+        0.07
+      ],
+      "position": [
+        0,
+        0.21,
+        -0.2
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.08,
+        0.11,
+        0.07
+      ],
+      "position": [
+        0.18,
+        0.23,
+        -0.2
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.08,
+        0.08,
+        0.07
+      ],
+      "position": [
+        0.36,
+        0.21,
+        -0.2
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.022,
+        0.022,
+        0.022
+      ],
+      "position": [
+        -0.28,
+        0.3,
+        -0.15
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.022,
+        0.022,
+        0.022
+      ],
+      "position": [
+        0.08,
+        0.3,
+        -0.15
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.022,
+        0.022,
+        0.022
+      ],
+      "position": [
+        0.28,
+        0.3,
+        -0.15
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.022,
+        0.022,
+        0.022
+      ],
+      "position": [
+        -0.1,
+        0.29,
+        -0.14
+      ],
+      "material": "cream"
+    }
+  ]
+}

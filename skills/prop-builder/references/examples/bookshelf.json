@@ -1,0 +1,416 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "user:bookshelf",
+  "name": "Bookshelf",
+  "description": "A two-cell timber bookshelf with books, a paper stack and a small plant.",
+  "category": "storage",
+  "tags": [
+    "books",
+    "wall"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [
+    {
+      "x": 0,
+      "z": 1
+    },
+    {
+      "x": 1,
+      "z": 1
+    }
+  ],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        1.16,
+        1.72,
+        0.03
+      ],
+      "position": [
+        0,
+        0.88,
+        -0.165
+      ],
+      "material": "chalk"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.05,
+        1.76,
+        0.36
+      ],
+      "position": [
+        -0.56,
+        0.88,
+        0
+      ],
+      "material": "timber-light"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.05,
+        1.76,
+        0.36
+      ],
+      "position": [
+        0.56,
+        0.88,
+        0
+      ],
+      "material": "timber-light"
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.12,
+        0.05,
+        0.36
+      ],
+      "position": [
+        0,
+        0.05,
+        0
+      ],
+      "material": "timber-light"
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.12,
+        0.05,
+        0.36
+      ],
+      "position": [
+        0,
+        0.6,
+        0
+      ],
+      "material": "timber-light"
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.12,
+        0.05,
+        0.36
+      ],
+      "position": [
+        0,
+        1.15,
+        0
+      ],
+      "material": "timber-light"
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.12,
+        0.05,
+        0.36
+      ],
+      "position": [
+        0,
+        1.72,
+        0
+      ],
+      "material": "timber-light"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.07,
+        0.3,
+        0.24
+      ],
+      "position": [
+        -0.425,
+        0.225,
+        0.02
+      ],
+      "material": "sage",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.09,
+        0.35,
+        0.24
+      ],
+      "position": [
+        -0.325,
+        0.25,
+        0.02
+      ],
+      "material": "clay",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.07,
+        0.4,
+        0.24
+      ],
+      "position": [
+        -0.225,
+        0.275,
+        0.02
+      ],
+      "material": "terracotta",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.09,
+        0.3,
+        0.24
+      ],
+      "position": [
+        -0.125,
+        0.225,
+        0.02
+      ],
+      "material": "moss",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.07,
+        0.35,
+        0.24
+      ],
+      "position": [
+        -0.025,
+        0.25,
+        0.02
+      ],
+      "material": "cream",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.09,
+        0.4,
+        0.24
+      ],
+      "position": [
+        0.075,
+        0.275,
+        0.02
+      ],
+      "material": "slate",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.07,
+        0.35,
+        0.24
+      ],
+      "position": [
+        -0.425,
+        0.8,
+        0.02
+      ],
+      "material": "clay",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.09,
+        0.4,
+        0.24
+      ],
+      "position": [
+        -0.325,
+        0.825,
+        0.02
+      ],
+      "material": "terracotta",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.07,
+        0.3,
+        0.24
+      ],
+      "position": [
+        -0.225,
+        0.775,
+        0.02
+      ],
+      "material": "moss",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.09,
+        0.35,
+        0.24
+      ],
+      "position": [
+        -0.125,
+        0.8,
+        0.02
+      ],
+      "material": "cream",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.07,
+        0.4,
+        0.24
+      ],
+      "position": [
+        -0.025,
+        0.825,
+        0.02
+      ],
+      "material": "slate",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.28,
+        0.08,
+        0.22
+      ],
+      "position": [
+        0.3,
+        0.665,
+        0.02
+      ],
+      "rotation": [
+        0,
+        -8,
+        0
+      ],
+      "material": "paper",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.24,
+        0.05,
+        0.2
+      ],
+      "position": [
+        0.3,
+        0.73,
+        0.02
+      ],
+      "rotation": [
+        0,
+        10,
+        0
+      ],
+      "material": "cream",
+      "radius": 0.01
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.09,
+        0.14,
+        0.07
+      ],
+      "position": [
+        -0.3,
+        1.245,
+        0
+      ],
+      "material": "terracotta"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.06,
+        0.13,
+        0.025
+      ],
+      "position": [
+        -0.3,
+        1.36,
+        0.04
+      ],
+      "rotation": [
+        25.0,
+        0,
+        0
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.06,
+        0.13,
+        0.025
+      ],
+      "position": [
+        -0.265,
+        1.36,
+        -0.02
+      ],
+      "rotation": [
+        -12.621,
+        120.321,
+        21.58
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.06,
+        0.13,
+        0.025
+      ],
+      "position": [
+        -0.335,
+        1.36,
+        -0.02
+      ],
+      "rotation": [
+        -12.257,
+        240.642,
+        -21.789
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.07,
+        0.07
+      ],
+      "position": [
+        0.25,
+        1.245,
+        0
+      ],
+      "material": "mist"
+    }
+  ]
+}

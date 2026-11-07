@@ -1,0 +1,190 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-frame-trio",
+  "name": "Gallery trio",
+  "description": "Three small frames hung at staggered heights: a portrait, a sage print and a coral dot.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "partition",
+    "picture",
+    "wall",
+    "gallery"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.2,
+        0.26,
+        0.03
+      ],
+      "position": [
+        -0.27,
+        0.41,
+        -0.22
+      ],
+      "material": "timber",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.16,
+        0.22,
+        0.02
+      ],
+      "position": [
+        -0.27,
+        0.41,
+        -0.21
+      ],
+      "material": "cream",
+      "radius": 0.005
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.05,
+        0.01
+      ],
+      "position": [
+        -0.27,
+        0.43,
+        -0.197
+      ],
+      "material": "clay"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.1,
+        0.05,
+        0.01
+      ],
+      "position": [
+        -0.27,
+        0.35,
+        -0.197
+      ],
+      "material": "sage",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.26,
+        0.18,
+        0.03
+      ],
+      "position": [
+        0,
+        0.34,
+        -0.22
+      ],
+      "material": "timber-light",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.22,
+        0.14,
+        0.02
+      ],
+      "position": [
+        0,
+        0.34,
+        -0.21
+      ],
+      "material": "paper",
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.18,
+        0.03,
+        0.01
+      ],
+      "position": [
+        0,
+        0.33,
+        -0.197
+      ],
+      "material": "sage",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.12,
+        0.025,
+        0.01
+      ],
+      "position": [
+        0.02,
+        0.36,
+        -0.195
+      ],
+      "material": "moss",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.18,
+        0.22,
+        0.03
+      ],
+      "position": [
+        0.26,
+        0.43,
+        -0.22
+      ],
+      "material": "timber",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.14,
+        0.18,
+        0.02
+      ],
+      "position": [
+        0.26,
+        0.43,
+        -0.21
+      ],
+      "material": "sage",
+      "radius": 0.005
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.04,
+        0.01,
+        0.04
+      ],
+      "position": [
+        0.26,
+        0.43,
+        -0.197
+      ],
+      "material": "coral",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    }
+  ]
+}

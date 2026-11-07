@@ -1,0 +1,123 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "user:stool",
+  "name": "Round stool",
+  "description": "A low timber stool with a sage cushion and a brass foot ring.",
+  "category": "rest",
+  "tags": [
+    "seat",
+    "small"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [
+    {
+      "x": 0,
+      "z": 1
+    }
+  ],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.022,
+        0.48,
+        0.018
+      ],
+      "position": [
+        0.07,
+        0.245,
+        0.121
+      ],
+      "rotation": [
+        -6.928,
+        0,
+        4.0
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.022,
+        0.48,
+        0.018
+      ],
+      "position": [
+        0.07,
+        0.245,
+        -0.121
+      ],
+      "rotation": [
+        6.928,
+        0,
+        4.0
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.022,
+        0.48,
+        0.018
+      ],
+      "position": [
+        -0.14,
+        0.245,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        -8.0
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.2,
+        0.06,
+        0.19
+      ],
+      "position": [
+        0,
+        0.5,
+        0
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.17,
+        0.045,
+        0.18
+      ],
+      "position": [
+        0,
+        0.55,
+        0
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "torus",
+      "size": [
+        0.13,
+        0.012,
+        0
+      ],
+      "position": [
+        0,
+        0.2,
+        0
+      ],
+      "material": "brass"
+    }
+  ]
+}

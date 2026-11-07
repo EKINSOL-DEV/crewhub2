@@ -1,0 +1,118 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-bug-jar",
+  "name": "Bug jar",
+  "description": "A glass jar on the lead's desk that holds one bead per open bug.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "rule"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.07,
+        0.16,
+        0.07
+      ],
+      "position": [
+        0,
+        0.08,
+        0
+      ],
+      "material": "glass"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.075,
+        0.025,
+        0.075
+      ],
+      "position": [
+        0,
+        0.1725,
+        0
+      ],
+      "material": "brass"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.03,
+        0.02,
+        0.03
+      ],
+      "position": [
+        0,
+        0.195,
+        0
+      ],
+      "material": "brass"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.025,
+        0.02,
+        0.03
+      ],
+      "position": [
+        -0.02,
+        0.025,
+        0.01
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.025,
+        0.02,
+        0.03
+      ],
+      "position": [
+        0.025,
+        0.03,
+        -0.015
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.022,
+        0.018,
+        0.026
+      ],
+      "position": [
+        0.0,
+        0.06,
+        0.02
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.1,
+        0.04,
+        0.01
+      ],
+      "position": [
+        0,
+        0.1,
+        0.073
+      ],
+      "material": "paper",
+      "radius": 0.002
+    }
+  ]
+}

@@ -1,0 +1,301 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-furniture-autumn-vase",
+  "name": "Autumn branches",
+  "description": "A tall terracotta vase of bare branches with tangerine, coral and brass leaves: October in the lobby.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "autumn",
+    "vase",
+    "plants"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.07,
+        0.3,
+        0.1
+      ],
+      "position": [
+        0,
+        0.15,
+        0
+      ],
+      "material": "terracotta"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.075,
+        0.03,
+        0.07
+      ],
+      "position": [
+        0,
+        0.31,
+        0
+      ],
+      "material": "clay"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.012,
+        0.42,
+        0.012
+      ],
+      "position": [
+        -0.118,
+        0.502,
+        0
+      ],
+      "material": "timber",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        16
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.012,
+        0.4,
+        0.012
+      ],
+      "position": [
+        0.098,
+        0.494,
+        0
+      ],
+      "material": "timber",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        -14
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.012,
+        0.46,
+        0.012
+      ],
+      "position": [
+        0.016,
+        0.529,
+        0
+      ],
+      "material": "timber",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        -4
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.012,
+        0.32,
+        0.012
+      ],
+      "position": [
+        -0.1,
+        0.439,
+        0
+      ],
+      "material": "timber",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        30
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.012,
+        0.3,
+        0.012
+      ],
+      "position": [
+        0.11,
+        0.432,
+        0
+      ],
+      "material": "timber",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        -28
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.025,
+        0.035
+      ],
+      "position": [
+        -0.15,
+        0.66,
+        0.02
+      ],
+      "material": "tangerine",
+      "rotation": [
+        0,
+        0,
+        30
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.025,
+        0.035
+      ],
+      "position": [
+        -0.11,
+        0.56,
+        -0.04
+      ],
+      "material": "coral",
+      "rotation": [
+        0,
+        0,
+        30
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.025,
+        0.035
+      ],
+      "position": [
+        0.14,
+        0.64,
+        0.03
+      ],
+      "material": "brass",
+      "rotation": [
+        0,
+        0,
+        30
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.025,
+        0.035
+      ],
+      "position": [
+        0.1,
+        0.55,
+        -0.03
+      ],
+      "material": "tangerine",
+      "rotation": [
+        0,
+        0,
+        30
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.025,
+        0.035
+      ],
+      "position": [
+        0.02,
+        0.76,
+        0
+      ],
+      "material": "coral",
+      "rotation": [
+        0,
+        0,
+        30
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.025,
+        0.035
+      ],
+      "position": [
+        -0.03,
+        0.7,
+        0.05
+      ],
+      "material": "brass",
+      "rotation": [
+        0,
+        0,
+        30
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.025,
+        0.035
+      ],
+      "position": [
+        -0.2,
+        0.52,
+        0.03
+      ],
+      "material": "tangerine",
+      "rotation": [
+        0,
+        0,
+        30
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.025,
+        0.035
+      ],
+      "position": [
+        0.19,
+        0.5,
+        0
+      ],
+      "material": "coral",
+      "rotation": [
+        0,
+        0,
+        30
+      ]
+    }
+  ]
+}

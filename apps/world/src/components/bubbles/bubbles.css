@@ -1,0 +1,23 @@
+/* Source: crewhub-loops apps/web/src/components/bubbles/bubbles.css @ a1bed0f. Copied verbatim; do not edit here, change the source and re-copy. */
+/* Layout modifiers of AG0's Card/Field variants; colours and contrast remain in the kit tokens. */
+.bubble-chat-actions { display: flex; align-items: center; }
+.bubble-message-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.card-chat.bubble-chat {
+  right: var(--space-3);
+  bottom: calc(var(--space-4) + var(--bubble-dock-height) + var(--space-3));
+  max-height: min(36rem, calc(100dvh - var(--bubble-dock-height) - var(--space-3) - 2 * var(--space-4)));
+}
+.bubble-chat > .card-header, .bubble-chat > .chat-summary, .bubble-chat > .chat-compose { flex-shrink: 0; }
+.bubble-chat > .card-body { min-height: 0; }
+.bubble-summary-label { margin-right: var(--space-2); }
+.bubble-chat .chat-summary .chip-link + .chip-link { margin-left: var(--space-1); }
+@media (max-width: 899px) {
+  .card-dialog.bubble-dialog {
+    position: fixed; margin: 0; inset: auto; left: 0; top: var(--bubble-viewport-top, 0px);
+    width: 100vw; max-width: none; height: var(--bubble-viewport-height, 100dvh); max-height: none;
+    border-radius: 0; overflow: hidden;
+  }
+  .bubble-dialog > .card-chat.bubble-chat { position: static; width: 100%; height: 100%; max-height: none; border-radius: 0; }
+  .bubble-dialog .chat-compose { padding-bottom: max(var(--space-2), env(safe-area-inset-bottom)); }
+}
+.bubble-read-marker { display: block; height: 1px; width: 1px; }

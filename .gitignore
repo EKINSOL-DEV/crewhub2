@@ -10,3 +10,7 @@ test-results/
 *.local
 *.log
 apps/bridge/target/
+*.tsbuildinfo
+
+# Output of the scripts in tools/ (screenshots, logs, measurements)
+tools/out/

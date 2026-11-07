@@ -1,0 +1,22 @@
+{
+  "nextCursor": null,
+  "milestones": [
+    {
+      "id": "ms_0001",
+      "key": "CL-M3",
+      "number": 3,
+      "title": "Integrators",
+      "state": "active",
+      "project": { "slug": "crewhub-loops", "key": "CL" },
+      "targetDate": "2026-10-15",
+      "position": 1,
+      "owner": { "id": "nicky", "kind": "user", "displayName": "Nicky" },
+      "createdAt": "2026-09-01T08:00:00Z",
+      "updatedAt": "2026-09-30T08:00:00Z",
+      "startedAt": "2026-09-02T08:00:00Z",
+      "completedAt": null,
+      "archivedAt": null,
+      "revision": 5
+    }
+  ]
+}

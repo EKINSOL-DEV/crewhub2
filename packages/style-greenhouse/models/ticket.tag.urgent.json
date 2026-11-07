@@ -1,0 +1,77 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-ticket-tag-urgent",
+  "name": "Urgent tag",
+  "description": "An urgent tag: two flags on a pin, so the shape differs from high as well as the colour.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "accent-coral"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "sphere",
+      "size": [
+        0.03,
+        0.02,
+        0.03
+      ],
+      "position": [
+        0,
+        0.02,
+        0
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.012,
+        0.26,
+        0.012
+      ],
+      "position": [
+        0,
+        0.13,
+        0
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.13,
+        0.085,
+        0.03
+      ],
+      "position": [
+        0.07,
+        0.21,
+        0
+      ],
+      "material": "coral",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.11,
+        0.07,
+        0.03
+      ],
+      "position": [
+        0.06,
+        0.12,
+        0
+      ],
+      "material": "coral",
+      "radius": 0.01
+    }
+  ]
+}

@@ -1,0 +1,262 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-floor-bay",
+  "name": "Pallet bay",
+  "description": "A pallet bay painted on the floor: a clay outline with tangerine corner marks and a few hatch lines.",
+  "category": "work",
+  "tags": [
+    "greenhouse",
+    "partition",
+    "floor",
+    "storage",
+    "marking"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 2
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.92,
+        0.01,
+        0.035
+      ],
+      "position": [
+        0,
+        0.005,
+        -0.44
+      ],
+      "material": "clay",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.035,
+        0.01,
+        0.92
+      ],
+      "position": [
+        -0.44,
+        0.005,
+        0
+      ],
+      "material": "clay",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.92,
+        0.01,
+        0.035
+      ],
+      "position": [
+        0,
+        0.005,
+        0.44
+      ],
+      "material": "clay",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.035,
+        0.01,
+        0.92
+      ],
+      "position": [
+        0.44,
+        0.005,
+        0
+      ],
+      "material": "clay",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.16,
+        0.012,
+        0.04
+      ],
+      "position": [
+        -0.36,
+        0.006,
+        -0.44
+      ],
+      "material": "tangerine",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.04,
+        0.012,
+        0.16
+      ],
+      "position": [
+        -0.44,
+        0.006,
+        -0.36
+      ],
+      "material": "tangerine",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.16,
+        0.012,
+        0.04
+      ],
+      "position": [
+        -0.36,
+        0.006,
+        0.44
+      ],
+      "material": "tangerine",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.04,
+        0.012,
+        0.16
+      ],
+      "position": [
+        -0.44,
+        0.006,
+        0.36
+      ],
+      "material": "tangerine",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.16,
+        0.012,
+        0.04
+      ],
+      "position": [
+        0.36,
+        0.006,
+        -0.44
+      ],
+      "material": "tangerine",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.04,
+        0.012,
+        0.16
+      ],
+      "position": [
+        0.44,
+        0.006,
+        -0.36
+      ],
+      "material": "tangerine",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.16,
+        0.012,
+        0.04
+      ],
+      "position": [
+        0.36,
+        0.006,
+        0.44
+      ],
+      "material": "tangerine",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.04,
+        0.012,
+        0.16
+      ],
+      "position": [
+        0.44,
+        0.006,
+        0.36
+      ],
+      "material": "tangerine",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.03,
+        0.01,
+        0.2
+      ],
+      "position": [
+        -0.3,
+        0.005,
+        0.32
+      ],
+      "material": "cream",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        45,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.03,
+        0.01,
+        0.2
+      ],
+      "position": [
+        -0.18,
+        0.005,
+        0.32
+      ],
+      "material": "cream",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        45,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.03,
+        0.01,
+        0.2
+      ],
+      "position": [
+        -0.06,
+        0.005,
+        0.32
+      ],
+      "material": "cream",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        45,
+        0
+      ]
+    }
+  ]
+}

@@ -1,0 +1,163 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-small-clock",
+  "name": "Small clock",
+  "description": "A small round clock on a partition: a timber rim, a cream face and slate hands.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "partition",
+    "clock",
+    "wall"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.1,
+        0.03,
+        0.1
+      ],
+      "position": [
+        0,
+        0.4,
+        -0.22
+      ],
+      "material": "timber",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.085,
+        0.012,
+        0.085
+      ],
+      "position": [
+        0,
+        0.4,
+        -0.203
+      ],
+      "material": "cream",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.01,
+        0.055,
+        0.01
+      ],
+      "position": [
+        0,
+        0.423,
+        -0.194
+      ],
+      "material": "slate",
+      "radius": 0.003
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.042,
+        0.01,
+        0.01
+      ],
+      "position": [
+        0.02,
+        0.4,
+        -0.194
+      ],
+      "material": "slate",
+      "radius": 0.003
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.01,
+        0.01,
+        0.01
+      ],
+      "position": [
+        0,
+        0.4,
+        -0.191
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.01,
+        0.01,
+        0.01
+      ],
+      "position": [
+        0,
+        0.468,
+        -0.195
+      ],
+      "material": "moss",
+      "radius": 0.003
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.01,
+        0.01,
+        0.01
+      ],
+      "position": [
+        0.068,
+        0.4,
+        -0.195
+      ],
+      "material": "moss",
+      "radius": 0.003
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.01,
+        0.01,
+        0.01
+      ],
+      "position": [
+        0,
+        0.332,
+        -0.195
+      ],
+      "material": "moss",
+      "radius": 0.003
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.01,
+        0.01,
+        0.01
+      ],
+      "position": [
+        -0.068,
+        0.4,
+        -0.195
+      ],
+      "material": "moss",
+      "radius": 0.003
+    }
+  ]
+}

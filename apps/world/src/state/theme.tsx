@@ -1,5 +1,7 @@
 /* Theme: system | light | dark on <html data-theme>, stored in this browser's localStorage. */
 import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
+import { useMedia } from "./media";
+import { whenIdle } from "./idle";
 
 export type Theme = "system" | "light" | "dark";
 const STORAGE_KEY = "crewhub-theme";
@@ -48,12 +50,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useLayoutEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
-    syncThemeColor();
-    if (theme !== "system") return;
+    // The browser chrome follows when the page is idle (within two seconds): a 2D canvas and a computed style are
+    // not for the road to the first frame, where a frame callback put them (round 22: 18 ms of it at a phone's 4x).
+    const cancel = whenIdle(syncThemeColor);
+    if (theme !== "system") return cancel;
     /* With `system` the resolved colour follows the OS scheme. */
     const query = window.matchMedia("(prefers-color-scheme: dark)");
     query.addEventListener("change", syncThemeColor);
-    return () => query.removeEventListener("change", syncThemeColor);
+    return () => {
+      cancel();
+      query.removeEventListener("change", syncThemeColor);
+    };
   }, [theme]);
 
   const setTheme = useCallback((next: Theme) => {
@@ -69,4 +76,12 @@ export function useTheme(): ThemeState {
   const s = useContext(ThemeContext);
   if (!s) throw new Error("useTheme outside ThemeProvider");
   return s;
+}
+
+const DARK = "(prefers-color-scheme: dark)";
+/** The resolved theme: an explicit choice, else the OS scheme (one subscription for the page, state/media.ts). */
+export function useDark(): boolean {
+  const { theme } = useTheme();
+  const system = useMedia(DARK);
+  return theme === "dark" || (theme === "system" && system);
 }

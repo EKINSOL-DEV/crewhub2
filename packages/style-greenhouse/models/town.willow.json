@@ -1,0 +1,383 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-town-willow",
+  "name": "Willow",
+  "description": "A weeping willow: a broad crown with curtains of leaves hanging to the grass.",
+  "category": "greenery",
+  "tags": [
+    "greenhouse",
+    "town"
+  ],
+  "footprint": {
+    "width": 5,
+    "depth": 5
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.11,
+        1.5,
+        0.17
+      ],
+      "position": [
+        0,
+        0.77,
+        0
+      ],
+      "material": "timber",
+      "rotation": [
+        0,
+        0,
+        4
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.05,
+        0.6,
+        0.07
+      ],
+      "position": [
+        0.25,
+        1.5,
+        0.05
+      ],
+      "material": "timber",
+      "rotation": [
+        0,
+        0,
+        -42
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.05,
+        0.55,
+        0.07
+      ],
+      "position": [
+        -0.22,
+        1.55,
+        -0.05
+      ],
+      "material": "timber",
+      "rotation": [
+        0,
+        0,
+        40
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        1.0,
+        0.62,
+        1.0
+      ],
+      "position": [
+        0,
+        2.15,
+        0
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.7,
+        0.45,
+        0.7
+      ],
+      "position": [
+        0.15,
+        2.45,
+        -0.1
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.24,
+        0.62,
+        0.24
+      ],
+      "position": [
+        0.902,
+        1.55,
+        0.183
+      ],
+      "material": "leaf",
+      "rotation": [
+        1.987,
+        0,
+        -9.801
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.24,
+        0.72,
+        0.24
+      ],
+      "position": [
+        0.703,
+        1.47,
+        0.683
+      ],
+      "material": "sage",
+      "rotation": [
+        6.97,
+        0,
+        -7.171
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.24,
+        0.82,
+        0.24
+      ],
+      "position": [
+        0.235,
+        1.55,
+        1.013
+      ],
+      "material": "leaf-dark",
+      "rotation": [
+        9.74,
+        0,
+        -2.264
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.24,
+        0.62,
+        0.24
+      ],
+      "position": [
+        -0.309,
+        1.47,
+        0.866
+      ],
+      "material": "leaf",
+      "rotation": [
+        9.418,
+        0,
+        3.361
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.24,
+        0.72,
+        0.24
+      ],
+      "position": [
+        -0.776,
+        1.55,
+        0.598
+      ],
+      "material": "sage",
+      "rotation": [
+        6.106,
+        0,
+        7.92
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.24,
+        0.82,
+        0.24
+      ],
+      "position": [
+        -1.036,
+        1.47,
+        0.089
+      ],
+      "material": "leaf-dark",
+      "rotation": [
+        0.855,
+        0,
+        9.963
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.24,
+        0.62,
+        0.24
+      ],
+      "position": [
+        -0.814,
+        1.55,
+        -0.429
+      ],
+      "material": "leaf",
+      "rotation": [
+        -4.667,
+        0,
+        8.844
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.24,
+        0.72,
+        0.24
+      ],
+      "position": [
+        -0.482,
+        1.47,
+        -0.853
+      ],
+      "material": "sage",
+      "rotation": [
+        -8.708,
+        0,
+        4.917
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.24,
+        0.82,
+        0.24
+      ],
+      "position": [
+        0.059,
+        1.55,
+        -1.038
+      ],
+      "material": "leaf-dark",
+      "rotation": [
+        -9.984,
+        0,
+        -0.572
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.24,
+        0.62,
+        0.24
+      ],
+      "position": [
+        0.541,
+        1.47,
+        -0.744
+      ],
+      "material": "leaf",
+      "rotation": [
+        -8.09,
+        0,
+        -5.879
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.24,
+        0.72,
+        0.24
+      ],
+      "position": [
+        0.913,
+        1.55,
+        -0.355
+      ],
+      "material": "sage",
+      "rotation": [
+        -3.627,
+        0,
+        -9.319
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.2,
+        0.5,
+        0.2
+      ],
+      "position": [
+        0.348,
+        1.5,
+        0.359
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.2,
+        0.5,
+        0.2
+      ],
+      "position": [
+        -0.233,
+        1.5,
+        0.442
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.2,
+        0.5,
+        0.2
+      ],
+      "position": [
+        -0.493,
+        1.5,
+        -0.085
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.2,
+        0.5,
+        0.2
+      ],
+      "position": [
+        -0.071,
+        1.5,
+        -0.495
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.2,
+        0.5,
+        0.2
+      ],
+      "position": [
+        0.449,
+        1.5,
+        -0.22
+      ],
+      "material": "leaf-dark"
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-cart",
+  "name": "Postman's cart",
+  "description": "The postman's timber cart for letters.",
+  "category": "storage",
+  "tags": [
+    "greenhouse"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.6,
+        0.25,
+        0.4
+      ],
+      "position": [
+        0,
+        0.3,
+        0
+      ],
+      "material": "timber",
+      "radius": 0.04
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.1,
+        0.04,
+        0.1
+      ],
+      "position": [
+        -0.2,
+        0.1,
+        0.2
+      ],
+      "material": "graphite",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.1,
+        0.04,
+        0.1
+      ],
+      "position": [
+        0.2,
+        0.1,
+        0.2
+      ],
+      "material": "graphite",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.1,
+        0.04,
+        0.1
+      ],
+      "position": [
+        -0.2,
+        0.1,
+        -0.2
+      ],
+      "material": "graphite",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.1,
+        0.04,
+        0.1
+      ],
+      "position": [
+        0.2,
+        0.1,
+        -0.2
+      ],
+      "material": "graphite",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.015,
+        0.4,
+        0.015
+      ],
+      "position": [
+        -0.28,
+        0.55,
+        0
+      ],
+      "material": "brass",
+      "rotation": [
+        0,
+        0,
+        20
+      ]
+    }
+  ]
+}

@@ -1,0 +1,419 @@
+# Merging Nicky's answers: the rehearsed plan (rounds 37 to 48, 2026-10-24 to 30)
+
+Seven answer branches wait on [the open questions](open-questions.md). This page says, for every set of answers Nicky
+can give, in which order the branches merge into `feat/world-demo` and what has to be done by hand. Every hand merge
+below was rehearsed on a throwaway checkout of the base (`e55ef42` in round 37, `a0750aa` in round 38, `c0ae5ec` in round 39, `e6c934d` in round 41, `d220f3a` in round 45, `b811561` in round 47, `f2495d2` and `7c96628` in round 48) with `npm run check`
+green on the result, and
+is written so it can be redone without thinking. **Nicky needs §1 only**, and only the first three columns of its table
+to find the row; crewy and the Lead use the rest (§2 the evidence, §3 each hand merge exactly, §4 the check and the
+replay).
+
+The branches, at the heads this plan was made on (the branches are read only; the plan is redone when one moves):
+
+| Question | Answer | Branch | Head |
+| --- | --- | --- | --- |
+| 1 (and 2) | `tab` | `task/r27-tab-pairing` | `de2969e` |
+| 1 (and 2) | `cookie+expiry` | `task/q1-cookie-expiry` | `67d6970` |
+| 1 | `cookie` | no branch | |
+| 3 | `less` | `task/q3-health-less` | `dbb5a41` |
+| 8 | `say` | `task/q8-offline-say` | `2fb1847` |
+| 11 | `show` | `task/q11-recent-since` | `2c0bd7f` |
+| 14 | `cap` | `task/q14-dm-read-cap` | `f8fa725` |
+| 15 | `cap` | `task/q15-body-cap` | `c83b27c` |
+
+## 1. Your answers, your row, and what happens
+
+**Your answers are all crewy needs.** Send the answer lines the questions page asks for (`1: tab`, `3: less`, `8: say`,
+…); crewy merges from them with this page, and nothing below is yours to do. The table is here so you can see, from
+your own words, what your answers cost: nothing by hand in most rows, one rehearsed merge in the others.
+
+**Find your row with three answers**: question 1, question 3 and question 8. The other three answers that bring a
+branch (`11: show`, `14: cap`, `15: cap`) never need a hand: each merges cleanly with everything in any order, so say
+yes or no to each and your row stays the same. Every other question (2, 4 to 7, 9, 10, 12, 13) changes a setting or a
+decision, never a merge. An answer that is not in the table (`8: support`, `14: <number>`, `15: <size>`, `2: <days>`)
+is explained under it.
+
+**If you want to see the result yourself:** the last column is one command, run in a clean checkout of this
+repository. It merges on a detached copy (no branch is touched, nothing is pushed), prints the sha of the result, and
+with `--check` runs the full unit check on it. Add `q11`, `q14` or `q15` where you said `11: show`, `14: cap` or
+`15: cap`; the words in brackets are those optional ones.
+
+| `1:` | `3:` | `8:` | By hand | The command (`node tools/answers-replay.mjs feat/world-demo …`) |
+| --- | --- | --- | --- | --- |
+| `cookie` | any | any | nothing | `… cookie [q3] [q8] [q11] [q14] [q15] --check` |
+| `cookie+expiry` | `as-is` | any | nothing | `… cookie+expiry [q8] [q11] [q14] [q15] --check` |
+| `cookie+expiry` | `less` | any | **one merge**, one file (`apps/host/src/host.ts`, A) and a one-line test fix (B); rehearsed, the command does it | `… cookie+expiry q3 [q8] [q11] [q14] [q15] --check` |
+| `tab` | `as-is` | `as-is` | nothing | `… tab [q11] [q14] [q15] --check` |
+| `tab` | `less` | `as-is` | **one merge**, three files (`apps/host/README.md`, `apps/world/hostPort.ts`, `apps/host/test/pairing.test.ts`: D, E, F); rehearsed, the command does it | `… tab q3 [q11] [q14] [q15] --check` |
+| `tab` | `as-is` | `say` | nothing | `… tab q8 [q11] [q14] [q15] --check` |
+| `tab` | `less` | `say` | **one merge**, the same three files (D, E, F); rehearsed, the command does it | `… tab q3 q8 [q11] [q14] [q15] --check` |
+
+So the worst case is one hand merge of three files, rehearsed and replayed by the command; most answer sets need
+none. After every `tab` merge the command also checks that two paragraphs of `docs/LOOPS_SETUP.md` are there (C)
+and stops if they are not. The letters point at §3, where each resolution is written out for crewy.
+
+**Answers the table does not spell out:**
+
+- `8: support` is not built: for the merge it counts as `8: as-is` (nothing merges), and crewy notes that a round has
+  to build it.
+- `14: <number>` and `15: <size>` are the `cap` branch with one constant changed afterwards: for the merge, read the
+  row as `14: cap` or `15: cap`, and tell crewy the number.
+- `2: <days>` or `2: never` is one setting on question 1's branch (`CREWHUB_WORLD_PAIRING_IDLE_DAYS`), no merge of its
+  own; `2:` matters only with `1: tab` or `1: cookie+expiry`.
+- `1: cookie` merges neither branch of question 1; the row's command still merges whatever else you said yes to.
+
+**For crewy, the one rule behind the table:** merge the yes-branches among questions 3, 8, 11, 14 and 15 first, in that
+order, then question 1's branch last; every hand merge then happens in that last step, once, in the files named above.
+
+## 2. The evidence
+
+- **Pairwise** (`git merge-tree --write-tree`, the heads in the table above, on `a0750aa`): each branch merges clean
+  onto the base. Of the 21 pairs of branches, 18 are clean. The three that conflict: `r27-tab-pairing` ×
+  `q1-cookie-expiry` (11 files; the two answers to one question, never merged together), `r27-tab-pairing` ×
+  `q3-health-less` (3 files: `apps/host/README.md`, `apps/host/test/pairing.test.ts`, `apps/world/hostPort.ts`),
+  `q1-cookie-expiry` × `q3-health-less` (1 file: `apps/host/src/host.ts`). Every pair involving q8, q11, q14 or q15 is
+  clean: `r27-tab-pairing` × `q8-offline-say` conflicted until round 38, when the branch got back the two
+  `LOOPS_SETUP.md` paragraphs it had dropped (C, G below).
+- **The `tab` rows, replayed on `a0750aa`** with `tools/answers-replay.mjs` (round 38, each with q11, q14 and q15 too,
+  which change nothing by hand):
+
+| Set | Result | Rules that ran | `npm run check` |
+| --- | --- | --- | --- |
+| `tab`, q11, q14, q15 | `5de0cad` | none (every merge clean; C: the paragraphs are there) | |
+| `tab`, q3, q11, q14, q15 | `922f08c` | D, E, F in one hand merge; C | |
+| `tab`, q8, q11, q14, q15 | `a8aac39` | none (q8 merges clean with r27 now); C | |
+| `tab`, q3, q8, q11, q14, q15 | `0267f16` | D, E, F in one hand merge; C | **1084 / 1084**, green |
+
+- **The full browser regress, round 38's night** (`tools/regress.mjs`, every group, against the dev loops; each run
+  behind its own Vite and host port and with its own `CREWHUB_WORLD_CONFIG_DIR`): on the base `d5a5bf9`, **197 / 197**;
+  on the replay of the heaviest set (`tab`, q3, q8, q11, q14, q15), in a detached worktree of its own, result `d7cae91`
+  (the same tree as the daytime replay `1721cc4`), `npm run check` 1083 / 1083 and the regress **198 / 198**. The one
+  check more is `r27-tab-pairing`'s own, in the `chat` group: none of the page's asks on road 2 carries the tab's
+  pairing header. Nothing of the replay was pushed; its result is a commit on no branch.
+- **The heaviest set held up as well as the head, round 39's night.** Each run had its own ports and its own
+  `CREWHUB_WORLD_CONFIG_DIR`.
+  - **A 330-minute soak** of the replay `d7cae91`, live against the dev loops with the seed moving work and a second
+    tab paired from its sibling: heap after GC +0.08 MB an hour (round 27 on the head of its day: 0.24), DOM nodes
+    287 throughout, listeners flat, the host process's memory 44 to 65 MB and 4 to 7 sockets from minute 30 on, 65
+    reconnects (two per 10 minutes, loops' 300 s stream end, as round 27). Nothing grows. Road 1's chat was not soaked:
+    that loops is older than the viewer key.
+  - **Two findings against answer branches, both fixed on the branch** (one commit each, no rebase):
+    - `task/q8-offline-say` → `2fb1847`: offline, the Connection panel said the one-tab sentence twice, in the Town
+      and Zones rows (the a11y trees); it now says it once per place.
+    - `task/r27-tab-pairing` → `de2969e`: every unpaired cold start, the demo included, waited 300 ms for the other
+      tabs before the source was decided (348 → 649 ms to the town). The tabs are now asked only when the host says
+      this tab is not paired, and a sibling's answer is followed by one more health probe.
+  - **The replay with both fixes,** `tab q3 q8 q11 q14 q15` on `c0ae5ec` (D, F, E; C passes), result `e0b04e7`:
+    `npm run check` 1086 / 1086, the full regress **197 / 197** (198 less the `real` group's dust check, skipped
+    because the soak's seed left no quiet stretch on the loops), `tools/a11y.mjs --demo` 188 / 188 as on the head, the
+    cold start 337 and 359 ms against the head's 329 and 340. The budget's other rows (bundle +0.15 %, frames, phone,
+    heap at 16x) read as the head's.
+- **Road 1's chat on the heaviest set, round 40's night.** One hour of the replay `e0b04e7` live against the
+  in-process fake, whose key reads the chat (its own ports and `CREWHUB_WORLD_CONFIG_DIR`). The Chat panel was open on
+  road 1 and a paired second tab beside it.
+  - **The load:** 1 019 messages to the agents, one every 5 s plus a burst of 300 at once at minute 30. The host read
+    every one of the 1 020 agent answers over road 1.
+  - **The gate (`task/q14-dm-read-cap`):** during the burst the host made 312 reads, all 200, with at most 8 in flight
+    and no retry. Nothing was lost. Four answers were read twice, at the three moments the fake's sealed cursor expired
+    and the host re-snapshotted from the tail; the page still showed each answer once (1 020 rows for 1 020 answers).
+  - **Nothing of the page's grows:** Recent answers stay at their cap of 10, the bubbles expire, the threads stay 3,
+    and DOM nodes (472 to 492) and listeners (238 to 240) are flat from minute 10 on. Frame p95 was 17.9 to 18.2 ms.
+  - **The heap after GC:** 24.0 → 25.2 MB from minute 10 to 60. The snapshot diff names 0.72 MB as JIT code for the
+    chat's code paths and 0.14 MB as the inspector's own records. About 0.3 MB of JS objects is inside the hour's noise
+    (neighbouring samples moved up to 0.8 MB). The same hour on the head was not needed: it was to run only if the
+    replay grew.
+- **Three hours of the same, round 41's night.** The replay `e0b04e7` ran 180 minutes on the same rig, with a burst
+  of 300 at minute 90. Its own ports and `CREWHUB_WORLD_CONFIG_DIR`.
+  - **The chat:** 2 303 messages sent, 2 304 answers read and each shown once, at most 8 reads in flight.
+  - **The heap:** the slope did not level off (0.85 MB an hour over minutes 100 to 180). Every part of it named from
+    raw snapshots is the head's, not an answer branch's. An hour on the head grew the same objects at the same pace.
+  - **What grew:** the figures that are faded at the snapshot's moment (a proxy, a stale agent) and their see-through
+    copies of the kit's materials. They rise and fall with the storyline, and are released when the figure un-fades.
+    The rest is JIT code.
+  - **One leak found and fixed on the head, not on an answer branch:** the far crowd made a batch, with a copied
+    material, for every glow strength the day-night drift passed. With the potlings in the demo that was 5.4 MB a
+    minute. `task/r41-crowd-materials` (`bbcf897`) was merged on `feat/world-demo` as `e6c934d`; with it the batches
+    stay at 90 for an hour.
+  - **The head without q14's gate:** in the same burst of 300 the host opened 300 reads at once, 172 failed, and the
+    page showed 848 of 1 020 answers. With the gate, none was lost.
+  - **The replay on the new base,** `tab q3 q8 q11 q14 q15` on `e6c934d` (D, F, E; C passes), result `8e544c6`:
+    `npm run check` 1089 / 1089. Each answer branch still merges cleanly onto `e6c934d`.
+- **Round 45's night, on the head only.** The head moved under the answers in rounds 42 to 45: the faded figures'
+  shared copies, the node guards, `erasableSyntaxOnly`, round 44's three small makers (one in `apps/host/src/host.ts`,
+  the archive memory on a new target), the soak tool in `tools/memory.mjs` and `tools/lib/live.mjs`.
+  - **The merges:**
+    - `task/r27-tab-pairing` conflicted for a moment with the soak tool in `tools/lib/live.mjs`, two new fields
+      beside its `pair()`. A Lead commit on the head moved them (`d435d2b`), and no answer branch changed.
+    - All seven merge cleanly onto `d220f3a`. None adds an enum, a namespace or a parameter property, so the new
+      type flag passes on them.
+  - **The per-cast demo hour on the head** (each cast an hour, drift on): the crowd's batches and materials and the
+    JS objects are flat for all four. The heap's remaining slope of about 1 MB an hour is V8's optimised code.
+  - **The replay on the new base,** `tab q3 q8 q11 q14 q15` on `d220f3a` (D, F, E; C passes), result `3e37de5`:
+    `npm run check` 1110 / 1110.
+- **Round 47's night, on the head only.** A fresh review of rounds 41 to 46 found two bugs that touch the answers'
+  areas, fixed on the head (`b811561`):
+  - **`apps/host/src/host.ts`:** a loops found again is judged by the archive file as it stands, not as it was when
+    the host started (F1).
+  - **`tools/lib/chatSoak.mjs` and `tools/lib/live.mjs`:** the chat soak sums question 14's lost count from its
+    exact log line (F8). Before, 172 lost reads printed `lost 1`.
+  - **The merges:** all seven merge cleanly onto `b811561`. `task/r27-tab-pairing`'s `pair()` in `live.mjs` stayed
+    clear of the tool's changes.
+  - **The replay on the new base,** `tab q3 q8 q11 q14 q15` on `b811561` (D, F, E; C passes), result `49bc427`:
+    `npm run check` 1125 / 1125. No rule of the plan changed.
+- **Round 48's night, on the head only.** A fresh review of `apps/host` and `tools/` fixed small host bugs in two
+  passes:
+  - `stream.ts`: a stopped upstream no longer opens a stream;
+  - `host.ts`: a heartbeat and a timer that outlived the host;
+  - `config.ts`: `~` in the pairing file;
+  - `doctor.ts`: a warning no longer fails the run;
+  - `snapshot.ts`: `mapLimit` stops after a rejection;
+  - `main.ts`: the start messages and the signal handlers.
+  - **The `q14` overlap:** the first placement of the `close()` timer line conflicted with `task/q14-dm-read-cap`. It
+    was moved apart on the branch, so the plan needs no new rule.
+  - **The merges:** all seven merge cleanly onto `f2495d2`.
+  - **The replays, with the full check:**
+    - `tab q3 q8 q11 q14 q15` on `f2495d2` (D, F, E; C passes): result `cc7f5c7`, 1140 / 1140;
+    - `cookie+expiry q3 q8 q11 q14 q15` (A, then B): result `12b9164`, 1138 / 1138.
+
+    The first pass alone, on `e4acaa7`, gave `683040d` (1133) and `830af8a` (1131).
+  - **`tools/answers-replay.mjs`** now merges with plain two-sided markers whatever `merge.conflictStyle` a person's
+    git sets, and refuses a diff3 base section.
+  - **Later that night,** fresh reviews of the demo and the fake, the world model, the live data path and the components
+    fixed, on the head only:
+    - races between a read and an event or a reset (the fake's sealed cursor, the projection's ticket and board reads,
+      the team reads);
+    - lenient enums on the snapshot's road;
+    - a ticket status newer than the build;
+    - a Connect screen that asked the host's health thousands of times a second.
+
+    `task/r27-tab-pairing` conflicted for a moment with a header line of `tools/regress.mjs`, moved clear on the head
+    (`fcbfba6`); no answer branch changed.
+  - **The replays on `7c96628`:** `tab q3 q8 q11 q14 q15` (D, F, E; C passes), result `08d3305`, 1195 / 1195; and
+    `cookie+expiry q3 q8 q11 q14 q15` (A, then B), result `8358182`, 1193 / 1193. No rule of the plan changed.
+- **Rounds 49 to 51, on the head only.** Round 49 changed tests and docs; round 50 (a day round, so no replays then)
+  changed the world model (a payload this build cannot read now re-reads its ticket, M3), the Pair screen's Copy and
+  the tools' merge failure line (F11). No answer branch changed.
+  - **The merges:** all seven merge cleanly onto `64efeb1`.
+  - **The replays on `64efeb1`, round 51's night:** `tab q3 q8 q11 q14 q15` (D, F, E; C passes), result `77382ec`,
+    1231 / 1231; and `cookie+expiry q3 q8 q11 q14 q15` (A, then B), result `87aa93e`, 1229 / 1229. No rule of the plan
+    changed.
+- **Round 52, a day round, on the head only.** The host's run file at any exit (F16, `main.ts`, `runFile.ts`), a
+  `loops-client` timing field, the host README's last F16 lines, and two host tests that flaked under load (the
+  allow-list fuzz's oversized request line, the archive switch's sampler), fixed in the tests. No answer branch changed.
+  - **The merges:** all seven merge cleanly onto `e15cd1d`; the README hunks stay clear of rule D's.
+  - **The replays on `e15cd1d`:** `tab q3 q8 q11 q14 q15` (D, F, E; C passes), result `fe083a9`, 1247 / 1247; and
+    `cookie+expiry q3 q8 q11 q14 q15` (A, then B), result `cf5def4`, 1245 / 1245. No rule of the plan changed.
+- **Round 53, a night round, on the head only.** The host opens a built file before it answers (H1), answers a
+  passthrough that is not JSON with 502 and reads `?cursor=` as digits only (H4), shares a snapshot assembly in flight
+  (H3); the page takes a connect answer as done only on the host's `ok` (S2), retries a failed prop import (S3) and keeps
+  no old renders on a view switch (W1); the corners come first in the Tab order (A9, A5); CI and `check:copy`/`check:docs`
+  fixes; road 2's 404 admit narrowed. No answer branch changed.
+  - **The merges:** all seven merge cleanly onto every head of the night, last `8c6162e`; `task/r53-road2-admit` was
+    reshaped to stay clear of `task/r27-tab-pairing`'s two lines above road 2's admit in `tools/regress.mjs`, and
+    `task/r53-host-nits` keeps the loops stub and the host README as they were, clear of q14's and q15's hunks.
+  - **The replays on `8c6162e`:** `tab q3 q8 q11 q14 q15` (D, F, E; C passes), result `6cc0391`, 1263 / 1263; and
+    `cookie+expiry q3 q8 q11 q14 q15` (A, then B), result `14a960c`, 1261 / 1261. Both were green on each head of the night
+    that changed the host or the page too. No rule of the plan changed.
+- **Round 54, a night round, on the head only.** No host source changed. The town database closes on a newer build's
+  version change; a dev scene lets go of its WebGL context; a walker whose room goes offscreen jumps after its step
+  (`world-engine`); tests only for the host and every package with logic (mutation runs); `loops-fake` refuses an unknown scenario and answers a person's `auth/me` as loops does; `check` ends by
+  grepping the built bundle; CI cancels a superseded PR run; the docs fixed against the code. No answer branch changed.
+  - **The merges:** all seven merge cleanly onto every head of the night, last `593f26b`; `task/r54-docs` leaves the
+    host README's pairing-gate and dev-origin lines for after `task/r27-tab-pairing`, `task/q1-cookie-expiry` and
+    `task/q3-health-less`, which rewrite them.
+  - **The replays on `593f26b`:** `tab q3 q8 q11 q14 q15` (D, F, E; C passes), result `6829cdb`, 1338 / 1338; and
+    `cookie+expiry q3 q8 q11 q14 q15` (A, then B), result `54f3f88`, 1336 / 1336. Both were also green on the night's
+    `8da28c8`, `c5abf49`, `44fad2f`, `5ab5fad` and `79e805b`, and on each of the nine merges between `d548410` and
+    `593f26b`. No rule of the plan changed.
+- **Round 55, the night's last part, on the head only.** No host source changed. A stopped host source in the page arms
+  no stale timer (`loops-client`); four pure modules moved out of `apps/world`'s state runtime, behaviour unchanged;
+  `no-app-reach` also refuses a test's connect to 8291 to 8293, 8391, 5180 and 5173 and a listen on those or the Mac
+  app's ports; tests only for `style-greenhouse` and `apps/world`'s world simulation; `design-choices.md` P3 and
+  `mutation-harness.md`. No answer branch changed.
+  - **The merges:** all seven merge cleanly onto every head of round 55, last `bce82f1`.
+  - **The replays on `bce82f1`:** `tab q3 q8 q11 q14 q15`, result `ba4cf8b`, 1370 / 1370; and `cookie+expiry q3 q8 q11
+    q14 q15`, result `3a2c0f3`, 1368 / 1368. Both were also green on `6a119db`, `6568025`, `3ab9bd8` and `586db58`, the
+    round's other code merges. No rule of the plan changed.
+- **Round 56, a short last run, on the head only.** No host or page behaviour changed. The guard's own tests prove
+  every rule on a decoy port they own, so no test aims at a named real port any more; `no-app-reach` refuses the real
+  home's folders when `HOME` is moved and a real host's run file in the real `TMPDIR`; six small pure pieces moved out
+  of `apps/world`'s state modules; the socket tests give a closed port as `loopsUrl`. No answer branch changed.
+  - **The merges:** all seven merge cleanly onto every head of round 56, last `5b262ec`.
+  - **The replays on `5b262ec`:** `tab q3 q8 q11 q14 q15`, result `c0ec5d6`, 1382 / 1382; and `cookie+expiry q3 q8 q11
+    q14 q15`, result `614b7ad`, 1380 / 1380. Both were also green on `281e5b0`, `716ef35` and `ece505e`. No rule of
+    the plan changed.
+- **Round 56b, CI's Linux runner.** The guard's decoy knob took only macOS's ephemeral ports, so its tests failed on
+  Linux (CI run 41773120767); `task/r56b-linux-ports` takes any port from 1024 and keeps the run-file rule below 32768.
+  The replays on its merge `1050fd7`: `tab` `410a901`, 1382 / 1382; `cookie+expiry` `d8c50bb`, 1380 / 1380. No rule of
+  the plan changed.
+- **Round 57d, a day round: the tools' defaults.** Only tools, scripts, tests and docs changed; no host or page
+  behaviour. Four merges on `fbf52cf`: `554a068` (one named-port list), `1d06304` (`testHost()`), `39f883d` (regress,
+  timeworld and loops-seed reach the development loops only when asked) and `717e9b0` (the host tests on `testHost`,
+  with a lint whose allow-list names `dmReadCap.test.ts` (q14) and `bodyCap.test.ts` (q15), which those branches add with
+  `createHost(` calls, and four files whose calls `q3`, `r27` and `q1` change). The seven merge cleanly onto every
+  head. The replays on `717e9b0`: `tab` `86c5481`, 1406 / 1406; `cookie+expiry` `f85a702`, 1404 / 1404. No rule of the
+  plan changed.
+- **Round 58d, a second day round: the guard's gaps.** Only tools, scripts, tests and docs changed. Two merges on
+  `5bcbad7`: `0274ad6` (regress `--real`; the fake's refused ports a subset of the named list) and `0961778` (the test
+  guard hands itself down to a child given an explicit env, keeps `process.kill` to the test's own live children and
+  `node:sqlite` to its temp folders). The guard now reaches the answer branches' test children too, and both replays
+  stay green. The seven merge cleanly onto every head. The replays on `0961778`: `tab` `2c42c5c`, 1424 / 1424;
+  `cookie+expiry` `109d933`, 1422 / 1422. No rule of the plan changed. Held, not merged: `task/r58d-state-medium`
+  (page code; a night browser run first).
+- **The `cookie+expiry` and `cookie` rows, rehearsed in round 37** (detached checkouts; the five independent branches
+  then the question-1 branch): the five alone on `e55ef42`, check 1070 of 1070; the five then `q1-cookie-expiry` (A,
+  then B), check 1075 of 1075 on `e55ef42` and again on `761db9f` (`769434a`); the five then `r27-tab-pairing`, check
+  1075 of 1075 on `e55ef42` and on `761db9f` (`a24d4fd`), when G still ran. The replay in the repository reproduced both
+  `761db9f` results to the byte (`git diff --stat` empty).
+- **A semantic check, not only a textual one.** Two clean textual merges were red until a line was fixed: B (q1 adds a
+  health field that a q3 test pins), and the round-34 guard fuzz on `r27-tab-pairing` (fixed on that branch in round
+  36, `c497a5d`). C existed because `r27-tab-pairing` dropped two paragraphs of `LOOPS_SETUP.md` that have nothing to do
+  with pairing, which `git merge-tree` calls clean; since round 38 the branch carries them and C is a check. Nothing else
+  surfaced: the typecheck, every unit test, the doc links, the design and copy guards and the build pass on each
+  rehearsed chain.
+
+## 3. The hand merges, exactly
+
+Each resolution is written on the two sides' content, so the side git calls "ours" does not matter. A replay script
+that does all of this mechanically is named in §4.
+
+### A. `apps/host/src/host.ts` (q1-cookie-expiry after q3-health-less)
+
+One block, in the `/health` case of the route switch. q3's side adds a two-line comment ("Before pairing: the states and
+nothing else…") and `const isPaired = paired(req);`. q1's side is empty there, because q1 already declares
+`const isPaired = verdict.state === "paired";` a few lines above the switch (its sliding idle window needs the verdict
+on every route). **Keep q3's comment, drop q3's `const isPaired` line.** Why: q1's `isPaired` is the same verdict, and a
+second declaration is a TypeScript error; everything q3 does with `isPaired` below (the blank name, the hidden cursor
+and version, the dev origins to a paired page) then runs on q1's value.
+
+### B. `apps/host/test/pairing.test.ts` (q1-cookie-expiry after q3-health-less; no conflict markers)
+
+q3's test "before pairing health says the states and nothing else" pins the exact keys of health before pairing; q1
+adds `pairingIdleDays` to health (always present, question 2's number for the Pair screen). The textual merge is clean
+and the test is red. **Add `"pairingIdleDays"` to that list**, between `"pairing"` and `"sharedKey"`. Why: it is a
+setting, not one of the facts question 3 hides (the bot's name, the cursor, loops' version, the chat word).
+
+### C. `docs/LOOPS_SETUP.md`: the two paragraphs r27-tab-pairing once dropped (with `tab`: a check, nothing to do)
+
+When round 27 rewrote "Pair this browser" into "Pair this tab", the branch removed, with the cookie paragraph, the two
+paragraphs that follow it and are not about pairing: "The source setting is `auto` by default…" and "Zones: every live
+project sits in the default zone…" (the town kept by the host, the undo history, the restore, the one-time copy).
+`git merge-tree` calls a deletion clean, so nothing warned; round 37's plan put them back after every `tab` merge.
+**Since round 38 the branch carries them itself** (`4fed988`, worded as on `a0750aa`, in the same place), so after
+merging `task/r27-tab-pairing` there is nothing to do: the replay only checks that both paragraphs are there and
+**stops, with the file named, when they are not** (that would mean the branch dropped them again, and a person looks;
+it does not put them back on its own any more).
+
+### D. `apps/host/README.md` (r27-tab-pairing after q3-health-less)
+
+One block, the dev-origin paragraph. q3's side says to whom the dev origins are told (a program, a paired browser,
+never an unpaired page with an Origin) and ends "Pairing is untouched: the page still needs its cookie."; r27's side is
+the shorter older text with "bearer". **Keep q3's whole paragraph and write "bearer" for "cookie".**
+
+### E. `apps/world/hostPort.ts` (r27-tab-pairing after q3-health-less)
+
+One block, two definitions. q3's side: `const head = \`dev: /world-api and /pair go to the host on …\`` and
+`const key = (name: string, state: string | null) => …` with its two-line comment (the name is blank before pairing, so
+the line says the key's state). r27's side: `const head = \`dev: /world-api goes to the host on …\`` (no `/pair` proxy:
+the token rides in the fragment) and the older `key(name)`. **Take r27's `const head` line and q3's `key` with its
+comment.** The merged `hostPort.test.ts` (both branches changed it, cleanly) expects exactly these words.
+
+### F. `apps/host/test/pairing.test.ts` (r27-tab-pairing after q3-health-less)
+
+One block: q3's two new tests ("before pairing health says the states and nothing else", "the dev origins: in health
+and its header…") followed by the old title of the link test; r27's side is only its new title for that test. q3's
+tests pair with a cookie; on r27 `pair()` answers `{ paired, value, idleDays }`, where `paired` is the header object to
+send (`x-world-pair`). **Keep q3's two tests, ported:** `const { cookie } = await pair(host.mintPairLink())` becomes
+`const { paired: header } = …` in the health test (its own `paired` variable is the health body) and `const { paired } =
+…` in the dev-origins test; `status(url, { cookie })` becomes `status(url, header)`; `read({ origin: host.url, cookie })`
+becomes `read({ origin: host.url, ...paired })`; the keys list gains `"pairingIdleDays"` (r27 adds it to health as q1
+does). **Then r27's title line** ("a link carries the token in the fragment and pairs once…") closes the block.
+
+### G. `docs/LOOPS_SETUP.md` (r27-tab-pairing after q8-offline-say): retired in round 38
+
+Until round 38 this was one block: q8's side held the cookie paragraph and the two paragraphs of C with q8's sentence
+("one tab at a time…"), r27's side its bearer paragraph alone, and the resolution took r27's paragraph followed by q8's
+side from "The source setting is `auto`" on. With the paragraphs back on the branch (C) the two sides no longer overlap:
+q8's sentence lands in a paragraph both have, r27's bearer paragraph replaces a cookie paragraph q8 did not touch, and
+`git merge-tree` of `task/r27-tab-pairing` against `task/q8-offline-say` is **clean**. The replay has no rule for this
+file any more: a conflict in `docs/LOOPS_SETUP.md` is for a person.
+
+### H. `apps/world/src/state/build.ts` after round 71's seam 2 (w6-3, w6-4, w4-2 alone)
+
+Round 71 put seam 2's base half on `feat/world-demo` (`f822a2dd`): `build.ts`'s relative imports say `.ts`, `./runtimes`
+left the import list, `TownRuntime` comes from `./town.ts`, and `useBuildMode` calls `editor.edit`/`editor.editAll` in
+place of `townRuntime().edit`/`editAll`. `sugg/w6-3`, `sugg/w6-4` and `sugg/w4-2` still stand on `689bc2f9`, so a single
+`do it` of one of them meets one conflict in `build.ts`. The rule: **feat's side for the imports and the editor calls,
+then the branch's own imports with `.ts`, and its own extra arguments.** Each resolution below typechecks, and `build.ts`
+still loads in Node (`apps/world/test/buildLoads.test.ts`); `sugg/all-r65-on-head` holds the three together in merge
+`ab95a394`.
+
+- **w6-3:** after `import type { Ghost } from "../world/propLayer.ts";` add
+  `import { messageShown } from "./buildMessage.ts";`; in `repose`,
+  `const result = editor.editAll(edits);` and `say(result.ok ? done : result.error, p.id);`, deps
+  `[editor, inside, say, template, town.definitions, town.doc]`.
+- **w6-4:** the `placements.ts` line imports `cellAt, checkGhost, freeCellIn, placedWords, refusedWords, reposeAction,
+  resolveBuildingPlacements, roomSite, type GhostCheck`; `repose`'s deps `[editor, inside, nameOf, say, template,
+  town.definitions, town.doc]`.
+- **w4-2:** after `import type { Ghost } from "../world/propLayer.ts";` add `import { buildWords } from "./inputWords.ts";`
+  and `import { touchInput } from "./media.ts";`.
+
+Two or three of them together: the union (all three: merge `ab95a394`). The replay has no rule for this file: a conflict
+in `build.ts` beyond these lines is for a person.
+
+## 4. Checking the result, and the replay
+
+After the merges: `npm run check` on the head (the counts above are what to expect at these branch heads), and, before
+a push, the full browser regress at night (`node tools/regress.mjs --port <your Vite> --host-port <a port of your own>`,
+all ten groups; the `connect` group walks every pairing screen, the `live` group pairs through the one-time link). A red
+check after a clean textual merge is the plan's own warning: look for a test that pins what another branch changed, as
+B did.
+
+The replay is in the repository: `node tools/answers-replay.mjs <base> <tab|cookie+expiry|cookie> [q3] [q8] [q11] [q14]
+[q15] [--check]`. Start it from a checkout that has the file (it reads itself once, at start; the base can be any
+commit, with or without it). It runs in the current worktree on a detached checkout of the base, merges in the order above, replays
+the hand merges A, D, E and F from rules kept as data in the script (each a rule on the two sides' content; G is retired),
+does B as a follow-up and the check C, prints the result's sha and, with `--check`, runs `npm run check` on it (the log lands under
+`tools/out/`). It touches no branch and never pushes; the result is a detached commit to look at, or to fast-forward
+`feat/world-demo` to by hand once Nicky has answered and the night's regress is green. Re-run it on every new head of
+`feat/world-demo`: a conflict it does not know, or a side whose content is not what a rule expects, stops it with the
+file named and the merge left open, which is the sign that a resolution needs a fresh look. The rules' pure parts are
+unit-tested in `scripts/test/answersReplay.test.ts`.
+
+**Ports (round 59d).** Where a deepening of the architecture programme (`docs/proposals/architecture-deepening.md`)
+makes an answer branch conflict, a port `port/<answer-branch>@<deepening head>` carries the same behaviour change on
+the deepening's head, and `--use <key>=<ref>` (repeatable; key `q3`, `q8`, `q11`, `q14`, `q15`, `tab` or
+`cookie+expiry`) merges that port at the answer branch's step, under the same rules. The command line is pure and
+tested (`parseArgs`, `branchOf`): a `--use` for a step the run does not take, a key named twice, an answer branch's own
+name or a ref that starts with a dash is refused before anything runs. The answer branches stay untouched.
+
+**Which port stands for which answer branch, by head** (the Lead keeps this current; a port is carried forward to a new
+head by merging that head into it, never by a rebase; the answer branch itself stays as Nicky's):
+
+| Head of `feat/world-demo` | Deepening merged | Ports standing (the rest merge cleanly as themselves) | Replays (`tab` / `cookie+expiry`) |
+| --- | --- | --- | --- |
+| `53c46ad` | C4, the chat path | q14 → `port/task/q14-dm-read-cap@5894792` | `6394fb2` 1444 / `54b126c` 1442 |
+| `e3e21f8` | C3, the world runtimes | q14 → `port/task/q14-dm-read-cap@5894792`; `cookie+expiry` → `port/task/q1-cookie-expiry@e6c5a34` | `ae05bc2` 1457 / `e25381b` 1455 |
+| `29261f5` | C5, the archive memory | the same two ports | `5e650fd` 1472 / `7bca93b` 1470 |
+| `8ff4368` | C7, the wire | q14 → `port/task/q14-dm-read-cap@5894792`; q15 → `port/task/q15-body-cap@f336f0c`; q3 → `port/task/q3-health-less@f336f0c`; `tab` → `port/task/r27-tab-pairing@f336f0c`; `cookie+expiry` → `port/task/q1-cookie-expiry@f336f0c` | `d54cca3` 1480 / `2572fdb` 1478 |
+| `2e2df46` | C2, the world view's navigation | the same five ports | `84d23ce` 1491 / `821897c` 1489 |
+| `36f8e1b` | C8, an agent's appearance | the same five ports | `c850b66` 1517 / `14feea2` 1515 |
+| `78880fe` | C6, host health in the page | q14 → `port/task/q14-dm-read-cap@5894792`; q15 → `port/task/q15-body-cap@f336f0c`; q3 → `port/task/q3-health-less@f336f0c`; `tab` → `port/task/r27-tab-pairing@780d645`; `cookie+expiry` → `port/task/q1-cookie-expiry@780d645` | `b2ec62a` 1531 / `98e2d29` 1528 |
+| `2072e9a` | C1, the connection module | q14 → `port/task/q14-dm-read-cap@f2276db`; q15 → `port/task/q15-body-cap@f2276db`; q3 → `port/task/q3-health-less@f2276db`; `tab` → `port/task/r27-tab-pairing@e5f79a9`; `cookie+expiry` → `port/task/q1-cookie-expiry@e5f79a9` | `1e2bb7e` 1533 / `94f3df2` 1530 |
+| `f65cfcc` | C9, the chat seam | the same five ports | `5e6fe53` 1538 / `435117b` 1535 |
+| `d907708` | the timing tests made deterministic | the same five ports | `ea1b0ab` 1538 / `64b6ecd` 1535 |
+| `d41c82e` to `b0af686` | round 60: A1 to A6, H2, P2 and P6 of the second review | the same five ports (each round-60 branch merges cleanly with them) | on `b0af686`: 1555 / 1552 |
+| `a0ddd3d` to `a16e103` | round 60: H1, page P1, P1, P4, P3, P5, H3, H7, page P2, the blocked-storage fix | from H1 on: q3 → `port/task/q3-health-less@8a1ae94`, `tab` → `port/task/r27-tab-pairing@fd0b8b9`; q1 `@e5f79a9`, q14 and q15 `@f2276db` as before | on `a0ddd3d`: 1574 / 1571; on `d9cd1d5`: 1640 / 1637 |
+| `4c43f15` to `162d480` | round 60: T1 and T2 of the second review, A7 | `tab` → `port/task/r27-tab-pairing@ccbf0ed` (one port for T1 and T2); q3 `@8a1ae94`, q1 `@e5f79a9`, q14 and q15 `@f2276db` as before | on `0b3f4ae`: 1659 / 1656; on `162d480`: 1665 / 1662 |
+| `b8ba179` to `1923c70` | round 61: W1 to W11, H5, H6, P3, P4, S1, S3, S5 | q11 → `port/task/q11-recent-since@a2faadd` from P4 on (q11's first port: one import line in `recentAnswers.test.ts`); the five others as round 60 left them | on `1923c70`: 1729 / 1726 |
+| `d2e1b27` to `20cda0c` | round 61: S4, A5's second race, T3 | `tab` → `port/task/r27-tab-pairing@50c712c` from T3 on; q11 `@a2faadd`, q3 `@8a1ae94`, q1 `@e5f79a9`, q14 and q15 `@f2276db` | on `20cda0c`: 1736 / 1733 |
+| `e3da2c1` | round 61: H4, loops' health read by one reader | q15 → `port/task/q15-body-cap@2aad37d` from H4 on; `tab` `@50c712c`, q11 `@a2faadd`, q3 `@8a1ae94`, q1 `@e5f79a9`, q14 `@f2276db` | on `e3da2c1`: 1746 / 1743 |
+| `29c514ed` | rounds 62 to 65: mutation tests, the walks' fixes, the fake's tooling | the same six ports (round 65's batch 3) | on `29c514ed`: 1841 / 1838 |
+| `0dee42ed`, and `sugg/all-r65-on-head@f65f4cb8` which contains it | rounds 66 to 68: docs only on `feat/world-demo` since `29c514ed`; the candidate adds the 40 prepared walk branches | the same six ports; each still merges clean onto `0dee42ed` by `git merge-tree` (round 69) | on `f65f4cb8`: 1946 / 1943 (round 68) |
+
+To replay Nicky's answers on such a head, pass each port named on its row: for example, on `2072e9a`,
+`node tools/answers-replay.mjs 2072e9a cookie+expiry q3 q8 q11 q14 q15 --check --use q14=port/task/q14-dm-read-cap@f2276db --use q15=port/task/q15-body-cap@f2276db --use q3=port/task/q3-health-less@f2276db --use cookie+expiry=port/task/q1-cookie-expiry@e5f79a9`
+(for `tab`, `--use tab=port/task/r27-tab-pairing@e5f79a9` in place of the `cookie+expiry` one). From C7 on, only q8 and
+q11 merge as themselves. The `tab` replay's result was also run in the browser on `78880fe` (regress `connect`, `live`:
+43/43), because r27's tab step moved into C6's health module.
+The port branches are local to the merge worktree's repository until crewy pushes them.

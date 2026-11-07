@@ -1,0 +1,103 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-town-pine",
+  "name": "Pine",
+  "description": "A small pine of soft stacked cones.",
+  "category": "greenery",
+  "tags": [
+    "greenhouse",
+    "town"
+  ],
+  "footprint": {
+    "width": 3,
+    "depth": 3
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.08,
+        0.6,
+        0.1
+      ],
+      "position": [
+        0,
+        0.3,
+        0
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.85,
+        1.0,
+        0
+      ],
+      "position": [
+        0,
+        1.0,
+        0
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.68,
+        0.9,
+        0
+      ],
+      "position": [
+        0,
+        1.55,
+        0
+      ],
+      "material": "moss"
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.5,
+        0.8,
+        0
+      ],
+      "position": [
+        0,
+        2.05,
+        0
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.3,
+        0.6,
+        0
+      ],
+      "position": [
+        0,
+        2.5,
+        0
+      ],
+      "material": "moss"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.12,
+        0.12,
+        0.12
+      ],
+      "position": [
+        0,
+        2.82,
+        0
+      ],
+      "material": "leaf-dark"
+    }
+  ]
+}

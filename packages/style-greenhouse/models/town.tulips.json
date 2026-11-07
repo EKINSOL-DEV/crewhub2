@@ -1,0 +1,348 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-town-tulips",
+  "name": "Tulips",
+  "description": "A clump of spring tulips in coral, yellow and cream.",
+  "category": "greenery",
+  "tags": [
+    "greenhouse",
+    "town"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.012,
+        0.2,
+        0.012
+      ],
+      "position": [
+        0,
+        0.1,
+        0
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.03,
+        0.085,
+        0.012
+      ],
+      "position": [
+        0.03,
+        0.1,
+        0
+      ],
+      "material": "leaf",
+      "rotation": [
+        0,
+        0,
+        -18
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.038,
+        0.055,
+        0.038
+      ],
+      "position": [
+        0,
+        0.235,
+        0
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.012,
+        0.2,
+        0.012
+      ],
+      "position": [
+        0.143,
+        0.1,
+        0.044
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.03,
+        0.085,
+        0.012
+      ],
+      "position": [
+        0.173,
+        0.1,
+        0.044
+      ],
+      "material": "leaf",
+      "rotation": [
+        0,
+        50,
+        -18
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.038,
+        0.055,
+        0.038
+      ],
+      "position": [
+        0.143,
+        0.235,
+        0.044
+      ],
+      "material": "lamp-glow"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.012,
+        0.2,
+        0.012
+      ],
+      "position": [
+        0.033,
+        0.1,
+        0.146
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.03,
+        0.085,
+        0.012
+      ],
+      "position": [
+        0.063,
+        0.1,
+        0.146
+      ],
+      "material": "leaf",
+      "rotation": [
+        0,
+        100,
+        -18
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.038,
+        0.055,
+        0.038
+      ],
+      "position": [
+        0.033,
+        0.235,
+        0.146
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.012,
+        0.2,
+        0.012
+      ],
+      "position": [
+        -0.11,
+        0.1,
+        0.102
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.03,
+        0.085,
+        0.012
+      ],
+      "position": [
+        -0.08,
+        0.1,
+        0.102
+      ],
+      "material": "leaf",
+      "rotation": [
+        0,
+        150,
+        -18
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.038,
+        0.055,
+        0.038
+      ],
+      "position": [
+        -0.11,
+        0.235,
+        0.102
+      ],
+      "material": "circle"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.012,
+        0.2,
+        0.012
+      ],
+      "position": [
+        -0.143,
+        0.1,
+        -0.044
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.03,
+        0.085,
+        0.012
+      ],
+      "position": [
+        -0.113,
+        0.1,
+        -0.044
+      ],
+      "material": "leaf",
+      "rotation": [
+        0,
+        200,
+        -18
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.038,
+        0.055,
+        0.038
+      ],
+      "position": [
+        -0.143,
+        0.235,
+        -0.044
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.012,
+        0.2,
+        0.012
+      ],
+      "position": [
+        -0.033,
+        0.1,
+        -0.146
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.03,
+        0.085,
+        0.012
+      ],
+      "position": [
+        -0.003,
+        0.1,
+        -0.146
+      ],
+      "material": "leaf",
+      "rotation": [
+        0,
+        250,
+        -18
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.038,
+        0.055,
+        0.038
+      ],
+      "position": [
+        -0.033,
+        0.235,
+        -0.146
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.012,
+        0.2,
+        0.012
+      ],
+      "position": [
+        0.11,
+        0.1,
+        -0.102
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.03,
+        0.085,
+        0.012
+      ],
+      "position": [
+        0.14,
+        0.1,
+        -0.102
+      ],
+      "material": "leaf",
+      "rotation": [
+        0,
+        300,
+        -18
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.038,
+        0.055,
+        0.038
+      ],
+      "position": [
+        0.11,
+        0.235,
+        -0.102
+      ],
+      "material": "lamp-glow"
+    }
+  ]
+}

@@ -1,0 +1,204 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-town-bench",
+  "name": "Park bench",
+  "description": "A timber park bench on iron legs, facing +z.",
+  "category": "rest",
+  "tags": [
+    "greenhouse",
+    "town"
+  ],
+  "footprint": {
+    "width": 3,
+    "depth": 2
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        1.5,
+        0.05,
+        0.12
+      ],
+      "position": [
+        0,
+        0.44,
+        -0.12
+      ],
+      "material": "timber",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.5,
+        0.05,
+        0.12
+      ],
+      "position": [
+        0,
+        0.44,
+        0.02
+      ],
+      "material": "timber",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.5,
+        0.05,
+        0.12
+      ],
+      "position": [
+        0,
+        0.44,
+        0.16
+      ],
+      "material": "timber",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.5,
+        0.11,
+        0.04
+      ],
+      "position": [
+        0,
+        0.66,
+        -0.25
+      ],
+      "material": "timber",
+      "rotation": [
+        -10,
+        0,
+        0
+      ],
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.5,
+        0.11,
+        0.04
+      ],
+      "position": [
+        0,
+        0.82,
+        -0.27
+      ],
+      "material": "timber",
+      "rotation": [
+        -10,
+        0,
+        0
+      ],
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.42,
+        0.4
+      ],
+      "position": [
+        -0.62,
+        0.21,
+        0
+      ],
+      "material": "graphite",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.5,
+        0.05
+      ],
+      "position": [
+        -0.62,
+        0.66,
+        -0.25
+      ],
+      "material": "graphite",
+      "rotation": [
+        -10,
+        0,
+        0
+      ],
+      "radius": 0.015
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.07,
+        0.04,
+        0.38
+      ],
+      "position": [
+        -0.62,
+        0.6,
+        0
+      ],
+      "material": "graphite",
+      "radius": 0.015
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.42,
+        0.4
+      ],
+      "position": [
+        0.62,
+        0.21,
+        0
+      ],
+      "material": "graphite",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.5,
+        0.05
+      ],
+      "position": [
+        0.62,
+        0.66,
+        -0.25
+      ],
+      "material": "graphite",
+      "rotation": [
+        -10,
+        0,
+        0
+      ],
+      "radius": 0.015
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.07,
+        0.04,
+        0.38
+      ],
+      "position": [
+        0.62,
+        0.6,
+        0
+      ],
+      "material": "graphite",
+      "radius": 0.015
+    }
+  ]
+}

@@ -1,0 +1,131 @@
+/**
+ * The fake's world origin (round 28, loops main CL-494 step 4): with `worldOrigin` set, a request whose Origin is the
+ * world's passes only as a GET on the four routes, without an authorization header, the events poll with the two chat
+ * types forced and the limit clamped, and every answer the route produced carries the three CORS headers (a 401 too);
+ * anything else from that origin, and any other Origin, is 403 origin_forbidden with no CORS header. Unset, Origin
+ * is ignored as before. Loopback only.
+ */
+import assert from "node:assert/strict";
+import { after, test } from "node:test";
+import { PAGE_CHAT_EVENT_TYPES } from "@crewhub/loops-client";
+import { type LoopsFake, createLoopsFake } from "../src/index.ts";
+
+const fakes: LoopsFake[] = [];
+after(async () => {
+  for (const fake of fakes) await fake.close();
+});
+async function fake(options: Parameters<typeof createLoopsFake>[0] = {}): Promise<LoopsFake> {
+  const made = await createLoopsFake({ heartbeatMs: 60_000, ...options });
+  fakes.push(made);
+  return made;
+}
+const WORLD = "http://127.0.0.1:5283";
+async function signIn(f: LoopsFake): Promise<string> {
+  const response = await fetch(`${f.url}/api/auth/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: f.person.id, password: f.person.password }) });
+  assert.equal(response.status, 200);
+  return response.headers.getSetCookie().map((c) => c.split(";")[0] as string).find((c) => c.startsWith("chl_session="))!;
+}
+const cors = (response: Response) => ({ origin: response.headers.get("access-control-allow-origin"), credentials: response.headers.get("access-control-allow-credentials"), vary: response.headers.get("vary") });
+
+test("the world origin: the four GETs with the cookie answer with the three CORS headers; a 401 carries them too", async () => {
+  const f = await fake({ worldOrigin: WORLD });
+  const cookie = await signIn(f);
+  for (const path of ["/api/dm/threads", "/api/dm/threads/cr-lead/messages", "/api/events?types=dm.created,dm.answered&limit=50&from=tail"]) {
+    const response = await fetch(`${f.url}${path}`, { headers: { origin: WORLD, cookie } });
+    assert.equal(response.status, 200, path);
+    assert.deepEqual(cors(response), { origin: WORLD, credentials: "true", vary: "Origin" }, path);
+  }
+  const tail = (await (await fetch(`${f.url}/api/events?from=tail`, { headers: { origin: WORLD, cookie } })).json()) as { cursor: string };
+  assert.equal(typeof tail.cursor, "string");
+  const next = await fetch(`${f.url}/api/events?cursor=${encodeURIComponent(tail.cursor)}&types=dm.created`, { headers: { origin: WORLD, cookie } });
+  assert.equal(next.status, 200, "the sealed cursor and a subset of the two types");
+  const signedOut = await fetch(`${f.url}/api/dm/threads`, { headers: { origin: WORLD } });
+  assert.equal(signedOut.status, 401);
+  assert.deepEqual(cors(signedOut), { origin: WORLD, credentials: "true", vary: "Origin" }, "a 401 through the origin is readable by the page");
+});
+
+test("the world origin: anything else is 403 origin_forbidden with no CORS header: another route, a POST, a key, a foreign event type, OPTIONS; another Origin too", async () => {
+  const f = await fake({ worldOrigin: WORLD });
+  const cookie = await signIn(f);
+  const refused = async (path: string, init: RequestInit, why: string) => {
+    const response = await fetch(`${f.url}${path}`, init);
+    assert.equal(response.status, 403, why);
+    assert.equal(((await response.json()) as { error: { code: string } }).error.code, "origin_forbidden", why);
+    assert.deepEqual(cors(response), { origin: null, credentials: null, vary: null }, `${why}: no CORS header`);
+  };
+  await refused("/api/projects", { headers: { origin: WORLD, cookie } }, "another route");
+  await refused("/api/dm/threads/cr-lead/messages", { method: "POST", headers: { origin: WORLD, cookie, "content-type": "application/json" }, body: "{}" }, "a write");
+  await refused("/api/dm/threads", { headers: { origin: WORLD, authorization: `Bearer ${f.key}` } }, "a key from the page");
+  await refused("/api/events?types=ticket.moved", { headers: { origin: WORLD, cookie } }, "a foreign event type");
+  await refused("/api/dm/threads", { method: "OPTIONS", headers: { origin: WORLD, "access-control-request-method": "GET" } }, "a pre-flight");
+  await refused("/api/dm/threads", { headers: { origin: "http://127.0.0.1:5999", cookie } }, "another origin");
+  const none = await fetch(`${f.url}/api/dm/threads`, { headers: { cookie } });
+  assert.equal(none.status, 200, "no Origin (the host, curl): as before");
+  assert.equal(none.headers.get("access-control-allow-origin"), null);
+});
+
+test("the world origin: the routes' segments are loops' agent and message shapes, exact paths", async () => {
+  const f = await fake({ worldOrigin: WORLD });
+  const cookie = await signIn(f);
+  const refused = async (path: string) => {
+    const answer = await fetch(`${f.url}${path}`, { headers: { origin: WORLD, cookie } });
+    if (answer.status !== 403) return false;
+    const body = (await answer.json()) as { error: { code: string } };
+    return body.error.code === "origin_forbidden";
+  };
+  const longestAgent = `a${"-".repeat(31)}`;
+  const longestId = "A".repeat(64);
+  for (const path of ["/api/dm/threads", "/api/events", "/api/dm/threads/0/messages", `/api/dm/threads/${longestAgent}/messages`, "/api/dm/messages/a", `/api/dm/messages/${longestId}`, "/api/dm/messages/dm_A-z"]) {
+    assert.equal(await refused(path), false, `the guard lets ${path} through`);
+  }
+  for (const path of [
+    "/api/dm/threads/",
+    "/api/events/",
+    "/api/events/stream",
+    "/api/dm/threads/g-man",
+    "/api/dm/threads/g-man/messages/",
+    `/api/dm/threads/${longestAgent}a/messages`,
+    "/api/dm/threads/G-man/messages",
+    "/api/dm/threads/-man/messages",
+    "/api/dm/threads/g_man/messages",
+    "/api/dm/messages",
+    `/api/dm/messages/${longestId}A`,
+    "/api/dm/messages/dm.1",
+    "/api/dm/messages/a/b",
+    "/api/projects",
+  ]) {
+    assert.equal(await refused(path), true, `the guard refuses ${path}`);
+  }
+});
+
+test("the world origin: the events poll's limit is clamped to 50 and the types forced; unset, Origin is ignored; setWorldOrigin changes it live", async () => {
+  const f = await fake({ worldOrigin: WORLD });
+  const cookie = await signIn(f);
+  const big = await fetch(`${f.url}/api/events?limit=500`, { headers: { origin: WORLD, cookie } });
+  assert.equal(big.status, 200, "a larger limit is clamped, not refused");
+  f.setWorldOrigin(null);
+  const ignored = await fetch(`${f.url}/api/projects`, { headers: { origin: "http://127.0.0.1:5999", cookie } });
+  assert.equal(ignored.status, 200, "unset: Origin is ignored as before");
+  assert.equal(ignored.headers.get("access-control-allow-origin"), null);
+  f.setWorldOrigin("http://127.0.0.1:6001");
+  const other = await fetch(`${f.url}/api/dm/threads`, { headers: { origin: "http://127.0.0.1:6001", cookie } });
+  assert.equal(other.headers.get("access-control-allow-origin"), "http://127.0.0.1:6001");
+});
+
+test("the world origin: an events poll without types is answered with the forced chat types only (round 54, r54-tests T2)", async () => {
+  const f = await fake({ worldOrigin: WORLD, startAt: 200_000 });
+  const cookie = await signIn(f);
+  f.sendDm("g-man", "Is the reading nook done?");
+  const types = async (headers: Record<string, string>) => {
+    const answer = await fetch(`${f.url}/api/events`, { headers });
+    assert.equal(answer.status, 200);
+    const body = (await answer.json()) as { events: { type: string }[] };
+    return [...new Set(body.events.map((e) => e.type))];
+  };
+  const world = await types({ origin: WORLD, cookie });
+  f.setWorldOrigin(null);
+  const plain = await types({ cookie });
+  const forced = PAGE_CHAT_EVENT_TYPES.split(",");
+  assert.ok(plain.some((type) => !forced.includes(type)), `the log holds other types too: ${plain.join(", ")}`);
+  assert.ok(world.includes("dm.created") && world.every((type) => forced.includes(type)), `the world origin's poll: ${world.join(", ")}`);
+});

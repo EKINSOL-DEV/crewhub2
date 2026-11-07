@@ -1,0 +1,258 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-screen",
+  "name": "Wall screen",
+  "description": "A slim graphite screen on the wall showing a softly glowing board, with a sage shelf below.",
+  "category": "work",
+  "tags": [
+    "greenhouse",
+    "screen",
+    "meeting",
+    "wall"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.9,
+        0.5,
+        0.03
+      ],
+      "position": [
+        0,
+        0.74,
+        -0.23
+      ],
+      "material": "graphite",
+      "radius": 0.015
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.84,
+        0.44,
+        0.012
+      ],
+      "position": [
+        0,
+        0.74,
+        -0.212
+      ],
+      "material": "glass",
+      "radius": 0.006,
+      "emissive": true
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.15,
+        0.32,
+        0.01
+      ],
+      "position": [
+        -0.27,
+        0.73,
+        -0.204
+      ],
+      "material": "cream",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.15,
+        0.32,
+        0.01
+      ],
+      "position": [
+        -0.09,
+        0.73,
+        -0.204
+      ],
+      "material": "cream",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.15,
+        0.32,
+        0.01
+      ],
+      "position": [
+        0.09,
+        0.73,
+        -0.204
+      ],
+      "material": "cream",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.15,
+        0.32,
+        0.01
+      ],
+      "position": [
+        0.27,
+        0.73,
+        -0.204
+      ],
+      "material": "cream",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.11,
+        0.05,
+        0.01
+      ],
+      "position": [
+        -0.27,
+        0.82,
+        -0.198
+      ],
+      "material": "coral",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.11,
+        0.05,
+        0.01
+      ],
+      "position": [
+        -0.27,
+        0.74,
+        -0.198
+      ],
+      "material": "sage",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.11,
+        0.05,
+        0.01
+      ],
+      "position": [
+        -0.09,
+        0.8,
+        -0.198
+      ],
+      "material": "tangerine",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.11,
+        0.05,
+        0.01
+      ],
+      "position": [
+        0.09,
+        0.83,
+        -0.198
+      ],
+      "material": "sage",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.11,
+        0.05,
+        0.01
+      ],
+      "position": [
+        0.27,
+        0.78,
+        -0.198
+      ],
+      "material": "moss",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.7,
+        0.03,
+        0.1
+      ],
+      "position": [
+        0,
+        0.43,
+        -0.2
+      ],
+      "material": "timber",
+      "radius": 0.008
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.039,
+        0.055,
+        0.028
+      ],
+      "position": [
+        0.26,
+        0.473,
+        -0.2
+      ],
+      "material": "terracotta"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.041,
+        0.039,
+        0.041
+      ],
+      "position": [
+        0.26,
+        0.528,
+        -0.2
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.028,
+        0.033,
+        0.028
+      ],
+      "position": [
+        0.285,
+        0.555,
+        -0.189
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.025,
+        0.028,
+        0.025
+      ],
+      "position": [
+        0.233,
+        0.55,
+        -0.211
+      ],
+      "material": "leaf-dark"
+    }
+  ]
+}

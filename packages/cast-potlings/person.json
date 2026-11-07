@@ -1,0 +1,92 @@
+{
+  "format": "crewhub-figure/1",
+  "joints": [
+    {"id": "foot-left", "position": [-0.13, 0.065, 0.03]},
+    {"id": "foot-right", "position": [0.13, 0.065, 0.03]},
+    {"id": "body", "position": [0, 0.34, 0]},
+    {"id": "head", "parent": "body", "position": [0, 0.56, 0]},
+    {"id": "hair", "parent": "head", "position": [0, 0, 0]},
+    {"id": "eye-left", "parent": "head", "position": [-0.08, 0.2, 0.19]},
+    {"id": "eye-right", "parent": "head", "position": [0.08, 0.2, 0.19]},
+    {"id": "arm-left", "parent": "body", "position": [-0.25, 0.44, 0]},
+    {"id": "arm-right", "parent": "body", "position": [0.25, 0.44, 0]}
+  ],
+  "parts": [
+    {"id": "leg-left", "joint": "foot-left", "shape": "cylinder", "size": [0.06, 0.3, 0.065], "position": [0, 0.14, -0.01], "color": "bark"},
+    {"id": "leg-right", "joint": "foot-right", "shape": "cylinder", "size": [0.06, 0.3, 0.065], "position": [0, 0.14, -0.01], "color": "bark"},
+    {"id": "foot-left", "joint": "foot-left", "shape": "sphere", "size": [0.1, 0.07, 0.13], "position": [0, -0.01, 0.03], "color": "clay-foot"},
+    {"id": "foot-right", "joint": "foot-right", "shape": "sphere", "size": [0.1, 0.07, 0.13], "position": [0, -0.01, 0.03], "color": "clay-foot"},
+    {"id": "torso", "joint": "body", "shape": "cylinder", "size": [0.19, 0.5, 0.24], "position": [0, 0.26, 0], "color": "slot:tunic"},
+    {"id": "apron", "joint": "body", "shape": "box", "size": [0.26, 0.32, 0.03], "position": [0, 0.17, 0.205], "radius": 0.03, "color": "clay-rim", "detail": "near"},
+    {"id": "head", "joint": "head", "shape": "sphere", "size": [0.22, 0.235, 0.21], "position": [0, 0.2, 0], "color": "petal-cream"},
+    {"id": "hair", "joint": "hair", "shape": "sphere", "size": [0.215, 0.1, 0.2], "position": [0, 0.19, -0.05], "color": "slot:hair"},
+    {"id": "scarf", "joint": "hair", "shape": "sphere", "size": [0.24, 0.15, 0.23], "position": [0, 0.29, -0.01], "color": "slot:scarf"},
+    {"id": "scarf-knot", "joint": "hair", "shape": "sphere", "size": [0.06, 0.05, 0.06], "position": [0, 0.26, -0.22], "color": "slot:scarf", "detail": "near"},
+    {"id": "eye-left", "joint": "eye-left", "shape": "sphere", "size": [0.04, 0.052, 0.02], "position": [0, 0, 0], "color": "eye", "detail": "near"},
+    {"id": "eye-right", "joint": "eye-right", "shape": "sphere", "size": [0.04, 0.052, 0.02], "position": [0, 0, 0], "color": "eye", "detail": "near"},
+    {"id": "shine-left", "joint": "eye-left", "shape": "sphere", "size": [0.012, 0.014, 0.008], "position": [0.012, 0.018, 0.016], "color": "eye-shine", "detail": "near"},
+    {"id": "shine-right", "joint": "eye-right", "shape": "sphere", "size": [0.012, 0.014, 0.008], "position": [0.012, 0.018, 0.016], "color": "eye-shine", "detail": "near"},
+    {"id": "blush-left", "joint": "head", "shape": "sphere", "size": [0.04, 0.026, 0.012], "position": [-0.14, 0.16, 0.155], "rotation": [0, -40, 0], "color": "blush", "detail": "near"},
+    {"id": "blush-right", "joint": "head", "shape": "sphere", "size": [0.04, 0.026, 0.012], "position": [0.14, 0.16, 0.155], "rotation": [0, 40, 0], "color": "blush", "detail": "near"},
+    {"id": "arm-left", "joint": "arm-left", "shape": "box", "size": [0.1, 0.32, 0.1], "position": [0, -0.14, 0], "radius": 0.05, "color": "slot:tunic"},
+    {"id": "arm-right", "joint": "arm-right", "shape": "box", "size": [0.1, 0.32, 0.1], "position": [0, -0.14, 0], "radius": 0.05, "color": "slot:tunic"},
+    {"id": "hand-left", "joint": "arm-left", "shape": "sphere", "size": [0.05, 0.05, 0.05], "position": [0, -0.325, 0.01], "color": "petal-cream", "detail": "near"},
+    {"id": "hand-right", "joint": "arm-right", "shape": "sphere", "size": [0.05, 0.05, 0.05], "position": [0, -0.325, 0.01], "color": "petal-cream", "detail": "near"}
+  ],
+  "poses": {
+    "working": {"body": {"rotation": [3, 0, 0]}, "head": {"rotation": [4, 0, 0]}},
+    "idle": {"body": {"rotation": [-2, 0, 0]}, "head": {"rotation": [0, 0, 3]}},
+    "done": {"head": {"rotation": [-6, 0, 0]}, "arm-left": {"rotation": [0, 0, 25]}, "arm-right": {"rotation": [0, 0, -25]}},
+    "blocked": {"head": {"rotation": [8, 0, 0]}, "arm-right": {"rotation": [0, 0, -35]}},
+    "stale": {"head": {"rotation": [12, 0, 0]}, "body": {"rotation": [3, 0, 0]}},
+    "walking": {"body": {"rotation": [5, 0, 0]}, "head": {"rotation": [-2, 0, 0]}},
+    "waiting": {"arm-right": {"rotation": [0, 0, 150]}, "head": {"rotation": [0, 0, -4]}},
+    "carrying": {"arm-left": {"rotation": [-75, 0, 10]}, "arm-right": {"rotation": [-75, 0, -10]}}
+  },
+  "motions": {
+    "always": [
+      {"joint": "eye-left", "channel": "scale.y", "wave": "blink", "amplitude": -0.85, "period": 4.4, "seeded": true},
+      {"joint": "eye-right", "channel": "scale.y", "wave": "blink", "amplitude": -0.85, "period": 4.4, "seeded": true}
+    ],
+    "idle": [
+      {"joint": "body", "channel": "offset.y", "wave": "sine", "amplitude": 0.006, "period": 3.5, "seeded": true},
+      {"joint": "head", "channel": "rotation.y", "wave": "glance", "amplitude": 18, "period": 7, "seeded": true, "sided": true},
+      {"joint": "arm-left", "channel": "rotation.z", "wave": "sine", "amplitude": 1.5, "period": 4.2, "seeded": true, "carrying": false},
+      {"joint": "arm-right", "channel": "rotation.z", "wave": "sine", "amplitude": -1.5, "period": 4.2, "seeded": true, "carrying": false}
+    ],
+    "working": [
+      {"joint": "body", "channel": "offset.y", "wave": "sine", "amplitude": 0.006, "period": 3.5, "seeded": true},
+      {"joint": "head", "channel": "rotation.y", "wave": "glance", "amplitude": 14, "period": 7, "seeded": true, "sided": true}
+    ],
+    "done": [
+      {"joint": "body", "channel": "offset.y", "wave": "bounce", "amplitude": 0.02, "period": 1.3, "seeded": true},
+      {"joint": "head", "channel": "rotation.z", "wave": "sine", "amplitude": 3, "period": 2.4, "seeded": true}
+    ],
+    "blocked": [{"joint": "head", "channel": "rotation.z", "wave": "sine", "amplitude": 2, "period": 5, "seeded": true}],
+    "waiting": [
+      {"joint": "arm-right", "channel": "rotation.z", "wave": "sine", "amplitude": 9, "period": 1.4, "seeded": true},
+      {"joint": "body", "channel": "offset.y", "wave": "bounce", "amplitude": 0.015, "period": 2, "seeded": true}
+    ],
+    "walking": [
+      {"joint": "foot-left", "channel": "offset.z", "wave": "sine", "amplitude": 0.085, "period": 0.72, "seeded": true},
+      {"joint": "foot-right", "channel": "offset.z", "wave": "sine", "amplitude": -0.085, "period": 0.72, "seeded": true},
+      {"joint": "foot-left", "channel": "offset.y", "wave": "lift", "amplitude": 0.055, "period": 0.72, "seeded": true},
+      {"joint": "foot-right", "channel": "offset.y", "wave": "lift", "amplitude": 0.055, "period": 0.72, "seeded": true, "phase": 0.5},
+      {"joint": "arm-left", "channel": "rotation.x", "wave": "sine", "amplitude": -16, "period": 0.72, "seeded": true, "carrying": false},
+      {"joint": "arm-right", "channel": "rotation.x", "wave": "sine", "amplitude": 16, "period": 0.72, "seeded": true, "carrying": false},
+      {"joint": "body", "channel": "offset.y", "wave": "bounce", "amplitude": 0.03, "period": 0.72, "seeded": true},
+      {"joint": "body", "channel": "rotation.z", "wave": "sine", "amplitude": 1.4, "period": 0.72, "seeded": true},
+      {"joint": "head", "channel": "rotation.x", "wave": "sine", "amplitude": 1.2, "period": 0.36, "seeded": true}
+    ]
+  },
+  "looks": {
+    "hover": {"parts": {"torso": {"glow": 0.1}, "arm-left": {"glow": 0.1}, "arm-right": {"glow": 0.1}}},
+    "selected": {"parts": {"torso": {"glow": 0.16}, "arm-left": {"glow": 0.16}, "arm-right": {"glow": 0.16}}}
+  },
+  "colorways": {
+    "tunic": {"others": ["glaze-olive", "glaze-sky", "glaze-cream"]},
+    "scarf": {"others": ["glaze-sky", "glaze-olive", "clay-rim", "petal-violet"]},
+    "hair": {"others": ["bark", "seed"]}
+  },
+  "anchors": {"label": [0, 1.5, 0], "carry": [0, 0.64, 0.33], "ground": 0.3, "height": 1.4, "eyes": [0, 1.1, 0.2]}
+}

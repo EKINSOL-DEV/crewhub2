@@ -1,0 +1,280 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-whiteboard",
+  "name": "Whiteboard",
+  "description": "A wall whiteboard in a timber frame with sticky notes, scribbles and a marker ledge.",
+  "category": "work",
+  "tags": [
+    "greenhouse",
+    "whiteboard",
+    "wall",
+    "notes"
+  ],
+  "footprint": {
+    "width": 3,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        1.3,
+        0.5,
+        0.035
+      ],
+      "position": [
+        0,
+        0.72,
+        -0.22
+      ],
+      "material": "timber-light",
+      "radius": 0.012
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.25,
+        0.45,
+        0.02
+      ],
+      "position": [
+        0,
+        0.72,
+        -0.208
+      ],
+      "material": "cream",
+      "radius": 0.006
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.1,
+        0.03,
+        0.06
+      ],
+      "position": [
+        0,
+        0.455,
+        -0.2
+      ],
+      "material": "timber",
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.015,
+        0.015
+      ],
+      "position": [
+        -0.3,
+        0.478,
+        -0.19
+      ],
+      "material": "coral",
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.015,
+        0.015
+      ],
+      "position": [
+        -0.2,
+        0.478,
+        -0.19
+      ],
+      "material": "moss",
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.09,
+        0.09,
+        0.01
+      ],
+      "position": [
+        -0.5,
+        0.84,
+        -0.193
+      ],
+      "material": "tangerine",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.09,
+        0.09,
+        0.01
+      ],
+      "position": [
+        -0.38,
+        0.84,
+        -0.193
+      ],
+      "material": "sage",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.09,
+        0.09,
+        0.01
+      ],
+      "position": [
+        -0.5,
+        0.72,
+        -0.193
+      ],
+      "material": "clay",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.09,
+        0.09,
+        0.01
+      ],
+      "position": [
+        -0.38,
+        0.72,
+        -0.193
+      ],
+      "material": "coral",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.09,
+        0.09,
+        0.01
+      ],
+      "position": [
+        0.45,
+        0.82,
+        -0.193
+      ],
+      "material": "sage",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.09,
+        0.09,
+        0.01
+      ],
+      "position": [
+        0.52,
+        0.68,
+        -0.193
+      ],
+      "material": "tangerine",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.42,
+        0.012,
+        0.01
+      ],
+      "position": [
+        -0.02,
+        0.86,
+        -0.195
+      ],
+      "material": "slate",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.28,
+        0.012,
+        0.01
+      ],
+      "position": [
+        -0.09,
+        0.8,
+        -0.195
+      ],
+      "material": "slate",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.42,
+        0.012,
+        0.01
+      ],
+      "position": [
+        -0.02,
+        0.74,
+        -0.195
+      ],
+      "material": "slate",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.28,
+        0.012,
+        0.01
+      ],
+      "position": [
+        -0.09,
+        0.68,
+        -0.195
+      ],
+      "material": "slate",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.42,
+        0.012,
+        0.01
+      ],
+      "position": [
+        -0.02,
+        0.62,
+        -0.195
+      ],
+      "material": "slate",
+      "radius": 0.004
+    },
+    {
+      "shape": "torus",
+      "size": [
+        0.06,
+        0.01,
+        0
+      ],
+      "position": [
+        0.25,
+        0.62,
+        -0.194
+      ],
+      "material": "coral",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    }
+  ]
+}

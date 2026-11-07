@@ -7,7 +7,7 @@ export type ButtonVariant = "default" | "primary" | "accent" | "ghost" | "danger
 
 interface ButtonOwn {
   /** default: outlined. primary: ink. accent: coral, only the action that sends. ghost: toolbar. danger: destructive. link: looks like an inline text link, for a navigation action inside a message (usually with `href`). avatar: avatar toggle. toolbar: the editor toolbar's icon toggle (`.toolbar-btn`, use `pressed`). */
-  variant?: ButtonVariant;
+  variant?: ButtonVariant | undefined;
   /** md = 36px (default), sm = 28px. */
   size?: "md" | "sm";
   /** Leading icon element, e.g. `<Icon name="plus" size="sm" />`. */

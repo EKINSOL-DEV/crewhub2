@@ -1,0 +1,100 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-letter-flagged",
+  "name": "Flagged letter",
+  "description": "A letter the postman could not deliver, with a red flag.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.24,
+        0.02,
+        0.16
+      ],
+      "position": [
+        0,
+        0.01,
+        0
+      ],
+      "material": "paper",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.15,
+        0.01,
+        0.01
+      ],
+      "position": [
+        -0.06,
+        0.021,
+        -0.035
+      ],
+      "material": "clay",
+      "rotation": [
+        0,
+        -30,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.15,
+        0.01,
+        0.01
+      ],
+      "position": [
+        0.06,
+        0.021,
+        -0.035
+      ],
+      "material": "clay",
+      "rotation": [
+        0,
+        30,
+        0
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.012,
+        0.24,
+        0.012
+      ],
+      "position": [
+        0.1,
+        0.13,
+        0.05
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.1,
+        0.07,
+        0.03
+      ],
+      "position": [
+        0.155,
+        0.21,
+        0.05
+      ],
+      "material": "coral",
+      "radius": 0.008
+    }
+  ]
+}

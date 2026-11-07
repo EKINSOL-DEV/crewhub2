@@ -1,0 +1,390 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "user:delivery-truck",
+  "name": "Delivery truck",
+  "description": "A chunky toy delivery truck with a sage cab, a chalk cargo box with a tangerine stripe and open rear door end.",
+  "category": "decoration",
+  "tags": [
+    "truck",
+    "delivery",
+    "dispatch"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 5
+  },
+  "blocksMovement": true,
+  "approaches": [
+    {
+      "x": 0,
+      "z": 5
+    },
+    {
+      "x": 1,
+      "z": 5
+    }
+  ],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        1,
+        0.1,
+        2.9
+      ],
+      "position": [
+        0,
+        0.22,
+        0
+      ],
+      "material": "slate",
+      "radius": 0.03
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.1,
+        0.85,
+        1.9
+      ],
+      "position": [
+        0,
+        0.695,
+        0.6
+      ],
+      "material": "chalk",
+      "radius": 0.05
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.12,
+        0.1,
+        1.7
+      ],
+      "position": [
+        0,
+        0.6,
+        0.6
+      ],
+      "material": "tangerine",
+      "radius": 0.03
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.06,
+        0.52,
+        0.8
+      ],
+      "position": [
+        0,
+        0.53,
+        -0.75
+      ],
+      "material": "sage",
+      "radius": 0.06
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.02,
+        0.42,
+        0.5
+      ],
+      "position": [
+        0,
+        1,
+        -0.6
+      ],
+      "material": "sage",
+      "radius": 0.06
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.94,
+        0.3,
+        0.02
+      ],
+      "position": [
+        0,
+        1,
+        -0.86
+      ],
+      "material": "glass",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.26,
+        0.36
+      ],
+      "position": [
+        -0.52,
+        1,
+        -0.58
+      ],
+      "material": "glass",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.26,
+        0.36
+      ],
+      "position": [
+        0.52,
+        1,
+        -0.58
+      ],
+      "material": "glass",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.1,
+        0.08,
+        0.1
+      ],
+      "position": [
+        0,
+        0.3,
+        -1.2
+      ],
+      "material": "slate",
+      "radius": 0.03
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.06,
+        0.06,
+        0.06
+      ],
+      "position": [
+        -0.35,
+        0.55,
+        -1.16
+      ],
+      "material": "lamp-glow",
+      "emissive": true
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.06,
+        0.06,
+        0.06
+      ],
+      "position": [
+        0.35,
+        0.55,
+        -1.16
+      ],
+      "material": "lamp-glow",
+      "emissive": true
+    },
+    {
+      "shape": "box",
+      "size": [
+        1,
+        0.08,
+        0.06
+      ],
+      "position": [
+        0,
+        0.26,
+        1.55
+      ],
+      "material": "slate",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.3,
+        0.03,
+        0.03
+      ],
+      "position": [
+        0,
+        0.7,
+        1.57
+      ],
+      "material": "brass",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.75,
+        0.02
+      ],
+      "position": [
+        0,
+        0.7,
+        1.56
+      ],
+      "material": "graphite"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.18,
+        0.12,
+        0.18
+      ],
+      "position": [
+        -0.5,
+        0.182,
+        -0.75
+      ],
+      "rotation": [
+        0,
+        0,
+        90
+      ],
+      "material": "ink"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.08,
+        0.02,
+        0.08
+      ],
+      "position": [
+        -0.565,
+        0.182,
+        -0.75
+      ],
+      "rotation": [
+        0,
+        0,
+        90
+      ],
+      "material": "mist"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.18,
+        0.12,
+        0.18
+      ],
+      "position": [
+        0.5,
+        0.182,
+        -0.75
+      ],
+      "rotation": [
+        0,
+        0,
+        90
+      ],
+      "material": "ink"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.08,
+        0.02,
+        0.08
+      ],
+      "position": [
+        0.565,
+        0.182,
+        -0.75
+      ],
+      "rotation": [
+        0,
+        0,
+        90
+      ],
+      "material": "mist"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.18,
+        0.12,
+        0.18
+      ],
+      "position": [
+        -0.5,
+        0.182,
+        0.9
+      ],
+      "rotation": [
+        0,
+        0,
+        90
+      ],
+      "material": "ink"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.08,
+        0.02,
+        0.08
+      ],
+      "position": [
+        -0.565,
+        0.182,
+        0.9
+      ],
+      "rotation": [
+        0,
+        0,
+        90
+      ],
+      "material": "mist"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.18,
+        0.12,
+        0.18
+      ],
+      "position": [
+        0.5,
+        0.182,
+        0.9
+      ],
+      "rotation": [
+        0,
+        0,
+        90
+      ],
+      "material": "ink"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.08,
+        0.02,
+        0.08
+      ],
+      "position": [
+        0.565,
+        0.182,
+        0.9
+      ],
+      "rotation": [
+        0,
+        0,
+        90
+      ],
+      "material": "mist"
+    }
+  ]
+}

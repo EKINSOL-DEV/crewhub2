@@ -1,0 +1,380 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "user:delivery-truck",
+  "name": "Delivery truck",
+  "description": "A chunky sage delivery truck with a cream cargo box, a coral side stripe, glowing headlights and a rear loading door.",
+  "category": "work",
+  "tags": [
+    "truck",
+    "vehicle",
+    "delivery",
+    "dispatch"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 4
+  },
+  "blocksMovement": true,
+  "approaches": [
+    {
+      "x": 0,
+      "z": 4
+    },
+    {
+      "x": 1,
+      "z": 4
+    }
+  ],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.9,
+        0.12,
+        2.3
+      ],
+      "position": [
+        0,
+        0.22,
+        0
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.95,
+        0.32,
+        0.4
+      ],
+      "position": [
+        0,
+        0.46,
+        -1.0
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.0,
+        0.55,
+        0.55
+      ],
+      "position": [
+        0,
+        0.575,
+        -0.62
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.8,
+        0.2,
+        0.02
+      ],
+      "position": [
+        0,
+        0.73,
+        -0.895
+      ],
+      "material": "glass"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.2,
+        0.34
+      ],
+      "position": [
+        -0.505,
+        0.7,
+        -0.62
+      ],
+      "material": "glass"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.2,
+        0.34
+      ],
+      "position": [
+        0.505,
+        0.7,
+        -0.62
+      ],
+      "material": "glass"
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.0,
+        0.8,
+        1.6
+      ],
+      "position": [
+        0,
+        0.7,
+        0.4
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.8,
+        0.62,
+        0.02
+      ],
+      "position": [
+        0,
+        0.7,
+        1.205
+      ],
+      "material": "timber-light"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.3,
+        0.03,
+        0.03
+      ],
+      "position": [
+        0,
+        0.7,
+        1.23
+      ],
+      "material": "brass"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.1,
+        1.3
+      ],
+      "position": [
+        -0.505,
+        0.5,
+        0.4
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.1,
+        1.3
+      ],
+      "position": [
+        0.505,
+        0.5,
+        0.4
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.0,
+        0.1,
+        0.08
+      ],
+      "position": [
+        0,
+        0.22,
+        -1.2
+      ],
+      "material": "moss"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.05,
+        0.05,
+        0.05
+      ],
+      "position": [
+        -0.3,
+        0.46,
+        -1.2
+      ],
+      "material": "lamp-glow",
+      "emissive": true
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.17,
+        0.12,
+        0.17
+      ],
+      "position": [
+        -0.5,
+        0.17,
+        -0.7
+      ],
+      "material": "ink",
+      "rotation": [
+        0,
+        0,
+        90
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.08,
+        0.02,
+        0.08
+      ],
+      "position": [
+        -0.57,
+        0.17,
+        -0.7
+      ],
+      "material": "brass",
+      "rotation": [
+        0,
+        0,
+        90
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.17,
+        0.12,
+        0.17
+      ],
+      "position": [
+        -0.5,
+        0.17,
+        0.7
+      ],
+      "material": "ink",
+      "rotation": [
+        0,
+        0,
+        90
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.08,
+        0.02,
+        0.08
+      ],
+      "position": [
+        -0.57,
+        0.17,
+        0.7
+      ],
+      "material": "brass",
+      "rotation": [
+        0,
+        0,
+        90
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.05,
+        0.05,
+        0.05
+      ],
+      "position": [
+        0.3,
+        0.46,
+        -1.2
+      ],
+      "material": "lamp-glow",
+      "emissive": true
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.17,
+        0.12,
+        0.17
+      ],
+      "position": [
+        0.5,
+        0.17,
+        -0.7
+      ],
+      "material": "ink",
+      "rotation": [
+        0,
+        0,
+        90
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.08,
+        0.02,
+        0.08
+      ],
+      "position": [
+        0.57,
+        0.17,
+        -0.7
+      ],
+      "material": "brass",
+      "rotation": [
+        0,
+        0,
+        90
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.17,
+        0.12,
+        0.17
+      ],
+      "position": [
+        0.5,
+        0.17,
+        0.7
+      ],
+      "material": "ink",
+      "rotation": [
+        0,
+        0,
+        90
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.08,
+        0.02,
+        0.08
+      ],
+      "position": [
+        0.57,
+        0.17,
+        0.7
+      ],
+      "material": "brass",
+      "rotation": [
+        0,
+        0,
+        90
+      ]
+    }
+  ]
+}

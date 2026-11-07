@@ -1,0 +1,84 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-desk-lamp-dim",
+  "name": "Dimmed desk lamp",
+  "description": "The desk lamp dimmed: the ticket on this desk is stalled.",
+  "category": "light",
+  "tags": [
+    "greenhouse"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.06,
+        0.025,
+        0.07
+      ],
+      "position": [
+        0,
+        0.0125,
+        0
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.24,
+        0.02
+      ],
+      "position": [
+        0.02,
+        0.13,
+        0
+      ],
+      "material": "brass",
+      "rotation": [
+        0,
+        0,
+        -12
+      ]
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.06,
+        0.07,
+        0
+      ],
+      "position": [
+        0.05,
+        0.25,
+        0
+      ],
+      "material": "sage",
+      "rotation": [
+        180,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.03,
+        0.03,
+        0.03
+      ],
+      "position": [
+        0.05,
+        0.2,
+        0
+      ],
+      "material": "mist"
+    }
+  ]
+}

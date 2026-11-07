@@ -1,0 +1,233 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-furniture-chart-easel",
+  "name": "Chart easel",
+  "description": "A timber easel holding a paper flip chart with a bar chart and a rising line.",
+  "category": "work",
+  "tags": [
+    "greenhouse",
+    "chart",
+    "easel",
+    "analyst"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.015,
+        1,
+        0.015
+      ],
+      "position": [
+        -0.15,
+        0.5,
+        0.03
+      ],
+      "material": "timber",
+      "rotation": [
+        -8,
+        0,
+        10
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.015,
+        1,
+        0.015
+      ],
+      "position": [
+        0.15,
+        0.5,
+        0.03
+      ],
+      "material": "timber",
+      "rotation": [
+        -8,
+        0,
+        -10
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.015,
+        0.95,
+        0.015
+      ],
+      "position": [
+        0,
+        0.48,
+        -0.13
+      ],
+      "material": "timber",
+      "rotation": [
+        16,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.44,
+        0.03,
+        0.06
+      ],
+      "position": [
+        0,
+        0.43,
+        0.08
+      ],
+      "material": "timber",
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.42,
+        0.5,
+        0.02
+      ],
+      "position": [
+        0,
+        0.69,
+        0.09
+      ],
+      "material": "paper",
+      "radius": 0.006,
+      "rotation": [
+        -8,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.055,
+        0.07,
+        0.012
+      ],
+      "position": [
+        -0.13,
+        0.565,
+        0.078
+      ],
+      "material": "sage",
+      "radius": 0.004,
+      "rotation": [
+        -8,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.055,
+        0.13,
+        0.012
+      ],
+      "position": [
+        -0.05,
+        0.595,
+        0.082
+      ],
+      "material": "moss",
+      "radius": 0.004,
+      "rotation": [
+        -8,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.055,
+        0.1,
+        0.012
+      ],
+      "position": [
+        0.03,
+        0.58,
+        0.08
+      ],
+      "material": "sage",
+      "radius": 0.004,
+      "rotation": [
+        -8,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.055,
+        0.18,
+        0.012
+      ],
+      "position": [
+        0.11,
+        0.62,
+        0.085
+      ],
+      "material": "tangerine",
+      "radius": 0.004,
+      "rotation": [
+        -8,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.3,
+        0.012,
+        0.012
+      ],
+      "position": [
+        0,
+        0.85,
+        0.077
+      ],
+      "material": "coral",
+      "radius": 0.004,
+      "rotation": [
+        -8,
+        0,
+        14
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.2,
+        0.025,
+        0.012
+      ],
+      "position": [
+        -0.08,
+        0.89,
+        0.072
+      ],
+      "material": "slate",
+      "radius": 0.004,
+      "rotation": [
+        -8,
+        0,
+        0
+      ]
+    }
+  ]
+}
