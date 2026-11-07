@@ -12,18 +12,21 @@
    A blank page by page.setContent: no server, no port (Playwright talks to Chromium over a pipe), no address opened.
    Each arm runs in a browser of its own, so counters are not shared between arms.
      held          the page keeps the tree, nothing lists it: must read kept, or the counters cannot see a tree
+     held, listed  the page keeps the tree, listDetachedNodes lists it twice with a settle between: must read kept and
+                   list it both times, so the road that frees a released tree still reports a held one
      never listed  the page lets go, nothing lists it: must read freed, or something else holds the tree
      page session  listed on the page's main session, then released (the old call): must read kept, or this Chromium
                    no longer binds what it lists and the next two arms prove nothing
      listed        listDetachedNodes once, then released: must read freed
      listed 3x     listDetachedNodes three times, then released: must read freed
+   And once, on a closed page: listDetachedNodes must report the failure, not an empty list.
    The tree: a button with onclick, a span and its text, and a bare text node: 4 nodes, 1 listener. Counters are read
    before the final probe, and the probe uses a session of its own, so it cannot hold what it reads.
 
    Exit: 0 the listing keeps nothing; 1 the listing keeps the tree (red); 2 a control failed, or an arm read neither
    kept nor freed, so the run says nothing. */
 import { writeFileSync } from "node:fs";
-import { describeDetached, listDetachedNodes } from "./lib/domdiff.ts";
+import { describeDetached, detachedReading, listDetachedNodes } from "./lib/domdiff.ts";
 import { launch } from "./lib/world.mjs";
 
 const NODES = 4;
@@ -65,18 +68,24 @@ async function probe(context, page) {
   return describeDetached(detachedNodes, 8);
 }
 
-const describeList = (nodes) => describeDetached(nodes, 8);
+/** The listing through tools' own road: the lines describeDetached makes of it, or a throw when it reports a failure. */
+async function listed(page) {
+  const { detached, failed } = detachedReading(await listDetachedNodes(page), 8);
+  if (failed !== null) throw new Error(`the listing reported a failure on a live page: ${failed}`);
+  return detached;
+}
 const ARMS = {
   held: { release: false, list: async () => null },
+  "held, listed": { release: false, list: async ({ page }) => listed(page), again: true },
   "never listed": { release: true, list: async () => null },
-  "page session": { release: true, list: async ({ cdp }) => describeList((await cdp.send("DOM.getDetachedDomNodes")).detachedNodes) },
-  listed: { release: true, list: async ({ page }) => describeList(await listDetachedNodes(page)) },
+  "page session": { release: true, list: async ({ cdp }) => describeDetached((await cdp.send("DOM.getDetachedDomNodes")).detachedNodes, 8) },
+  listed: { release: true, list: async ({ page }) => listed(page) },
   "listed 3x": {
     release: true,
     list: async ({ page }) => {
-      await listDetachedNodes(page);
-      await listDetachedNodes(page);
-      return describeList(await listDetachedNodes(page));
+      await listed(page);
+      await listed(page);
+      return listed(page);
     },
   },
 };
@@ -110,7 +119,20 @@ async function runArm(name) {
     if (ARMS[name].release) await page.evaluate(() => delete window.__keep);
     const after = await settle(cdp);
     const looked = await probe(context, page);
-    return { name, version: browser.version(), baseline, after, nodes: after.nodes - baseline.nodes, listeners: after.listeners - baseline.listeners, first, probe: looked, requests };
+    const again = ARMS[name].again ? await listed(page) : null;
+    return { name, version: browser.version(), baseline, after, nodes: after.nodes - baseline.nodes, listeners: after.listeners - baseline.listeners, first, probe: looked, again, requests };
+  } finally {
+    await browser.close();
+  }
+}
+
+/** The listing on a page that is gone: the failure must come back as a failure, with no list. */
+async function onClosedPage() {
+  const browser = await launch({ extra: ["--enable-precise-memory-info"] });
+  try {
+    const page = await (await browser.newContext()).newPage();
+    await page.close();
+    return await listDetachedNodes(page);
   } finally {
     await browser.close();
   }
@@ -126,6 +148,9 @@ for (let rep = 1; rep <= reps; rep++) {
   }
 }
 
+const closed = await onClosedPage();
+console.log(`closed page  nodes ${closed.nodes === null ? "null" : closed.nodes.length}  failed ${closed.failed}`);
+
 const hasRoots = (list) => !!list && ROOTS.every((root) => list.includes(root));
 const kept = (a) => a.nodes >= NODES && a.listeners >= LISTENERS && hasRoots(a.probe);
 const freed = (a) => a.nodes < NODES && a.listeners < LISTENERS && !ROOTS.some((root) => a.probe.includes(root));
@@ -136,6 +161,8 @@ const checks = {
   noRequest: runs.every((r) => r.requests.length === 0),
   settled: runs.every((r) => !r.after.unsettled && !r.baseline.unsettled),
   heldKept: all("held", kept),
+  heldListedKept: all("held, listed", (a) => kept(a) && hasRoots(a.first) && hasRoots(a.again)),
+  failureReported: closed.nodes === null && typeof closed.failed === "string" && closed.failed !== "",
   neverListedFreed: all("never listed", freed),
   pageSessionKept: all("page session", kept),
   firstListSawTheTree: ["page session", ...LISTING].every((name) => all(name, (a) => hasRoots(a.first))),

@@ -111,21 +111,56 @@ export interface DetachedListPage {
   context(): { newCDPSession(page: DetachedListPage): Promise<DetachedListSession> };
 }
 
+/** A listing: `nodes` is null when the list itself failed, which is not the same as a list with nothing in it. */
+export interface DetachedListing {
+  nodes: { treeNode: DetachedNode }[] | null;
+  /** What went wrong, one line: opening the session, the list, or the detach (the list can then still be there). */
+  failed: string | null;
+}
+
 /**
- * The detached trees the inspector can list, for `describeDetached`. The one place a tool makes this call.
+ * The detached trees the inspector can list. The one place a tool makes this call. It never throws, so no caller has
+ * to catch a failure into an empty list, which would read as the clean result.
  * The call binds every node it lists to the session that asked, for as long as that session lives (round 75, rr's test
  * 1, Chromium 151): on a session that stays open, a tree alive for an instant at the call stays for the run. So each
  * listing opens a session of its own and is detached before it returns, which frees those bindings. A failed detach
- * still returns the list: that session goes with its page. `tools/detachedproof.mjs` holds this in the real browser.
+ * is reported too, because that session may still hold what it listed. `tools/detachedproof.mjs` holds this in the real
+ * browser.
  */
-export async function listDetachedNodes(page: DetachedListPage): Promise<{ treeNode: DetachedNode }[]> {
-  const session = await page.context().newCDPSession(page);
+export async function listDetachedNodes(page: DetachedListPage): Promise<DetachedListing> {
+  const said = (step: string, error: unknown): string => `${step}: ${(error instanceof Error ? error.message : String(error)).split("\n")[0]}`;
+  let session: DetachedListSession;
+  try {
+    session = await page.context().newCDPSession(page);
+  } catch (error) {
+    return { nodes: null, failed: said("open", error) };
+  }
+  let listing: DetachedListing;
   try {
     const { detachedNodes } = await session.send("DOM.getDetachedDomNodes");
-    return detachedNodes;
-  } finally {
-    await session.detach().catch(() => undefined);
+    listing = { nodes: detachedNodes, failed: null };
+  } catch (error) {
+    listing = { nodes: null, failed: said("list", error) };
   }
+  try {
+    await session.detach();
+  } catch (error) {
+    const detach = said("detach", error);
+    listing = { nodes: listing.nodes, failed: listing.failed === null ? detach : `${listing.failed}; ${detach}` };
+  }
+  return listing;
+}
+
+/**
+ * A listing as memory.mjs records it: `detached` is `describeDetached`'s lines (null when the list failed), `failed` is
+ * the listing's failure, and `line` is what follows the sample's DOM line. A clean empty list prints nothing, as before;
+ * a failed one says so, so a soak's reader cannot take it for no trees.
+ */
+export function detachedReading(listing: DetachedListing, cap = 4): { detached: string[] | null; failed: string | null; line: string } {
+  const detached = listing.nodes === null ? null : describeDetached(listing.nodes, cap);
+  const trees = detached !== null && detached.length > 0 ? `; detached: ${detached.join(", ")}` : "";
+  const failed = listing.failed === null ? "" : `; DETACHED LISTING FAILED (${listing.failed})`;
+  return { detached, failed: listing.failed, line: `${trees}${failed}` };
 }
 
 /** One line per detached tree the inspector holds: its root by tag, classes and label, and how many nodes hang

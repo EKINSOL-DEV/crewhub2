@@ -79,14 +79,16 @@
    the document tree, so the line also says the documents count when it moved (an SVG image or a parsed string is a
    document of its own) and the detached trees the inspector lists (DOM.getDetachedDomNodes: each by its root and
    its node count; on a session of its own since round 76, lib/domdiff.ts, because the call keeps what it lists alive
-   on a session that stays open).
+   on a session that stays open). A listing that fails says DETACHED LISTING FAILED on that line (the point's
+   `detached` is null when the list itself failed, with `detachedFailed` beside it), and the end prints how many were
+   taken and failed (`detachedListings` in the JSON): a failed listing is not a clean one.
    Same browser set-up as perf.mjs: GPU-backed headless Chromium, 1440 x 900, DPR 1, Pretty, light. --json writes the
    points, the growth and the snapshot totals (a bare file name lands in --out). */
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { CHAT_FLAGS, CHAT_OPTIONS, CHAT_USAGE, READ_PAGE_CHAT, chatAgents, chatSettings, createDmReadCounter, formatBadStatuses, formatChat, formatFirstBad, nextDm, pageChatCounter } from "./lib/chatSoak.mjs";
-import { capDomDiff, describeDetached, domDiff, domInventory, formatDomDiff, listDetachedNodes } from "./lib/domdiff.ts";
+import { capDomDiff, domDiff, domInventory, formatDomDiff, detachedReading, listDetachedNodes } from "./lib/domdiff.ts";
 import { formatRows, formatShapes, growth as heapGrowth, heapTotals, mb as heapMb, resolveThreeNames, topBySize } from "./lib/heap.mjs";
 import { LIVE_FLAGS, LIVE_OPTIONS, LIVE_USAGE, startLive } from "./lib/live.mjs";
 import { formatVerdict, judge, loopWarning, offLoopMinutes, snapshotDiff } from "./lib/verdict.mjs";
@@ -257,6 +259,8 @@ async function snapshotAt(minute) {
 let nextSnapshot = 0;
 // The last sample's DOM (round 29): the node count and the inventory the diff reads when the count moves.
 let lastDom = null;
+// The detached listings (round 76): how many were taken and how many failed, said at the end and in the JSON.
+const listings = { taken: 0, failed: 0 };
 /** Where `build` and `chat` stand before their first step: inside the first building with build mode on; the dock. */
 async function setUp() {
   if (scenario === "build") {
@@ -393,10 +397,12 @@ for (let t = 0; t <= minutes * 60; t = stepped ? Math.round((Date.now() - starte
     const diff = capDomDiff(domDiff(lastDom.inventory, inventory), 6);
     // Nodes alive outside the document tree: the detached trees the inspector can list, and the documents count
     // (an SVG image or a parsed string is a document of its own).
-    const detached = await listDetachedNodes(page).then((nodes) => describeDetached(nodes, 4)).catch(() => []);
-    point.domDiff = { ...diff, documents: dom.documents, detached };
+    const listing = detachedReading(await listDetachedNodes(page), 4);
+    listings.taken += 1;
+    if (listing.failed !== null) listings.failed += 1;
+    point.domDiff = { ...diff, documents: dom.documents, detached: listing.detached, ...(listing.failed !== null ? { detachedFailed: listing.failed } : {}) };
     const documents = dom.documents !== lastDom.documents ? ` (documents ${lastDom.documents} -> ${dom.documents})` : "";
-    domLine = `\n  dom ${lastDom.nodes} -> ${dom.nodes}${documents}: ${formatDomDiff(diff)}${detached.length > 0 ? `; detached: ${detached.join(", ")}` : ""}`;
+    domLine = `\n  dom ${lastDom.nodes} -> ${dom.nodes}${documents}: ${formatDomDiff(diff)}${listing.line}`;
   }
   lastDom = { nodes: dom.nodes, documents: dom.documents, inventory };
   points.push(point);
@@ -448,6 +454,7 @@ const last = points[points.length - 1];
 const hours = warm.length > 3 ? (last.t - warm[1].t) / 3600 : 0;
 const growth = { heapMB: +mb(last.heap - baseOf("heap")), geometries: last.geometries - baseOf("geometries"), textures: last.textures - baseOf("textures"), domNodes: last.nodes - baseOf("nodes"), listeners: last.listeners - baseOf("listeners"), hours: +hours.toFixed(2), heapMBPerHour: hours > 0 ? +(mb(last.heap - baseOf("heap")) / hours).toFixed(2) : null };
 console.log(`${scenario} growth after warm-up: heap ${growth.heapMB} MB, geo ${growth.geometries}, tex ${growth.textures}, dom ${growth.domNodes}, listeners ${growth.listeners}${growth.heapMBPerHour !== null ? ` (${growth.heapMBPerHour} MB an hour over ${growth.hours} h)` : ""}`);
+console.log(`${scenario} detached listings: ${listings.taken} taken, ${listings.failed} failed${listings.failed > 0 ? " (a failed listing says nothing about the trees; the sample lines name each one)" : ""}`);
 if (snapshots.length > 1) {
   const first = snapshots[0].shapes, end = snapshots[snapshots.length - 1].shapes;
   const fadedLine = snapshots[0].faded !== null || snapshots[snapshots.length - 1].faded !== null ? `, faded copies ${snapshots[0].faded ?? "?"} -> ${snapshots[snapshots.length - 1].faded ?? "?"}` : "";
@@ -474,6 +481,7 @@ if (jsonOut)
         ...(threeNames ? { threeNames } : {}),
         points,
         growth,
+        detachedListings: listings,
         snapshots,
         verdict,
       },
