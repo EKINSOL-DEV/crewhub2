@@ -4,7 +4,7 @@ One page for every decision that waits on you, one row each, drawn from the thre
 [open-questions.md](open-questions.md) (15 questions), [design-choices.md](design-choices.md) (50 headings, two of them new
 tonight) and [walkthrough-r64.md](walkthrough-r64.md) (the walk findings). Each row has the id, the question in one line, the
 options in the answer's own form, the **recommended** option (the source page's own, never a new one), what stays if you say
-nothing, and the branch that is ready, with its short sha as of round 75. Nothing here changes until you answer; the three
+nothing, and the branch that is ready, with its short sha as of round 75 (`sugg/w3-4`'s as of round 76). Nothing here changes until you answer; the three
 pages hold the reasons, and [merge-plan.md](merge-plan.md) says how the answer branches land.
 
 ## The four shortest ways to answer
@@ -13,9 +13,9 @@ pages hold the reasons, and [merge-plan.md](merge-plan.md) says how the answer b
    question 1 (`tab` if the cookie's threat is in scope, else `cookie+expiry`), T4 (`lift` or `end`) and W2 (`alert` or
    `waiting`); `all recommended, 1: tab, T4: end, W2: alert` settles them.
 2. **`walkthrough: all`**: every prepared walk branch merges. That is a fast-forward of `feat/world-demo` to
-   `sugg/all-r65-on-head`: today's head plus `sugg/all-r65@31f49991` (the 40 prepared branches and, since round 69, `sugg/p2-recopy`,
+   `sugg/all-r65-on-head`: today's head plus `sugg/all-r65@af1ce22c` (the 40 prepared branches and, since round 69, `sugg/p2-recopy`,
    the w5-9 and w5-10 answer); its tip is on origin, and it is the same page code as the builds four walkers walked in
-   rounds 67 and 68 (`9daea890`, `46c04f06`; since then tests, docs, the dock's re-copy and round 71's invisible refactors). The walk ids that are not
+   rounds 67 and 68 (`9daea890`, `46c04f06`; since then tests, docs, the dock's re-copy, round 71's invisible refactors and round 76's fix on `sugg/w3-4`: no mark while the Chat panel is open). The walk ids that are not
    prepared (a design choice holds them, or nothing is built) stay as they are unless you answer them one by one.
 3. **`all recommended` for the design choices** (round 72; `wording block: as recommended` and `T: as recommended` the same way,
    for their rows): every prepared `dc/<id>` branch merges. That is one merge of `dc/all-r72` (`e4dfc809`: round 72's head
@@ -138,7 +138,7 @@ One row per id in the six journeys and the "Findings an answer branch already co
 page's "Fixed this round" table and the three the page marks as merged since (the line under the table) are done and have
 no row; the section "What the walks added to the open design choices"
 adds no id of its own. **Prepared** means a `sugg/<id>` branch is ready: `do it` merges it, `as it is` leaves it; every
-prepared branch's tip is inside `sugg/all-r65` (`31f49991` after round 71), so `walkthrough: all` is the 40 `do it` rows
+prepared branch's tip is inside `sugg/all-r65` `af1ce22c` (after round 76), so `walkthrough: all` is the 40 `do it` rows
 at once, and `journey N: as suggested` is one journey's; w5-9 and w5-10 join it tonight through `sugg/p2-recopy` (the
 candidate's new tip follows the proof), so `walkthrough: all` then says yes to them in the preferred way. Where a design choice holds a finding, the row points there and
 takes that choice's recommendation; answer the choice, not the id. Where nothing is built and no choice holds it, the
@@ -165,7 +165,7 @@ answer, as the page says. A sha is the branch's tip tonight (`git rev-parse`; lo
 | w2-8 | A key with too few rights is refused with 401's cause and "(401 or 403)" on screen | `W15: viewer-first / keep` (design choice W15's family) | W15's `viewer-first`. The sources differ in reach: W15 changes which bot the host's words name; one sentence per status (403 and 401) is not among its options | the one sentence for both | none |
 | w3-1 | An answer that comes while the camera is elsewhere shows nothing for its 12 s | `w3-1: do it / as it is` | `do it` | no count on the chip | `sugg/w3-1` `65712011` |
 | w3-2 | A bubble over a figure in the town carries no name | `w3-2: do it / as it is` | `do it` | the bubble without a name | `sugg/w3-2` `7db276f7` |
-| w3-4 | The bubble's 12 s start when the page sees the line, not when the person gets there | `w3-4: do it / as it is` | `do it`, with the branch's departures: live, the mark stands until the chat is opened or the agent's next answer; a pin's breathing ring and touch area stay on the pin (narrower by about 80 px at 375 and 1440); the 2 px between pin and mark on a phone does nothing; and round 67's v1-1 fix (a mark clicked after the bubble shows the bubble again for 12 s, `cb2342dc`, inside the tip) | the mark goes with the bubble | `sugg/w3-4` `b10a6e14` |
+| w3-4 | The bubble's 12 s start when the page sees the line, not when the person gets there | `w3-4: do it / as it is` | `do it`, with the branch's departures: live, the mark stands until the chat is opened or the agent's next answer; a pin's breathing ring and touch area stay on the pin (narrower by about 80 px at 375 and 1440); the 2 px between pin and mark on a phone does nothing; and round 67's v1-1 fix (a mark clicked after the bubble shows the bubble again for 12 s, `cb2342dc`, inside the tip); and round 76's fix (no mark while the Chat panel is open, so an answer leaves the pin standing, the tip itself) | the mark goes with the bubble | `sugg/w3-4` `85cadcb8` |
 | w3-5 | "About this chat" says "chat head" and "dock" | `w3-5: do it / as it is` | `do it` | the old sentence | `sugg/w3-5` `a75d4aa3` |
 | w4-2 | The tour, the card, the build sheet and walk mode speak of clicks and keys to a thumb | `w4-2: do it / as it is` | `do it` (in the four places the finding names; a few spoken key hints elsewhere stay) | click and key words on a phone | `sugg/w4-2` `5a34de14`. On today's feat a single `do it` meets one `build.ts` conflict (round 71's seam 2: the `.ts` imports and the editor argument); [merge-plan.md §3 H](merge-plan.md#h-appsworldsrcstatebuildts-after-round-71s-seam-2-w6-3-w6-4-w4-2-alone) has its exact resolution, and `sugg/all-r65-on-head` holds the three together in merge `ab95a394`. |
 | w4-3 | The tour's step 4 reads the dock's every button run together to a screen reader | `T3: town / keep` (design choice T3's family) | T3's `town`. The sources differ in reach: T3's `town` is written for steps 1 and 3 (the stage); step 4's dock is not in its option as worded | the buttons run together | none |
