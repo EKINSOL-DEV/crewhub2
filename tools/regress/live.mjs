@@ -8,12 +8,15 @@
 import { chip as chipOf, openPage, readTextView as text, textView as sheet, untilChip } from "../lib/page.mjs";
 import { list } from "../lib/world.mjs";
 import { startRig } from "../lib/rig.mjs";
+import { dressed } from "../lib/world.mjs";
 
 export async function run({ pass, page, check, out }) {
   const { browser, opts, plan, groups, origin, dist: DIST, distServed: DIST_SERVED, distFresh, problems, noteLoops } = pass;
   const { open, canvas } = page;
   const { ok, info, note } = check;
   const { tag, shot } = out;
+  // Design choice X2's row comes first: its own rig, closed before the group's starts on the same port.
+  await runInertCorners({ pass, page, check, out });
   // 15. Live mode against a fake crewhub-loops behind the host, both started here on 127.0.0.1: the rig (lib/rig.mjs)
   // with the loops web app the host names (`loopsWebUrl`), for the Chat panel's frame: a stub page that records how it
   // was fetched. The host serves the built world when it is there, else it stands behind your Vite; pairing on.
@@ -292,4 +295,126 @@ export async function run({ pass, page, check, out }) {
     for (const x of framed) problems.splice(problems.indexOf(x), 1);
     info(`live: ${framed.length} request(s) left the page for the loops web stub, the Chat panel's frame, as designed`);
   }
+}
+
+/**
+ * Design choice X2's three corners in a browser (round 75; X2 is round 72's, and until now only the pure rule was held,
+ * coversCorners.test.ts). While a sheet covers them, the corner tools, the camera toolbar and the chat corner are `inert`,
+ * and they come back when it closes: on a phone under the Chat panel (the whole screen there), on a desktop under the
+ * Chat panel and the text view. A phone's text view starts under the header rows and covers nothing, and Settings is not
+ * counted, so those two leave the corners alone. The demo's own chat corner is the other branch of ChatCorner.
+ *
+ * Each read says what a keyboard meets, not only the attribute: every corner is there with a button that is painted, and
+ * that button takes the focus when the corner is live and refuses it when the corner is inert. A corner that is missing,
+ * or has no such button, fails the read, so the row cannot pass while holding nothing. Its own rig: it closes before the
+ * live group's rig starts on the same port, and the block ends with the demo page, after its own rig closed.
+ */
+export async function runInertCorners(context) {
+  // The row stands first in the group: a step that throws is its one failing check, and the group's own checks still run.
+  await inertCorners(context).catch((error) => context.check.ok("X2 (round 75): the three corners' row runs to its end", false, (error?.message ?? String(error)).split("\n")[0]));
+}
+
+async function inertCorners({ pass, page, check, out }) {
+  const { browser, opts, origin, dist: DIST, problems, noteLoops } = pass;
+  const { ok } = check;
+  const { shot } = out;
+  const rig = await startRig({ loops: { fake: { heartbeatMs: 1000 } }, web: true, serve: { dist: DIST, origin, hostPort: Number(opts["host-port"]) }, pairing: "off", log: () => undefined, onLoops: noteLoops });
+  const CORNERS = [
+    ["corner tools", ".world-corner-right"],
+    ["camera toolbar", ".camera-toolbar"],
+    ["chat corner", ".world-chat"],
+  ];
+  /** Each corner as a keyboard meets it; the focus is put back where it was. */
+  const corners = (p) =>
+    p.evaluate((list) => {
+      const before = document.activeElement;
+      const read = list.map(([name, selector]) => {
+        const box = document.querySelector(selector);
+        const button = box === null ? undefined : [...box.querySelectorAll("button")].find((b) => !b.disabled && b.getClientRects().length > 0);
+        if (button === undefined) return { name, there: false };
+        button.focus();
+        return { name, there: true, inert: box.inert === true, took: document.activeElement === button };
+      });
+      if (before instanceof HTMLElement) before.focus();
+      return read;
+    }, CORNERS);
+  const live = (read) => read.length === CORNERS.length && read.every((c) => c.there && !c.inert && c.took);
+  const dead = (read) => read.length === CORNERS.length && read.every((c) => c.there && c.inert && !c.took);
+  const words = (read) => read.map((c) => (c.there ? `${c.name} ${c.inert ? "inert" : "live"}, ${c.took ? "took" : "refused"} the focus` : `${c.name} has no painted button`)).join("; ");
+  const shown = (p, selector) => p.waitForSelector(selector, { timeout: 5000 }).then(() => true).catch(() => false);
+  const gone = (p, selector) => p.waitForSelector(selector, { state: "detached", timeout: 5000 }).then(() => true).catch(() => false);
+  const openLive = async (width) => {
+    const p = await openPage(browser, { origin: rig.origin, problems, tag: "X2 corners", width });
+    await p.goto(`${rig.origin}/`);
+    await dressed(p).catch(() => {});
+    return { p, state: await untilChip(p, "live", 20000) };
+  };
+  try {
+    // A phone: the Chat panel is the whole screen, so the three corners under it are inert until it closes.
+    const phone = await openLive(375);
+    const phoneBefore = await corners(phone.p);
+    await phone.p.locator(".chat-open").tap();
+    const chatOpen = await shown(phone.p, ".chat-sheet");
+    const phoneCovered = await corners(phone.p);
+    await shot(phone.p, "23x-x2-phone-chat-covers");
+    await phone.p.keyboard.press("Escape");
+    const chatClosed = await gone(phone.p, ".chat-sheet");
+    const backOnChip = await phone.p.evaluate(() => document.activeElement?.classList.contains("chat-open") ?? false);
+    const phoneAfter = await corners(phone.p);
+    ok("X2 (round 75): on a phone the Chat panel makes the three corners inert, and they come back when it closes, the focus on the chat chip", phone.state === "live" && live(phoneBefore) && chatOpen && dead(phoneCovered) && chatClosed && backOnChip && live(phoneAfter), `chip ${phone.state}; before: ${words(phoneBefore)} | panel ${chatOpen ? "open" : "not open"}: ${words(phoneCovered)} | closed ${chatClosed}, focus on the chip ${backOnChip}: ${words(phoneAfter)}`);
+    // A phone's text view covers no corner (PHONE_QUERY's other side), by the Help menu's row, the road a thumb has.
+    await phone.p.getByRole("button", { name: "Help" }).tap();
+    await phone.p.getByRole("menuitem", { name: /^Open the text view/ }).tap().catch(() => {});
+    const textOpen = await shown(phone.p, "#text-view");
+    const phoneText = await corners(phone.p);
+    await phone.p.keyboard.press("Escape");
+    const textClosed = await gone(phone.p, "#text-view");
+    ok("X2 (round 75): on a phone the text view starts under the header rows, covers no corner and leaves all three live", textOpen && live(phoneText) && textClosed, `text view ${textOpen ? "open" : "not open"}: ${words(phoneText)}; closed ${textClosed}`);
+    await phone.p.context().close();
+
+    // A desktop: the text view and the Chat panel cover the corners; Settings starts under the right corner and is not counted.
+    const desk = await openLive(1440);
+    const deskBefore = await corners(desk.p);
+    await desk.p.locator("canvas").first().focus();
+    await desk.p.keyboard.press("t");
+    const deskTextOpen = await shown(desk.p, "#text-view");
+    const deskText = await corners(desk.p);
+    await desk.p.keyboard.press("Escape");
+    const deskTextClosed = await gone(desk.p, "#text-view");
+    const deskAfterText = await corners(desk.p);
+    ok("X2 (round 75): on a desktop the text view makes the three corners inert, and they come back when it closes", desk.state === "live" && live(deskBefore) && deskTextOpen && dead(deskText) && deskTextClosed && live(deskAfterText), `chip ${desk.state}; before: ${words(deskBefore)} | text view ${deskTextOpen ? "open" : "not open"}: ${words(deskText)} | closed ${deskTextClosed}: ${words(deskAfterText)}`);
+    await desk.p.locator(".chat-open").click();
+    const deskChatOpen = await shown(desk.p, ".chat-sheet");
+    const deskChat = await corners(desk.p);
+    await desk.p.keyboard.press("Escape");
+    const deskChatClosed = await gone(desk.p, ".chat-sheet");
+    const deskAfterChat = await corners(desk.p);
+    ok("X2 (round 75): on a desktop the Chat panel makes the three corners inert, and they come back when it closes", deskChatOpen && dead(deskChat) && deskChatClosed && live(deskAfterChat), `panel ${deskChatOpen ? "open" : "not open"}: ${words(deskChat)} | closed ${deskChatClosed}: ${words(deskAfterChat)}`);
+    await desk.p.getByRole("button", { name: "Settings", exact: true }).click();
+    const settingsOpen = await shown(desk.p, ".settings-sheet");
+    const deskSettings = await corners(desk.p);
+    ok("X2 (round 75): Settings is not counted: the three corners stay live under it", settingsOpen && live(deskSettings), `settings ${settingsOpen ? "open" : "not open"}: ${words(deskSettings)}`);
+    await desk.p.context().close();
+  } finally {
+    await rig.close();
+    // The Chat panel's frame leaves the page's origin by design, as in the live group above; only those requests are expected.
+    const framed = problems.filter((x) => x.kind === "external" && (x.url ?? "").startsWith(`${rig.web.url}/`));
+    for (const x of framed) problems.splice(problems.indexOf(x), 1);
+  }
+  // The demo has its own chat corner (ChatCorner's other branch: the copied dock), on your Vite with no host behind it. Only
+  // a window under 900 px keeps a button in that corner (loops' narrow mode, the Agent chats menu), and only one over a
+  // phone's 600 px is covered by the text view, so this page is 800 wide.
+  const demo = await page.open({ tag: "X2 corners demo", width: 800 });
+  await page.town(demo, 1000);
+  const isDemo = (await demo.locator(".chat-open").count()) === 0;
+  const demoBefore = await corners(demo);
+  await page.canvas(demo).focus();
+  await demo.keyboard.press("t");
+  const demoOpen = await shown(demo, "#text-view");
+  const demoText = await corners(demo);
+  await demo.keyboard.press("Escape");
+  const demoClosed = await gone(demo, "#text-view");
+  const demoAfter = await corners(demo);
+  ok("X2 (round 75): the demo's own chat corner is inert under the text view too, with the other two, and comes back", isDemo && live(demoBefore) && demoOpen && dead(demoText) && demoClosed && live(demoAfter), `demo ${isDemo}; before: ${words(demoBefore)} | text view ${demoOpen ? "open" : "not open"}: ${words(demoText)} | closed ${demoClosed}: ${words(demoAfter)}`);
+  await demo.context().close();
 }
