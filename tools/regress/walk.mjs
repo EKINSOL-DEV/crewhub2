@@ -476,6 +476,22 @@ export async function run({ pass, page, check, out }) {
     await shot(pg, "15-landscape-labels");
     const inside = (await entered(pg)) !== null;
     ok("landscape phone, inside with Details on: the labels are the compact set (the plate shows its title only, the figures carry pills, no captions; N1)", inside && counts.height < 480 && counts.expandedSigns === 0 && counts.signCounts === 0 && counts.captions === 0 && counts.pills > 0, `window ${counts.width} x ${counts.height}, expanded signs ${counts.expandedSigns}, counts ${counts.signCounts}, captions ${counts.captions}, pills ${counts.pills}, rack counts ${counts.rackCounts}${inside ? "" : ", not inside"}`);
+    // The rule's number (round 75, N1's boundary): the row above holds "(max-height: 479px)" at 342 only, so any limit
+    // from 342 up passes it. The same page, still inside with Details on: 480 tall is the full set, 479 the compact one.
+    const labelsAt = async (height) => {
+      await pg.setViewportSize({ width: 750, height });
+      await pg.waitForTimeout(900);
+      return pg.evaluate(() => ({
+        height: innerHeight,
+        width: innerWidth,
+        expandedSigns: document.querySelectorAll(".town-sign.expanded").length,
+        captions: document.querySelectorAll(".agent-anchor .caption").length,
+        pills: document.querySelectorAll(".agent-anchor .name-pill").length,
+      }));
+    };
+    const tall = await labelsAt(480);
+    const short = await labelsAt(479);
+    ok("a window 480 tall has the full labels, one 479 tall the compact set: the rule's limit is 479 (N1)", (await entered(pg)) !== null && tall.width >= 600 && tall.height === 480 && short.height === 479 && tall.expandedSigns > 0 && tall.captions > 0 && short.expandedSigns === 0 && short.captions === 0 && short.pills > 0, `tall ${JSON.stringify(tall)}, short ${JSON.stringify(short)}`);
     await ctx.close();
   }
 
