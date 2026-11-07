@@ -3,8 +3,11 @@
    what was added and removed with counts; the cap and the one-line form. The inventory is tried on a small fake tree
    that answers only what the function asks of the DOM (no browser here). */
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
 import test from "node:test";
-import { capDomDiff, describeDetached, domDiff, domInventory, formatDomDiff, type DetachedNode } from "../../tools/lib/domdiff.ts";
+import { fileURLToPath } from "node:url";
+import { capDomDiff, describeDetached, detachedReading, domDiff, domInventory, formatDomDiff, listDetachedNodes, type DetachedListPage, type DetachedListSession, type DetachedNode } from "../../tools/lib/domdiff.ts";
 
 interface Fake {
   nodeType: number;
@@ -114,4 +117,112 @@ test("describeDetached: each detached tree by its root and its node count, cappe
   assert.deepEqual(describeDetached([{ treeNode: toast }, { treeNode: img }]), ["div.toast.warn.big[Catching up] (5 nodes)", "img (1 nodes)"]);
   assert.deepEqual(describeDetached([{ treeNode: img }, { treeNode: img }, { treeNode: img }], 2), ["img (1 nodes)", "img (1 nodes)", "and 1 more trees"]);
   assert.deepEqual(describeDetached([]), []);
+});
+
+/* The listing (round 76): DOM.getDetachedDomNodes binds what it lists to the session that asked. The real browser is
+   tools/detachedproof.mjs; here, with no browser, a fake page records each session's life. */
+const TREE = { treeNode: { nodeName: "IMG", nodeType: 1 } };
+
+function fakePage(options: { list?: () => Promise<{ detachedNodes: (typeof TREE)[] }>; detach?: () => Promise<void> } = {}) {
+  const calls: string[] = [];
+  const opened: DetachedListPage[] = [];
+  let sessions = 0;
+  const page: DetachedListPage = {
+    context: () => ({
+      newCDPSession: async (asked) => {
+        opened.push(asked);
+        const id = ++sessions;
+        calls.push(`open ${id}`);
+        const session: DetachedListSession = {
+          send: async (method) => {
+            calls.push(`${method} on ${id}`);
+            return options.list ? options.list() : { detachedNodes: [TREE] };
+          },
+          detach: async () => {
+            calls.push(`detach ${id}`);
+            if (options.detach) await options.detach();
+          },
+        };
+        return session;
+      },
+    }),
+  };
+  return { page, calls, opened };
+}
+
+test("listDetachedNodes: lists on a session of its own for that page, detaches it, and returns the nodes describeDetached reads", async () => {
+  const { page, calls, opened } = fakePage();
+  const listing = await listDetachedNodes(page);
+  assert.deepEqual(calls, ["open 1", "DOM.getDetachedDomNodes on 1", "detach 1"]);
+  assert.deepEqual(opened, [page]);
+  assert.equal(listing.failed, null);
+  assert.deepEqual(describeDetached(listing.nodes ?? []), ["img (1 nodes)"]);
+});
+
+test("listDetachedNodes: every listing takes a new session, none is reused", async () => {
+  const { page, calls } = fakePage();
+  await listDetachedNodes(page);
+  await listDetachedNodes(page);
+  assert.deepEqual(calls, ["open 1", "DOM.getDetachedDomNodes on 1", "detach 1", "open 2", "DOM.getDetachedDomNodes on 2", "detach 2"]);
+});
+
+test("listDetachedNodes: does not return before the detach has finished, so the next collection can free the tree", async () => {
+  let finishDetach = () => {};
+  const detaching = new Promise<void>((resolve) => {
+    finishDetach = resolve;
+  });
+  const { page } = fakePage({ detach: () => detaching });
+  let returned = false;
+  const listing = listDetachedNodes(page).then(() => {
+    returned = true;
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(returned, false);
+  finishDetach();
+  await listing;
+  assert.equal(returned, true);
+});
+
+test("listDetachedNodes: a failed list is not an empty one: no nodes, the reason on one line, the session still detached", async () => {
+  const { page, calls } = fakePage({ list: () => Promise.reject(new Error("list failed\ncall log: more")) });
+  assert.deepEqual(await listDetachedNodes(page), { nodes: null, failed: "list: list failed" });
+  assert.deepEqual(calls, ["open 1", "DOM.getDetachedDomNodes on 1", "detach 1"]);
+  const empty = await listDetachedNodes(fakePage({ list: async () => ({ detachedNodes: [] }) }).page);
+  assert.deepEqual(empty, { nodes: [], failed: null });
+});
+
+test("listDetachedNodes: a session that will not open is a failure, not a throw and not an empty list", async () => {
+  const page: DetachedListPage = { context: () => ({ newCDPSession: () => Promise.reject(new Error("page closed")) }) };
+  assert.deepEqual(await listDetachedNodes(page), { nodes: null, failed: "open: page closed" });
+});
+
+test("listDetachedNodes: a failed detach keeps the list and is reported, because that session may still hold what it listed", async () => {
+  const { page } = fakePage({ detach: () => Promise.reject(new Error("no such session")) });
+  assert.deepEqual(await listDetachedNodes(page), { nodes: [TREE], failed: "detach: no such session" });
+  const both = fakePage({ list: () => Promise.reject(new Error("list failed")), detach: () => Promise.reject(new Error("no such session")) });
+  assert.deepEqual(await listDetachedNodes(both.page), { nodes: null, failed: "list: list failed; detach: no such session" });
+});
+
+test("detachedReading: a clean empty list prints nothing and records no failure; a failed one says so and records null", () => {
+  assert.deepEqual(detachedReading({ nodes: [], failed: null }), { detached: [], failed: null, line: "" });
+  assert.deepEqual(detachedReading({ nodes: [TREE], failed: null }), { detached: ["img (1 nodes)"], failed: null, line: "; detached: img (1 nodes)" });
+  assert.deepEqual(detachedReading({ nodes: null, failed: "list: gone" }), { detached: null, failed: "list: gone", line: "; DETACHED LISTING FAILED (list: gone)" });
+  assert.deepEqual(detachedReading({ nodes: [TREE], failed: "detach: gone" }), { detached: ["img (1 nodes)"], failed: "detach: gone", line: "; detached: img (1 nodes); DETACHED LISTING FAILED (detach: gone)" });
+  assert.deepEqual(detachedReading({ nodes: [TREE, TREE], failed: null }, 1).detached, ["img (1 nodes)", "and 1 more trees"]);
+});
+
+test("the wiring: memory.mjs lists through the helper, on its page; no other tool sends the call", () => {
+  const tools = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "tools");
+  // The helper is the road; detachedproof.mjs also sends it by hand, as the control that the old call still binds, and for its probe.
+  const allowed = ["detachedproof.mjs", path.join("lib", "domdiff.ts")];
+  const sources = (readdirSync(tools, { recursive: true }) as string[]).filter((file) => /\.(mjs|ts)$/.test(file) && !file.startsWith(`out${path.sep}`));
+  assert.ok(sources.includes("memory.mjs") && sources.includes(path.join("lib", "domdiff.ts")), "the scan reads the tools folder");
+  const senders = sources.filter((file) => /\.send\(\s*["'`]DOM\.getDetachedDomNodes/.test(readFileSync(path.join(tools, file), "utf8")));
+  assert.deepEqual(senders.sort(), [...allowed].sort());
+  const memory = readFileSync(path.join(tools, "memory.mjs"), "utf8");
+  assert.match(memory, /detachedReading\(await listDetachedNodes\(page\), 4\)/);
+  assert.match(memory, /formatDomDiff\(diff\)\}\$\{listing\.line\}/, "the sample's line says the listing, failure included");
+  assert.match(memory, /detachedFailed: listing\.failed/, "the JSON point says the failure");
+  assert.match(memory, /listings\.failed \+= 1/, "the end's tally counts it");
+  assert.match(memory, /detachedListings: listings/, "the JSON says the tally");
 });

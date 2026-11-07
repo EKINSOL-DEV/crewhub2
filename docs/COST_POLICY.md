@@ -548,6 +548,14 @@ report before the run):
   and 0.665 MB an hour). Their `(code)` rose alike from minute 10 to 60 (+0.77 and +0.71 MB), so round 62's higher
   `(code)` than round 27's is not the rounds since 59d. Since then the snapshots go on the loop and the tool warns.
 
+**Detached trees in soaks before round 76 are over-counted.** Before `fb53b3dc` (round 76), `memory.mjs` called
+`DOM.getDetachedDomNodes` on the page's main CDP session, which keeps what it lists alive: a tree alive for an instant at
+a list call stayed for the run, in the DOM and listener counts too. So an older soak's detached trees after a listing
+may be the tool's own (round 75's candidate soak, its trees past minute 173, is one to read so). Since then each listing runs on a session of
+its own, detached before it returns (`tools/lib/domdiff.ts`; `tools/detachedproof.mjs` holds it in a blank page, and is
+worth rerunning when Playwright brings a new Chromium). A listing that fails says `DETACHED LISTING FAILED` and the end
+prints the listings taken and failed: read that count before reading no trees as clean.
+
 **4. How to name the holder.** In this order; stop when the holder is named.
 
 - The tool's `--snapshots`: the 40 largest kinds per snapshot and what grew between two, by self size, in the JSON.
