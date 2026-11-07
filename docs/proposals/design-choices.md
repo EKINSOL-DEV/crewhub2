@@ -885,12 +885,12 @@ the key came from with no Forget; a stored key gets Forget). H3's words show on 
 came from the default key file."): a rejection replaces the world by that screen within a second, and the screen has no
 chip, so the Connection panel's own line ("This key comes from the default key file, which the host never deletes …")
 is not on the road a person meets. Nothing half, nothing new.
-**H3 again (round 75, ra):** a real host with the old default key file, the panel open, the key revoked while Live, four
+**H3 again (round 75, ra):** a real host over the fake, its key marked as read from the old default key file, the panel open, the key revoked while Live, four
 runs: the Connection panel's note never showed, and the rejected screen stood there each time. What a person meets is that
 screen: it names the default key file and offers no Forget, so H3's aim holds, no Forget that comes back at the next start.
 The note's "which the host never deletes. Remove that file" is never read; the rejected screen has only its general fix
 line. Moving the note onto the rejected screen is a choice for Nicky, not made here. From rb's review, with the same choice
-and not changed: for a default-file key the screen's red box still says "Paste a new access key, or forget this one." (the
+and not changed: for a default-file key revoked while Live the screen's red box still says "Paste a new access key, or forget this one." (the
 host's `STREAM_REFUSED_REASON`, already on `feat/world-demo`, from no `dc` branch), and with no Forget button there, rightly,
 those last words point at nothing.
 
