@@ -164,6 +164,9 @@ Prepared branches are ready; an answer `do it` merges that branch, `journey N: a
   271, so the warm ring no longer runs round a mark that now stands longer. A tap on the row still enters the same building, except
   in the 2 px between the two on a phone, where it now does nothing.
 
+  What became of it (round 76): with the Chat panel open, an answer no longer rebuilds the pinned building's pin twice
+  (`marksShown`, a node test and a chat row), on `sugg/w3-4@85cadcb8`, reviewed by tr.
+
 - **w3-5 · polish, wording.** "About this chat" says "Open an agent's chat head in loops' dock (the Agent chats menu at
   this width)": a newcomer does not know "chat head", "dock", or which width is meant (the frame's). **Suggestion:** "In the frame, open an agent's chat (the Agent chats menu on a narrow frame)".
 
