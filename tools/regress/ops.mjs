@@ -6,9 +6,10 @@
  * page helpers (`page`), the check recorder (`check`) and the output folder (`out`); see regress.mjs for the four.
  */
 import { mkdirSync, readFileSync, rmSync } from "node:fs";
+import { createServer, request as httpRequest } from "node:http";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { openPage, screenShown, textView as sheet } from "../lib/page.mjs";
+import { openPage, screenShown, textView as sheet, untilChip } from "../lib/page.mjs";
 import { startRig } from "../lib/rig.mjs";
 
 export async function run({ pass, page, check, out }) {
@@ -159,5 +160,146 @@ export async function run({ pass, page, check, out }) {
     await ctx.close().catch(() => {});
     await rig.close();
     rmSync(configDir, { recursive: true, force: true });
+  }
+  await runChipWords({ pass, check, out });
+}
+
+/**
+ * Design choice L1's chip words as a person sees them (round 75; L1 is round 72's, and until now node tests held them).
+ * A real host over the fake, with both causes real: `host-tabs` is 64 streams on the host, the page's own the one too
+ * many; `host-failed` is loops' list naming a project under a slug no allow-list takes (a small proxy between the host
+ * and the fake adds it while `broken`, as stream.test.ts's review F8 case does), so the host's own message reaches the
+ * chip. For each: the cause read first from the host's own answer (a row that held nothing would fail here), then the
+ * chip's word and tone, its hint, the panel's state and hint, the spoken change, and Live again without a reload when
+ * the cause goes (the page keeps asking). Its own rig, after the ops group's rig closed, on the same port.
+ */
+export async function runChipWords({ pass, check, out }) {
+  const { browser, opts, origin, repo: REPO, dist: DIST, problems, noteLoops } = pass;
+  const { ok } = check;
+  const { shot } = out;
+  const { createLoopsFake } = await import(pathToFileURL(path.join(REPO, "packages", "loops-fake", "src", "index.ts")).href);
+  const { MAX_TABS } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "host.ts")).href);
+  const fake = noteLoops(await createLoopsFake({ heartbeatMs: 1000 }));
+  const target = new URL(fake.url);
+  let broken = false;
+  const proxy = createServer((req, res) => {
+    const listing = broken && new URL(req.url ?? "/", "http://127.0.0.1").pathname === "/api/projects";
+    const upstream = httpRequest({ host: target.hostname, port: target.port, method: req.method, path: req.url, headers: { ...req.headers, host: target.host, "accept-encoding": "identity" } }, (answer) => {
+      if (!listing) {
+        res.writeHead(answer.statusCode ?? 502, answer.headers);
+        res.flushHeaders();
+        answer.pipe(res);
+        return;
+      }
+      let text = "";
+      answer.on("data", (chunk) => (text += chunk.toString()));
+      answer.on("end", () => {
+        const body = JSON.parse(text);
+        // The list with archived projects is refused to an agent key (a 403 with no list), and the host then asks without them.
+        if (Array.isArray(body.projects)) body.projects = [...body.projects, { ...body.projects[0], slug: "Not A Slug" }];
+        const headers = { ...answer.headers };
+        delete headers["content-length"];
+        res.writeHead(answer.statusCode ?? 502, headers);
+        res.end(JSON.stringify(body));
+      });
+    });
+    upstream.on("error", () => res.destroy());
+    res.on("close", () => upstream.destroy());
+    req.pipe(upstream);
+  });
+  await new Promise((resolve) => proxy.listen(0, "127.0.0.1", resolve));
+  const proxyUrl = `http://127.0.0.1:${proxy.address().port}`;
+  noteLoops({ url: proxyUrl });
+  const rig = await startRig({ loops: { url: proxyUrl, key: fake.key, keyName: fake.keyName }, serve: { dist: DIST, origin, hostPort: Number(opts["host-port"]) }, pairing: "off", log: () => undefined });
+  const own = [];
+  const tabs = [];
+  /** One tab's stream on the host itself, held open: resolves with its status once the host answered. */
+  const holdTab = () =>
+    new Promise((resolve, reject) => {
+      const req = httpRequest({ host: "127.0.0.1", port: rig.host.port, path: "/world-api/stream?cursor=0", agent: false }, (answer) => {
+        let text = "";
+        if (answer.statusCode !== 200) answer.on("data", (chunk) => (text += chunk.toString()));
+        answer.on("end", () => resolve({ status: answer.statusCode, text, req }));
+        if (answer.statusCode === 200) resolve({ status: 200, text, req });
+      });
+      req.on("error", (error) => (req.destroyed ? undefined : reject(error)));
+      req.end();
+    });
+  const said = async (p, words) => {
+    const deadline = Date.now() + 5000;
+    let all = "";
+    for (;;) {
+      all = (await p.locator("[aria-live=polite]").allInnerTexts()).join(" ").replace(/\s+/g, " ");
+      if (all.includes(words) || Date.now() > deadline) return all;
+      await p.waitForTimeout(100);
+    }
+  };
+  /** The chip and the panel as a person reads them; the panel is closed again. */
+  const chipFacts = async (p) => {
+    const chip = p.locator(".connection-chip").first();
+    const word = (await chip.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+    const title = (await chip.getAttribute("title").catch(() => "")) ?? "";
+    const attention = (await chip.locator(".chip-attention").count().catch(() => 0)) > 0;
+    await chip.click();
+    await p.waitForSelector(".connection-sheet", { timeout: 5000 }).catch(() => {});
+    const facts = (await p.locator(".connection-facts").innerText().catch(() => "")).replace(/\s+/g, " ");
+    await p.keyboard.press("Escape");
+    await p.waitForSelector(".connection-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
+    return { word, title, attention, facts };
+  };
+  const openHere = async () => {
+    const p = await openPage(browser, { origin: rig.origin, problems: own, tag: "L1 chip" });
+    await p.goto(`${rig.origin}/`);
+    await p.waitForSelector(".connection-chip", { timeout: 60000 }).catch(() => {});
+    return p;
+  };
+  try {
+    // host-tabs: the host's 64 streams, read first: one more is the 503 the page is about to meet.
+    for (let i = 0; i < MAX_TABS; i += 1) tabs.push(await holdTab());
+    const refused = await holdTab();
+    const cause = /"error":"too_many_tabs"/.test(refused.text) && refused.status === 503;
+    const hint = "This host has too many tabs open; close one. crewhub-loops is fine; the page keeps asking.";
+    const p1 = await openHere();
+    await p1.evaluate(() => ((globalThis.__l1Marker = "set"), undefined));
+    const state1 = await untilChip(p1, "host-tabs", 30000);
+    const spoken1 = await said(p1, `Connection: Too many tabs. ${hint}`);
+    const facts1 = await chipFacts(p1);
+    await shot(p1, "51x-l1-host-tabs");
+    ok("L1 (round 75): a host holding its 64 tabs: the chip says Too many tabs with the host's hint, the panel says the same, the change is spoken", cause && state1 === "host-tabs" && facts1.word === "Too many tabs" && facts1.title === hint && facts1.attention && facts1.facts.includes(`Too many tabs ${hint}`) && spoken1.includes(`Connection: Too many tabs. ${hint}`), `the host's answer ${refused.status} ${refused.text.slice(0, 80)}; chip ${state1}: "${facts1.word}", attention ${facts1.attention}, title "${facts1.title.slice(0, 60)}"; panel "${facts1.facts.slice(0, 120)}"; spoken "${spoken1.slice(0, 120)}"`);
+    tabs.pop().req.destroy();
+    const back1 = await untilChip(p1, "live", 30000);
+    const word1 = (await p1.locator(".connection-chip").first().innerText().catch(() => "")).trim();
+    const marker1 = await p1.evaluate(() => globalThis.__l1Marker ?? null).catch(() => null);
+    ok("L1 (round 75): one tab closed, the page that kept asking is Live again without a reload", back1 === "live" && word1 === "Live" && marker1 === "set", `${back1}: "${word1}", marker ${marker1}`);
+    await p1.context().close();
+    for (const tab of tabs.splice(0)) tab.req.destroy();
+
+    // host-failed: loops' list names a project no allow-list takes; the host's own read, then its own message on the chip.
+    broken = true;
+    const p2 = await openHere();
+    await p2.evaluate(() => ((globalThis.__l1Marker = "set"), undefined));
+    const answer = await p2.request.get(`${rig.origin}/world-api/snapshot`);
+    const body = await answer.json().catch(() => ({}));
+    const causeFailed = answer.status() === 503 && body.error === "snapshot_failed" && /allow-list/.test(body.message ?? "");
+    const hint2 = `The world's host could not read crewhub-loops: ${body.message ?? "?"}`;
+    const state2 = await untilChip(p2, "host-failed", 30000);
+    const spoken2 = await said(p2, `Connection: Host could not read loops. ${hint2}`);
+    const facts2 = await chipFacts(p2);
+    await shot(p2, "51y-l1-host-failed");
+    ok("L1 (round 75): a snapshot the host itself could not assemble: the chip says Host could not read loops with the host's own message, the panel says the same, the change is spoken, and never Loops down", causeFailed && state2 === "host-failed" && facts2.word === "Host could not read loops" && facts2.title === hint2 && facts2.attention && facts2.facts.includes(`Host could not read loops ${hint2}`) && spoken2.includes(`Connection: Host could not read loops. ${hint2}`) && !/Loops down/.test(`${facts2.word} ${facts2.facts}`), `the host's answer ${answer.status()} ${body.error}: ${(body.message ?? "").slice(0, 90)}; chip ${state2}: "${facts2.word}", attention ${facts2.attention}, title "${facts2.title.slice(0, 100)}"; panel "${facts2.facts.slice(0, 140)}"; spoken "${spoken2.slice(0, 120)}"`);
+    broken = false;
+    const back2 = await untilChip(p2, "live", 30000);
+    const word2 = (await p2.locator(".connection-chip").first().innerText().catch(() => "")).trim();
+    const marker2 = await p2.evaluate(() => globalThis.__l1Marker ?? null).catch(() => null);
+    ok("L1 (round 75): the cause gone, the page that kept asking is Live again without a reload", back2 === "live" && word2 === "Live" && marker2 === "set", `${back2}: "${word2}", marker ${marker2}`);
+    await p2.context().close();
+    // The 503s the page met are what this row provokes; the browser logs each. Anything else still fails the closing check.
+    problems.push(...own.filter((x) => !(x.kind === "console" && /status of 503/.test(x.text))));
+  } finally {
+    for (const tab of tabs.splice(0)) tab.req.destroy();
+    await rig.close();
+    proxy.closeAllConnections();
+    await new Promise((resolve) => proxy.close(resolve));
+    await fake.close().catch(() => undefined);
   }
 }

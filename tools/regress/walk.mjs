@@ -516,6 +516,67 @@ export async function run({ pass, page, check, out }) {
   await p.keyboard.press("b");
   await p.waitForTimeout(300);
 
+  // 6b. A zone's name field (round 75; design choice E1 `escape`): typing is a draft that the zone's chip does not show, and
+  // the town's revision stays. Enter writes it, as one revision; Escape drops a draft and keeps the old name, the Settings
+  // sheet staying open, and leaving the field after that writes nothing; leaving the field with a draft writes it.
+  {
+    const p = await open();
+    await town(p, 1500);
+    await p.getByRole("button", { name: "Settings", exact: true }).click();
+    await p.waitForSelector(".settings-sheet", { timeout: 5000 });
+    const panel = p.locator(".settings-sheet");
+    const zoneIds = () => panel.locator(".zone-item").evaluateAll((items) => items.map((item) => item.dataset.zoneId));
+    const before = await zoneIds();
+    await panel.getByRole("button", { name: "Add a zone", exact: true }).click();
+    await p.waitForTimeout(500);
+    const id = (await zoneIds()).find((z) => !before.includes(z));
+    const item = panel.locator(`.zone-item[data-zone-id="${id}"]`);
+    const field = item.getByLabel("Name", { exact: true });
+    // What a person sees: the field, the name the zone has (its chip) and the town's revision in Settings > Town.
+    const read = async () => ({
+      field: await field.inputValue().catch(() => null),
+      chip: (await item.locator(".zone-chip").innerText().catch(() => "")).trim(),
+      rev: Number(/Layout revision (\d+)/.exec(await panel.innerText().catch(() => ""))?.[1] ?? -1),
+      open: await panel.isVisible().catch(() => false),
+    });
+    const made = await read();
+    await field.fill("Harbour");
+    const typed = await read();
+    await field.press("Enter");
+    await p.waitForTimeout(300);
+    const onEnter = await read();
+    // A draft that trims to the name it already has: nothing to write, so no new revision, and the field shows the name.
+    await field.fill("Harbour ");
+    const sameTyped = await read();
+    await field.press("Enter");
+    await p.waitForTimeout(300);
+    const unchanged = await read();
+    ok(
+      "a zone's name field: typing changes neither the zone's chip nor the revision, Enter writes it as one revision, and Enter on a draft of the same name writes nothing (E1)",
+      id !== undefined && made.rev >= 0 && made.chip !== "" && typed.field === "Harbour" && typed.chip === made.chip && typed.rev === made.rev && onEnter.chip === "Harbour" && onEnter.field === "Harbour" && onEnter.rev === made.rev + 1 && sameTyped.field === "Harbour " && unchanged.field === "Harbour" && unchanged.rev === onEnter.rev,
+      `zone ${id}: made ${JSON.stringify(made)}, typed ${JSON.stringify(typed)}, Enter ${JSON.stringify(onEnter)}, the same name typed ${JSON.stringify(sameTyped)}, Enter ${JSON.stringify(unchanged)}`,
+    );
+    await field.fill("A draft to drop");
+    const draft = await read();
+    await field.press("Escape");
+    await p.waitForTimeout(300);
+    const escaped = await read();
+    await field.press("Tab");
+    await p.waitForTimeout(300);
+    const left = await read();
+    ok(
+      "a zone's name field: Escape drops the draft and keeps the old name, the sheet stays open, and leaving the field then writes nothing (E1)",
+      draft.field === "A draft to drop" && draft.chip === "Harbour" && escaped.field === "Harbour" && escaped.chip === "Harbour" && escaped.rev === unchanged.rev && escaped.open && left.field === "Harbour" && left.chip === "Harbour" && left.rev === unchanged.rev,
+      `draft ${JSON.stringify(draft)}, Escape ${JSON.stringify(escaped)}, left ${JSON.stringify(left)}`,
+    );
+    await field.fill("Quay");
+    await field.press("Tab");
+    await p.waitForTimeout(300);
+    const blurred = await read();
+    ok("a zone's name field: leaving it with a draft writes the draft as one revision (E1)", blurred.chip === "Quay" && blurred.field === "Quay" && blurred.rev === unchanged.rev + 1, JSON.stringify(blurred));
+    await p.context().close();
+  }
+
   // 7. Settings: style, director, model calls, graphics, town export
   await p.getByRole("button", { name: /settings/i }).first().click().catch((e) => note("settings " + e.message.split("\n")[0]));
   await p.waitForTimeout(600);
@@ -548,6 +609,24 @@ export async function run({ pass, page, check, out }) {
   ok("removing a zone says so in Settings and in a live region that stood before the line", zoneGoneRegionBefore === 1 && /^Zone \d+ removed\.$/.test(zoneGone) && /Zone \d+ removed\./.test((await p.locator("[aria-live=polite]").allInnerTexts()).join(" ")), `${zoneGone || "(nothing said)"}; region before: ${zoneGoneRegionBefore}`);
   await shot(p, "09-settings");
   await p.keyboard.press("Escape");
+
+  // 7b. Settings > Town's tab line in the demo (round 75; design choice E2 `say`): a town kept in this browser's IndexedDB
+  // says to build in one tab at a time; a town kept in memory (no IndexedDB here) meets no other tab and says nothing.
+  // The other side, a live town, is section 15b of tools/regress/live.mjs.
+  {
+    const keepingLine = async (pg) => {
+      await town(pg, 1000);
+      await pg.getByRole("button", { name: "Settings", exact: true }).click();
+      await pg.waitForSelector(".settings-sheet", { timeout: 5000 });
+      const line = (await pg.locator(".settings-sheet .hint").filter({ hasText: /Layout revision/ }).first().innerText().catch(() => "")).replace(/\s+/g, " ");
+      await pg.context().close();
+      return line;
+    };
+    const kept = await keepingLine(await open());
+    const memory = await keepingLine(await open({ initScripts: [() => Object.defineProperty(globalThis, "indexedDB", { value: undefined, configurable: true })] }));
+    ok("Settings > Town: a demo town kept in this browser says to build in one tab at a time (E2)", /Kept in this browser \(IndexedDB\)\. Build in one tab at a time; another tab's edits are not seen here\./.test(kept), kept);
+    ok("Settings > Town: a demo town kept in memory says no such thing (E2)", /Kept in memory only/.test(memory) && !/one tab/.test(memory), memory);
+  }
 
   // 8. Where form
   await p.keyboard.press("t");
@@ -1104,6 +1183,22 @@ export async function run({ pass, page, check, out }) {
     await shot(pg, "15-landscape-labels");
     const inside = (await entered(pg)) !== null;
     ok("landscape phone, inside with Details on: the labels are the compact set (the plate shows its title only, the figures carry pills, no captions; N1)", inside && counts.height < 480 && counts.expandedSigns === 0 && counts.signCounts === 0 && counts.captions === 0 && counts.pills > 0, `window ${counts.width} x ${counts.height}, expanded signs ${counts.expandedSigns}, counts ${counts.signCounts}, captions ${counts.captions}, pills ${counts.pills}, rack counts ${counts.rackCounts}${inside ? "" : ", not inside"}`);
+    // The rule's number (round 75, N1's boundary): the row above holds "(max-height: 479px)" at 342 only, so any limit
+    // from 342 up passes it. The same page, still inside with Details on: 480 tall is the full set, 479 the compact one.
+    const labelsAt = async (height) => {
+      await pg.setViewportSize({ width: 750, height });
+      await pg.waitForTimeout(900);
+      return pg.evaluate(() => ({
+        height: innerHeight,
+        width: innerWidth,
+        expandedSigns: document.querySelectorAll(".town-sign.expanded").length,
+        captions: document.querySelectorAll(".agent-anchor .caption").length,
+        pills: document.querySelectorAll(".agent-anchor .name-pill").length,
+      }));
+    };
+    const tall = await labelsAt(480);
+    const short = await labelsAt(479);
+    ok("a window 480 tall has the full labels, one 479 tall the compact set: the rule's limit is 479 (N1)", (await entered(pg)) !== null && tall.width >= 600 && tall.height === 480 && short.height === 479 && tall.expandedSigns > 0 && tall.captions > 0 && short.expandedSigns === 0 && short.captions === 0 && short.pills > 0, `tall ${JSON.stringify(tall)}, short ${JSON.stringify(short)}`);
     await ctx.close();
   }
 

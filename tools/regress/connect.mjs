@@ -373,4 +373,91 @@ export async function run({ pass, page, check, out }) {
   } finally {
     problems.push(...own.filter((x) => !expected(x)));
   }
+  await runKeyFileNote({ pass, check, out });
+}
+
+/**
+ * Design choice H3's key-file note in the Connection panel (round 75; H3 is round 72's, and until now keyFileNote.test.ts
+ * held the words and forgetOffer.test.ts the rule, no browser): for a rejected key from the old default key file the panel
+ * says where it comes from instead of offering "Forget this key".
+ *
+ * A real host over the fake, its key marked as read from the default file. A key the host really rejects has the rejected
+ * screen stand in for the town and the panel (state/connect.ts `liveScreen`), so the panel can only meet the word through
+ * its own health reads: the row answers those with the host's real health, the key's state or source changed, while the
+ * stream stays live. Its reads: the panel's key row first (the row fails if the panel said nothing about the file), the
+ * note against the button both ways, so it can see each one, and last the real road, the key revoked, with the rejected
+ * screen's own words and no Forget. Its own rig, after the group's stubs closed, on the same port.
+ */
+export async function runKeyFileNote({ pass, check, out }) {
+  const { browser, opts, origin, problems, noteLoops } = pass;
+  const { ok } = check;
+  const { shot } = out;
+  const NOTE = "This key comes from the default key file, which the host never deletes. Remove that file, or paste a new key.";
+  const fakeOptions = { heartbeatMs: 1000 };
+  const rig = await startRig({ loops: { fake: fakeOptions }, serve: { origin, hostPort: Number(opts["host-port"]) }, pairing: "off", host: { keySource: "default" }, log: () => undefined, onLoops: noteLoops });
+  const own = [];
+  const pg = await openPage(browser, { origin, problems: own, tag: "H3 key file" });
+  /** What the page's health reads say about the key, over the host's own answer; null: the host's answer as it is. */
+  let word = null;
+  const healthRoute = async (route) => {
+    const answer = await pg.request.get(route.request().url());
+    const body = await answer.json();
+    if (word !== null && body.connection) body.connection.key = { ...body.connection.key, ...word };
+    await route.fulfill({ response: answer, json: body });
+  };
+  /** The panel's footer and key row, read until `wanted` holds or the panel's 5 s poll and a margin have passed. */
+  const panelUntil = async (wanted) => {
+    const deadline = Date.now() + 8000;
+    for (;;) {
+      const notes = await pg.locator(".connection-footer .connection-note").allInnerTexts();
+      const read = {
+        note: notes.join(" ").replace(/\s+/g, " ").trim(),
+        forget: await pg.getByRole("button", { name: "Forget this key" }).count(),
+        facts: (await pg.locator(".connection-facts").innerText().catch(() => "")).replace(/\s+/g, " "),
+        chip: await chipWord(pg),
+      };
+      if (wanted(read) || Date.now() > deadline) return read;
+      await pg.waitForTimeout(200);
+    }
+  };
+  const words = (read) => `chip ${read.chip}; note "${read.note}"; Forget buttons ${read.forget}; key row ${/crewhub-world, \w+, from .*? Stream/.exec(read.facts)?.[0].replace(/ Stream$/, "") ?? `none in "${read.facts.slice(0, 80)}"`}`;
+  try {
+    await pg.route("**/world-api/health", healthRoute);
+    await pg.goto(`${origin}/`);
+    await dressed(pg).catch(() => {});
+    const live = await untilChip(pg, "live", 30000);
+    await chipOf(pg).click();
+    await pg.waitForSelector(".connection-sheet", { timeout: 5000 }).catch(() => {});
+    const accepted = await panelUntil((r) => /from the default key file/.test(r.facts));
+    ok("H3 (round 75): a default-file key the host accepts: the panel names the file, and shows neither the note nor Forget", live === "live" && /from the default key file/.test(accepted.facts) && accepted.note === "" && accepted.forget === 0, words(accepted));
+
+    word = { state: "rejected" };
+    const rejected = await panelUntil((r) => r.note !== "");
+    await shot(pg, "39c-connect-key-file-note");
+    ok("H3 (round 75): a rejected key from the default file: the panel shows the key-file note word for word, not Forget this key", rejected.chip === "live" && rejected.note === NOTE && rejected.forget === 0, words(rejected));
+
+    word = { state: "rejected", source: "stored" };
+    const stored = await panelUntil((r) => r.forget > 0);
+    word = null;
+    const again = await panelUntil((r) => r.note === "" && r.forget === 0);
+    ok("H3 (round 75): the same panel on a stored key offers Forget this key and no note, and with the key accepted again neither", stored.forget === 1 && stored.note === "" && again.note === "" && again.forget === 0, `stored: ${words(stored)} | accepted again: ${words(again)}`);
+
+    // The real road: the key revoked while Live. The rejected screen takes the place of the town and the panel, and says the file itself.
+    await pg.unroute("**/world-api/health", healthRoute);
+    const { port, keyName } = rig.fake;
+    const firstSeq = rig.fake.lastSeq();
+    await rig.fake.close();
+    await rig.loopsAgain({ ...fakeOptions, port, keyName: `${keyName}-2`, firstSeq });
+    const screenUp = await screenShown(pg, "rejected", 30000);
+    const page = (await pg.locator(".connect-page").innerText().catch(() => "")).replace(/\s+/g, " ");
+    const forgets = await pg.getByRole("button", { name: "Forget this key" }).count();
+    const panels = await pg.locator(".connection-sheet").count();
+    await shot(pg, "39d-connect-key-file-rejected");
+    ok("H3 (round 75): the default-file key really revoked: the rejected screen stands in for the town and the panel, names the default key file and offers no Forget", screenUp && /The key came from the default key file\./.test(page) && forgets === 0 && panels === 0, `screen ${screenUp}; Forget buttons ${forgets}; panels ${panels}; ${page.slice(0, 200)}`);
+    await pg.context().close();
+    // The revoked key's refusals are console errors in the browser, what they are meant to be. Anything else still fails the closing check.
+    problems.push(...own.filter((x) => !(x.kind === "console" && /status of (401|403|503)/.test(x.text))));
+  } finally {
+    await rig.close();
+  }
 }
