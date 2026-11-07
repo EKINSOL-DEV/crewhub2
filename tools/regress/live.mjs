@@ -5,6 +5,9 @@
  * One group of regress.mjs (round 61, T3): `run({ pass, page, check, out })` with the run's rig and plan (`pass`), the
  * page helpers (`page`), the check recorder (`check`) and the output folder (`out`); see regress.mjs for the four.
  */
+import { rmSync } from "node:fs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { chip as chipOf, openPage, readTextView as text, textView as sheet, untilChip } from "../lib/page.mjs";
 import { list } from "../lib/world.mjs";
 import { startRig } from "../lib/rig.mjs";
@@ -294,6 +297,41 @@ export async function run({ pass, page, check, out }) {
     const framed = problems.filter((x) => x.kind === "external" && (x.url ?? "").startsWith(`${web.url}/`));
     for (const x of framed) problems.splice(problems.indexOf(x), 1);
     info(`live: ${framed.length} request(s) left the page for the loops web stub, the Chat panel's frame, as designed`);
+  }
+
+  // 15b. Settings > Town's tab line over a live town (round 75; design choice E2 `say`): none, whoever keeps the town. A
+  // host with no world database leaves the town in this browser's IndexedDB until it is back, and a stale write is the
+  // host's to refuse when it has one. A rig of its own for each, the group's own being closed; the demo's side is walk's 7b.
+  const keepingLine = async (hostOptions, keeping) => {
+    const own = await startRig({ loops: { fake: fakeOptions }, serve: { dist: DIST, origin, hostPort }, host: hostOptions, log: () => undefined, onLoops: noteLoops });
+    try {
+      const pg = await openPage(browser, { origin: own.origin, problems, tag: "live-keeping" });
+      await own.pair(pg);
+      await pg.goto(own.base);
+      const state = await until(pg, "live", 20000);
+      await pg.getByRole("button", { name: "Settings", exact: true }).click();
+      await pg.waitForSelector(".settings-sheet", { timeout: 5000 });
+      const hint = pg.locator(".settings-sheet .hint").filter({ hasText: /Layout revision/ }).first();
+      await hint.filter({ hasText: keeping }).waitFor({ timeout: 10000 }).catch(() => {});
+      const line = (await hint.innerText().catch(() => "")).replace(/\s+/g, " ");
+      await pg.context().close();
+      return { state, line };
+    } finally {
+      await own.close();
+    }
+  };
+  const browserKept = await keepingLine({}, /until the host is back/);
+  ok("Settings > Town: a live town the browser keeps until the host is back says nothing about tabs (E2)", browserKept.state === "live" && /Kept in this browser until the host is back\./.test(browserKept.line) && !/one tab/.test(browserKept.line), `${browserKept.state}: ${browserKept.line}`);
+  const { openWorldDb } = await import(pathToFileURL(path.join(pass.repo, "apps", "host", "src", "worldDb.ts")).href);
+  const dbDir = path.join(out.dir, `${tag}-live-keeping`);
+  rmSync(dbDir, { recursive: true, force: true });
+  const worldDb = openWorldDb(dbDir);
+  try {
+    const hostKept = await keepingLine({ worldDb }, /Kept by the world's host/);
+    ok("Settings > Town: a live town the host keeps says nothing about tabs (E2)", hostKept.state === "live" && /Kept by the world's host/.test(hostKept.line) && !/one tab/.test(hostKept.line), `${hostKept.state}: ${hostKept.line}`);
+  } finally {
+    worldDb.close();
+    rmSync(dbDir, { recursive: true, force: true });
   }
 }
 
