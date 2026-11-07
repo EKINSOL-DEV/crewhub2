@@ -235,6 +235,67 @@ export async function run({ pass, page, check, out }) {
   ok("the prop editor takes the focus when it opens and gives it back to New prop when it closes", inEditor === "editor" && afterEditor === "New prop", `open: ${inEditor}, closed: ${afterEditor}`);
   await p.keyboard.press("b");
 
+  // 6b. A zone's name field (round 75; design choice E1 `escape`): typing is a draft that the zone's chip does not show, and
+  // the town's revision stays. Enter writes it, as one revision; Escape drops a draft and keeps the old name, the Settings
+  // sheet staying open, and leaving the field after that writes nothing; leaving the field with a draft writes it.
+  {
+    const p = await open();
+    await town(p, 1500);
+    await p.getByRole("button", { name: "Settings", exact: true }).click();
+    await p.waitForSelector(".settings-sheet", { timeout: 5000 });
+    const panel = p.locator(".settings-sheet");
+    const zoneIds = () => panel.locator(".zone-item").evaluateAll((items) => items.map((item) => item.dataset.zoneId));
+    const before = await zoneIds();
+    await panel.getByRole("button", { name: "Add a zone", exact: true }).click();
+    await p.waitForTimeout(500);
+    const id = (await zoneIds()).find((z) => !before.includes(z));
+    const item = panel.locator(`.zone-item[data-zone-id="${id}"]`);
+    const field = item.getByLabel("Name", { exact: true });
+    // What a person sees: the field, the name the zone has (its chip) and the town's revision in Settings > Town.
+    const read = async () => ({
+      field: await field.inputValue().catch(() => null),
+      chip: (await item.locator(".zone-chip").innerText().catch(() => "")).trim(),
+      rev: Number(/Layout revision (\d+)/.exec(await panel.innerText().catch(() => ""))?.[1] ?? -1),
+      open: await panel.isVisible().catch(() => false),
+    });
+    const made = await read();
+    await field.fill("Harbour");
+    const typed = await read();
+    await field.press("Enter");
+    await p.waitForTimeout(300);
+    const onEnter = await read();
+    // A draft that trims to the name it already has: nothing to write, so no new revision, and the field shows the name.
+    await field.fill("Harbour ");
+    const sameTyped = await read();
+    await field.press("Enter");
+    await p.waitForTimeout(300);
+    const unchanged = await read();
+    ok(
+      "a zone's name field: typing changes neither the zone's chip nor the revision, Enter writes it as one revision, and Enter on a draft of the same name writes nothing (E1)",
+      id !== undefined && made.rev >= 0 && made.chip !== "" && typed.field === "Harbour" && typed.chip === made.chip && typed.rev === made.rev && onEnter.chip === "Harbour" && onEnter.field === "Harbour" && onEnter.rev === made.rev + 1 && sameTyped.field === "Harbour " && unchanged.field === "Harbour" && unchanged.rev === onEnter.rev,
+      `zone ${id}: made ${JSON.stringify(made)}, typed ${JSON.stringify(typed)}, Enter ${JSON.stringify(onEnter)}, the same name typed ${JSON.stringify(sameTyped)}, Enter ${JSON.stringify(unchanged)}`,
+    );
+    await field.fill("A draft to drop");
+    const draft = await read();
+    await field.press("Escape");
+    await p.waitForTimeout(300);
+    const escaped = await read();
+    await field.press("Tab");
+    await p.waitForTimeout(300);
+    const left = await read();
+    ok(
+      "a zone's name field: Escape drops the draft and keeps the old name, the sheet stays open, and leaving the field then writes nothing (E1)",
+      draft.field === "A draft to drop" && draft.chip === "Harbour" && escaped.field === "Harbour" && escaped.chip === "Harbour" && escaped.rev === unchanged.rev && escaped.open && left.field === "Harbour" && left.chip === "Harbour" && left.rev === unchanged.rev,
+      `draft ${JSON.stringify(draft)}, Escape ${JSON.stringify(escaped)}, left ${JSON.stringify(left)}`,
+    );
+    await field.fill("Quay");
+    await field.press("Tab");
+    await p.waitForTimeout(300);
+    const blurred = await read();
+    ok("a zone's name field: leaving it with a draft writes the draft as one revision (E1)", blurred.chip === "Quay" && blurred.field === "Quay" && blurred.rev === unchanged.rev + 1, JSON.stringify(blurred));
+    await p.context().close();
+  }
+
   // 7. Settings: style, director, model calls, graphics, town export
   await p.getByRole("button", { name: /settings/i }).first().click().catch((e) => note("settings " + e.message.split("\n")[0]));
   await p.waitForTimeout(600);
