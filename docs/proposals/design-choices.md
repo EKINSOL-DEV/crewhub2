@@ -15,7 +15,9 @@ round 69 (checked at `0dee42e`).
 
 **Prepared branches (round 72):** each heading ends with its branch, `dc/<id>` (the recommended option built exactly as the
 heading describes it, off `feat/world-demo@2d22df8a`, never merged by itself), or says why none is prepared. `all recommended`
-(or a block or a group) is then one merge of `dc/all-r72` (`7f987cbc`: `2d22df8a` plus every prepared branch but the two alternatives, `dc/T4-lift` and `dc/T5-margin`); the answer sheet's top names it.
+(or a block or a group) is then one merge of `dc/all-r72` (`e4dfc809`: `2d22df8a` plus every prepared branch but the two alternatives, `dc/T4-lift` and `dc/T5-margin`); the answer sheet's top names it.
+
+**The shas on the Prepared lines** are the branches' tips as of round 75, checked with `git rev-parse`; "moved since" means the branch gained a fix, tests or a seam after round 72.
 
 **How to answer:** one line per id, in the same short form as the open questions, for example `T1: as recommended`,
 `W4: keep` or `S1: waits`. A whole block in one line works too: `wording block: as recommended`
@@ -61,7 +63,7 @@ Escape returns the focus to Settings when Settings opened the tour; that path ke
 No pixel set.
 **If you say nothing:** the "?" button keeps the ring.
 **Answer:** `T2: stage / help`
-**Prepared:** `dc/T2` `50c72723` (round 72).
+**Prepared:** `dc/T2` `a303ec6e` (round 72, moved since).
 
 ### T3. The name a screen reader hears for the stage (r48-polish C7) *wording*
 
@@ -100,7 +102,7 @@ pixel set's 375 px town pictures move, light and dark, so it is a deliberate pic
 pictures.
 **If you say nothing:** the phone's town stays framed low.
 **Answer:** `T5: frame / keep`
-**Prepared:** `dc/T5` `fc202a52` (round 72; the recommended cover fit: fills the band between the chips and the playback bar, and loses two buildings off the sides on a phone); an alternative, `dc/T5-margin` `efb4193c`, keeps all four buildings and does not fill the band; both have before/after pictures. `dc/all-r72` carries `dc/T5`.
+**Prepared:** `dc/T5` `d552efca` (round 72, moved since; the recommended cover fit: fills the band between the chips and the playback bar, and loses two buildings off the sides on a phone); an alternative, `dc/T5-margin` `efb4193c`, keeps all four buildings and does not fill the band; both have before/after pictures. `dc/all-r72` carries `dc/T5`.
 
 ### T6. The phone header's Demo chip (r48-polish C11)
 
@@ -168,7 +170,7 @@ time as loops sent it). A screen reader reads it out character by character.
 test pins the line today, so one is added. No pixel set.
 **If you say nothing:** the ISO time stays.
 **Answer:** `W1: clock / keep`
-**Prepared:** `dc/W1` `4c05c22d` (round 72).
+**Prepared:** `dc/W1` `0b4622f4` (round 72, moved since).
 
 ### W2. "Lit:" on a plate (r48-polish C2) *wording*
 
@@ -209,7 +211,7 @@ screen-reader words already say "Needs a person", `JumpList.tsx:122`). `keep`.
 beacon check (`/Needs a person/`) still holds. No pixel set.
 **If you say nothing:** said twice.
 **Answer:** `W4: once / keep`
-**Prepared:** `dc/W4` `b5f2b58c` (round 72).
+**Prepared:** `dc/W4` `59088a49` (round 72, moved since).
 
 ### W5. "2 props joins the catalogue" (r48-model W1) *wording*
 
@@ -309,7 +311,7 @@ is meant; with the text view open in a live world it talks often.
 **Cost:** `WhereForm.tsx`. No test reads the announcement; no pixel set.
 **If you say nothing:** it keeps announcing.
 **Answer:** `W12: keep / on-choice`
-**Prepared:** `dc/W12` `3ac09921` (round 72).
+**Prepared:** `dc/W12` `6c8553c6` (round 72, moved since).
 
 ### W13. A name that left "Where is …?" (round 50, r48-ui U6) *wording*
 
@@ -403,7 +405,7 @@ host could not read crewhub-loops: …" with the host's reason for the second. `
 `loops_down` and `unauthorized` only); the regress `live` group's "Loops down" checks stay. No pixel set.
 **If you say nothing:** "Loops down".
 **Answer:** `L1: own-words / keep`
-**Prepared:** `dc/L1` `f4432275` (round 72). Walk finding w2-5 is not ended by it: L1 words two 503s the host sends; a host that does not answer at all is not among its options (the answer sheet's note).
+**Prepared:** `dc/L1` `74808307` (round 72, moved since). Walk finding w2-5 is not ended by it: L1 words two 503s the host sends; a host that does not answer at all is not among its options (the answer sheet's note).
 
 ### L2. Road 2 waits for the browser to be online (r48-live Q1)
 
@@ -468,7 +470,7 @@ an existing folder is looser than 0700. `tighten`: as it is, said in the README.
 **Cost:** the three `chmodSync` calls; host tests for a made and an existing folder; the README row. No pixel set.
 **If you say nothing:** any named folder becomes 0700.
 **Answer:** `H1: warn / tighten`
-**Prepared:** `dc/H1` `f18c3977` (round 72).
+**Prepared:** `dc/H1` `135b754d` (round 72, moved since).
 
 ### H2. `npm run world` beside a running `npm run host` (r48-review F18)
 
@@ -484,7 +486,7 @@ Vite page (npm run dev)" and exits 1. `take-over`: `world` stops the dev host an
 run file's new field. No pixel set.
 **If you say nothing:** the JSON error page.
 **Answer:** `H2: refuse / take-over / keep`
-**Prepared:** `dc/H2` `486949f3` (round 72).
+**Prepared:** `dc/H2` `0475c772` (round 72, moved since).
 
 ### H3. "Forget this key" on a key from the old default key file (round 51, r51-review H2)
 
@@ -504,7 +506,7 @@ same reason, which the panel shows. `keep`.
 (the panel is in no set).
 **If you say nothing:** Forget on a default-file key comes back at the next start.
 **Answer:** `H3: stored-only / host-says / keep`
-**Prepared:** `dc/H3` `1c897065` (round 72).
+**Prepared:** `dc/H3` `63dc6c00` (round 72, moved since).
 
 ## The storyline (S)
 
@@ -572,7 +574,7 @@ seek back. The demo pixel set seeks forward from the start to 2:00, so it should
 **Cost:** `ZonePanel.tsx`. No test reads the field; no pixel set.
 **If you say nothing:** leaving the field writes the draft.
 **Answer:** `E1: escape / keep`
-**Prepared:** `dc/E1` `f869085e` (round 72).
+**Prepared:** `dc/E1` `65f768cd` (round 72, moved since).
 
 ### E2. The demo town in two tabs (round 53, r53-review S1)
 
@@ -590,7 +592,7 @@ other tabs to reload the history after a write). `keep`.
 `townStore.ts` and a node test with two stores; no pixel set.
 **If you say nothing:** the later write wins, unsaid.
 **Answer:** `E2: say / sync / keep`
-**Prepared:** `dc/E2` `3d0357d9` (round 72).
+**Prepared:** `dc/E2` `4a83bf13` (round 72, moved since).
 
 ## The figures (K)
 
@@ -610,7 +612,7 @@ activities, roles and perch poses this world does not know, as round 48 made the
 tests in `packages/world-cast`. No pixel set.
 **If you say nothing:** a cast from a newer world is refused, and classic-bots stands in.
 **Answer:** `K1: lenient / refuse`
-**Prepared:** `dc/K1` `b64234df` (round 72).
+**Prepared:** `dc/K1` `0dc20610` (round 72, moved since).
 
 ### K2. Walking at 8x and 16x: at story speed, or calmer?
 
@@ -625,7 +627,7 @@ be walking when the story has moved on. The scene's comment means them to keep u
 1x. The demo pixel set at speed and the regress `walk` group run at night.
 **If you say nothing:** today's frame-rate-dependent slowdown stays.
 **Answer:** `K2: story / even / keep`
-**Prepared:** `dc/K2` `bfa5eb14` (round 72).
+**Prepared:** `dc/K2` `8430d08d` (round 72, moved since).
 
 ### K3. A cast that could not be loaded, on screen (round 50, r50-packages C1)
 
@@ -669,7 +671,7 @@ sheets start under the header, so the toolbar stays usable. `keep`.
 **Cost:** `inert` is `App.tsx` only. `below` changes `world.css` and the pictures with a sheet open (in no set).
 **If you say nothing:** the covered buttons stay tabbable.
 **Answer:** `X2: inert / below / keep`
-**Prepared:** `dc/X2` `60294429` (round 72). Walk findings w2-2 and w3-7 are not ended by it: `inert` makes the covered corners inert; one sheet at a time, or side by side, is not among X2's options, so the stacking stays (the answer sheet's note).
+**Prepared:** `dc/X2` `b9ed54d0` (round 72, moved since). Walk findings w2-2 and w3-7 are not ended by it: `inert` makes the covered corners inert; one sheet at a time, or side by side, is not among X2's options, so the stacking stays (the answer sheet's note).
 
 ### X3. The faded labels
 
@@ -790,7 +792,7 @@ profile sideways. No pixel set (the demo set is 1440 x 900 and 375 px upright). 
 in `Interior`, and the same `walk` row.
 **If you say nothing:** the staircase sideways.
 **Answer:** `N1: compact / tags / keep`
-**Prepared:** `dc/N1` `58456e28` (round 72). It ends walk finding w4-20.
+**Prepared:** `dc/N1` `60051155` (round 72, moved since). It ends walk finding w4-20.
 
 ## The wording block
 
@@ -883,6 +885,14 @@ the key came from with no Forget; a stored key gets Forget). H3's words show on 
 came from the default key file."): a rejection replaces the world by that screen within a second, and the screen has no
 chip, so the Connection panel's own line ("This key comes from the default key file, which the host never deletes …")
 is not on the road a person meets. Nothing half, nothing new.
+**H3 again (round 75, ra):** a real host over the fake, its key marked as read from the old default key file, the panel open, the key revoked while Live, four
+runs: the Connection panel's note never showed, and the rejected screen stood there each time. What a person meets is that
+screen: it names the default key file and offers no Forget, so H3's aim holds, no Forget that comes back at the next start.
+The note's "which the host never deletes. Remove that file" is never read; the rejected screen has only its general fix
+line. Moving the note onto the rejected screen is a choice for Nicky, not made here. From rb's review, with the same choice
+and not changed: for a default-file key revoked while Live the screen's red box still says "Paste a new access key, or forget this one." (the
+host's `STREAM_REFUSED_REASON`, already on `feat/world-demo`, from no `dc` branch), and with no Forget button there, rightly,
+those last words point at nothing.
 
 ### Journey 4: a phone, touch only (wc; iPhone 13 and Pixel 5, upright and sideways, light and dark, 320 px)
 
