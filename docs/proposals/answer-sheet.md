@@ -18,7 +18,7 @@ pages hold the reasons, and [merge-plan.md](merge-plan.md) says how the answer b
    rounds 67 and 68 (`9daea890`, `46c04f06`; since then tests, docs, the dock's re-copy and round 71's invisible refactors). The walk ids that are not
    prepared (a design choice holds them, or nothing is built) stay as they are unless you answer them one by one.
 3. **`all recommended` for the design choices** (round 72; `wording block: as recommended` and `T: as recommended` the same way,
-   for their rows): every prepared `dc/<id>` branch merges. That is one merge of `dc/all-r72` (`4f4414c5`: round 72's head
+   for their rows): every prepared `dc/<id>` branch merges. That is one merge of `dc/all-r72` (`e4dfc809`: round 72's head
    `2d22df8a` plus every prepared `dc/<id>` branch, conflicts resolved there and named). With `walkthrough: all` as well it is
    a fast-forward of `feat/world-demo` to `all-on-head-r72`, `sugg/all-r65-on-head` plus `dc/all-r72` by a merge (named, not
    by sha: it holds this page). The choices with no branch (the last column says why) stay as they are unless you answer them one by one.
@@ -106,23 +106,23 @@ still needs a word: `alert` or `waiting`). A group answers at once too: `T: as r
 | W14 *w* | Copy that cannot copy on the Pair screen | `W14: as-built / <words>` | `as-built` | as built | none: `as-built` is today's build |
 | W15 *w* | Which bot the host's own words send people to make | `W15: viewer-first / keep` | `viewer-first` | the host's words send people to "New external bot" | `dc/W15` `9bcc0d8d` (w2-8: not ended by it) |
 | W16 *w* | "Not a control" and loops' own chat | `W16: say-the-frame / keep` | `say-the-frame` | as it is | `dc/W16` `d9ac6800` |
-| L1 | "Loops down" for a host that is fine with loops | `L1: own-words / keep` | `own-words` | "Loops down" | `dc/L1` `293e6df6` (w2-5: not ended by it) |
+| L1 | "Loops down" for a host that is fine with loops | `L1: own-words / keep` | `own-words` | "Loops down" | `dc/L1` `74808307` (w2-5: not ended by it) |
 | L2 | Road 2 waits for the browser to be online | `L2: ignore / keep` | `ignore` | offline, road 2 asks nothing | `dc/L2` `f0e9bb8f` |
 | L3 | The chip says Live while the team snapshot is stale (walk finding w2-3) | `L3: snapshot / own-word / keep` | `snapshot` (two limits: measure first that a real loops' stamp moves on an upload with no change, else L3 comes back; a probe clock more than 5 min off reads Stale) | the chip as it is | none: its precondition needs a real loops, measured first |
 | H1 | The host makes a folder it was pointed at private | `H1: warn / tighten` | `warn` | any named folder becomes 0700 | `dc/H1` `135b754d` |
 | H2 | `npm run world` beside a running `npm run host` | `H2: refuse / take-over / keep` | `refuse` | the JSON error page | `dc/H2` `0475c772` |
-| H3 | "Forget this key" on a key from the old default key file | `H3: stored-only / host-says / keep` | `stored-only` | Forget on a default-file key comes back at the next start | `dc/H3` `705ff3ec` |
+| H3 | "Forget this key" on a key from the old default key file | `H3: stored-only / host-says / keep` | `stored-only` | Forget on a default-file key comes back at the next start | `dc/H3` `63dc6c00` |
 | S1 *w* | cl-lead's status line at 15:36 | `S1: waits / keep` | `waits` | the old line | `dc/S1` `3088d9b3` |
 | S2 *w* | "Brand and Lab are the quiet ones" | `S2: drop / <words>` | `drop` | the sentence stays | `dc/S2` `42a3e577` |
 | S3 *w* | "stuck since the merge" | `S3: idle / keep` | `idle` | "stuck" | `dc/S3` `03e1c039` |
 | S4 | The demo's rooms after a seek back | `S4: forget / keep` | `forget` in the demo (live mode keeps them) | the rooms stay after a seek back | `dc/S4` `d8f7c645` |
-| E1 | Escape in a zone's name field | `E1: escape / keep` | `escape` | leaving the field writes the draft | `dc/E1` `ac8c7335` |
-| E2 | The demo town in two tabs | `E2: say / sync / keep` | `say` | the later write wins, unsaid | `dc/E2` `f1d71388` |
+| E1 | Escape in a zone's name field | `E1: escape / keep` | `escape` | leaving the field writes the draft | `dc/E1` `65f768cd` |
+| E2 | The demo town in two tabs | `E2: say / sync / keep` | `say` | the later write wins, unsaid | `dc/E2` `4a83bf13` |
 | K1 | A cast made for a newer world: refused whole, or drawn with what this world knows? | `K1: lenient / refuse` | `lenient`, for those three enums only | a cast from a newer world is refused, and classic-bots stands in | `dc/K1` `0dc20610` |
 | K2 | Walking at 8x and 16x: at story speed, or calmer? | `K2: story / even / keep` | `story` | today's frame-rate-dependent slowdown stays | `dc/K2` `8430d08d` |
 | K3 | A cast that could not be loaded, on screen | `K3: say / keep` | `say` | "No cast named … is installed" | none ready; held with `task/r50-casts-held` `9ebd022c`, a branch of this Mac only, not on origin |
 | X1 | Which agent answers are spoken | `X1: own / all / none` | `own` | nothing is spoken | none: `own` needs a signal the page has only in the demo (which thread is the person's: a decision the page does not make) |
-| X2 | The text view and the Chat panel over the toolbar on a desktop | `X2: inert / below / keep` | `inert` | the covered buttons stay tabbable | `dc/X2` `2a6319fd` (w2-2 / w3-7: not ended by it) |
+| X2 | The text view and the Chat panel over the toolbar on a desktop | `X2: inert / below / keep` | `inert` | the covered buttons stay tabbable | `dc/X2` `b9ed54d0` (w2-2 / w3-7: not ended by it) |
 | X3 | The faded labels | `X3: keep / 0.7 / 0.75` | `keep`, with the README line | 0.32, and no README line | none: `keep` is today's build |
 | X4 | The header at 320 px (with T6) | `X4: drop-word / wrap-tools / keep` | `drop-word` | the overlap stays | `dc/X4` `5d875d29` |
 | X5 | The canvas's name: the whole key guide on every focus | `X5: short / keep` | `short`, with the name fixed | the 60 words on every focus | `dc/X5` `e6d44389` |
@@ -130,7 +130,7 @@ still needs a word: `alert` or `waiting`). A group answers at once too: `T: as r
 | P2 | The copied loops files: catch an edit to a copy's body on CI too | `P2: sync / hash / keep` | `sync` | a copy's body is checked only where a crewhub-loops checkout is | none for the check itself. `sugg/p2-recopy` (the w5-9 and w5-10 rows) is `sync` done by hand for the dock's two files only, re-copied at loops `c7f9d679`; `Menu.tsx`, `bubbles.css` and `useMessageViewport.ts` stay at `a1bed0f`; the world's own `Field.tsx` (not one of P2's copies) carries a port of CL-119 that a later port of loops' Field would replace |
 | P3 | A test that the clock decides, once, with a wide margin | `P3: race / seam / keep` | `keep` | `keep` | none: `keep` is today's build |
 | W17 *w* | An archived building's two ticket lines (walk finding w1-13; new in round 69) | `W17: why / tickets / halls / keep` | `why` | the two lines as they are | `dc/W17` `0ecd9d3e` (ends w1-13) |
-| N1 | Fewer labels in a short window (walk finding w4-20; new in round 69) | `N1: compact / tags / keep` | `compact` | the staircase sideways | `dc/N1` `58456e28` (ends w4-20) |
+| N1 | Fewer labels in a short window (walk finding w4-20; new in round 69) | `N1: compact / tags / keep` | `compact` | the staircase sideways | `dc/N1` `60051155` (ends w4-20) |
 
 ## Walk findings (walkthrough-r64.md)
 

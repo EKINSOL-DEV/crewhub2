@@ -15,7 +15,7 @@ round 69 (checked at `0dee42e`).
 
 **Prepared branches (round 72):** each heading ends with its branch, `dc/<id>` (the recommended option built exactly as the
 heading describes it, off `feat/world-demo@2d22df8a`, never merged by itself), or says why none is prepared. `all recommended`
-(or a block or a group) is then one merge of `dc/all-r72` (`4f4414c5`: `2d22df8a` plus every prepared branch but the two alternatives, `dc/T4-lift` and `dc/T5-margin`); the answer sheet's top names it.
+(or a block or a group) is then one merge of `dc/all-r72` (`e4dfc809`: `2d22df8a` plus every prepared branch but the two alternatives, `dc/T4-lift` and `dc/T5-margin`); the answer sheet's top names it.
 
 **The shas on the Prepared lines** are the branches' tips as of round 75, checked with `git rev-parse`; "moved since" means the branch gained a fix, tests or a seam after round 72.
 
@@ -405,7 +405,7 @@ host could not read crewhub-loops: …" with the host's reason for the second. `
 `loops_down` and `unauthorized` only); the regress `live` group's "Loops down" checks stay. No pixel set.
 **If you say nothing:** "Loops down".
 **Answer:** `L1: own-words / keep`
-**Prepared:** `dc/L1` `293e6df6` (round 72, moved since). Walk finding w2-5 is not ended by it: L1 words two 503s the host sends; a host that does not answer at all is not among its options (the answer sheet's note).
+**Prepared:** `dc/L1` `74808307` (round 72, moved since). Walk finding w2-5 is not ended by it: L1 words two 503s the host sends; a host that does not answer at all is not among its options (the answer sheet's note).
 
 ### L2. Road 2 waits for the browser to be online (r48-live Q1)
 
@@ -506,7 +506,7 @@ same reason, which the panel shows. `keep`.
 (the panel is in no set).
 **If you say nothing:** Forget on a default-file key comes back at the next start.
 **Answer:** `H3: stored-only / host-says / keep`
-**Prepared:** `dc/H3` `705ff3ec` (round 72, moved since).
+**Prepared:** `dc/H3` `63dc6c00` (round 72, moved since).
 
 ## The storyline (S)
 
@@ -574,7 +574,7 @@ seek back. The demo pixel set seeks forward from the start to 2:00, so it should
 **Cost:** `ZonePanel.tsx`. No test reads the field; no pixel set.
 **If you say nothing:** leaving the field writes the draft.
 **Answer:** `E1: escape / keep`
-**Prepared:** `dc/E1` `ac8c7335` (round 72, moved since).
+**Prepared:** `dc/E1` `65f768cd` (round 72, moved since).
 
 ### E2. The demo town in two tabs (round 53, r53-review S1)
 
@@ -592,7 +592,7 @@ other tabs to reload the history after a write). `keep`.
 `townStore.ts` and a node test with two stores; no pixel set.
 **If you say nothing:** the later write wins, unsaid.
 **Answer:** `E2: say / sync / keep`
-**Prepared:** `dc/E2` `f1d71388` (round 72, moved since).
+**Prepared:** `dc/E2` `4a83bf13` (round 72, moved since).
 
 ## The figures (K)
 
@@ -671,7 +671,7 @@ sheets start under the header, so the toolbar stays usable. `keep`.
 **Cost:** `inert` is `App.tsx` only. `below` changes `world.css` and the pictures with a sheet open (in no set).
 **If you say nothing:** the covered buttons stay tabbable.
 **Answer:** `X2: inert / below / keep`
-**Prepared:** `dc/X2` `2a6319fd` (round 72, moved since). Walk findings w2-2 and w3-7 are not ended by it: `inert` makes the covered corners inert; one sheet at a time, or side by side, is not among X2's options, so the stacking stays (the answer sheet's note).
+**Prepared:** `dc/X2` `b9ed54d0` (round 72, moved since). Walk findings w2-2 and w3-7 are not ended by it: `inert` makes the covered corners inert; one sheet at a time, or side by side, is not among X2's options, so the stacking stays (the answer sheet's note).
 
 ### X3. The faded labels
 
@@ -792,7 +792,7 @@ profile sideways. No pixel set (the demo set is 1440 x 900 and 375 px upright). 
 in `Interior`, and the same `walk` row.
 **If you say nothing:** the staircase sideways.
 **Answer:** `N1: compact / tags / keep`
-**Prepared:** `dc/N1` `58456e28` (round 72). It ends walk finding w4-20.
+**Prepared:** `dc/N1` `60051155` (round 72, moved since). It ends walk finding w4-20.
 
 ## The wording block
 
