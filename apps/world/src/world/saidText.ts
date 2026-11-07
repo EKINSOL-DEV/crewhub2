@@ -50,6 +50,14 @@ export function answerMarks(model: Model, unread: readonly Answer[]): SaidMark[]
   return marks;
 }
 
+/**
+ * The live marks the page shows (round 76): the answers' marks, none while the Chat panel is open. The panel reads an
+ * answer as it lands, so a mark there would stand for one commit and rebuild the building's pin twice.
+ */
+export function marksShown(model: Model, unread: readonly Answer[], chatOpen: boolean): SaidMark[] {
+  return chatOpen ? [] : answerMarks(model, unread);
+}
+
 /** The mark's accessible name: who answered, and where a tap goes. */
 export function markLabel(mark: Pick<SaidMark, "name" | "building">): string {
   return `${mark.name} answered: open ${mark.building}`;

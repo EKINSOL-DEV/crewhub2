@@ -211,6 +211,11 @@ test("detachedReading: a clean empty list prints nothing and records no failure;
   assert.deepEqual(detachedReading({ nodes: [TREE, TREE], failed: null }, 1).detached, ["img (1 nodes)", "and 1 more trees"]);
 });
 
+test("detachedproof.mjs: an uncaught throw exits 2, because exit 1 means the listing keeps the tree", () => {
+  const proof = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "tools", "detachedproof.mjs"), "utf8");
+  assert.match(proof, /process\.on\("uncaughtException", \(error\) => \{\n.*\n  process\.exit\(2\);\n\}\);/);
+});
+
 test("the wiring: memory.mjs lists through the helper, on its page; no other tool sends the call", () => {
   const tools = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "tools");
   // The helper is the road; detachedproof.mjs also sends it by hand, as the control that the old call still binds, and for its probe.
@@ -223,6 +228,9 @@ test("the wiring: memory.mjs lists through the helper, on its page; no other too
   assert.match(memory, /detachedReading\(await listDetachedNodes\(page\), 4\)/);
   assert.match(memory, /formatDomDiff\(diff\)\}\$\{listing\.line\}/, "the sample's line says the listing, failure included");
   assert.match(memory, /detachedFailed: listing\.failed/, "the JSON point says the failure");
-  assert.match(memory, /listings\.failed \+= 1/, "the end's tally counts it");
+  assert.match(memory, /^\s*if \(listing\.failed !== null\) listings\.failed \+= 1;$/m, "the end's tally counts a failed listing, and only that");
+  assert.match(memory, /^\s*listings\.taken \+= 1;$/m, "the end's tally counts every listing");
+  assert.match(memory, /[{ ]detached: listing\.detached,/, "the JSON point keeps the reading's null for a failed list, never an empty list");
+  assert.match(memory, /detached listings: \$\{listings\.taken\} taken, \$\{listings\.failed\} failed/, "the end prints the tally");
   assert.match(memory, /detachedListings: listings/, "the JSON says the tally");
 });
