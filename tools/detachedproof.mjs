@@ -70,13 +70,13 @@ const ARMS = {
   held: { release: false, list: async () => null },
   "never listed": { release: true, list: async () => null },
   "page session": { release: true, list: async ({ cdp }) => describeList((await cdp.send("DOM.getDetachedDomNodes")).detachedNodes) },
-  listed: { release: true, list: async ({ cdp }) => describeList(await listDetachedNodes(cdp)) },
+  listed: { release: true, list: async ({ page }) => describeList(await listDetachedNodes(page)) },
   "listed 3x": {
     release: true,
-    list: async ({ cdp }) => {
-      await listDetachedNodes(cdp);
-      await listDetachedNodes(cdp);
-      return describeList(await listDetachedNodes(cdp));
+    list: async ({ page }) => {
+      await listDetachedNodes(page);
+      await listDetachedNodes(page);
+      return describeList(await listDetachedNodes(page));
     },
   },
 };

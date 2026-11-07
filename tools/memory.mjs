@@ -78,7 +78,8 @@
    `domDiff` field in --json holds the same entries). A count that moves while the tree is unchanged is nodes outside
    the document tree, so the line also says the documents count when it moved (an SVG image or a parsed string is a
    document of its own) and the detached trees the inspector lists (DOM.getDetachedDomNodes: each by its root and
-   its node count).
+   its node count; on a session of its own since round 76, lib/domdiff.ts, because the call keeps what it lists alive
+   on a session that stays open).
    Same browser set-up as perf.mjs: GPU-backed headless Chromium, 1440 x 900, DPR 1, Pretty, light. --json writes the
    points, the growth and the snapshot totals (a bare file name lands in --out). */
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -392,7 +393,7 @@ for (let t = 0; t <= minutes * 60; t = stepped ? Math.round((Date.now() - starte
     const diff = capDomDiff(domDiff(lastDom.inventory, inventory), 6);
     // Nodes alive outside the document tree: the detached trees the inspector can list, and the documents count
     // (an SVG image or a parsed string is a document of its own).
-    const detached = await listDetachedNodes(cdp).then((nodes) => describeDetached(nodes, 4)).catch(() => []);
+    const detached = await listDetachedNodes(page).then((nodes) => describeDetached(nodes, 4)).catch(() => []);
     point.domDiff = { ...diff, documents: dom.documents, detached };
     const documents = dom.documents !== lastDom.documents ? ` (documents ${lastDom.documents} -> ${dom.documents})` : "";
     domLine = `\n  dom ${lastDom.nodes} -> ${dom.nodes}${documents}: ${formatDomDiff(diff)}${detached.length > 0 ? `; detached: ${detached.join(", ")}` : ""}`;

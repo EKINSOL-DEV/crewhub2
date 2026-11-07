@@ -102,15 +102,30 @@ export interface DetachedNode {
   children?: DetachedNode[];
 }
 
-/** What the listing needs of a CDP session (a structural type: this file imports no browser driver). */
+/** What the listing needs of a CDP session and a page (structural types: this file imports no browser driver). */
 export interface DetachedListSession {
   send(method: "DOM.getDetachedDomNodes"): Promise<{ detachedNodes: { treeNode: DetachedNode }[] }>;
+  detach(): Promise<void>;
+}
+export interface DetachedListPage {
+  context(): { newCDPSession(page: DetachedListPage): Promise<DetachedListSession> };
 }
 
-/** The detached trees the inspector can list, for `describeDetached`. The one place a tool makes this call. */
-export async function listDetachedNodes(session: DetachedListSession): Promise<{ treeNode: DetachedNode }[]> {
-  const { detachedNodes } = await session.send("DOM.getDetachedDomNodes");
-  return detachedNodes;
+/**
+ * The detached trees the inspector can list, for `describeDetached`. The one place a tool makes this call.
+ * The call binds every node it lists to the session that asked, for as long as that session lives (round 75, rr's test
+ * 1, Chromium 151): on a session that stays open, a tree alive for an instant at the call stays for the run. So each
+ * listing opens a session of its own and is detached before it returns, which frees those bindings. A failed detach
+ * still returns the list: that session goes with its page. `tools/detachedproof.mjs` holds this in the real browser.
+ */
+export async function listDetachedNodes(page: DetachedListPage): Promise<{ treeNode: DetachedNode }[]> {
+  const session = await page.context().newCDPSession(page);
+  try {
+    const { detachedNodes } = await session.send("DOM.getDetachedDomNodes");
+    return detachedNodes;
+  } finally {
+    await session.detach().catch(() => undefined);
+  }
 }
 
 /** One line per detached tree the inspector holds: its root by tag, classes and label, and how many nodes hang
